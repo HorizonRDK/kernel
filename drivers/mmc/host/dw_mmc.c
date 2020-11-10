@@ -40,9 +40,6 @@
 #include <linux/of_gpio.h>
 #include <linux/mmc/slot-gpio.h>
 #include <soc/hobot/diag.h>
-#if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
-#include <soc/hobot/hobot_bus.h>
-#endif
 #include "dw_mmc.h"
 #include "dw_mmc-hobot.h"
 
@@ -2704,21 +2701,34 @@ static void dw_mci_handle_cd(struct dw_mci *host)
 }
 
 #if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
-static int mmc_notifier_callback(struct notifier_block *self,
-				 unsigned long event, void *data)
+static int mmc_dpm_callback(struct hobot_dpm *self,
+				 unsigned long event, int state)
 {
-	struct dw_mci *host = container_of(self, struct dw_mci, dw_hb_notif);
+	struct dw_mci *host = container_of(self, struct dw_mci, dw_hb_dpm);
 
 	if (event == HB_BUS_SIGNAL_START) {
+		dev_dbg(host->dev, "%s: event: HB_BUS_SIGNAL_START.\n", __func__);
 		disable_irq(host->irq);
 		tasklet_disable(&host->tasklet);
-		spin_lock(&host->lock);
-		dev_dbg(host->dev, "%s: Grab mmc fm lock success!\n", __func__);
+		if (!spin_trylock(&host->lock)) {
+			tasklet_enable(&host->tasklet);
+			enable_irq(host->irq);
+			dev_dbg(host->dev, "%s: acquire lock failed!\n", __func__);
+			return -EBUSY;
+		} else {
+			if (host->state != STATE_IDLE) {
+				dev_dbg(host->dev, "%s: not idle!\n", __func__);
+				spin_unlock(&host->lock);
+				tasklet_enable(&host->tasklet);
+				enable_irq(host->irq);
+				return -EBUSY;
+			}
+		}
 	} else if (event == HB_BUS_SIGNAL_END) {
+		dev_dbg(host->dev, "%s: event: HB_BUS_SIGNAL_END.\n", __func__);
 		spin_unlock(&host->lock);
 		tasklet_enable(&host->tasklet);
 		enable_irq(host->irq);
-		dev_dbg(host->dev, "%s: Release fm lock success!\n", __func__);
 	}
 
 	return 0;
@@ -3394,8 +3404,9 @@ int dw_mci_probe(struct dw_mci *host)
 	spin_lock_init(&host->irq_lock);
 	INIT_LIST_HEAD(&host->queue);
 #if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
-	host->dw_hb_notif.notifier_call = &mmc_notifier_callback;
-	ret = hb_atomic_register_client(&(host->dw_hb_notif));
+	host->dw_hb_dpm.dpm_call = &mmc_dpm_callback;
+	host->dw_hb_dpm.priority = 1;
+	hobot_dpm_register(&host->dw_hb_dpm, host->dev);
 
 	if (ret)
 		dev_err(host->dev, "Unable to register fb_notifier: %d\n",
@@ -3557,8 +3568,7 @@ void dw_mci_remove(struct dw_mci *host)
 	clk_disable_unprepare(host->ciu_clk);
 
 #if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
-	if (hb_atomic_unregister_client(&(host->dw_hb_notif)))
-		dev_err(host->dev, "Error occurred while unregistering fb_notifier.\n");
+	hobot_dpm_unregister(&host->dw_hb_dpm);
 #endif
 }
 EXPORT_SYMBOL(dw_mci_remove);
