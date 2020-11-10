@@ -58,7 +58,7 @@ struct hb_qspi {
 	struct completion xfer_complete;
 #if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
 	struct mutex xfer_lock;
-	struct notifier_block hbqspi_notif;
+	struct hobot_dpm hbqspi_dpm;
 #endif
 	uint32_t ref_clk;
 #ifndef CONFIG_HOBOT_FPGA_X3
@@ -977,13 +977,14 @@ static void hb_qspiflash_callback(void *p, size_t len)
 }
 
 #if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
-static int hbqspi_notifier_callback(struct notifier_block *self,
-				 unsigned long event, void *data)
+static int hbqspi_dpm_callback(struct hobot_dpm *self,
+				 unsigned long event, int state)
 {
-	struct hb_qspi *hbqspi = container_of(self, struct hb_qspi, hbqspi_notif);
+	struct hb_qspi *hbqspi = container_of(self, struct hb_qspi, hbqspi_dpm);
 
 	if (event == HB_BUS_SIGNAL_START) {
-		mutex_lock(&(hbqspi->xfer_lock));
+		if (!mutex_trylock(&(hbqspi->xfer_lock)))
+			return -EBUSY;
 		dev_dbg(hbqspi->dev, "%s: Grab hb_qspi lock success\n", __func__);
 	} else if (event == HB_BUS_SIGNAL_END) {
 		/* hb_qspi_set_speed(hbqspi); */
@@ -1194,12 +1195,8 @@ static int hb_qspi_probe(struct platform_device *pdev)
 	}
 #if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
 	mutex_init(&(hbqspi->xfer_lock));
-	hbqspi->hbqspi_notif.notifier_call = &hbqspi_notifier_callback;
-	ret = hb_bus_register_client(&(hbqspi->hbqspi_notif));
-
-	if (ret)
-		dev_err(dev, "Unable to register fb_notifier: %d\n",
-			ret);
+	hbqspi->hbqspi_dpm.dpm_call = &hbqspi_dpm_callback;
+	hobot_dpm_register(&(hbqspi->hbqspi_dpm), hbqspi->dev);
 #endif
 #if (QSPI_DEBUG > 1)
 	trace_hbqspi(hbqspi);
@@ -1239,8 +1236,7 @@ static int hb_qspi_remove(struct platform_device *pdev)
 	struct hb_qspi *hbqspi = platform_get_drvdata(pdev);
 	dev_dbg(hbqspi->dev, "removed\n");
 #if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
-	if (hb_bus_unregister_client(&(hbqspi->hbqspi_notif)))
-		dev_err(hbqspi->dev, "Error occurred while unregistering fb_notifier.\n");
+	hobot_dpm_unregister(&(hbqspi->hbqspi_dpm));
 #endif
 	return 0;
 }
