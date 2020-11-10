@@ -31,7 +31,6 @@
 #include <linux/debugfs.h>
 #include <linux/suspend.h>
 #if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
-#include <linux/notifier.h>
 #include <linux/device.h>
 #include <linux/preempt.h>
 #include <linux/delay.h>
@@ -108,9 +107,8 @@ struct hobot_uart {
 	int tx_in_progress;
 	unsigned int poll_flag;
 #if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
-	struct notifier_block uart_notifier;
-	struct completion dmatx_completion;
-	bool dmatx_flag;
+	struct hobot_dpm uart_dpm;
+	atomic_t dmatx_flag;
 	int uart_id;
 	atomic_t uart_start;
 #endif
@@ -134,20 +132,20 @@ static unsigned int dbg_tx_index = 0;
 
 #define HOBOT_UART_DMA_SIZE	UART_XMIT_SIZE
 #if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
-static int serial_notifier_callback(struct notifier_block *self,
-				 unsigned long event, void *data)
+static int serial_dpm_callback(struct hobot_dpm *self,
+				 unsigned long event, int state)
 {
-	struct hobot_uart *uart = container_of(self, struct hobot_uart, uart_notifier);
+	struct hobot_uart *uart = container_of(self, struct hobot_uart, uart_dpm);
 	struct tty_struct *tty = uart->port->state->port.tty;
 	if (!atomic_read(&uart->uart_start))
 		return 0;
 	if (event == HB_BUS_SIGNAL_START) {
-		mutex_lock(&tty->atomic_write_lock);
+		if (!mutex_trylock(&tty->atomic_write_lock))
+			return -EBUSY;
 		/*check tx done*/
-		while (uart->dmatx_flag) {
+		if (atomic_read(&uart->dmatx_flag)) {
 			mutex_unlock(&tty->atomic_write_lock);
-			wait_for_completion_timeout(&uart->dmatx_completion, HZ / 50);
-			mutex_lock(&tty->atomic_write_lock);
+			return -EBUSY;
 		}
 		disable_irq(uart->port->irq);
 	} else if (event == HB_BUS_SIGNAL_END) {
@@ -240,13 +238,12 @@ static void hobot_uart_dma_tx_start(struct uart_port *port)
 	if (!count) {
 #if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
 		/*dma tx done*/
-		hobot_port->dmatx_flag = 0;
-		complete(&hobot_port->dmatx_completion);
+		atomic_set(&hobot_port->dmatx_flag, 0);
 #endif
 		return;
 	}
 #if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
-	hobot_port->dmatx_flag = 1;
+	atomic_set(&hobot_port->dmatx_flag, 1);
 #endif
 #ifdef CONFIG_HOBOT_SERIAL_DEBUGFS
 		dgb_tx_count = port->icount.tx;
@@ -1777,10 +1774,10 @@ static int hobot_uart_probe(struct platform_device *pdev)
 #endif /* HOBOT_UART_DBG */
 
 #if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
-	hobot_uart_data->uart_notifier.notifier_call = serial_notifier_callback;
-	hb_bus_register_client(&hobot_uart_data->uart_notifier);
-	init_completion(&hobot_uart_data->dmatx_completion);
+	hobot_uart_data->uart_dpm.dpm_call = serial_dpm_callback;
+	hobot_dpm_register(&hobot_uart_data->uart_dpm, &pdev->dev);
 	atomic_set(&hobot_uart_data->uart_start, 0);
+	atomic_set(&hobot_uart_data->dmatx_flag, 0);
 #endif
 	return 0;
 
@@ -1806,7 +1803,7 @@ static int hobot_uart_remove(struct platform_device *pdev)
 	port->mapbase = 0;
 	clk_disable_unprepare(hobot_uart_data->uartclk);
 #if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
-	hb_bus_unregister_client(&hobot_uart_data->uart_notifier);
+	hobot_dpm_unregister(&hobot_uart_data->uart_dpm);
 #endif
 	return rc;
 }
