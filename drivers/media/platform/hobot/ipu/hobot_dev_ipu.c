@@ -3239,6 +3239,8 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	}
 
 	if (status & (1 << INTR_IPU_US_FRAME_DROP)) {
+		group->abnormal_fs = 0;
+		prev_fs_has_no_fe = 0;
 		vio_err("[S%d]US Frame drop\n", instance);
 		subdev = group->sub_ctx[GROUP_ID_US];
 		if (subdev)
@@ -3251,6 +3253,8 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	}
 
 	if (status & (1 << INTR_IPU_DS0_FRAME_DROP)) {
+		group->abnormal_fs = 0;
+		prev_fs_has_no_fe = 0;
 		vio_err("[S%d]DS0 Frame drop\n", instance);
 		subdev = group->sub_ctx[GROUP_ID_DS0];
 		if (subdev)
@@ -3263,6 +3267,8 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	}
 
 	if (status & (1 << INTR_IPU_DS1_FRAME_DROP)) {
+		group->abnormal_fs = 0;
+		prev_fs_has_no_fe = 0;
 		vio_err("[S%d]DS1 Frame drop\n", instance);
 		subdev = group->sub_ctx[GROUP_ID_DS1];
 		if (subdev)
@@ -3275,6 +3281,8 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	}
 
 	if (status & (1 << INTR_IPU_DS2_FRAME_DROP)) {
+		group->abnormal_fs = 0;
+		prev_fs_has_no_fe = 0;
 		vio_err("[S%d]DS2 Frame drop\n", instance);
 		subdev = group->sub_ctx[GROUP_ID_DS2];
 		if (subdev)
@@ -3287,6 +3295,8 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	}
 
 	if (status & (1 << INTR_IPU_DS3_FRAME_DROP)) {
+		group->abnormal_fs = 0;
+		prev_fs_has_no_fe = 0;
 		vio_err("[S%d]DS3 Frame drop\n", instance);
 		subdev = group->sub_ctx[GROUP_ID_DS3];
 		if (subdev)
@@ -3299,6 +3309,8 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	}
 
 	if (status & (1 << INTR_IPU_DS4_FRAME_DROP)) {
+		group->abnormal_fs = 0;
+		prev_fs_has_no_fe = 0;
 		vio_err("[S%d]DS4 Frame drop\n", instance);
 		subdev = group->sub_ctx[GROUP_ID_DS4];
 		if (subdev)
