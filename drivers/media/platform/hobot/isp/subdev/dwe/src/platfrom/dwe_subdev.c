@@ -418,14 +418,14 @@ int dwe_hw_init(void)
 		return ret;
 	} else {
 		irq = dwe_ctx->dev_ctx->ldc_dev->irq_num;
-		ret = request_irq(irq, x3_ldc_irq, IRQF_TRIGGER_HIGH, "X2A_LDC", NULL);
+		ret = request_irq(irq, x3_ldc_irq, IRQF_TRIGGER_HIGH, "ldc", NULL);
 		if (ret < 0) {
 			LOG(LOG_ERR, "ldc irq %d register failed!\n", irq);
 			goto irqldc_err;
 		}
 
 		irq = dwe_ctx->dev_ctx->dis_dev->irq_num;
-		ret = request_irq(irq, x3_dis_irq, IRQF_TRIGGER_HIGH, "X2A_DIS", NULL);
+		ret = request_irq(irq, x3_dis_irq, IRQF_TRIGGER_HIGH, "dis", NULL);
 		if (ret < 0) {
 			LOG(LOG_ERR, "dis irq %d register failed!\n", irq);
 			goto irqdis_err;

@@ -25,6 +25,7 @@
 
 #include "acamera_aexp_hist_stats_mem_config.h"
 #include "acamera_metering_stats_mem_config.h"
+#include "acamera_lumvar_stats_mem_config.h"
 
 #include "acamera_math.h"
 #include "ae_manual_fsm.h"
@@ -293,7 +294,7 @@ void AE_fsm_process_interrupt( AE_fsm_const_ptr_t p_fsm, uint8_t irq_event )
         fsm_raise_event( p_fsm, event_id_ae_stats_ready );
         break;
     case ACAMERA_IRQ_FRAME_END:
-        //ae_update_zone_weight_data( (AE_fsm_ptr_t)p_fsm );
+        ae_update_zone_weight_data( (AE_fsm_ptr_t)p_fsm );
         break;
     }
 }

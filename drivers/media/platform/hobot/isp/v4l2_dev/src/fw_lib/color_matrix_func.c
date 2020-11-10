@@ -345,7 +345,6 @@ void color_matrix_write( color_matrix_fsm_t *p_fsm )
 
      if ( ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_manual_ccm ) {
 	//pr_info
-	pr_info("%s--%d\n", __func__, __LINE__);
          int16_t *ccm_matrix = ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_ccm_matrix;
 
          acamera_isp_ccm_coefft_r_r_write( p_fsm->cmn.isp_base, ccm_matrix[0] );
