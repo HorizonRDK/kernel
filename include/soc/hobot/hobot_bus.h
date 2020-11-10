@@ -35,12 +35,4 @@ struct hobot_dpm {
 void hobot_dpm_register(struct hobot_dpm *n, struct device *dev);
 void hobot_dpm_unregister(struct hobot_dpm *n);
 
-int hb_bus_register_client(struct notifier_block *nb);
-int hb_bus_unregister_client(struct notifier_block *nb);
-
-int hb_usb_register_client(struct notifier_block *nb);
-int hb_usb_unregister_client(struct notifier_block *nb);
-
-int hb_atomic_register_client(struct notifier_block *nb);
-int hb_atomic_unregister_client(struct notifier_block *nb);
 #endif

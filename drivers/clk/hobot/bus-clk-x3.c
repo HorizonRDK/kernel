@@ -149,64 +149,6 @@ void hobot_dpm_unregister(struct hobot_dpm *n)
 	mutex_unlock(&dpm_list_mtx);
 }
 EXPORT_SYMBOL(hobot_dpm_unregister);
-#if 1
-static BLOCKING_NOTIFIER_HEAD(hb_bus_notifier_list);
-static BLOCKING_NOTIFIER_HEAD(hb_usb_notifier_list);
-static ATOMIC_NOTIFIER_HEAD(hb_atomic_notifier_list);
-
-int hb_bus_register_client(struct notifier_block *nb)
-{
-	return blocking_notifier_chain_register(&hb_bus_notifier_list, nb);
-}
-EXPORT_SYMBOL(hb_bus_register_client);
-
-int hb_bus_unregister_client(struct notifier_block *nb)
-{
-	return blocking_notifier_chain_unregister(&hb_bus_notifier_list, nb);
-}
-EXPORT_SYMBOL(hb_bus_unregister_client);
-
-int hb_bus_notifier_call_chain(unsigned long val, void *v)
-{
-	return blocking_notifier_call_chain(&hb_bus_notifier_list, val, v);
-}
-EXPORT_SYMBOL_GPL(hb_bus_notifier_call_chain);
-
-int hb_usb_register_client(struct notifier_block *nb)
-{
-	return blocking_notifier_chain_register(&hb_usb_notifier_list, nb);
-}
-EXPORT_SYMBOL(hb_usb_register_client);
-
-int hb_usb_unregister_client(struct notifier_block *nb)
-{
-	return blocking_notifier_chain_unregister(&hb_usb_notifier_list, nb);
-}
-EXPORT_SYMBOL(hb_usb_unregister_client);
-int hb_usb_notifier_call_chain(unsigned long val, void *v)
-{
-	return blocking_notifier_call_chain(&hb_usb_notifier_list, val, v);
-}
-EXPORT_SYMBOL_GPL(hb_usb_notifier_call_chain);
-
-int hb_atomic_register_client(struct notifier_block *nb)
-{
-	return atomic_notifier_chain_register(&hb_atomic_notifier_list, nb);
-}
-EXPORT_SYMBOL(hb_atomic_register_client);
-
-int hb_atomic_unregister_client(struct notifier_block *nb)
-{
-	return atomic_notifier_chain_unregister(&hb_atomic_notifier_list, nb);
-}
-EXPORT_SYMBOL(hb_atomic_unregister_client);
-
-int hb_atomic_notifier_call_chain(unsigned long val, void *v)
-{
-	return atomic_notifier_call_chain(&hb_atomic_notifier_list, val, v);
-}
-EXPORT_SYMBOL_GPL(hb_atomic_notifier_call_chain);
-#endif
 
 void switch_peri_pll(void __iomem *base, ulong pll_val)
 {
