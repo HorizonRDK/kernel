@@ -21,6 +21,20 @@
 #define POWERSAVE_STATE 1
 #define OTHER_STATE     2
 
+struct hobot_dpm;
+typedef int (*dpm_fn_t)(struct hobot_dpm *dpm,
+		unsigned long val, int state);
+
+struct hobot_dpm {
+        struct list_head entry;
+        struct device *dev;
+        dpm_fn_t dpm_call;
+        int priority;
+};
+
+void hobot_dpm_register(struct hobot_dpm *n, struct device *dev);
+void hobot_dpm_unregister(struct hobot_dpm *n);
+
 int hb_bus_register_client(struct notifier_block *nb);
 int hb_bus_unregister_client(struct notifier_block *nb);
 

@@ -52,7 +52,7 @@
 
 #define UART_MCLK_DIV_SEL(x)            (((x) & 0xF) << 4)
 #define SPI_MCLK_DIV_SEL(x)            (((x) & 0xF) << 8)
-#define SD_MCLK_DIV_SEL(x)              (((x) & 0xF) << 4)
+#define SD_MCLK_DIV_SEL(x)              (((x) & 0xF) << 0)
 
 #define SYS_AP_ACLK_DIV_SEL(x)		(((x) & 0x7) << 16)
 #define SYS_PCLK_DIV_SEL(x)		(((x) & 0x7) << 12)
@@ -73,6 +73,7 @@
 #define POSTDIV2_BITS(x)        ((x & 0x7) << 24)
 
 extern void __iomem *clk_reg_base;
+
 struct hobot_bus {
 	struct device *dev;
 	struct resource *res;
@@ -81,10 +82,74 @@ struct hobot_bus {
 	int state;
 	struct mutex lock;
 
+	struct workqueue_struct *wq;
+	struct delayed_work work;
 	struct notifier_block   freq_policy;
 };
 
+static inline struct hobot_dpm *to_hobot_dpm(struct list_head *node)
+{
+        return container_of(node, struct hobot_dpm, entry);
+}
 
+static LIST_HEAD(dpm_list);
+static LIST_HEAD(dpm_lock_list);
+static DEFINE_MUTEX(dpm_list_mtx);
+
+static int next_state;
+
+static int hobot_dpm_notifier(struct list_head *from_list,
+		struct list_head *to_list, unsigned long val, int state)
+{
+	dpm_fn_t callback = NULL;
+	struct hobot_dpm *dpm = NULL;
+	int error = 0;
+
+	mutex_lock(&dpm_list_mtx);
+	while (!list_empty(from_list)) {
+		dpm = to_hobot_dpm(from_list->next);
+
+		get_device(dpm->dev);
+		mutex_unlock(&dpm_list_mtx);
+		callback = dpm->dpm_call;
+		if (callback)
+			error = callback(dpm, val, state);
+		mutex_lock(&dpm_list_mtx);
+
+		if (error) {
+			pr_info("Device %s return failed\n", dev_name(dpm->dev));
+			break;
+		}
+
+		if (!list_empty(&dpm->entry))
+			list_move(&dpm->entry, to_list);
+		put_device(dpm->dev);
+	}
+	mutex_unlock(&dpm_list_mtx);
+
+	return error;
+}
+
+void hobot_dpm_register(struct hobot_dpm *n, struct device *dev)
+{
+	mutex_lock(&dpm_list_mtx);
+	if (n->priority == 0)
+		list_add(&n->entry, &dpm_list);
+	else
+		list_add_tail(&n->entry, &dpm_list);
+	n->dev = dev;
+	mutex_unlock(&dpm_list_mtx);
+}
+EXPORT_SYMBOL(hobot_dpm_register);
+
+void hobot_dpm_unregister(struct hobot_dpm *n)
+{
+	mutex_lock(&dpm_list_mtx);
+	list_del(&n->entry);
+	mutex_unlock(&dpm_list_mtx);
+}
+EXPORT_SYMBOL(hobot_dpm_unregister);
+#if 1
 static BLOCKING_NOTIFIER_HEAD(hb_bus_notifier_list);
 static BLOCKING_NOTIFIER_HEAD(hb_usb_notifier_list);
 static ATOMIC_NOTIFIER_HEAD(hb_atomic_notifier_list);
@@ -118,7 +183,6 @@ int hb_usb_unregister_client(struct notifier_block *nb)
 	return blocking_notifier_chain_unregister(&hb_usb_notifier_list, nb);
 }
 EXPORT_SYMBOL(hb_usb_unregister_client);
-
 int hb_usb_notifier_call_chain(unsigned long val, void *v)
 {
 	return blocking_notifier_call_chain(&hb_usb_notifier_list, val, v);
@@ -142,6 +206,7 @@ int hb_atomic_notifier_call_chain(unsigned long val, void *v)
 	return atomic_notifier_call_chain(&hb_atomic_notifier_list, val, v);
 }
 EXPORT_SYMBOL_GPL(hb_atomic_notifier_call_chain);
+#endif
 
 void switch_peri_pll(void __iomem *base, ulong pll_val)
 {
@@ -245,76 +310,62 @@ static void switch_div(void __iomem *base, ulong pll_val)
 		value = readl(base + PERISYS_DIV_SEL);
 		value &= ~UART_MCLK_DIV_SEL(0xf);
 		value |=  UART_MCLK_DIV_SEL(0);
-		pr_debug("%s: %d,value:0x%x\n", __func__, __LINE__, value);
 		writel(value, base + PERISYS_DIV_SEL);
 
 		value = readl(base + PERISYS_DIV_SEL);
 		value &= ~SPI_MCLK_DIV_SEL(0xf);
 		value |= SPI_MCLK_DIV_SEL(0);
-		pr_debug("%s: %d,value:0x%x\n", __func__, __LINE__, value);
 		writel(value, base + PERISYS_DIV_SEL);
 
 		value = readl(base + CPUBUS_DIV_SEL);
 		value &= ~SYS_AP_ACLK_DIV_SEL(0x7);
 		value |= SYS_AP_ACLK_DIV_SEL(7);
-		pr_debug("%s: %d,value:0x%x\n", __func__, __LINE__, value);
 		writel(value, base + CPUBUS_DIV_SEL);
 
 		value = readl(base + CPUBUS_DIV_SEL);
 		value &= ~SYS_PCLK_DIV_SEL(0x7);
 		value |= SYS_PCLK_DIV_SEL(3);
-		pr_debug("%s: %d,value:0x%x\n", __func__, __LINE__, value);
 		writel(value, base + CPUBUS_DIV_SEL);
 
 		value = readl(base + CPUBUS_DIV_SEL);
 		value &= ~SYS_NOC_ACLK_DIV_SEL(0x7);
 		value |= SYS_NOC_ACLK_DIV_SEL(7);
-		pr_debug("%s: %d,value:0x%x\n", __func__, __LINE__, value);
 		writel(value, base + CPUBUS_DIV_SEL);
 
-#if 0
 		value = readl(base + SD0_CCLK_DIV);
 		value &= ~SD_MCLK_DIV_SEL(0xf);
 		value |= SD_MCLK_DIV_SEL(0);
 		writel(value, base + SD0_CCLK_DIV);
-#endif
 	} else if (pll_val == MHZ(PERIPLL_NORMAL_FREQ)) {
 		value = readl(base + PERISYS_DIV_SEL);
 		value &= ~UART_MCLK_DIV_SEL(0xf);
 		value |= UART_MCLK_DIV_SEL(7);
-		pr_debug("%s: %d,value:0x%x\n", __func__, __LINE__, value);
 		writel(value, base + PERISYS_DIV_SEL);
 
 		value = readl(base + PERISYS_DIV_SEL);
 		value &= ~SPI_MCLK_DIV_SEL(0xf);
 		value |= SPI_MCLK_DIV_SEL(7);
-		pr_debug("%s: %d,value:0x%x\n", __func__, __LINE__, value);
 		writel(value, base + PERISYS_DIV_SEL);
 
 		value = readl(base + CPUBUS_DIV_SEL);
 		value &= ~SYS_AP_ACLK_DIV_SEL(0x7);
 		value |= SYS_AP_ACLK_DIV_SEL(2);
-		pr_debug("%s: %d,value:0x%x\n", __func__, __LINE__, value);
 		writel(value, base + CPUBUS_DIV_SEL);
 
 		value = readl(base + CPUBUS_DIV_SEL);
 		value &= ~SYS_PCLK_DIV_SEL(0x7);
 		value |= SYS_PCLK_DIV_SEL(4);
-		pr_debug("%s: %d,value:0x%x\n", __func__, __LINE__, value);
 		writel(value, base + CPUBUS_DIV_SEL);
 
 		value = readl(base + CPUBUS_DIV_SEL);
 		value &= ~SYS_NOC_ACLK_DIV_SEL(0x7);
 		value |= SYS_NOC_ACLK_DIV_SEL(1);
-		pr_debug("%s: %d,value:0x%x\n", __func__, __LINE__, value);
 		writel(value, base + CPUBUS_DIV_SEL);
 
-#if 0
 		value = readl(base + SD0_CCLK_DIV);
 		value &= ~SD_MCLK_DIV_SEL(0xf);
 		value |= SD_MCLK_DIV_SEL(0x7);
 		writel(value, base + SD0_CCLK_DIV);
-#endif
 	}
 	udelay(10);
 }
@@ -366,30 +417,21 @@ static int cpu_governor_callback(struct notifier_block *nb,
 
 	switch (val) {
 		case CPUFREQ_ADJUST:
-			pr_debug("policy->governor: %s adjust\n", policy->governor->name);
+			pr_debug("hobot-bus: %s adjust\n", policy->governor->name);
 			break;
 		case CPUFREQ_NOTIFY:
 			if (!strcmp(policy->governor->name, "powersave")
 					&& (bus->state != POWERSAVE_STATE)) {
-				pr_debug("policy->governor: %s notify\n", policy->governor->name);
-				hb_usb_notifier_call_chain(POWERSAVE_STATE, NULL);
-				hb_bus_notifier_call_chain(HB_BUS_SIGNAL_START, (void*)&bus->old_state);
-				hb_atomic_notifier_call_chain(HB_BUS_SIGNAL_START, NULL);
-				bus_change_state(bus, POWERSAVE_STATE);
-
-				hb_atomic_notifier_call_chain(HB_BUS_SIGNAL_END, NULL);
-				hb_bus_notifier_call_chain(HB_BUS_SIGNAL_END, (void*)&bus->old_state);
+				pr_debug("hobot-bus:: %s notify\n", policy->governor->name);
+				next_state = POWERSAVE_STATE;
+				if(!queue_delayed_work(bus->wq, &bus->work, 0))
+					pr_warn("hobot-bus:schedule_work fail\n");
 			} else if (strcmp(policy->governor->name, "powersave")
 					&& (bus->state == POWERSAVE_STATE)){
-				pr_debug("policy->governor: %s notify\n", policy->governor->name);
-				hb_bus_notifier_call_chain(HB_BUS_SIGNAL_START, (void*)&bus->old_state);
-				hb_atomic_notifier_call_chain(HB_BUS_SIGNAL_START, NULL);
-
-				bus_change_state(bus, OTHER_STATE);
-
-				hb_atomic_notifier_call_chain(HB_BUS_SIGNAL_END, NULL);
-				hb_bus_notifier_call_chain(HB_BUS_SIGNAL_END, (void*)&bus->old_state);
-				hb_usb_notifier_call_chain(OTHER_STATE, NULL);
+				pr_debug("hobot-bus:: %s notify\n", policy->governor->name);
+				next_state = OTHER_STATE;
+				if(!queue_delayed_work(bus->wq, &bus->work, 0))
+					pr_warn("hobot-bus:schedule_work fail\n");
 			}
 			break;
 	}
@@ -420,22 +462,37 @@ static int hobot_bus_parse_of(struct platform_device *pdev,
 	bus->res->start = reg_info[0];
 	bus->res->end =  reg_info[0] + reg_info[1] - 1;
 	bus->res->flags = IORESOURCE_MEM;
-#if 0
-	bus->sysctl = ioremap(bus->res->start, reg_info[1]);
-	if (IS_ERR(bus->sysctl)) {
-		dev_err(bus->dev, "ioremap platform resource failed");
-		ret = PTR_ERR(bus->sysctl);
-		goto err;
-	}
-#endif
 	bus->sysctl = clk_reg_base;
 err:
 	return ret;
 }
 
+static void hb_bus_work(struct work_struct *wk)
+{
+	struct hobot_bus *bus = TO_BUS(wk, work.work);
+	int error = 0;
+
+	if (bus->state == next_state) {
+		pr_debug("already in state:%d\n", next_state);
+		return;
+	}
+
+	error = hobot_dpm_notifier(&dpm_list,
+			&dpm_lock_list, HB_BUS_SIGNAL_START, next_state);
+	if (0 == error) {
+		pr_debug("bus_change_state\n");
+		bus_change_state(bus, next_state);
+	}
+	hobot_dpm_notifier(&dpm_lock_list, &dpm_list, HB_BUS_SIGNAL_END, next_state);
+
+	if (error) {
+		pr_debug("queue delayed 1s work retry\n");
+		queue_delayed_work(bus->wq, &bus->work, msecs_to_jiffies(1000));
+	}
+}
+
 static int hobot_bus_probe(struct platform_device *pdev)
 {
-	struct device *dev = &pdev->dev;
 	struct hobot_bus *bus;
 	int ret;
 
@@ -453,12 +510,13 @@ static int hobot_bus_probe(struct platform_device *pdev)
 	ret = hobot_bus_parse_of(pdev, bus);
 	if (ret < 0)
 		return ret;
-
 	bus->freq_policy.notifier_call = cpu_governor_callback;
 
 	ret = cpufreq_register_notifier(&bus->freq_policy,
 			CPUFREQ_POLICY_NOTIFIER);
 
+	bus->wq = create_singlethread_workqueue("hb_bus_workq");
+	INIT_DELAYED_WORK(&bus->work, hb_bus_work);
 	pr_info("hobot-bus: new bus device registered:ret:%d\n", ret);
 
 	return ret;
