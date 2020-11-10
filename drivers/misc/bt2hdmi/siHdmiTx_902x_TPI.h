@@ -160,8 +160,19 @@ extern int display_type;
 /// HB
 #define HDMI_800_480_60	35
 
+#define HDMI_1080P59_94 36
+#define HDMI_1080P30	37
+#define HDMI_1080P29_97	38
+#define HDMI_1080P25	39
+#define HDMI_1080I59_94	40
+#define HDMI_720P59_94	41
+#define HDMI_720P30	42
+#define HDMI_720P29_97	43
+#define HDMI_720P25	44
+#define HDMI_704x576P25     45
+#define HDMI_704x480P30     46
 /// VMODE
-#define HDMI_VMODE_SIZE 36
+#define HDMI_VMODE_SIZE 47
 
 //#define HDMI_720P50_L_DEPTH	29
 //#define HDMI_720P50_L_DEPTH_GFX_G_DEPTH	30
