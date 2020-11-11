@@ -18,7 +18,7 @@ function choose()
             rm -rf ${SRC_KERNEL_DIR}/usr/prerootfs/
             mkdir -p ${SRC_KERNEL_DIR}/usr/prerootfs/
             if [ "$BOOT_MODE" = "nor" ];then
-                manifest="$SRC_DEVICE_DIR/$TARGET_VENDOR/$TARGET_PROJECT/debug-kernel-rootfs.manifest"
+                manifest=${KERNEL_DEBUG_INITRAMFS_MANIFEST}
             fi
             ${SRC_SCRIPTS_DIR}/build_root_manifest.sh $manifest \
                 ${TARGET_PREROOTFS_DIR} ${SRC_KERNEL_DIR}/usr/prerootfs/
@@ -48,7 +48,7 @@ function make_recovery_img()
     rm -rf ${SRC_KERNEL_DIR}/usr/prerootfs/
     mkdir -p ${SRC_KERNEL_DIR}/usr/prerootfs/
 
-    local kernel_initram="$SRC_DEVICE_DIR/$TARGET_VENDOR/$TARGET_PROJECT/debug-kernel-rootfs.manifest"
+    local kernel_initram=${KERNEL_DEBUG_INITRAMFS_MANIFEST}
     ${SRC_SCRIPTS_DIR}/build_root_manifest.sh ${kernel_initram} ${TARGET_PREROOTFS_DIR} ${SRC_KERNEL_DIR}/usr/prerootfs/
     sed -i "/AMA0/d" ${SRC_KERNEL_DIR}/usr/prerootfs/etc/inittab
 
