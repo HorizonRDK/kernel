@@ -292,6 +292,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	}
 
 	if (!(ipu_ctx->state & BIT(VIO_VIDEO_STOP))) {
+		vio_dbg("proc%d may be killed, in close streamoff", ipu_ctx->id);
 		ipu_video_streamoff(ipu_ctx);
 	}
 
@@ -767,6 +768,8 @@ void ipu_frame_work(struct vio_group *group)
 					frame->frameinfo.frame_id = src_frame_id;
 					frame->frameinfo.timestamps = src_timestamps;
 				}
+				vio_dbg("subdev %d frame index:%d,%d", subdev->id,
+							frame->index, frame->frameinfo.bufferindex);
 				break;
 			default:
 				break;
@@ -2100,17 +2103,17 @@ static int ipu_flush_mp_prepare(struct ipu_video_ctx *ipu_ctx)
 				trans_frame(this, frame, FS_REQUEST);
 				vio_dbg("ipu streamoff to request%d", i);
 			}
+
+			if (i >= index_start && i < (index_start + buffers)) {
+				vio_dbg("proc%d streamoff frame status:%d,%d", proc_id,
+							frame->state, this->index_state[i]);
+			}
 		}
 	}
 	framemgr_x_barrier_irqr(this, 0, flags);
 
-	vio_dbg("%s proc %d:", __func__, proc_id);
-	for (i = 0; i < VIO_MP_MAX_FRAMES; i++) {
-		if ((this->index_state[i] != FRAME_IND_USING)
-			&& (this->index_state[i] != FRAME_IND_STREAMOFF))
-			continue;
-	}
-
+	vio_dbg("%s proc %d,fst_ind:%d, frm_num:%d", __func__, proc_id,
+					index_start, buffers);
 	return 0;
 }
 
@@ -2150,8 +2153,9 @@ p_dec:
 
 	ipu_ctx->state = BIT(VIO_VIDEO_STOP);
 
-	vio_info("[S%d][V%d]%s:proc %d, fst_ind %d\n", group->instance, ipu_ctx->id,
-		__func__, ipu_ctx->ctx_index, ipu_ctx->frm_fst_ind);
+	vio_info("[S%d][V%d]%s:proc %d, fst_ind %d, num:%d\n", group->instance,
+						ipu_ctx->id, __func__, ipu_ctx->ctx_index,
+						ipu_ctx->frm_fst_ind, ipu_ctx->frm_num);
 
 	return 0;
 }
