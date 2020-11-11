@@ -85,6 +85,7 @@
 #define HOBOT_USE_IRQ_SPLIT 1
 
 static int eth_err_flag;
+static bool tsn_enabled = false;
 
 static int xj3_mdio_read(struct mii_bus *bus, int mii_id, int phyreg) {
     struct net_device *ndev = bus->priv;
@@ -539,6 +540,8 @@ static int xj3_get_hw_features(void __iomem *ioaddr,
     dma_cap->estdep = (hw_cap & GMAC_HW_FEAT_ESTDEP) >> 17;
     dma_cap->estsel = (hw_cap & GMAC_HW_FEAT_ESTSEL) >> 16;
     dma_cap->tsn = dma_cap->fpesel | dma_cap->estsel;
+	if (!tsn_enabled)
+		dma_cap->tsn = 0;
     /* IEEE 1588-2002 */
     dma_cap->time_stamp = 0;
 
@@ -5404,5 +5407,21 @@ static struct platform_driver hgb_driver = {
 
 };
 
+static int tsn_enabled_set(const char *val, const struct kernel_param *kp) {
+	int ret;
+
+	ret = param_set_bool(val, kp);
+	if (ret < 0)
+		return ret;
+	return 0;
+}
+
+
+static struct kernel_param_ops tsn_enabled_param_ops = {
+	.set =		tsn_enabled_set,
+	.get =		param_get_bool,
+};
+
+module_param_cb(tsn_enabled, &tsn_enabled_param_ops, &tsn_enabled, 0644);
 module_platform_driver(hgb_driver);
 MODULE_LICENSE("GPL v2");
