@@ -2500,6 +2500,10 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 						cache_frame->dispatch_mask = 0xFF00;
 						trans_frame(framemgr, cache_frame, FS_REQUEST);
 						vio_dbg("ipu dq trans to request%d", cache_bufindex);
+					} else if (cache_frame->dispatch_mask == 0x0000
+							&& (framemgr->index_state[cache_bufindex] == FRAME_IND_STREAMOFF)) {
+						subdev->frameinfo.bufferindex = -1;
+						vio_dbg("cache frame already been streamoff:%d", cache_bufindex);
 					}
 				}
 			}
