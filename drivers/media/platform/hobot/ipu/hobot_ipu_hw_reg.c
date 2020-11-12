@@ -883,6 +883,7 @@ void ipu_set_rdma_addr(void __iomem *base_addr, u32 y_addr, u32 cb_addr)
 {
 	vio_hw_set_reg(base_addr, &ipu_regs[IPU_RD_DDR_ADDR_Y], y_addr);
 	vio_hw_set_reg(base_addr, &ipu_regs[IPU_RD_DDR_ADDR_UV], cb_addr);
+	vio_dbg("ipu_set_rdma_addr : 0x%x, 0x%x\n", y_addr, cb_addr);
 }
 
 void ipu_set_us_wdma_addr(void __iomem *base_addr, u32 y_addr, u32 cb_addr)

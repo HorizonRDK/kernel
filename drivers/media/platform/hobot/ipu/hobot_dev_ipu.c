@@ -344,7 +344,6 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 		clear_bit(IPU_HW_CONFIG, &ipu->state);
 		clear_bit(IPU_REUSE_SHADOW0, &ipu->state);
 		atomic_set(&group->work_insert, 0);
-		atomic_set(&ipu->first_resource_up, 0);
 
 		if (test_bit(IPU_HW_RUN, &ipu->state)) {
 			set_bit(IPU_HW_FORCE_STOP, &ipu->state);
@@ -674,6 +673,8 @@ void ipu_frame_work(struct vio_group *group)
 		shadow_index = instance;
 	vio_dbg("[S%d]%s start\n", instance, __func__);
 	ipu_get_ddr_addr_dump(ipu->base_reg);
+	vio_dbg("[S%d]%s hw_resource count:%d", instance, __func__,
+								ipu->gtask.hw_resource.count);
 
 	if (group->leader && test_bit(IPU_OTF_INPUT, &ipu->state)) {
 		work_index = (work_index + 1) % 2;
@@ -1881,7 +1882,6 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 	 */
 	vio_info("ipu_video_init group->leader:%d\n", group->leader);
 	vio_group_task_start(group->gtask);
-	sema_init(&group->gtask->hw_resource, 0);
 	mutex_unlock(&ipu_mutex);
 	atomic_inc(&group->node_refcount);
 	ipu_ctx->state = BIT(VIO_VIDEO_INIT);
@@ -2000,8 +2000,6 @@ int ipu_video_streamon(struct ipu_video_ctx *ipu_ctx)
 		if (atomic_inc_return(&group->work_insert) == 1) {
 			vio_group_insert_work(group,
 					&ipu->vwork[instance][0].work);
-			if (test_bit(IPU_OTF_INPUT, &ipu->state))
-				up(&gtask->hw_resource);
 		} else {
 			atomic_set(&group->work_insert, 1);
 		}
@@ -2377,10 +2375,6 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 		vio_dbg("[S%d]ddr->ipu src frame q index%d\n", group->instance,
 					index);
 		vio_group_start_trigger_mp(group, frame);
-		if (atomic_inc_return(&ipu->first_resource_up) == 1) {
-			up(&gtask->hw_resource);
-			atomic_set(&ipu->first_resource_up, 1);
-		}
 	}
 
 	if (ipu_ctx->ctx_index == 0)
@@ -4193,7 +4187,6 @@ static int x3_ipu_probe(struct platform_device *pdev)
 	atomic_set(&ipu->gtask.refcount, 0);
 	atomic_set(&ipu->rsccount, 0);
 	atomic_set(&ipu->open_cnt, 0);
-	atomic_set(&ipu->first_resource_up, 0);
 	mutex_init(&ipu_mutex);
 
 	x3_ipu_subdev_init(ipu);
