@@ -69,7 +69,7 @@ static int x3_pym_open(struct inode *inode, struct file *file)
 		goto p_err;
 	}
 	if (atomic_read(&pym->open_cnt) == 0) {
-		pm_qos_add_request(&pym_pm_qos_req, PM_QOS_DEVFREQ, 8300);
+		pm_qos_add_request(&pym_pm_qos_req, PM_QOS_DEVFREQ, 10000);
 		atomic_set(&pym->backup_fcount, 0);
 		atomic_set(&pym->sensor_fcount, 0);
 		atomic_set(&pym->enable_cnt, 0);
@@ -278,7 +278,6 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 	}
 
 	if (atomic_dec_return(&pym->open_cnt) == 0) {
-		pm_qos_remove_request(&pym_pm_qos_req);
 		clear_bit(PYM_OTF_INPUT, &pym->state);
 		clear_bit(PYM_DMA_INPUT, &pym->state);
 		clear_bit(PYM_REUSE_SHADOW0, &pym->state);
@@ -297,6 +296,7 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 		vio_clk_disable("sif_mclk");
 		sema_init(&pym->gtask.hw_resource, 1);
 		atomic_set(&pym->gtask.refcount, 0);
+		pm_qos_remove_request(&pym_pm_qos_req);
 	}
 	mutex_unlock(&pym_mutex);
 

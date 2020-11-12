@@ -183,7 +183,7 @@ static int isp_v4l2_fop_open( struct file *file )
     pr_debug("ctx_id %d +\n", dev->ctx_id);
 
     if (isp_open_check() == 0) {
-        pm_qos_add_request(&isp_pm_qos_req, PM_QOS_DEVFREQ, 8300);
+        pm_qos_add_request(&isp_pm_qos_req, PM_QOS_DEVFREQ, 10000);
         ips_set_clk_ctrl(ISP0_CLOCK_GATE, true);
         mdelay(1);
         ips_set_module_reset(ISP0_RST);
@@ -273,12 +273,12 @@ static int isp_v4l2_fop_close( struct file *file )
 
     //isp hardware stop
     if (isp_open_check() == 0) {
-        pm_qos_remove_request(&isp_pm_qos_req);
         acamera_fw_isp_stop(dev->ctx_id);
         general_temper_disable();
         dma_writer_disable(dev->ctx_id);
         ips_set_clk_ctrl(ISP0_CLOCK_GATE, false);
         acamera_fw_mem_free();
+        pm_qos_remove_request(&isp_pm_qos_req);
     }
     acamera_isp_deinit_context(dev->ctx_id);
 

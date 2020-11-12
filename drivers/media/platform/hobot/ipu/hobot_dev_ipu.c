@@ -93,7 +93,7 @@ static int x3_ipu_open(struct inode *inode, struct file *file)
 		goto p_err;
 	}
 	if (atomic_inc_return(&ipu->open_cnt) == 1) {
-		pm_qos_add_request(&ipu_pm_qos_req, PM_QOS_DEVFREQ, 8300);
+		pm_qos_add_request(&ipu_pm_qos_req, PM_QOS_DEVFREQ, 10000);
 		atomic_set(&ipu->backup_fcount, 0);
 		atomic_set(&ipu->sensor_fcount, 0);
 		atomic_set(&ipu->enable_cnt, 0);
@@ -337,7 +337,6 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 
 	if (atomic_dec_return(&ipu->open_cnt) == 0) {
 		vio_dbg("[S%d] ipu last process close\n", instance);
-		pm_qos_remove_request(&ipu_pm_qos_req);
 		clear_bit(IPU_OTF_INPUT, &ipu->state);
 		clear_bit(IPU_DMA_INPUT, &ipu->state);
 		clear_bit(IPU_DS2_DMA_OUTPUT, &ipu->state);
@@ -361,6 +360,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 		ipu->reuse_shadow0_count = 0;
 		sema_init(&ipu->gtask.hw_resource, 0);
 		atomic_set(&ipu->gtask.refcount, 0);
+		pm_qos_remove_request(&ipu_pm_qos_req);
 	}
 	mutex_unlock(&ipu_mutex);
 

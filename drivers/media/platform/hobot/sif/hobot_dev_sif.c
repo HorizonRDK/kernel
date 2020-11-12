@@ -287,7 +287,7 @@ static int x3_sif_open(struct inode *inode, struct file *file)
 		if (sif_mclk_freq)
 			vio_set_clk_rate("sif_mclk", sif_mclk_freq);
 		ips_set_clk_ctrl(SIF_CLOCK_GATE, true);
-		pm_qos_add_request(&sif_pm_qos_req, PM_QOS_DEVFREQ, 8300);
+		pm_qos_add_request(&sif_pm_qos_req, PM_QOS_DEVFREQ, 10000);
 		/*4 ddr in channel can not be 0 together*/
 		sif_enable_dma(sif->base_reg, 0x10000);
 	}
@@ -419,11 +419,11 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 			atomic_set(&sif->rsccount, 0);
 			vio_info("sif force stream off\n");
 		}
-		pm_qos_remove_request(&sif_pm_qos_req);
 		//it should disable after ipu stream off because it maybe contain ipu/sif clk
 		//vio_clk_disable("sif_mclk");
-        ips_set_module_reset(SIF_RST);
+		ips_set_module_reset(SIF_RST);
 		ips_set_clk_ctrl(SIF_CLOCK_GATE, false);
+		pm_qos_remove_request(&sif_pm_qos_req);
 	}
 	mutex_unlock(&sif_mutex);
 	sif_ctx->state = BIT(VIO_VIDEO_CLOSE);

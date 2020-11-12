@@ -356,7 +356,7 @@ static int jpu_open(struct inode *inode, struct file *filp)
 
 	spin_lock(&dev->jpu_spinlock);
 	if (dev->open_count == 0) {
-		pm_qos_add_request(&dev->jpu_pm_qos_req, PM_QOS_DEVFREQ, 8300);
+		pm_qos_add_request(&dev->jpu_pm_qos_req, PM_QOS_DEVFREQ, 10000);
 	}
 	dev->open_count++;
 	priv->jpu_dev = dev;
@@ -1004,7 +1004,6 @@ static int jpu_release(struct inode *inode, struct file *filp)
 		open_count = dev->open_count;
 		spin_unlock(&dev->jpu_spinlock);
 		if (open_count == 0) {
-			pm_qos_remove_request(&dev->jpu_pm_qos_req);
 			if (dev->instance_pool.base) {
 				jpu_debug(5, "free instance pool\n");
 				vfree((const void *)dev->instance_pool.base);
@@ -1012,6 +1011,7 @@ static int jpu_release(struct inode *inode, struct file *filp)
 			}
 			for (i = 0; i < MAX_NUM_JPU_INSTANCE; i++)
 				test_and_clear_bit(i, jpu_inst_bitmap);
+			pm_qos_remove_request(&dev->jpu_pm_qos_req);
 		}
 	}
 	kfree(priv);
