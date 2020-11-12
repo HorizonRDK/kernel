@@ -62,7 +62,7 @@ struct ddr_monitor_dev_s {
 #ifdef CONFIG_HOBOT_XJ3
 
 #define PORT_NUM 8
-#define SYS_PCLK_HZ 300000000
+#define SYS_PCLK_HZ 250000000
 
 /* Define DDRC registers for DDR detect */
 #define uMCTL2_BASE 0xA2D00000
