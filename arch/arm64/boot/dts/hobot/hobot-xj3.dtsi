@@ -313,7 +313,7 @@
 			pinctrl-names = "default";
 			pinctrl-0 = <&i2s0_func>;
 			div_ws = <3855>;/*only for i2s mode*/
-			ms = <1>;
+			ms = <4>;
 			bclk_set = <2048000>;/* only for master mode,tianpai 48K is 6.144M*/
 			mclk_set = <12288000>;/* only for master mode,default is 12.288M*/
 			blck = <6144000>;/* only for master mode*/
@@ -391,6 +391,19 @@
                         channel_max = <8>;
                         status = "disabled";
                 };
+
+		snd4: sndcard@4 {
+                        compatible = "hobot, hobot-snd4";
+                        i2s_mode = <4>;
+                        master = <1>;
+                        channel_max = <8>;
+                        status = "disabled";
+                };
+
+		codec0: codec@0 {
+			compatible = "hobot,hobot-codec0";
+			status = "disabled";
+		};
 
 		i2c0: i2c@0xA5009000 {
 			compatible = "hobot,hobot-i2c";

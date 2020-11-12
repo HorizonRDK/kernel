@@ -53,6 +53,7 @@ static unsigned char *dma_vm;
 /* play and capture have the same hardware param, so no neeed split two parts */
 static const struct snd_pcm_hardware i2sidma_hardware = {
 	.info = SNDRV_PCM_INFO_INTERLEAVED |
+	    SNDRV_PCM_INFO_NONINTERLEAVED |
 	    SNDRV_PCM_INFO_BLOCK_TRANSFER |
 	    SNDRV_PCM_INFO_MMAP |
 	    SNDRV_PCM_INFO_MMAP_VALID |
@@ -62,6 +63,20 @@ static const struct snd_pcm_hardware i2sidma_hardware = {
 	.period_bytes_max = MAX_IDMA_PERIOD,
 	.periods_min = 1,
 	.periods_max = 4,
+};
+
+static const struct snd_pcm_hardware pdma_hardware = {
+        .info = SNDRV_PCM_INFO_INTERLEAVED |
+            SNDRV_PCM_INFO_NONINTERLEAVED |
+            SNDRV_PCM_INFO_BLOCK_TRANSFER |
+            SNDRV_PCM_INFO_MMAP |
+            SNDRV_PCM_INFO_MMAP_VALID |
+            SNDRV_PCM_INFO_PAUSE | SNDRV_PCM_INFO_RESUME,
+        .buffer_bytes_max = MAX_IDMA_BUFFER,
+        .period_bytes_min = 128,
+        .period_bytes_max = MAX_IDMA_PERIOD,
+        .periods_min = 1,
+        .periods_max = 4,
 };
 
 struct idma_ctrl_s {
@@ -104,7 +119,7 @@ static int hobot_copy_usr(struct snd_pcm_substream *substream,
 	struct idma_ctrl_s *dma_ctrl = substream->runtime->private_data;
 	char *tmp_buf;
 
-	dma_ptr = runtime->dma_area + hwoff;
+	//dma_ptr = runtime->dma_area + hwoff + channel * bytes;
 	channel_buf_offset = (dma_ctrl->periodsz) / (dma_ctrl->ch_num);
 
 	tmp_buf = kzalloc(bytes, GFP_KERNEL);
@@ -112,29 +127,43 @@ static int hobot_copy_usr(struct snd_pcm_substream *substream,
 		return -ENOMEM;
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
-		if (copy_from_user(tmp_buf, (void __user *)buf, bytes))
-			return -EFAULT;
-		for (i = 0; i < bytes;) {
-			for (j = 0; j < dma_ctrl->ch_num; j++) {
-				memcpy(&dma_ptr[j*channel_buf_offset],
-					&tmp_buf[i+j*dma_ctrl->word_len],
-					dma_ctrl->word_len);
+		if (runtime->access == SNDRV_PCM_ACCESS_RW_INTERLEAVED) {
+			dma_ptr = runtime->dma_area + hwoff;
+			if (copy_from_user(tmp_buf, (void __user *)buf, bytes))
+				return -EFAULT;
+			for (i = 0; i < bytes;) {
+				for (j = 0; j < dma_ctrl->ch_num; j++) {
+					memcpy(&dma_ptr[j*channel_buf_offset],
+						&tmp_buf[i+j*dma_ctrl->word_len],
+						dma_ctrl->word_len);
+				}
+				dma_ptr = dma_ptr + dma_ctrl->word_len;
+				i = i + dma_ctrl->ch_num * dma_ctrl->word_len;
 			}
-			dma_ptr = dma_ptr + dma_ctrl->word_len;
-			i = i + dma_ctrl->ch_num * dma_ctrl->word_len;
+		} else {
+			dma_ptr = runtime->dma_area + hwoff*dma_ctrl->ch_num + channel * bytes;
+			if (copy_from_user(dma_ptr, (void __user *)buf, bytes))
+				return -EFAULT;
 		}
 	} else {
-		for (i = 0; i < bytes;) {
-			for (j = 0; j < dma_ctrl->ch_num; j++) {
-				memcpy(&tmp_buf[i+j*dma_ctrl->word_len],
-					&dma_ptr[j*channel_buf_offset],
-					dma_ctrl->word_len);
+		if (runtime->access == SNDRV_PCM_ACCESS_RW_INTERLEAVED) {
+			dma_ptr = runtime->dma_area + hwoff;
+			for (i = 0; i < bytes;) {
+				for (j = 0; j < dma_ctrl->ch_num; j++) {
+					memcpy(&tmp_buf[i+j*dma_ctrl->word_len],
+						&dma_ptr[j*channel_buf_offset],
+						dma_ctrl->word_len);
+				}
+				dma_ptr = dma_ptr + dma_ctrl->word_len;
+				i = i + dma_ctrl->ch_num * dma_ctrl->word_len;
 			}
-			dma_ptr = dma_ptr + dma_ctrl->word_len;
-			i = i + dma_ctrl->ch_num * dma_ctrl->word_len;
+			if (copy_to_user((void __user *)buf, tmp_buf, bytes))
+				return -EFAULT;
+		} else {
+			dma_ptr = runtime->dma_area + hwoff*dma_ctrl->ch_num + channel * bytes;
+			if (copy_to_user((void __user *)buf, dma_ptr, bytes))
+				return -EFAULT;
 		}
-		if (copy_to_user((void __user *)buf, tmp_buf, bytes))
-			return -EFAULT;
 	}
 	kfree(tmp_buf);
 	return 0;
@@ -308,7 +337,6 @@ static int i2sidma_hw_params(struct snd_pcm_substream *substream,
 static int i2sidma_hw_free(struct snd_pcm_substream *substream)
 {
 	snd_pcm_set_runtime_buffer(substream, NULL);
-
 	return 0;
 }
 
@@ -487,7 +515,7 @@ static irqreturn_t iis_irq0(int irqno, void *dev_id)
 	u32	addr = 0;
 	uint8_t errsta = 0;
 
-	intstatus = readl(hobot_i2sidma[0].regaddr_rx + I2S_SRCPND);
+	intstatus = readl(hobot_i2sidma[dma_ctrl->id].regaddr_rx + I2S_SRCPND);
 
 	if (intstatus == 0x4) {
 
@@ -575,7 +603,7 @@ static irqreturn_t iis_irq1(int irqno, void *dev_id)
 	u32	addr = 0;
 	uint8_t errsta = 0;
 
-	intstatus = readl(hobot_i2sidma[1].regaddr_tx + I2S_SRCPND);
+	intstatus = readl(hobot_i2sidma[dma_ctrl->id].regaddr_tx + I2S_SRCPND);
 
 	if (intstatus == 0x4) {
 		writel(0x4, hobot_i2sidma[dma_ctrl->id].regaddr_tx + I2S_SRCPND);
@@ -661,15 +689,21 @@ static int i2sidma_open(struct snd_pcm_substream *substream)
 
 	dma_data = hobot_dai_get_dma_data(substream);
 
+	struct snd_soc_pcm_runtime *soc_runtime = substream->private_data;
+	struct hobot_i2s *i2s = snd_soc_dai_get_drvdata(soc_runtime->cpu_dai);
+
 	dma_ctrl = kzalloc(sizeof(struct idma_ctrl_s), GFP_KERNEL);
 	if (dma_ctrl == NULL)
 		return -ENOMEM;
 	/* dma_ctrl->dma_id = dma_data->slave_id; */
 	/* set limit hw param to runtime */
-	snd_soc_set_runtime_hwparams(substream, &i2sidma_hardware);
+	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE)
+		snd_soc_set_runtime_hwparams(substream, &i2sidma_hardware);
+	else
+		snd_soc_set_runtime_hwparams(substream, &pdma_hardware);
 
+	dma_ctrl->id = i2s->id;
 	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
-		dma_ctrl->id = 0;
 		ret = request_irq(hobot_i2sidma[dma_ctrl->id].idma_irq, iis_irq0,
 			0, "idma0", dma_ctrl);
 		if (ret < 0) {
@@ -678,7 +712,6 @@ static int i2sidma_open(struct snd_pcm_substream *substream)
 			return ret;
 		}
 	} else {
-		dma_ctrl->id = 1;
 		ret = request_irq(hobot_i2sidma[dma_ctrl->id].idma_irq, iis_irq1,
 			0, "idma1", dma_ctrl);
 		if (ret < 0) {
@@ -843,6 +876,7 @@ static int asoc_i2sidma_platform_probe(struct platform_device *pdev)
 	id = of_alias_get_id(pdev->dev.of_node, "idma");
 	if (id < 0)
 		id = 0;
+
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res) {
 		dev_err(&pdev->dev, "Failed to get mem resource0!\n");

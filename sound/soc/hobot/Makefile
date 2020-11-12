@@ -12,6 +12,7 @@ else
 obj-$(CONFIG_HOBOT_AUDIO) += hobot-cpudai.o
 obj-$(CONFIG_HOBOT_AUDIO) += hobot-dma.o
 obj-$(CONFIG_HOBOT_AUDIO) += hobot-snd-96.o
+obj-$(CONFIG_HOBOT_AUDIO) += hobot_codec.o
 endif
 endif
 

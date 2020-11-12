@@ -139,8 +139,10 @@ static int hobot_snd_probe(struct platform_device *pdev)
 			id = 1;
 		else if (!strcmp(card->name, "hobotsnd2"))
 			id = 2;
-		else
+		else if (!strcmp(card->name, "hobotsnd3"))
 			id = 3;
+		else
+			id = 4;
 	}
 	if (snd_card == id) {
 		for_each_child_of_node(node, np) {
@@ -199,6 +201,7 @@ static int hobot_snd_probe(struct platform_device *pdev)
 	} else {
 		return 0;
 	}
+
 	ret = snd_soc_register_card(card);
 	if (ret) {
  		dev_err(dev, "snd_soc_register_card() failed: %d\n", ret);
@@ -231,6 +234,7 @@ static const struct of_device_id hobot_snd_of_match[] = {
 	{.compatible = "hobot, hobot-snd1", },
 	{.compatible = "hobot, hobot-snd2", },
 	{.compatible = "hobot, hobot-snd3", },
+	{.compatible = "hobot, hobot-snd4", },
 	{}
 };
 

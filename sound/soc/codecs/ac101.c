@@ -1085,9 +1085,11 @@ int ac101_hw_params(struct snd_pcm_substream *substream,
 		break;
 	case 8000:
 	case 32000:
-	case 48000:
 	case 44100:
 		aif1_lrck_div = 64;
+		break;
+	case 48000:
+		aif1_lrck_div = 32;
 		break;
 	}
 	for (i = 0; i < ARRAY_SIZE(codec_aif1_lrck); i++) {

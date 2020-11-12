@@ -55,8 +55,13 @@
 		sndcard1 = &snd1;
 		sndcard2 = &snd2;
 		sndcard3 = &snd3;
+		sndcard4 = &snd4;
+
+		codec0 = &codec0;
+
 		idma0 = &i2sidma0;
 		idma1 = &i2sidma1;
+
 	};
 
 	chosen {
@@ -414,6 +419,11 @@
 	status = "okay";
 };
 
+&codec0 {
+	status = "okay";
+	#sound-dai-cells = <0>;
+};
+
 &i2s0 {
 	status = "okay";
 	#sound-dai-cells = <0>;
@@ -451,6 +461,10 @@
 };
 
 &snd3 {
+	status = "okay";
+};
+
+&snd4 {
 	status = "okay";
 };
 
@@ -535,8 +549,8 @@
         model = "hobotsnd2";
         dai-link@0 {
                 dai-format = "i2s";   //duplex
-                bitclock-master;
-                frame-master;
+                //bitclock-master;
+                //frame-master;
                 frame-inversion;
                 link-name = "hobotdailink0";
                 cpu {
@@ -551,6 +565,8 @@
         };
         dai-link@1 {
                 dai-format = "i2s";
+                bitclock-master;
+                frame-master;
                 frame-inversion;
                 link-name = "hobotdailink1";
                 cpu {
@@ -596,6 +612,42 @@
                 };
                 codec {
                         sound-dai = <&ac102_0 0>;
+                };
+                platform {
+                        sound-dai = <&i2sidma1>;
+                };
+        };
+};
+
+&snd4 { //dummy-codec
+        model = "hobotsnd4";
+        dai-link@0 {
+                dai-format = "i2s";
+                //bitclock-master;
+                //frame-master;
+                frame-inversion;
+                link-name = "hobotdailink0";
+                cpu {
+                        sound-dai = <&i2s0>;
+                };
+                codec {
+                        sound-dai = <&codec0>;
+                };
+                platform {
+                        sound-dai = <&i2sidma0>;
+                };
+        };
+        dai-link@1 {
+                dai-format = "i2s";
+                bitclock-master;
+                frame-master;
+                frame-inversion;
+                link-name = "hobotdailink1";
+                cpu {
+                        sound-dai = <&i2s1>;
+                };
+                codec {
+                        sound-dai = <&codec0>;
                 };
                 platform {
                         sound-dai = <&i2sidma1>;

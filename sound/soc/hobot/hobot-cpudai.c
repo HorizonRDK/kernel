@@ -44,7 +44,7 @@ static inline int change_clk(struct device *dev,
 
 static unsigned int hobot_i2s_read_base_reg(struct hobot_i2s *i2s, int offset)
 {
-	if (i2s->id == 0)
+	if (i2s->streamflag == 0)
 		return readl(i2s->regaddr_rx+offset);
 	else
 		return readl(i2s->regaddr_tx+offset);
@@ -93,7 +93,7 @@ static int i2s_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 
 	spin_lock_irqsave(&i2s->lock, flags);
 
-	if (i2s->id == 0) {	/* capture */
+	if (i2s->streamflag == 0) {  /* capture */
 		val = readl(i2s->regaddr_rx + I2S_MODE);
 	} else {		/* play */
 		val = readl(i2s->regaddr_tx + I2S_MODE);
@@ -132,7 +132,7 @@ static int i2s_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 		return -EINVAL;
 	}
 
-	if (i2s->id == 0) {	/* capture */
+	if (i2s->streamflag == 0) {	/* capture */
 		writel(val, i2s->regaddr_rx + I2S_MODE);
 	} else {		/* play */
 		if (i2s->ms == 4)
@@ -182,10 +182,22 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 	} else {/* play */
 
 		if (i2s->i2sdsp == 0) {	/* i2s mode */
-			if (i2s->samplerate == 22050 || i2s->samplerate == 16000)
+			if (i2s->ms == 4) {
+				writel(i2s->div_ws, i2s->regaddr_tx + I2S_DIV_WS);
+			} else {
+			switch(i2s->samplerate) {
+			case 22050:
+			case 16000:
 				lrck_div = 128;
-			else
+				break;
+			case 48000:
+				lrck_div = 32;
+				break;
+			default:
 				lrck_div = 64;
+				break;
+			}
+
 			i2s->clk = i2s->samplerate * lrck_div;
 			ws_l = ws_h = (lrck_div / 2) - 1;
 			spin_unlock_irqrestore(&i2s->lock, flags);
@@ -221,7 +233,7 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 			spin_lock_irqsave(&i2s->lock, flags);
 			i2s->div_ws = ws_l | (ws_h << 8);
 			writel(i2s->div_ws, i2s->regaddr_tx + I2S_DIV_WS);
-
+			}
 
 		} else {
 			ws_h = 0;
@@ -385,20 +397,21 @@ static int i2s_startup(struct snd_pcm_substream *substream,
 	ndelay(100);
 	reset_control_deassert(i2s->rst);
 
-
 	/* reset done, disable reset module */
 	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE)
 		i2s->streamflag = 0;
 	else
 		i2s->streamflag = 1;
 
-	if (i2s->ms == 1) {
-                clk_enable(i2s->bclk);
-        } else if (i2s->ms == 4) {
+	//if (i2s->ms == 1) {
+		//clk_enable(i2s->bclk);
+	//}
+	/*
+	else if (i2s->ms == 4) {
                 clk_disable(i2s->bclk);
         }
+	*/
 	//i2s_transfer_ctl(i2s, 0);
-
 
 	spin_unlock_irqrestore(&i2s->lock, flags);
 	//dev_dbg(i2s->dev, "i2s_startup E,
@@ -420,7 +433,7 @@ static int i2s_trigger(struct snd_pcm_substream *substream,
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
 		spin_lock_irqsave(&i2s->lock, flags);
-		if (i2s->id == 0) {
+		if (i2s->streamflag == 0) {
 			writel(0x1, i2s->regaddr_rx + I2S_BUF0_RDY);
 			writel(0x1, i2s->regaddr_rx + I2S_BUF1_RDY);
 		} else {
@@ -435,7 +448,7 @@ static int i2s_trigger(struct snd_pcm_substream *substream,
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
 		spin_lock_irqsave(&i2s->lock, flags);
 		//i2s_transfer_ctl(i2s, 0);
-		if (i2s->id == 0) {
+		if (i2s->streamflag == 0) {
 			writel(0x0, i2s->regaddr_rx + I2S_BUF0_RDY);
 			writel(0x0, i2s->regaddr_rx + I2S_BUF1_RDY);
 		} else {
@@ -462,8 +475,10 @@ static int i2s_hw_free(struct snd_pcm_substream *substream,
 		struct snd_soc_dai *dai) {
 	struct hobot_i2s *i2s = snd_soc_dai_get_drvdata(dai);
 
-	clk_disable(i2s->bclk);
-	clk_disable(i2s->mclk);
+	if (i2s->streamflag == 0) {
+		//clk_disable(i2s->bclk);
+		//clk_disable(i2s->mclk);
+	}
 
 	return 0;
 }
@@ -501,22 +516,22 @@ static struct snd_soc_dai_driver hobot_i2s_dai_drv[2] = {
 		.probe = hobot_i2s_dai_probe,
 		.remove = hobot_i2s_dai_remove,
 
-		/*
 		.playback = {
-			    .stream_name = "Playback",
-			    .channels_min = 1,
-			    .channels_max = 2,
-			    .rates = HOBOT_I2S_RATES,
-			    .formats = HOBOT_I2S_FMTS,
-			    },
-		*/
+			     .stream_name = "Playback",
+			     .channels_min = 1,
+			     .channels_max = 2,
+			     .rates = HOBOT_I2S_RATES,
+			     .formats = HOBOT_I2S_FMTS,
+			     },
+
 		.capture = {
-			    .stream_name = "Capture",
-			    .channels_min = 1,
-			    .channels_max = 8,
-			    .rates = HOBOT_I2S_RATES,
-			    .formats = HOBOT_I2S_FMTS,
-			    },
+			     .stream_name = "Capture",
+			     .channels_min = 1,
+			     .channels_max = 8,
+			     .rates = HOBOT_I2S_RATES,
+			     .formats = HOBOT_I2S_FMTS,
+			     },
+
 		.ops = &hobot_i2s_dai_ops,
 		.symmetric_rates = 1,
 		.name = "hobot-i2s0",
@@ -531,7 +546,6 @@ static struct snd_soc_dai_driver hobot_i2s_dai_drv[2] = {
 			     .rates = HOBOT_I2S_RATES,
 			     .formats = HOBOT_I2S_FMTS,
 			     },
-		/*
 		.capture = {
 			    .stream_name = "Capture",
 			    .channels_min = 1,
@@ -539,11 +553,10 @@ static struct snd_soc_dai_driver hobot_i2s_dai_drv[2] = {
 			    .rates = HOBOT_I2S_RATES,
 			    .formats = HOBOT_I2S_FMTS,
 			    },
-		*/
 		.ops = &hobot_i2s_dai_ops,/* the same as i2s0 dai param */
 		.symmetric_rates = 1,
 		.name = "hobot-i2s1",
-	}
+	},
 };
 static const struct snd_soc_component_driver hobot_i2s_component_drv[2];
 static ssize_t store_hobot_i2s_reg(struct device *dev,
@@ -711,9 +724,11 @@ static int hobot_i2s_probe(struct platform_device *pdev)
 		}
 		ret = of_property_read_u32(pdev->dev.of_node,
 			"ms", &i2s->ms);
-		if (i2s->id == 1) {
+
+		if (i2s->id == 0) {
 			i2s->ms = i2s_ms;
 		}
+
 		if (ret < 0) {
 			pr_err("failed:get  ms rc %d", ret);
 			return ret;
@@ -756,9 +771,11 @@ static int hobot_i2s_probe(struct platform_device *pdev)
 
 			writel(value, i2s->sysctl_addr + 0x158);
 			*/
+			/*
 			value = readl(i2s->sysctl_addr + 0x360);
 			value = (value | (0x1 << 20));
 			writel(value, i2s->sysctl_addr + 0x360);
+			*/
 			clk_disable(i2s->bclk);
 		} else {
 			pr_err("i2s->ms invalid\n");
@@ -771,20 +788,21 @@ static int hobot_i2s_probe(struct platform_device *pdev)
 			return ret;
 		}
 
+		/*
 		if (i2s->id == 0) {
-			value = readl(i2s->regaddr_rx);
-			value |= 1<<0;
-			writel(value, i2s->regaddr_rx);
-			writel(i2s->div_ws, i2s->regaddr_rx + I2S_DIV_WS);
-			pr_info("run i2s0 probe\n");
-		} else {
 			value = readl(i2s->regaddr_tx);
 			value |= 1<<0;
 			writel(value, i2s->regaddr_tx);
 			writel(i2s->div_ws, i2s->regaddr_tx + I2S_DIV_WS);
+			pr_info("run i2s0 probe\n");
+		} else {
+			value = readl(i2s->regaddr_rx);
+			value |= 1<<0;
+			writel(value, i2s->regaddr_rx);
+			writel(i2s->div_ws, i2s->regaddr_rx + I2S_DIV_WS);
 			pr_info("run i2s1 probe\n");
 		}
-
+		*/
 	i2s->rst = devm_reset_control_get(&pdev->dev, "i2s");
 	if (IS_ERR(i2s->rst)) {
 		dev_err(&pdev->dev, "Missing reset controller!\n");

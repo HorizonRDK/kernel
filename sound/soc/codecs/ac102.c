@@ -1,4 +1,5 @@
 /*
+ * * (C) Copyright 2017-2018
  * ac102.c --  ac102 ALSA Soc Audio driver
  *
  * Version: 1.0
@@ -612,13 +613,19 @@ static int ac102_hw_params(struct snd_pcm_substream *substream, struct snd_pcm_h
 	//AC102 hw init
 	for(i=0; i<AC102_CHIP_NUMS; i++){
 		ac102_hw_init(substream->stream, i2c_ctrl[i]);
-               if (params_rate(params) == 22050 || params_rate(params) == 16000) {
-                       lrck_period = 64;
-                       ac102_write(I2S_LRCK_CTRL2, (u8)(lrck_period-1), i2c_ctrl[i]);
-               } else {
-                       lrck_period = 32;
-                       ac102_write(I2S_LRCK_CTRL2, (u8)(lrck_period-1), i2c_ctrl[i]);
-               }
+		switch (params_rate(params)) {
+		case 22050:
+		case 16000:
+			lrck_period = 64;
+			break;
+		case 48000:
+			lrck_period = 16;
+			break;
+		default:
+			lrck_period = 32;
+			break;
+		}
+		ac102_write(I2S_LRCK_CTRL2, (u8)(lrck_period-1), i2c_ctrl[i]);
 	}
 
 	//AC102 set channels
