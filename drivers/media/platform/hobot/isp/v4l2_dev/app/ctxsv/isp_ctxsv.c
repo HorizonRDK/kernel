@@ -174,6 +174,7 @@ int isp_ctx_queue_init(void)
 	void *awb_base = NULL;
 	void *af_base = NULL;
 	void *ae_5bin_base = NULL;
+	void *lumvar_base = NULL;
 
 	base = isp_dev_get_vir_addr();
 
@@ -192,11 +193,13 @@ int isp_ctx_queue_init(void)
 			awb_base = ae_base + AE_SIZE_IN_ONE_ZONE;
 			af_base = awb_base + AWB_SIZE_IN_ONE_ZONE;
 			ae_5bin_base = af_base + AF_SIZE_IN_ONE_ZONE;
+			lumvar_base = ae_5bin_base + AE_5BIN_SIZE_IN_ONE_ZONE;
 			ctx_node[i][ISP_CTX][j].base = cfg_base + j * CFG_NODE_SIZE;
 			ctx_node[i][ISP_AE][j].base = ae_base + j * AE_NODE_SIZE;
 			ctx_node[i][ISP_AWB][j].base = awb_base + j * AWB_NODE_SIZE;
 			ctx_node[i][ISP_AF][j].base = af_base + j * AF_NODE_SIZE;
 			ctx_node[i][ISP_AE_5BIN][j].base = ae_5bin_base + j * AE_5BIN_NODE_SIZE;
+			ctx_node[i][ISP_LUMVAR][j].base = lumvar_base + j * LUMVAR_NODE_SIZE;
 
 			for (k = 0; k < TYPE_MAX; k++) {
 				ctx_node[i][k][j].ctx.idx = j;

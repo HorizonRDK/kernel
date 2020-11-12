@@ -38,10 +38,10 @@
 
 // args: index (0-999), data (32-bit)
 static __inline void acamera_lut3d_mem_array_data_write( uintptr_t base, uint32_t index, uint32_t data) {
-    system_hw_write_32(0x508L + (index << 2), data);
+    system_sw_write_32(base + 0x508L + (index << 2), data);
 }
 static __inline uint32_t acamera_lut3d_mem_array_data_read( uintptr_t base, uint32_t index) {
-    return system_hw_read_32(0x508L + (index << 2));
+    return system_sw_read_32(base + 0x508L + (index << 2));
 }
 // ------------------------------------------------------------------------------ //
 #endif //__ACAMERA_LUT3D_MEM_CONFIG_H__

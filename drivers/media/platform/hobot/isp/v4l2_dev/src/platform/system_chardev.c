@@ -238,6 +238,7 @@ static int isp_fops_release( struct inode *inode, struct file *f )
 		ptr->isp_ae_stats_on = 0;
 		ptr->isp_af_stats_on = 0;
 		ptr->isp_ae_5bin_stats_on = 0;
+		ptr->isp_lumvar_stats_on = 0;
 	}
 
     p_ctx->dev_opened--;
@@ -665,6 +666,8 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 			p_ctx->isp_af_stats_on = 1;
 		else if (ctx.type == ISP_AE_5BIN)
 			p_ctx->isp_ae_5bin_stats_on = 1;
+		else if (ctx.type == ISP_LUMVAR)
+			p_ctx->isp_lumvar_stats_on = 1;
 
 		cn = isp_ctx_get(ctx.ctx_id, ctx.type, ctx.time_out);
 		if (cn && copy_to_user((void __user *)arg, (void *)&cn->ctx, sizeof(ctx)))

@@ -194,6 +194,7 @@ struct _acamera_context_t {
     uint8_t isp_ae_stats_on;
     uint8_t isp_af_stats_on;
     uint8_t isp_ae_5bin_stats_on;
+    uint8_t isp_lumvar_stats_on;
 
     uint8_t content_side;
     int dma_chn_idx;

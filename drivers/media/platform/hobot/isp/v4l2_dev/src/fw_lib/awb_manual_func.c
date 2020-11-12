@@ -255,7 +255,6 @@ void awb_read_statistics( AWB_fsm_t *p_fsm )
     }
 
     int rc = 0;
-    static int count = 0;
     rc = system_chardev_lock();
     if (rc == 0 && p_ctx->isp_awb_stats_on) {
 	    isp_ctx_node_t *cn;

@@ -147,6 +147,7 @@ void ae_initialize( AE_fsm_ptr_t p_fsm )
     ae_calculate_exposure( p_fsm );
 }
 
+uint32_t lumvar[512] = {0};
 void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
 {
     int i;
@@ -251,6 +252,27 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
 			isp_ctx_put_node(fw_id, cn, ISP_AE_5BIN, DONEQ);
 
 			pr_debug("ae_5bin stats frame id %d\n", cn->ctx.frame_id);
+		}
+	}
+	if (rc == 0)
+	    system_chardev_unlock();
+
+	// read lumvar
+	for ( i = 0; i < 512; i++ ) {
+		lumvar[i] = acamera_lumvar_stats_mem_array_data_read(p_fsm->cmn.isp_base, i);
+		LOG(LOG_DEBUG, "lumvar: %u. data %d \n", i, lumvar[i]);
+	}
+	rc = system_chardev_lock();
+	if (rc == 0 && p_ctx->isp_lumvar_stats_on) {
+		isp_ctx_node_t *cn;
+		cn = isp_ctx_get_node(fw_id, ISP_LUMVAR, FREEQ);
+		if (cn) {
+			cn->ctx.frame_id = p_ctx->isp_frame_counter;
+			memcpy(cn->base, lumvar, sizeof(lumvar));
+			cn->ctx.crc16 = crc16(~0, cn->base, sizeof(lumvar));
+			isp_ctx_put_node(fw_id, cn, ISP_LUMVAR, DONEQ);
+
+			pr_debug("lumvar stats frame id %d\n", cn->ctx.frame_id);
 		}
 	}
 	if (rc == 0)
