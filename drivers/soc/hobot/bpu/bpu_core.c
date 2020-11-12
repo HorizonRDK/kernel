@@ -345,7 +345,7 @@ static int bpu_core_open(struct inode *inode, struct file *filp)/*PRQA S ALL*/
 			return -EINVAL;
 		}
 #ifdef CONFIG_X3_BPU
-		pm_qos_add_request(&core->pm_qos_req, PM_QOS_DEVFREQ, 8300);
+		pm_qos_add_request(&core->pm_qos_req, PM_QOS_DEVFREQ, 10000);
 #endif
 		ret = bpu_core_enable(core);
 		if (ret != 0) {
