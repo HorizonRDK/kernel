@@ -2543,11 +2543,11 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 				subdev->frame_is_skipped = false;
 			} else {
 				ret = -EFAULT;
+				vio_err("[S%d][V%d] %s (p%d) complete empty.",
+					ipu_ctx->group->instance, ipu_ctx->id, __func__,
+					ipu_ctx->ctx_index);
 			}
 			ipu_ctx->event = 0;
-			vio_err("[S%d][V%d] %s (p%d) complete empty.",
-				ipu_ctx->group->instance, ipu_ctx->id, __func__,
-				ipu_ctx->ctx_index);
 			if (ipu_ctx->ctx_index == 0)
 				ipu->statistic.dq_err\
 					[ipu_ctx->group->instance][ipu_ctx->id]++;
