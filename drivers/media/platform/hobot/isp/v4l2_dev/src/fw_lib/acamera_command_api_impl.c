@@ -1261,13 +1261,18 @@ uint8_t system_antiflicker_enable( acamera_fsm_mgr_t *instance, uint32_t value, 
 uint8_t system_dynamic_gamma_enable( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
 {
     *ret_value = 0;
+    const uint32_t gamma_threshold_num = _GET_LEN(ACAMERA_MGR2CTX_PTR(instance), CALIBRATION_GAMMA_THRESHOLD);
+
+    if (gamma_threshold_num < 3) {
+	    return NOT_SUPPORTED;
+    }
+
     if ( direction == COMMAND_GET ) {
-        *ret_value = ACAMERA_MGR2CTX_PTR( instance )->stab.global_dynamic_gamma_enable;
-        return SUCCESS;
+	    *ret_value = _GET_UINT_PTR(ACAMERA_MGR2CTX_PTR(instance), CALIBRATION_GAMMA_THRESHOLD)[2];
+	    return SUCCESS;
     } else if ( direction == COMMAND_SET ) {
-        ACAMERA_MGR2CTX_PTR( instance )
-            ->stab.global_dynamic_gamma_enable = value;
-        return SUCCESS;
+	    _GET_UINT_PTR(ACAMERA_MGR2CTX_PTR(instance), CALIBRATION_GAMMA_THRESHOLD)[2] = !!(value);
+	    return SUCCESS;
     } else {
         return NOT_SUPPORTED;
     }

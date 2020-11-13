@@ -579,7 +579,6 @@ static void init_stab( acamera_context_ptr_t p_ctx )
     p_ctx->stab.global_saturation_target = 0;
     p_ctx->stab.global_ae_compensation = SYSTEM_AE_COMPENSATION_DEFAULT;
     p_ctx->stab.global_calibrate_bad_pixels = 0;
-    p_ctx->stab.global_dynamic_gamma_enable = 0;
 
     isp_ctx_done_queue_clear(p_ctx->context_id);
     p_ctx->isp_ctxsv_on = 0;

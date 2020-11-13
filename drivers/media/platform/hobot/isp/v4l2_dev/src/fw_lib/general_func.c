@@ -713,7 +713,12 @@ void general_frame_start( general_fsm_ptr_t p_fsm )
     }
 #endif
 
-	if ( ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_dynamic_gamma_enable ) {
+	const uint32_t gamma_threshold_num = _GET_LEN(ACAMERA_FSM2CTX_PTR(p_fsm), CALIBRATION_GAMMA_THRESHOLD);
+	if (gamma_threshold_num < 3) {
+		return;
+	}
+        uint32_t dynamic_enable = _GET_UINT_PTR(ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_GAMMA_THRESHOLD)[2];
+	if (dynamic_enable) {
 		general_dynamic_gamma_update( p_fsm );
 	}
 

@@ -103,7 +103,6 @@ typedef struct _sytem_tab {
     uint8_t global_ae_compensation;
     uint8_t global_calibrate_bad_pixels;
     uint32_t global_info_preset_num;
-    uint8_t global_dynamic_gamma_enable;
 } system_tab;
 
 typedef struct _acamera_isp_sw_regs_map {
