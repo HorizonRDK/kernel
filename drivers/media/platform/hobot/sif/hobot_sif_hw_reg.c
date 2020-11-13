@@ -804,7 +804,8 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
 
 	if (!p_mipi->enable)
 		return;
-	vio_info("yuv_format %d====\n", yuv_format);
+	vio_info("yuv_format %d mipi_rx_index %d \n", yuv_format,
+		p_mipi->mipi_rx_index);
 
 	/*yuv format setting*/
 	if ((yuv_format == HW_FORMAT_YUV422) && enable_mux_out && p_out->ddr.enable) {

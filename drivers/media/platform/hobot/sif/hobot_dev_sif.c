@@ -43,7 +43,6 @@ module_param(debug_log_print, bool, 0644);
 static int g_print_instance = 0;
 int sif_video_streamoff(struct sif_video_ctx *sif_ctx);
 static struct pm_qos_request sif_pm_qos_req;
-static struct mutex sif_mutex;
 
 static int x3_sif_suspend(struct device *dev)
 {
@@ -278,7 +277,7 @@ static int x3_sif_open(struct inode *inode, struct file *file)
 	file->private_data = sif_ctx;
 	sif_ctx->state = BIT(VIO_VIDEO_OPEN);
 
-	ret = mutex_lock_interruptible(&sif_mutex);
+	ret = mutex_lock_interruptible(&sif->shared_mutex);
 	if (ret) {
 		vio_err("open sif mutex lock failed:%d", ret);
 		goto p_err;
@@ -291,7 +290,7 @@ static int x3_sif_open(struct inode *inode, struct file *file)
 		/*4 ddr in channel can not be 0 together*/
 		sif_enable_dma(sif->base_reg, 0x10000);
 	}
-	mutex_unlock(&sif_mutex);
+	mutex_unlock(&sif->shared_mutex);
 p_err:
 	vio_dbg("%s open_cnt :%d", __func__, atomic_read(&sif->open_cnt));
 	return ret;
@@ -365,7 +364,7 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 	if (!(sif_ctx->state & BIT(VIO_VIDEO_STOP))) {
 		sif_video_streamoff(sif_ctx);
 	}
-	mutex_lock(&sif_mutex);
+	mutex_lock(&sif->shared_mutex);
 	if ((subdev) && atomic_dec_return(&subdev->refcount) == 0) {
 		subdev->state = 0;
 		if (sif_ctx->id == 0) {
@@ -411,21 +410,17 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 	if (atomic_dec_return(&sif->open_cnt) == 0) {
 		clear_bit(SIF_DMA_IN_ENABLE, &sif->state);
 		clear_bit(SIF_OTF_OUTPUT, &sif->state);
+		sif_hw_disable(sif->base_reg);
+		clear_bit(SIF_HW_RUN, &sif->state);
 		atomic_set(&sif->isp_init_cnt, 0);
-		if (test_bit(SIF_HW_RUN, &sif->state)) {
-			set_bit(SIF_HW_FORCE_STOP, &sif->state);
-			sif_video_streamoff(sif_ctx);
-			clear_bit(SIF_HW_FORCE_STOP, &sif->state);
-			atomic_set(&sif->rsccount, 0);
-			vio_info("sif force stream off\n");
-		}
+		atomic_set(&sif->rsccount, 0);
 		//it should disable after ipu stream off because it maybe contain ipu/sif clk
 		//vio_clk_disable("sif_mclk");
 		ips_set_module_reset(SIF_RST);
 		ips_set_clk_ctrl(SIF_CLOCK_GATE, false);
 		pm_qos_remove_request(&sif_pm_qos_req);
 	}
-	mutex_unlock(&sif_mutex);
+	mutex_unlock(&sif->shared_mutex);
 	sif_ctx->state = BIT(VIO_VIDEO_CLOSE);
 
 	if (subdev) {
@@ -485,7 +480,6 @@ int get_free_mux(struct x3_sif_dev *sif, u32 index, int format, u32 dol_num,
 
 	*mux_numbers = mux_nums;
 
-	mutex_lock(&sif->shared_mutex);
 	if (width > LINE_BUFFER_SIZE && step == 1 && format != SIF_FORMAT_YUV_RAW8) {
 		if (index == 4)
 			start_index = 2;
@@ -523,7 +517,6 @@ int get_free_mux(struct x3_sif_dev *sif, u32 index, int format, u32 dol_num,
 			}
 		}
 	}
-	mutex_unlock(&sif->shared_mutex);
 
 	if (i >= SIF_MUX_MAX) {
 		vio_err("can't get free mux\n");
@@ -647,9 +640,7 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 	}
 
 	// ips_set_bus_ctrl(cfg);
-	mutex_lock(&sif->shared_mutex);
 	sif_hw_config(sif->base_reg, sif_config);
-	mutex_unlock(&sif->shared_mutex);
 
 	subdev->bufcount = sif_get_current_bufindex(sif->base_reg, ddr_mux_index);
 	sif->mismatch_cnt = 0;
@@ -695,6 +686,7 @@ int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 
 	sif = subdev->sif_dev;
 
+	mutex_lock(&sif->shared_mutex);
 	if (sif_ctx->id == 0) {
 		ret = sif_mux_init(subdev, sif_config);
 	} else if (sif_ctx->id == 1) {
@@ -708,7 +700,7 @@ int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 		set_bit(VIO_GROUP_DMA_INPUT, &group->state);
 		set_bit(VIO_GROUP_OTF_OUTPUT, &group->state);
 	}
-
+	mutex_unlock(&sif->shared_mutex);
 	set_bit(SIF_SUBDEV_INIT, &subdev->state);
 
 	vio_info("[S%d][V%d] %s done\n", group->instance,
@@ -785,13 +777,13 @@ int sif_bind_chain_group(struct sif_video_ctx *sif_ctx, int instance)
 		group->frame_work = sif_read_frame_work;
 		group->gtask = &sif->sifin_task;
 		group->gtask->id = group->id;
-		ret = mutex_lock_interruptible(&sif_mutex);
+		ret = mutex_lock_interruptible(&sif->shared_mutex);
 		if (ret) {
 			vio_err("bind sif mutex lock failed:%d", ret);
 			goto p_err;
 		}
 		vio_group_task_start(group->gtask);
-		mutex_unlock(&sif_mutex);
+		mutex_unlock(&sif->shared_mutex);
 	}
 
 	sif_ctx->state = BIT(VIO_VIDEO_S_INPUT);
@@ -891,19 +883,7 @@ int sif_video_streamoff(struct sif_video_ctx *sif_ctx)
 			sif_disable_ipi(sif_dev->base_reg, subdev->ipi_index + i);
 	}
 	mutex_unlock(&sif_dev->shared_mutex);
-	if (atomic_dec_return(&sif_dev->rsccount) > 0
-		&& !test_bit(SIF_HW_FORCE_STOP, &sif_dev->state))
-		goto p_dec;
-
-	msleep(100);
-
-	mutex_lock(&sif_dev->shared_mutex);
-
-	sif_hw_disable(sif_dev->base_reg);
-	clear_bit(SIF_HW_RUN, &sif_dev->state);
-
-	mutex_unlock(&sif_dev->shared_mutex);
-p_dec:
+	atomic_dec_return(&sif_dev->rsccount);
 
 	if (framemgr->frames != NULL)
 		frame_manager_flush(framemgr);
@@ -2361,7 +2341,6 @@ static int x3_sif_probe(struct platform_device *pdev)
 	atomic_set(&sif->rsccount, 0);
 	atomic_set(&sif->isp_init_cnt, 0);
 	atomic_set(&sif->open_cnt, 0);
-	mutex_init(&sif_mutex);
 
 	mutex_init(&sif->shared_mutex);
 
