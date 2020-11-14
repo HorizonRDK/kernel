@@ -13,6 +13,7 @@
 #include <linux/module.h>
 #include <linux/devfreq.h>
 #include <linux/math64.h>
+#include <linux/delay.h>
 #include "governor.h"
 
 /* Default constants for DevFreq-Simple-Ondemand (DFSO) */
@@ -31,6 +32,9 @@ void devfreq_simple_ondemand_func_set_data(
 {
 	so_data = data;
 }
+
+extern int devfreq_simple_ondemand_event_enable_disable(
+		struct devfreq_simple_ondemand_data *so_data, int enable);
 #endif
 
 static int devfreq_simple_ondemand_func(struct devfreq *df,
@@ -118,8 +122,11 @@ static int devfreq_simple_ondemand_handler(struct devfreq *devfreq,
 		/* recover simple_ondemand_data since it could be lost when
 		 * switching from other governor.
 		 */
-		if (so_data != NULL)
+		if (so_data != NULL) {
 			devfreq->data = so_data;
+			devfreq_simple_ondemand_event_enable_disable(so_data, 1);
+			msleep(200);
+		}
 #endif
 		devfreq_monitor_start(devfreq);
 
@@ -127,6 +134,11 @@ static int devfreq_simple_ondemand_handler(struct devfreq *devfreq,
 
 	case DEVFREQ_GOV_STOP:
 		devfreq_monitor_stop(devfreq);
+
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
+		if (so_data != NULL)
+			devfreq_simple_ondemand_event_enable_disable(so_data, 0);
+#endif
 		break;
 
 	case DEVFREQ_GOV_INTERVAL:

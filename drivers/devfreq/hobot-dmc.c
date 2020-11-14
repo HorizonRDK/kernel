@@ -38,6 +38,34 @@ struct hobot_dmcfreq {
 	unsigned long rate, target_rate;
 };
 
+/*
+ * Disable dfi event when simple_ondemand is not running to save power
+ * called in simple_ondemand governor, enable dfi event when start
+ * simple_ondemand governor, disable dfi event when stop.
+ *
+ */
+int devfreq_simple_ondemand_event_enable_disable(
+		struct devfreq_simple_ondemand_data *so_data, int enable)
+{
+	struct hobot_dmcfreq *ctx =
+			container_of(so_data, struct hobot_dmcfreq, ondemand_data);
+	int ret = 0;
+
+	if (enable) {
+		ret = devfreq_event_enable_edev(ctx->edev);
+		if (ret < 0)
+			dev_err(ctx->dev, "failed to enable dfi event\n");
+	} else {
+		ret = devfreq_event_disable_edev(ctx->edev);
+		if (ret < 0)
+			dev_err(ctx->dev, "failed to disable dfi event\n");
+	}
+
+	return ret;
+}
+
+EXPORT_SYMBOL(devfreq_simple_ondemand_event_enable_disable);
+
 static int hobot_dmcfreq_target(struct device *dev, unsigned long *freq,
 				 u32 flags)
 {
@@ -222,12 +250,6 @@ static int hobot_dmcfreq_probe(struct platform_device *pdev)
 	ctx->edev = devfreq_event_get_edev_by_phandle(dev, 0);
 	if (IS_ERR(ctx->edev))
 		return -EPROBE_DEFER;
-
-	ret = devfreq_event_enable_edev(ctx->edev);
-	if (ret < 0) {
-		dev_err(dev, "failed to enable devfreq-event devices\n");
-		return ret;
-	}
 
 	/*
 	 * We add a devfreq driver to our parent since it has a device tree node

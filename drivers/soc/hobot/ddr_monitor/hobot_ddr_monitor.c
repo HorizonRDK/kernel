@@ -144,7 +144,6 @@ struct ddr_monitor_result_s {
 	unsigned int act_cmd_rd_num;
 	unsigned int per_cmd_num;
 	unsigned int per_cmd_rdwr_num;
-
 };
 
 typedef struct ddr_monitor_sample_s {
@@ -160,7 +159,7 @@ struct ddr_monitor_result_s* ddr_info = NULL;
 char * result_buf = NULL;
 unsigned int g_current_index = 0;
 volatile unsigned int g_record_num = 0;
-unsigned int g_monitor_period = 10000;//unit is us, use 10ms by default
+unsigned int g_monitor_period = 100000;//unit is us, use 100ms by default
 unsigned int g_sample_number = 0;
 unsigned int g_extra_rd_info = 0;
 
@@ -250,29 +249,14 @@ ssize_t ddr_monitor_debug_write(struct file *file, const char __user *buf, size_
 
 static int hobot_dfi_disable(struct devfreq_event_dev *edev)
 {
-//	struct hobot_dfi *info = devfreq_event_get_drvdata(edev);
-
 	pr_debug("%s %d\n", __func__, __LINE__);
 	ddr_monitor_stop();
-#if 0
-	clk_disable_unprepare(info->clk);
-#endif
 
 	return 0;
 }
 
 static int hobot_dfi_enable(struct devfreq_event_dev *edev)
 {
-#if 0
-	struct hobot_dfi *info = devfreq_event_get_drvdata(edev);
-	int ret;
-
-	ret = clk_prepare_enable(info->clk);
-	if (ret) {
-		dev_err(&edev->dev, "failed to enable dfi clk: %d\n", ret);
-		return ret;
-	}
-#endif
 
 	pr_debug("%s %d\n", __func__, __LINE__);
 	ddr_monitor_start();
@@ -282,7 +266,6 @@ static int hobot_dfi_enable(struct devfreq_event_dev *edev)
 
 static int hobot_dfi_set_event(struct devfreq_event_dev *edev)
 {
-	pr_debug("%s %d\n", __func__, __LINE__);
 	/* we don't support. */
 	return 0;
 }
@@ -296,29 +279,35 @@ static int hobot_dfi_get_event(struct devfreq_event_dev *edev,
 	unsigned long read_cnt = 0;
 	unsigned long write_cnt = 0;
 	unsigned long cur_ddr_rate;
+	int cur;
 
 	pr_debug("%s %d\n", __func__, __LINE__);
 
 	if (g_record_num <= 0) {
-		pr_err("%s:%d ddr monitor record is empty\n", __func__, __LINE__);
-		return -1;
+		/* set to max load when not ready*/
+		edata->load_count = 9999;
+		edata->total_count = 10000;
+		return 0;
 	}
+
+	cur = (g_current_index - 1 + TOTAL_RECORD_NUM) % TOTAL_RECORD_NUM;
 
 	cur_ddr_rate = hobot_dmc_cur_rate();
 	if (unlikely(cur_ddr_rate == 0)) {
-		/* we trust ddr_mclk before CR5 changing ddr clk */
-		cur_ddr_rate = clk_get_rate(g_ddr_monitor_dev->ddr_mclk) * 4;;
+		/* we trust ddr_mclk before changing ddr clk */
+		cur_ddr_rate = clk_get_rate(g_ddr_monitor_dev->ddr_mclk) * 4;
 		pr_debug("get cur_ddr_rate %ld from ddr_mclk\n", cur_ddr_rate);
 	}
 
 	pr_debug("cur_ddr_freq: %ld\n", cur_ddr_rate);
 
 	spin_lock_irqsave(&g_ddr_monitor_dev->lock, flags);
-	cur_info = &ddr_info[g_current_index];
+	cur_info = &ddr_info[cur];
 
 	read_cnt = cur_info->rd_cmd_num * rd_cmd_bytes *
 			(1000000 / g_monitor_period) >> 20;
-	write_cnt = cur_info->wr_cmd_num * 64 *
+
+	write_cnt = (cur_info->wr_cmd_num * cur_info->mwr_cmd_num) * 64 *
 			(1000000 / g_monitor_period) >> 20;
 
 	edata->load_count = read_cnt + write_cnt;
@@ -326,8 +315,9 @@ static int hobot_dfi_get_event(struct devfreq_event_dev *edev,
 
 	spin_unlock_irqrestore(&g_ddr_monitor_dev->lock, flags);
 
-	pr_debug("rd_cnt:%ld,  wr_cnt:%ld, load:%ld, total:%ld\n",
-		read_cnt, write_cnt, edata->load_count , edata->total_count);
+	pr_debug("rd:%6ld, wr:%6ld, load:%6ld, total:%6ld, ddr_clk:%ldMHz\n",
+		read_cnt, write_cnt, edata->load_count , edata->total_count,
+		cur_ddr_rate / 1000000);
 
 	return 0;
 }
