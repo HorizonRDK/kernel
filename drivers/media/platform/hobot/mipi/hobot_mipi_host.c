@@ -121,6 +121,7 @@ module_param(hw_mode, uint, 0644);
 #define MIPI_HOST_HSATIME		   (0x04)
 #define MIPI_HOST_HBPTIME		   (0x04)
 #define MIPI_HOST_HSDTIME		   (0x5f4)
+#define MIPI_HOST_HSDTIME_MAX	   (0xfff)
 #define MIPI_HOST_CFGCLK_DEFAULT   (0x1C)
 #define MIPI_HOST_IPI1_SOFTRSTN	   (0x01 << 0)
 #define MIPI_HOST_IPI2_SOFTRSTN	   (0x01 << 4)
@@ -334,7 +335,7 @@ typedef struct _mipi_host_ireg_s {
 static const mipi_host_ireg_t mh_int_regs_1p3[] = {
 	{ 1, MIPI_HOST_INT_PHY_FATAL, REG_MIPI_HOST_INT_ST_PHY_FATAL,
 		REG_MIPI_HOST_INT_MSK_PHY_FATAL, REG_MIPI_HOST_INT_FORCE_PHY_FATAL,
-		0x000000ff,
+		0x0000000f,
 #if MIPI_HOST_INT_DBG_ERRSTR
 	  { "phy_errsotsynchs_0", "phy_errsotsynchs_1",
 		"phy_errsotsynchs_2", "phy_errsotsynchs_3",
@@ -437,7 +438,7 @@ static const mipi_host_ireg_t mh_int_regs_1p3[] = {
 static const mipi_host_ireg_t mh_int_regs_1p4[] = {
 	{ 1, MIPI_HOST_1P4_INT_PHY_FATAL, REG_MIPI_HOST_INT_ST_PHY_FATAL,
 		REG_MIPI_HOST_INT_MSK_PHY_FATAL, REG_MIPI_HOST_INT_FORCE_PHY_FATAL,
-		0x000000ff, /* ignore err_deskew */
+		0x0000000f, /* ignore err_deskew */
 #if MIPI_HOST_INT_DBG_ERRSTR
 	  { "phy_errsotsynchs_0", "phy_errsotsynchs_1",
 		"phy_errsotsynchs_2", "phy_errsotsynchs_3",
@@ -447,7 +448,7 @@ static const mipi_host_ireg_t mh_int_regs_1p4[] = {
 #endif
 	},
 	{ 2, MIPI_HOST_1P4_INT_PKT_FATAL, REG_MIPI_HOST_INT_ST_PKT_FATAL,
-		REG_MIPI_HOST_INT_ST_PKT_FATAL, REG_MIPI_HOST_INT_FORCE_PKT_FATAL,
+		REG_MIPI_HOST_INT_MSK_PKT_FATAL, REG_MIPI_HOST_INT_FORCE_PKT_FATAL,
 		0x00000001,
 #if MIPI_HOST_INT_DBG_ERRSTR
 	  { "err_ecc_double" },
@@ -455,7 +456,7 @@ static const mipi_host_ireg_t mh_int_regs_1p4[] = {
 	},
 	{ 4, MIPI_HOST_1P4_INT_BNDRY_FRM_FATAL, REG_MIPI_HOST_INT_ST_BNDRY_FRAME_FATAL,
 		REG_MIPI_HOST_INT_MSK_BNDRY_FRAME_FATAL, REG_MIPI_HOST_INT_FORCE_BNDRY_FRAME_FATAL,
-		0xffffffff,
+		0x0000ffff,
 #if MIPI_HOST_INT_DBG_ERRSTR
 	  { "err_f_bndry_match_vc0", "err_f_bndry_match_vc1",
 		"err_f_bndry_match_vc2", "err_f_bndry_match_vc3",
@@ -477,7 +478,7 @@ static const mipi_host_ireg_t mh_int_regs_1p4[] = {
 	},
 	{ 5, MIPI_HOST_1P4_INT_SEQ_FRM_FATAL, REG_MIPI_HOST_INT_ST_SEQ_FRAME_FATAL,
 		REG_MIPI_HOST_INT_MSK_SEQ_FRAME_FATAL, REG_MIPI_HOST_INT_FORCE_SEQ_FRAME_FATAL,
-		0xffffffff,
+		0x0000ffff,
 #if MIPI_HOST_INT_DBG_ERRSTR
 	  { "err_f_seq_vc0", "err_f_seq_vc1", "err_f_seq_vc2",
 		"err_f_seq_vc3", "err_f_seq_vc4", "err_f_seq_vc5",
@@ -495,7 +496,7 @@ static const mipi_host_ireg_t mh_int_regs_1p4[] = {
 	},
 	{ 6, MIPI_HOST_1P4_INT_CRC_FRM_FATAL, REG_MIPI_HOST_INT_ST_CRC_FRAME_FATAL,
 		REG_MIPI_HOST_INT_MSK_CRC_FRAME_FATAL, REG_MIPI_HOST_INT_FORCE_CRC_FRAME_FATAL,
-		0xffffffff,
+		0x0000ffff,
 #if MIPI_HOST_INT_DBG_ERRSTR
 	  { "err_frame_data_vc0", "err_frame_data_vc1",
 		"err_frame_data_vc2", "err_frame_data_vc3",
@@ -517,7 +518,7 @@ static const mipi_host_ireg_t mh_int_regs_1p4[] = {
 	},
 	{ 7, MIPI_HOST_1P4_INT_PLD_CRC_FATAL, REG_MIPI_HOST_INT_ST_PLD_CRC_FATAL,
 		REG_MIPI_HOST_INT_MSK_PLD_CRC_FATAL, REG_MIPI_HOST_INT_FORCE_PLD_CRC_FATAL,
-		0xffffffff,
+		0x0000ffff,
 #if MIPI_HOST_INT_DBG_ERRSTR
 	  { "err_crc_vc0", "err_crc_vc1", "err_crc_vc2",
 		"err_crc_vc3", "err_crc_vc4", "err_crc_vc5",
@@ -535,7 +536,7 @@ static const mipi_host_ireg_t mh_int_regs_1p4[] = {
 	},
 	{ 8, MIPI_HOST_1P4_INT_DATA_ID, REG_MIPI_HOST_INT_ST_DATA_ID,
 		REG_MIPI_HOST_INT_MSK_DATA_ID, REG_MIPI_HOST_INT_FORCE_DATA_ID,
-		0xffffffff,
+		0x0000ffff,
 #if MIPI_HOST_INT_DBG_ERRSTR
 	  { "err_id_vc0", "err_id_vc1", "err_id_vc2",
 		"err_id_vc3", "err_id_vc4", "err_id_vc5",
@@ -553,7 +554,7 @@ static const mipi_host_ireg_t mh_int_regs_1p4[] = {
 	},
 	{ 9, MIPI_HOST_1P4_INT_ECC_CORRECTED, REG_MIPI_HOST_INT_ST_ECC_CORRECT,
 		REG_MIPI_HOST_INT_MSK_ECC_CORRECT, REG_MIPI_HOST_INT_FORCE_ECC_CORRECT,
-		0xffffffff,
+		0x0000ffff,
 #if MIPI_HOST_INT_DBG_ERRSTR
 	  { "err_ecc_corrected0", "err_ecc_corrected1",
 		"err_ecc_corrected2", "err_ecc_corrected3",
@@ -575,7 +576,7 @@ static const mipi_host_ireg_t mh_int_regs_1p4[] = {
 	},
 	{ 10, MIPI_HOST_1P4_INT_PHY, REG_MIPI_HOST_INT_ST_PHY,
 		REG_MIPI_HOST_INT_MSK_PHY, REG_MIPI_HOST_INT_FORCE_PHY,
-		0x00ff00ff,
+		0x000f000f,
 #if MIPI_HOST_INT_DBG_ERRSTR
 	  { "phy_errsoths_0", "phy_errsoths_1",
 		"phy_errsoths_2", "phy_errsoths_3",
@@ -1654,7 +1655,10 @@ static uint16_t mipi_host_get_hsd(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg,
 	else
 		hsdtime += 4;
 #endif
-	//hsdtime = (hsdtime + 16) & (~0xf);
+	if (hsdtime > MIPI_HOST_HSDTIME_MAX) {
+		hsdtime = MIPI_HOST_HSDTIME_MAX;
+		mipiinfo("hsdtime max as: %d", hsdtime);
+	}
 	time_ipi = 1000 * (unsigned long)(cfg->hsaTime + cfg->hbpTime + hsdtime + cycles_to_trans) * 1000000 / pixclk;
 	mipiinfo("time to transmit last pixel in ipi: %lu", time_ipi);
 	return (uint16_t)hsdtime;
@@ -1963,8 +1967,6 @@ static int32_t mipi_host_dphy_start_hs_reception(mipi_hdev_t *hdev)
 		return -1;
 
 	mipiinfo("check hs reception");
-	notimeout = (hdev->is_ex) ?
-		g_hdev[mipi_host_port_other(hdev)]->host.param.notimeout : param->notimeout;
 	/*Check that clock lane is in HS mode*/
 	do {
 		state = mipi_getreg(iomem + REG_MIPI_HOST_PHY_RX);
@@ -1974,6 +1976,8 @@ static int32_t mipi_host_dphy_start_hs_reception(mipi_hdev_t *hdev)
 		}
 		ncount++;
 		mdelay(1);
+		notimeout = (hdev->is_ex) ?
+			g_hdev[mipi_host_port_other(hdev)]->host.param.notimeout : param->notimeout;
 	} while (notimeout || ncount <= HOST_DPHY_CHECK_MAX);
 
 	mipiinfo("hs reception check error 0x%x", state);

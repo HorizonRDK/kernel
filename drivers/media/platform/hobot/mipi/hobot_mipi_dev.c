@@ -91,7 +91,7 @@ module_param(init_num, uint, 0644);
 #define MIPI_DEV_IPI_PKT_CFG		(0xa00)
 #define MIPI_DEV_IPI_HSYNC_PKT_EN	(0x01 << 8)
 #define MIPI_DEV_IPI_VC(x)			(((((x) / 4) & 0x7) << 12) | (((x) % 4) << 6))
-#define MIPI_DEV_IPI_MAX_FRAME		(0xffffffff)
+#define MIPI_DEV_IPI_MAX_FRAME		(0xffff)
 
 #define MIPI_DEV_VPG_DISABLE		(0x00)
 #define MIPI_DEV_VPG_ENABLE			(0x01)
@@ -2092,6 +2092,7 @@ static ssize_t mipi_dev_status_show(struct device *dev,
 				MD_REG_SHOW(VPG_VBP_LINES);
 				MD_REG_SHOW(VPG_VFP_LINES);
 				MD_REG_SHOW(VPG_ACT_LINES);
+				MD_REG_SHOW(VPG_BK_LINES);
 				MD_REG_SHOW(VPG_MAX_FRAME_NUM);
 				MD_REG_SHOW(VPG_START_LINE_NUM);
 				MD_REG_SHOW(VPG_STEP_LINE_NUM);
