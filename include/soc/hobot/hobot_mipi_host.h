@@ -44,6 +44,18 @@ typedef struct _mipi_host_ipi_reset_t {
 	uint16_t enable;
 } mipi_host_ipi_reset_t;
 
+typedef struct _mipi_host_ipi_info_t {
+	uint16_t index;
+	uint16_t fatal;
+	uint16_t mode;
+	uint16_t vc;
+	uint16_t datatype;
+	uint16_t hsa;
+	uint16_t hbp;
+	uint16_t hsd;
+	uint32_t adv;
+} mipi_host_ipi_info_t;
+
 #define MIPIHOSTIOC_MAGIC 'v'
 #define MIPIHOSTIOC_INIT             _IOW(MIPIHOSTIOC_MAGIC, 0, mipi_host_cfg_t)
 #define MIPIHOSTIOC_DEINIT           _IO(MIPIHOSTIOC_MAGIC,  1)
@@ -56,5 +68,6 @@ typedef struct _mipi_host_ipi_reset_t {
 #define MIPIHOSTIOC_PRE_INIT_RESULT  _IOW(MIPIHOSTIOC_MAGIC, 8, uint32_t)
 #define MIPIHOSTIOC_PRE_START_RESULT _IOW(MIPIHOSTIOC_MAGIC, 9, uint32_t)
 #define MIPIHOSTIOC_IPI_RESET        _IOW(MIPIHOSTIOC_MAGIC, 10, mipi_host_ipi_reset_t)
+#define MIPIHOSTIOC_IPI_GET_INFO     _IOR(MIPIHOSTIOC_MAGIC, 11, mipi_host_ipi_info_t)
 
 #endif /*__HOBOT_MIPI_HOST_H__*/

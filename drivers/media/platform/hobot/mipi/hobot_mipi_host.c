@@ -1090,20 +1090,24 @@ static int32_t mipi_host_ipi_reset(mipi_hdev_t *hdev, mipi_host_ipi_reset_t *ipi
 {
 	mipi_host_t *host = &hdev->host;
 	mipi_host_cfg_t *cfg = &host->cfg;
+	mipi_host_param_t *param = &host->param;
 	struct device *dev = hdev->dev;
 	void __iomem *iomem = host->iomem;
-	int32_t i, done = 0;
+	int32_t i, ipi_max, done = 0;
 	uint32_t softrstn, rstn_bit, reg_mode, ipi_mode;
 
 	if (!ipi_reset || !iomem)
 		return -1;
 
+	ipi_max = mipi_host_port_ipi(hdev);
 	for (i = 0; i < MIPIHOST_CHANNEL_NUM; i++) {
 		if ((ipi_reset->mask & (0x1 << i)) == 0)
 			continue;
-		if (i >= cfg->channel_num) {
-			mipiinfo("ipi%d reset: not configed drop", i + 1);
+		if (i >= ipi_max) {
+			mipiinfo("%d:ipi%d reset: not support drop", i, i + 1);
 			continue;
+		} else if (i >= cfg->channel_num) {
+			mipidbg("%d:ipi%d reset: not inited warning", i, i + 1);
 		}
 		switch (i) {
 		case 3:
@@ -1127,13 +1131,13 @@ static int32_t mipi_host_ipi_reset(mipi_hdev_t *hdev, mipi_host_ipi_reset_t *ipi
 		softrstn = mipi_getreg(iomem + REG_MIPI_HOST_IPI_SOFTRSTN);
 		ipi_mode = mipi_getreg(iomem + reg_mode);
 		if (ipi_reset->enable) {
-			mipiinfo("ipi%d reset: enable", i + 1);
+			mipiinfo("%d:ipi%d reset: enable", i, i + 1);
 			softrstn |= rstn_bit;
 			ipi_mode |= MIPI_HOST_IPI_ENABLE;
 			mipi_putreg(iomem + REG_MIPI_HOST_IPI_SOFTRSTN, softrstn);
 			mipi_putreg(iomem + reg_mode, ipi_mode);
 		} else {
-			mipiinfo("ipi%d reset: disable", i + 1);
+			mipiinfo("%d:ipi%d reset: disable", i, i + 1);
 			softrstn &= ~rstn_bit;
 			ipi_mode &= ~MIPI_HOST_IPI_ENABLE;
 			mipi_putreg(iomem + reg_mode, ipi_mode);
@@ -1145,6 +1149,89 @@ static int32_t mipi_host_ipi_reset(mipi_hdev_t *hdev, mipi_host_ipi_reset_t *ipi
 		mipierr("ipi reset error: none");
 		return -1;
 	}
+
+	return 0;
+}
+
+/**
+ * @brief mipi_host_ipi_get_info: get ipi info of mipi host
+ *
+ * @param [in/out] ipi_info: ipi info struct.
+ *
+ * @return int32_t : 0/-1
+ */
+static int32_t mipi_host_ipi_get_info(mipi_hdev_t *hdev, mipi_host_ipi_info_t *ipi_info)
+{
+	mipi_host_t *host = &hdev->host;
+	mipi_host_cfg_t *cfg = &host->cfg;
+	mipi_host_param_t *param = &host->param;
+	struct device *dev = hdev->dev;
+	void __iomem *iomem = host->iomem;
+	int32_t index, ipi_max;
+	int32_t r_fatal, r_mode, r_vc, r_datatype, r_hsa, r_hbp, r_hsd, r_adv;
+
+	if (!ipi_info || !iomem)
+		return -1;
+
+	index = ipi_info->index;
+	ipi_max = mipi_host_port_ipi(hdev);
+	if (index >= ipi_max) {
+		mipierr("%d:ipi%d get: not suppor error", index, index + 1);
+		return -1;
+	} else if (index >= cfg->channel_num) {
+		mipidbg("%d:ipi%d get: not inited warning", index, index + 1);
+	}
+	switch (index) {
+	case 3:
+		r_fatal = REG_MIPI_HOST_INT_ST_IPI4;
+		r_mode = REG_MIPI_HOST_IPI4_MODE;
+		r_vc = REG_MIPI_HOST_IPI4_VCID;
+		r_datatype = REG_MIPI_HOST_IPI4_DATA_TYPE;
+		r_hsa = REG_MIPI_HOST_IPI4_HSA_TIME;
+		r_hbp = REG_MIPI_HOST_IPI4_HBP_TIME;
+		r_hsd = REG_MIPI_HOST_IPI4_HSD_TIME;
+		r_adv = REG_MIPI_HOST_IPI4_ADV_FEATURES;
+		break;
+	case 2:
+		r_fatal = REG_MIPI_HOST_INT_ST_IPI3;
+		r_mode = REG_MIPI_HOST_IPI3_MODE;
+		r_vc = REG_MIPI_HOST_IPI3_VCID;
+		r_datatype = REG_MIPI_HOST_IPI3_DATA_TYPE;
+		r_hsa = REG_MIPI_HOST_IPI3_HSA_TIME;
+		r_hbp = REG_MIPI_HOST_IPI3_HBP_TIME;
+		r_hsd = REG_MIPI_HOST_IPI3_HSD_TIME;
+		r_adv = REG_MIPI_HOST_IPI3_ADV_FEATURES;
+		break;
+	case 1:
+		r_fatal = REG_MIPI_HOST_INT_ST_IPI2;
+		r_mode = REG_MIPI_HOST_IPI2_MODE;
+		r_vc = REG_MIPI_HOST_IPI2_VCID;
+		r_datatype = REG_MIPI_HOST_IPI2_DATA_TYPE;
+		r_hsa = REG_MIPI_HOST_IPI2_HSA_TIME;
+		r_hbp = REG_MIPI_HOST_IPI2_HBP_TIME;
+		r_hsd = REG_MIPI_HOST_IPI2_HSD_TIME;
+		r_adv = REG_MIPI_HOST_IPI2_ADV_FEATURES;
+		break;
+	case 0:
+	default:
+		r_fatal = REG_MIPI_HOST_INT_ST_IPI;
+		r_mode = REG_MIPI_HOST_IPI_MODE;
+		r_vc = REG_MIPI_HOST_IPI_VCID;
+		r_datatype = REG_MIPI_HOST_IPI_DATA_TYPE;
+		r_hsa = REG_MIPI_HOST_IPI_HSA_TIME;
+		r_hbp = REG_MIPI_HOST_IPI_HBP_TIME;
+		r_hsd = REG_MIPI_HOST_IPI_HSD_TIME;
+		r_adv = REG_MIPI_HOST_IPI_ADV_FEATURES;
+		break;
+	}
+	ipi_info->fatal = (uint16_t)mipi_getreg(iomem + r_fatal);
+	ipi_info->mode = (uint16_t)mipi_getreg(iomem + r_mode);
+	ipi_info->vc = (uint16_t)mipi_getreg(iomem + r_vc);
+	ipi_info->datatype = (uint16_t)mipi_getreg(iomem + r_datatype);
+	ipi_info->hsa = (uint16_t)mipi_getreg(iomem + r_hsa);
+	ipi_info->hbp = (uint16_t)mipi_getreg(iomem + r_hbp);
+	ipi_info->hsd = (uint16_t)mipi_getreg(iomem + r_hsd);
+	ipi_info->adv = (uint32_t)mipi_getreg(iomem + r_adv);
 
 	return 0;
 }
@@ -2461,6 +2548,35 @@ static long hobot_mipi_host_ioctl(struct file *file, unsigned int cmd, unsigned 
 			}
 			if (mipi_host_ipi_reset(hdev, &ipi_reset))
 				ret = -EFAULT;
+			mutex_unlock(&user->mutex);
+		}
+		break;
+	case MIPIHOSTIOC_IPI_GET_INFO:
+		{
+			mipi_host_ipi_info_t ipi_info;
+			if (mutex_lock_interruptible(&user->mutex)) {
+				mipierr("init user mutex lock error");
+				return -EINVAL;
+			}
+			mipiinfo("ipi get info cmd");
+			if (!arg || copy_from_user((void *)&ipi_info,
+				   (void __user *)arg, sizeof(mipi_host_ipi_info_t))) {
+				mipierr("ipi get erorr, %p from user error", (void __user *)arg);
+				mutex_unlock(&user->mutex);
+				return -EINVAL;
+			}
+			if (user->init_cnt == 0) {
+				mipierr("state error: not inited");
+				mutex_unlock(&user->mutex);
+				return -EACCES;
+			}
+			if (mipi_host_ipi_get_info(hdev, &ipi_info)) {
+				ret = -EFAULT;
+			} else if (copy_to_user((void __user *)arg,
+					(void *)&ipi_info, sizeof(mipi_host_ipi_info_t))) {
+				mipierr("ipi get erorr, %p to user error", (void __user *)arg);
+				ret = -EINVAL;
+			}
 			mutex_unlock(&user->mutex);
 		}
 		break;
