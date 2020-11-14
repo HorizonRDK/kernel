@@ -89,6 +89,7 @@ def str2hex(s):
 bootInfoPath   = r"bootinfo.json"
 bootLoaderPath = r"bootfile.json"
 bootDtb     = r"bootdtb_x3.json"
+alignment = 4 * 1024
 
 if __name__ == '__main__':
 
@@ -150,7 +151,8 @@ if __name__ == '__main__':
         else :
             bootInfoContent[j+2] = addr
             dict[dict_key] = addr
-            addr = addr + 64*1024
+            # alignment
+            addr = addr + (file_size / alignment + 1) * alignment
 
             # if (imageType == "nor" or imageType== "nand"):
             # dtb_file = dtbPath + dict_key
@@ -158,8 +160,8 @@ if __name__ == '__main__':
             file_content = file_object.read()
             file_produced1.write(file_content)
 
-            # file_size = getFileSize(dtb_file)
-            zero0 = 64*1024 - file_size
+            # padding for 4 k alignment
+            zero0 = alignment - (file_size % alignment)
             file_produced1.write('\x00' * zero0)
         file_object.close()
         j = j + 12
