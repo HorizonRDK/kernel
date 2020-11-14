@@ -38,10 +38,23 @@ typedef struct _mipi_dev_cfg_t {
 	uint16_t channel_sel[MIPIDEV_CHANNEL_NUM];
 } mipi_dev_cfg_t;
 
+typedef struct _mipi_dev_ipi_info_t {
+	uint16_t index;
+	uint16_t fatal;
+	uint16_t mode;
+	uint16_t vc;
+	uint16_t datatype;
+	uint16_t maxfnum;
+	uint32_t pixels;
+	uint32_t lines;
+} mipi_dev_ipi_info_t;
+
 #define MIPIDEVIOC_MAGIC 'v'
 #define MIPIDEVIOC_INIT             _IOW(MIPIDEVIOC_MAGIC, 0, mipi_dev_cfg_t)
 #define MIPIDEVIOC_DEINIT           _IO(MIPIDEVIOC_MAGIC,  1)
 #define MIPIDEVIOC_START            _IO(MIPIDEVIOC_MAGIC,  2)
 #define MIPIDEVIOC_STOP             _IO(MIPIDEVIOC_MAGIC,  3)
+#define MIPIDEVIOC_IPI_GET_INFO     _IOR(MIPIDEVIOC_MAGIC, 4, mipi_dev_ipi_info_t)
+#define MIPIDEVIOC_IPI_SET_INFO     _IOW(MIPIDEVIOC_MAGIC, 5, mipi_dev_ipi_info_t)
 
 #endif /*__HOBOT_MIPI_DEV_H__*/

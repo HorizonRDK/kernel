@@ -1236,6 +1236,107 @@ static int32_t mipi_host_ipi_get_info(mipi_hdev_t *hdev, mipi_host_ipi_info_t *i
 	return 0;
 }
 
+/**
+ * @brief mipi_host_ipi_set_info: set ipi info of mipi host
+ *
+ * @param [in] ipi_info: ipi info struct.
+ *
+ * @return int32_t : 0/-1
+ */
+static int32_t mipi_host_ipi_set_info(mipi_hdev_t *hdev, mipi_host_ipi_info_t *ipi_info)
+{
+	mipi_host_t *host = &hdev->host;
+	mipi_host_cfg_t *cfg = &host->cfg;
+	mipi_host_param_t *param = &host->param;
+	struct device *dev = hdev->dev;
+	void __iomem *iomem = host->iomem;
+	int32_t index, ipi_max, set_mask;
+	int32_t r_mode, r_vc, r_datatype, r_hsa, r_hbp, r_hsd, r_adv;
+
+	if (!ipi_info || !iomem)
+		return -1;
+
+	index = ipi_info->index;
+	ipi_max = mipi_host_port_ipi(hdev);
+	if (index >= ipi_max) {
+		mipierr("%d:ipi%d set: not suppor error", index, index + 1);
+		return -1;
+	} else if (index >= cfg->channel_num) {
+		mipidbg("%d:ipi%d set: not inited warning", index, index + 1);
+	}
+	switch (index) {
+	case 3:
+		r_mode = REG_MIPI_HOST_IPI4_MODE;
+		r_vc = REG_MIPI_HOST_IPI4_VCID;
+		r_datatype = REG_MIPI_HOST_IPI4_DATA_TYPE;
+		r_hsa = REG_MIPI_HOST_IPI4_HSA_TIME;
+		r_hbp = REG_MIPI_HOST_IPI4_HBP_TIME;
+		r_hsd = REG_MIPI_HOST_IPI4_HSD_TIME;
+		r_adv = REG_MIPI_HOST_IPI4_ADV_FEATURES;
+		break;
+	case 2:
+		r_mode = REG_MIPI_HOST_IPI3_MODE;
+		r_vc = REG_MIPI_HOST_IPI3_VCID;
+		r_datatype = REG_MIPI_HOST_IPI3_DATA_TYPE;
+		r_hsa = REG_MIPI_HOST_IPI3_HSA_TIME;
+		r_hbp = REG_MIPI_HOST_IPI3_HBP_TIME;
+		r_hsd = REG_MIPI_HOST_IPI3_HSD_TIME;
+		r_adv = REG_MIPI_HOST_IPI3_ADV_FEATURES;
+		break;
+	case 1:
+		r_mode = REG_MIPI_HOST_IPI2_MODE;
+		r_vc = REG_MIPI_HOST_IPI2_VCID;
+		r_datatype = REG_MIPI_HOST_IPI2_DATA_TYPE;
+		r_hsa = REG_MIPI_HOST_IPI2_HSA_TIME;
+		r_hbp = REG_MIPI_HOST_IPI2_HBP_TIME;
+		r_hsd = REG_MIPI_HOST_IPI2_HSD_TIME;
+		r_adv = REG_MIPI_HOST_IPI2_ADV_FEATURES;
+		break;
+	case 0:
+	default:
+		r_mode = REG_MIPI_HOST_IPI_MODE;
+		r_vc = REG_MIPI_HOST_IPI_VCID;
+		r_datatype = REG_MIPI_HOST_IPI_DATA_TYPE;
+		r_hsa = REG_MIPI_HOST_IPI_HSA_TIME;
+		r_hbp = REG_MIPI_HOST_IPI_HBP_TIME;
+		r_hsd = REG_MIPI_HOST_IPI_HSD_TIME;
+		r_adv = REG_MIPI_HOST_IPI_ADV_FEATURES;
+		break;
+	}
+	/* set some masked if fatal.b15, or set all
+	 * ps: disable first, enable last */
+	set_mask = (ipi_info->fatal & 0x8000) ? ipi_info->fatal : 0xffff;
+	if ((set_mask & (0x1 << 0)) &&
+		((ipi_info->mode & MIPI_HOST_IPI_ENABLE) == 0))
+		mipi_putreg(iomem + r_mode, ipi_info->mode);
+	if (set_mask & (0x1 << 1))
+		mipi_putreg(iomem + r_vc, ipi_info->vc);
+	if (set_mask & (0x1 << 2))
+		mipi_putreg(iomem + r_datatype, ipi_info->datatype);
+	if (set_mask & (0x1 << 3))
+		mipi_putreg(iomem + r_hsa, ipi_info->hsa);
+	if (set_mask & (0x1 << 4))
+		mipi_putreg(iomem + r_hbp, ipi_info->hbp);
+	if (set_mask & (0x1 << 5))
+		mipi_putreg(iomem + r_hsd, ipi_info->hsd);
+	if (set_mask & (0x1 << 6))
+		mipi_putreg(iomem + r_adv, ipi_info->adv);
+	if ((set_mask & (0x1 << 0)) &&
+		((ipi_info->mode & MIPI_HOST_IPI_ENABLE) != 0))
+		mipi_putreg(iomem + r_mode, ipi_info->mode);
+
+	mipiinfo("%d:ipi%d set: mode=0x%x,vc=0x%x,dt=0x%x,hsa=%d,hbp=%d,hsd=%d,adv=0x%x",
+		index, index + 1,
+		mipi_getreg(iomem + r_mode),
+		mipi_getreg(iomem + r_vc),
+		mipi_getreg(iomem + r_datatype),
+		mipi_getreg(iomem + r_hsa),
+		mipi_getreg(iomem + r_hbp),
+		mipi_getreg(iomem + r_hsd),
+		mipi_getreg(iomem + r_adv));
+	return 0;
+}
+
 #ifdef CONFIG_HOBOT_XJ3
 int vio_clk_enable(const char *name);
 int vio_clk_disable(const char *name);
@@ -2577,6 +2678,30 @@ static long hobot_mipi_host_ioctl(struct file *file, unsigned int cmd, unsigned 
 				mipierr("ipi get erorr, %p to user error", (void __user *)arg);
 				ret = -EINVAL;
 			}
+			mutex_unlock(&user->mutex);
+		}
+		break;
+	case MIPIHOSTIOC_IPI_SET_INFO:
+		{
+			mipi_host_ipi_info_t ipi_info;
+			if (mutex_lock_interruptible(&user->mutex)) {
+				mipierr("init user mutex lock error");
+				return -EINVAL;
+			}
+			mipiinfo("ipi set info cmd");
+			if (!arg || copy_from_user((void *)&ipi_info,
+				   (void __user *)arg, sizeof(mipi_host_ipi_info_t))) {
+				mipierr("ipi set erorr, %p from user error", (void __user *)arg);
+				mutex_unlock(&user->mutex);
+				return -EINVAL;
+			}
+			if (user->init_cnt == 0) {
+				mipierr("state error: not inited");
+				mutex_unlock(&user->mutex);
+				return -EACCES;
+			}
+			if (mipi_host_ipi_set_info(hdev, &ipi_info))
+				ret = -EFAULT;
 			mutex_unlock(&user->mutex);
 		}
 		break;

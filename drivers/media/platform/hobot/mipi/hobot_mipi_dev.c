@@ -611,6 +611,171 @@ static int32_t mipi_dev_configure_cmp(mipi_dev_cfg_t *scfg, mipi_dev_cfg_t *dcfg
 	return memcmp(&bcfg, dcfg, sizeof(mipi_dev_cfg_t));
 }
 
+/**
+ * @brief mipi_dev_ipi_get_info: get ipi info of mipi dev
+ *
+ * @param [in/out] ipi_info: ipi info struct.
+ *
+ * @return int32_t : 0/-1
+ */
+static int32_t mipi_dev_ipi_get_info(mipi_ddev_t *ddev, mipi_dev_ipi_info_t *ipi_info)
+{
+	mipi_dev_t *mdev = &ddev->mdev;
+	mipi_dev_cfg_t *cfg = &mdev->cfg;
+	mipi_dev_param_t *param = &mdev->param;
+	struct device *dev = ddev->dev;
+	void __iomem *iomem = mdev->iomem;
+	int32_t index, ipi_max;
+	uint32_t v_pktcfg;
+	int32_t r_fatal, r_pktcfg, r_maxfnum, r_pixels, r_lines;
+
+	if (!ipi_info || !iomem)
+		return -1;
+
+#ifdef CONFIG_HOBOT_XJ2
+	ipi_max = 1;
+#else
+	ipi_max = 4;
+#endif
+	index = ipi_info->index;
+	if (index >= ipi_max) {
+		mipierr("%d:ipi%d get: not suppor error", index, index + 1);
+		return -1;
+	} else if (index >= cfg->channel_num) {
+		mipidbg("%d:ipi%d get: not inited warning", index, index + 1);
+	}
+	r_fatal = REG_MIPI_DEV_INT_ST_IPI;
+	switch (index) {
+	case 3:
+		r_pktcfg = REG_MIPI_DEV_IPI4_PKT_CFG;
+		r_maxfnum = REG_MIPI_DEV_IPI4_MAX_FRAME_NUM;
+		r_pixels = REG_MIPI_DEV_IPI4_PIXELS;
+		r_lines = REG_MIPI_DEV_IPI4_LINES;
+		break;
+	case 2:
+		r_pktcfg = REG_MIPI_DEV_IPI3_PKT_CFG;
+		r_maxfnum = REG_MIPI_DEV_IPI3_MAX_FRAME_NUM;
+		r_pixels = REG_MIPI_DEV_IPI3_PIXELS;
+		r_lines = REG_MIPI_DEV_IPI3_LINES;
+		break;
+	case 1:
+		r_pktcfg = REG_MIPI_DEV_IPI2_PKT_CFG;
+		r_maxfnum = REG_MIPI_DEV_IPI2_MAX_FRAME_NUM;
+		r_pixels = REG_MIPI_DEV_IPI2_PIXELS;
+		r_lines = REG_MIPI_DEV_IPI2_LINES;
+		break;
+	case 0:
+	default:
+		r_pktcfg = REG_MIPI_DEV_IPI_PKT_CFG;
+		r_maxfnum = REG_MIPI_DEV_IPI_MAX_FRAME_NUM;
+		r_pixels = REG_MIPI_DEV_IPI_PIXELS;
+		r_lines = REG_MIPI_DEV_IPI_LINES;
+		break;
+	}
+	ipi_info->fatal = (uint16_t)((mipi_getreg(iomem + r_fatal) >> (index * 8)) & 0xff);
+	v_pktcfg = mipi_getreg(iomem + r_pktcfg);
+	ipi_info->mode = (uint16_t)(v_pktcfg >> 8);
+	ipi_info->vc = (uint16_t)((v_pktcfg >> 6) & 0x3);
+	ipi_info->datatype = (uint16_t)(v_pktcfg & 0x3F);
+	ipi_info->maxfnum = (uint16_t)mipi_getreg(iomem + r_maxfnum);
+	ipi_info->pixels = (uint32_t)mipi_getreg(iomem + r_pixels);
+	ipi_info->lines = (uint32_t)mipi_getreg(iomem + r_lines);
+
+	return 0;
+}
+
+/**
+ * @brief mipi_dev_ipi_set_info: set ipi info of mipi dev
+ *
+ * @param [in] ipi_info: ipi info struct.
+ *
+ * @return int32_t : 0/-1
+ */
+static int32_t mipi_dev_ipi_set_info(mipi_ddev_t *ddev, mipi_dev_ipi_info_t *ipi_info)
+{
+	mipi_dev_t *mdev = &ddev->mdev;
+	mipi_dev_cfg_t *cfg = &mdev->cfg;
+	mipi_dev_param_t *param = &mdev->param;
+	struct device *dev = ddev->dev;
+	void __iomem *iomem = mdev->iomem;
+	int32_t index, ipi_max, set_mask;
+	uint32_t v_pktcfg;
+	int32_t r_pktcfg, r_maxfnum, r_pixels, r_lines;
+
+	if (!ipi_info || !iomem)
+		return -1;
+
+#ifdef CONFIG_HOBOT_XJ2
+	ipi_max = 1;
+#else
+	ipi_max = 4;
+#endif
+	index = ipi_info->index;
+	if (index >= ipi_max) {
+		mipierr("%d:ipi%d get: not suppor error", index, index + 1);
+		return -1;
+	} else if (index >= cfg->channel_num) {
+		mipidbg("%d:ipi%d get: not inited warning", index, index + 1);
+	}
+	switch (index) {
+	case 3:
+		r_pktcfg = REG_MIPI_DEV_IPI4_PKT_CFG;
+		r_maxfnum = REG_MIPI_DEV_IPI4_MAX_FRAME_NUM;
+		r_pixels = REG_MIPI_DEV_IPI4_PIXELS;
+		r_lines = REG_MIPI_DEV_IPI4_LINES;
+		break;
+	case 2:
+		r_pktcfg = REG_MIPI_DEV_IPI3_PKT_CFG;
+		r_maxfnum = REG_MIPI_DEV_IPI3_MAX_FRAME_NUM;
+		r_pixels = REG_MIPI_DEV_IPI3_PIXELS;
+		r_lines = REG_MIPI_DEV_IPI3_LINES;
+		break;
+	case 1:
+		r_pktcfg = REG_MIPI_DEV_IPI2_PKT_CFG;
+		r_maxfnum = REG_MIPI_DEV_IPI2_MAX_FRAME_NUM;
+		r_pixels = REG_MIPI_DEV_IPI2_PIXELS;
+		r_lines = REG_MIPI_DEV_IPI2_LINES;
+		break;
+	case 0:
+	default:
+		r_pktcfg = REG_MIPI_DEV_IPI_PKT_CFG;
+		r_maxfnum = REG_MIPI_DEV_IPI_MAX_FRAME_NUM;
+		r_pixels = REG_MIPI_DEV_IPI_PIXELS;
+		r_lines = REG_MIPI_DEV_IPI_LINES;
+		break;
+	}
+
+	/* set some masked if fatal.b15, or set all */
+	set_mask = (ipi_info->fatal & 0x8000) ? ipi_info->fatal : 0xffff;
+	v_pktcfg = mipi_getreg(iomem + r_pktcfg);
+	if (set_mask & (0x1 << 0))
+		v_pktcfg = (ipi_info->mode << 8) | (v_pktcfg & 0xff);
+	if (set_mask & (0x1 << 1))
+		v_pktcfg = ((ipi_info->vc & 0x3) << 6) | (v_pktcfg & ~0xc);
+	if (set_mask & (0x1 << 2))
+		v_pktcfg = (ipi_info->datatype & 0x3f) | (v_pktcfg & ~0x3f);
+	if (set_mask & 0x7)
+		mipi_putreg(iomem + r_pktcfg, v_pktcfg);
+	if (set_mask & (0x1 << 3))
+		mipi_putreg(iomem + r_maxfnum, ipi_info->maxfnum);
+	if (set_mask & (0x1 << 4))
+		mipi_putreg(iomem + r_pixels, ipi_info->pixels);
+	if (set_mask & (0x1 << 5))
+		mipi_putreg(iomem + r_lines, ipi_info->lines);
+
+	v_pktcfg = mipi_getreg(iomem + r_pktcfg);
+	mipiinfo("%d:ipi%d set: mode=0x%x,vc=0x%x,dt=0x%x,maxfnum=%d,pixels=%d,lines=%d",
+		index, index + 1,
+		v_pktcfg >> 8,
+		(v_pktcfg >> 6) & 0x3,
+		v_pktcfg & 0x3f,
+		mipi_getreg(iomem + r_maxfnum),
+		mipi_getreg(iomem + r_pixels),
+		mipi_getreg(iomem + r_lines));
+
+	return 0;
+}
+
 #ifdef CONFIG_HOBOT_XJ3
 int vio_clk_enable(const char *name);
 int vio_clk_disable(const char *name);
@@ -1598,6 +1763,59 @@ static long hobot_mipi_dev_ioctl(struct file *file, unsigned int cmd, unsigned l
 				}
 				mdev->state = MIPI_STATE_STOP;
 			}
+			mutex_unlock(&user->mutex);
+		}
+		break;
+	case MIPIDEVIOC_IPI_GET_INFO:
+		{
+			mipi_dev_ipi_info_t ipi_info;
+			if (mutex_lock_interruptible(&user->mutex)) {
+				mipierr("init user mutex lock error");
+				return -EINVAL;
+			}
+			mipiinfo("ipi get info cmd");
+			if (!arg || copy_from_user((void *)&ipi_info,
+				   (void __user *)arg, sizeof(mipi_dev_ipi_info_t))) {
+				mipierr("ipi get erorr, %p from user error", (void __user *)arg);
+				mutex_unlock(&user->mutex);
+				return -EINVAL;
+			}
+			if (user->init_cnt == 0) {
+				mipierr("state error: not inited");
+				mutex_unlock(&user->mutex);
+				return -EACCES;
+			}
+			if (mipi_dev_ipi_get_info(ddev, &ipi_info)) {
+				ret = -EFAULT;
+			} else if (copy_to_user((void __user *)arg,
+					(void *)&ipi_info, sizeof(mipi_dev_ipi_info_t))) {
+				mipierr("ipi get erorr, %p to user error", (void __user *)arg);
+				ret = -EINVAL;
+			}
+			mutex_unlock(&user->mutex);
+		}
+		break;
+	case MIPIDEVIOC_IPI_SET_INFO:
+		{
+			mipi_dev_ipi_info_t ipi_info;
+			if (mutex_lock_interruptible(&user->mutex)) {
+				mipierr("init user mutex lock error");
+				return -EINVAL;
+			}
+			mipiinfo("ipi set info cmd");
+			if (!arg || copy_from_user((void *)&ipi_info,
+				   (void __user *)arg, sizeof(mipi_dev_ipi_info_t))) {
+				mipierr("ipi set erorr, %p from user error", (void __user *)arg);
+				mutex_unlock(&user->mutex);
+				return -EINVAL;
+			}
+			if (user->init_cnt == 0) {
+				mipierr("state error: not inited");
+				mutex_unlock(&user->mutex);
+				return -EACCES;
+			}
+			if (mipi_dev_ipi_set_info(ddev, &ipi_info))
+				ret = -EFAULT;
 			mutex_unlock(&user->mutex);
 		}
 		break;
