@@ -3639,7 +3639,7 @@ int x3_ipu_device_node_init(struct x3_ipu_dev *ipu)
 		vio_err("ipu device create fail\n");
 		goto err;
 	}
-	for (i = 0; i < 6; i++) {
+	for (i = 0; i < (MAX_DEVICE-2); i++) {
 		snprintf(name, 32, "ipu_ds%d", i);
 		dev = device_create(ipu->class, NULL, MKDEV(MAJOR(ipu->devno), i + 2),
 			      NULL, name);
