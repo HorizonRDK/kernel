@@ -91,6 +91,9 @@ static int hobot_pwm_config(struct pwm_chip *chip, struct pwm_device *pwm, int d
 	int pwm_freq, pwm_ratio;
 	struct hobot_pwm_chip *hbpwm = to_hobot_pwm_chip(chip);
 
+	if (duty_ns >= period_ns)
+		duty_ns = period_ns - 1;
+
 	/* config pwm freq */
 	pwm_freq = div64_u64((uint64_t)PWM_CLK * (uint64_t)period_ns,
 			(unsigned long long)NSEC_PER_SEC);

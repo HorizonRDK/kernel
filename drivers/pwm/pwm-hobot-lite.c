@@ -78,6 +78,9 @@ static int hobot_lpwm_config(struct pwm_chip *chip, struct pwm_device *pwm,
 		return -ERANGE;
 	}
 
+	if (duty_ns >= period_ns)
+		duty_ns = period_ns - 1;
+
 	/* config pwm freq */
 	period = div64_u64((uint64_t)period_ns, (uint64_t)10000) - 1;
 	high = div64_u64((uint64_t)duty_ns, (uint64_t)10000) - 1;
