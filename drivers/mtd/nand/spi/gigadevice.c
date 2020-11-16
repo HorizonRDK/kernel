@@ -189,6 +189,16 @@ static const struct spinand_info gigadevice_spinand_table[] = {
 		     SPINAND_HAS_QE_BIT,
 		     SPINAND_ECCINFO(&gd5f1gq4u_ooblayout,
 						gd5f_4bit_ecc_get_status)),
+	SPINAND_INFO("GD5F1GRQRBxIG", 0xC1,
+		     NAND_MEMORG(1, 2048, 64, 64, 1024, 20, 1, 1, 1),
+		     NAND_ECCREQ(4, 528),
+		     // Use special read_cache_variants
+		     SPINAND_INFO_OP_VARIANTS(&read_cache_3a_variants,
+									&write_cache_variants,
+									&update_cache_variants),
+		     SPINAND_HAS_QE_BIT,
+		     SPINAND_ECCINFO(&gd5f1gq4u_ooblayout,
+						gd5f_4bit_ecc_get_status)),
 	SPINAND_INFO("GD5F4GQ4UA", 0xF4,
 		     NAND_MEMORG(1, 2048, 64, 64, 4096, 20, 1, 1, 1),
 		     NAND_ECCREQ(8, 512),
@@ -205,7 +215,9 @@ static int gigadevice_spinand_detect(struct spinand_device *spinand)
 	u8 *id = spinand->id.data;
 	int ret, i = 0;
 
-	if (id[i++] != SPINAND_MFR_GIGADEVICE && id[i++] != SPINAND_MFR_GIGADEVICE)
+	if (id[i++] != SPINAND_MFR_GIGADEVICE &&
+		id[i++] != SPINAND_MFR_GIGADEVICE &&
+		id[i++] != SPINAND_MFR_GIGADEVICE)
 		return 0;
 
 	ret = spinand_match_and_init(spinand, gigadevice_spinand_table,
