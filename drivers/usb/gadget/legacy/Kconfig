@@ -490,3 +490,14 @@ config USB_G_WEBCAM
 
 	  Say "y" to link the driver statically, or "m" to build a
 	  dynamically linked module called "g_webcam".
+
+config USB_HBUSB
+	tristate "Horbot bulk channel transfer support"
+	select USB_LIBCOMPOSITE
+	select USB_U_HBUSB
+	select USB_F_HBUSB
+	help
+	  This driver implements bulk channel style communication.
+
+	  Say "y" to link the driver statically, or "m" to build a
+	  dynamically linked module called "g_hbusb".

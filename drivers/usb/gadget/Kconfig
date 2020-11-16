@@ -161,6 +161,9 @@ config USB_U_ETHER
 config USB_U_AUDIO
 	tristate
 
+config USB_U_HBUSB
+	tristate
+
 config USB_F_SERIAL
 	tristate
 
@@ -213,6 +216,9 @@ config USB_F_PRINTER
 	tristate
 
 config USB_F_TCM
+	tristate
+
+config USB_F_HBUSB
 	tristate
 
 # this first set of drivers all depend on bulk-capable hardware.
