@@ -617,12 +617,21 @@ static void ipu_set_all_lost_next_frame_flags(struct vio_group *group)
 {
 	int i = 0;
 	struct ipu_subdev *subdev = NULL;
+	int lost_all_this_frame = 1;
 
 	for (i = GROUP_ID_US; i < GROUP_ID_MAX; i++) {
 		subdev = group->sub_ctx[i];
-		if (subdev)
+		if (subdev) {
+			if (!atomic_read(&subdev->lost_this_frame))
+				lost_all_this_frame = 0;
 			subdev_set_lost_next_frame_flag(subdev);
+		}
 	}
+	/*
+	 * all chn skip scene clear abnormal fs flag
+	 */
+	if (lost_all_this_frame)
+		prev_fs_has_no_fe = 0;
 }
 
 static int work_index = 0;
