@@ -61,6 +61,8 @@ static struct pm_qos_request ipu_pm_qos_req;
 
 static struct mutex ipu_mutex;
 static int prev_fs_has_no_fe = 0;
+static int prev_frame_disable_out = 0;
+static int next_frame_disable_out = 0;
 
 static int x3_ipu_open(struct inode *inode, struct file *file)
 {
@@ -360,6 +362,10 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 		ipu->reuse_shadow0_count = 0;
 		sema_init(&ipu->gtask.hw_resource, 0);
 		atomic_set(&ipu->gtask.refcount, 0);
+		prev_frame_disable_out = 0;
+		next_frame_disable_out = 0;
+		prev_fs_has_no_fe = 0;
+		group->abnormal_fs = 0;
 		pm_qos_remove_request(&ipu_pm_qos_req);
 	}
 	mutex_unlock(&ipu_mutex);
@@ -851,6 +857,12 @@ end_req_to_pro:
 		atomic_set(&subdev->pre_enable_flag, 1);
 	}
 	atomic_inc(&ipu->backup_fcount);
+
+	prev_frame_disable_out = next_frame_disable_out;
+	if (dma_enable || ds2_dma_enable)
+		next_frame_disable_out = 0;
+	else
+		next_frame_disable_out = 1;
 
 	// ddr->ipu scenario
 	// if all channel jump, skip this src frame
@@ -3434,8 +3446,13 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	}
 
 	if (status & (1 << INTR_IPU_FRAME_START)) {
-		if (group->abnormal_fs == 1)
+		/*
+		 * check prev frame have not enable out
+		 */
+		if (group->abnormal_fs == 1 && !prev_frame_disable_out)
 			prev_fs_has_no_fe = 1;
+		else
+			prev_fs_has_no_fe = 0;
 		group->abnormal_fs = 1;
 		ipu->statistic.fs[instance]++;
 		ipu->statistic.tal_fs++;
