@@ -1239,6 +1239,10 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 						if(group->leader == true)
 							vio_group_start_trigger_mp(group, frame);
 						vio_dbg("pym dq trans to request%d", cache_bufindex);
+					} else if (cache_frame->dispatch_mask == 0x0000
+							&& (framemgr->index_state[cache_bufindex] == FRAME_IND_STREAMOFF)) {
+						subdev->frameinfo.bufferindex = -1;
+						vio_dbg("pym cache frame already been streamoff:%d", cache_bufindex);
 					}
 				}
 			}
