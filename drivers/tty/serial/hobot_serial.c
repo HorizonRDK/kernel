@@ -985,7 +985,9 @@ static int hobot_uart_startup(struct uart_port *port)
 	struct hobot_uart *hobot_uart = port->private_data;
 
 
+#if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
 	atomic_set(&hobot_uart->uart_start, 1);
+#endif
 #ifdef CONFIG_HOBOT_SERIAL_DEBUGFS
 	dgb_membase = port->membase;
 #endif /* CONFIG_HOBOT_SERIAL_DEBUGFS */
@@ -1086,7 +1088,9 @@ static void hobot_uart_shutdown(struct uart_port *port)
 	del_timer(&hobot_uart->rx_timer);
 #endif /* CONFIG_HOBOT_TTY_POLL_MODE */
 
+#if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
 	atomic_set(&hobot_uart->uart_start, 0);
+#endif
 	spin_lock_irqsave(&port->lock, flags);
 
 	/* Disable interrupts */
