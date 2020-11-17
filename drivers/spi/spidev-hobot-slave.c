@@ -933,6 +933,7 @@ static int spidev_open(struct inode *inode, struct file *filp)
 	/* request interrupt */
 	spidev->irq_num = gpio_to_irq(spidev->irq_pin);
 	dev_info(&spidev->spi->dev, "irq_num = %d\n", spidev->irq_num);
+	irq_set_status_flags(spidev->irq_num, IRQ_NOAUTOEN);
 	status = request_threaded_irq(spidev->irq_num, NULL, spidev_irq,
 			IRQF_TRIGGER_FALLING | IRQF_ONESHOT, HOBOT_SPIDEV, spidev);
 	if (status) {
@@ -1012,6 +1013,7 @@ static int spidev_open(struct inode *inode, struct file *filp)
 	spidev->users++;
 	filp->private_data = spidev;
 	g_spidev = spidev;
+	enable_irq(spidev->irq_num);
 
 	mutex_unlock(&device_list_lock);
 
@@ -1074,6 +1076,7 @@ static int spidev_release(struct inode *inode, struct file *filp)
 	spidev->spi_recv_buf.rx_tmp_buf = NULL;
 
 	gpio_free(spidev->ack_pin);
+	disable_irq(spidev->irq_num);
 	free_irq(spidev->irq_num, (void *)spidev);
 	gpio_free(spidev->irq_pin);
 	gpio_free(spidev->tri_pin);
