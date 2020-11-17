@@ -580,11 +580,11 @@ void dma_writer_status(acamera_context_ptr_t p_ctx)
     pr_info("uv blk sts %x\n", v);
 }
 
-static void start_processing_frame( void )
+static void start_processing_frame(int ctx_id)
 {
-    pr_debug("last ctx id %d\n", last_ctx_id);
-    acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[last_ctx_id];
-
+	pr_debug("ctx id %d, start processing new frame\n", ctx_id);
+	acamera_context_ptr_t p_ctx =
+				(acamera_context_ptr_t)&g_firmware.fw_ctx[ctx_id];
     // new_frame event to start reading metering memory and run 3A
 	if (p_ctx->initialized != 0)
 		acamera_fw_raise_event(p_ctx, event_id_new_frame);
@@ -645,7 +645,7 @@ static void dma_complete_context_func( void *arg )
             g_firmware.handler_flag_interrupt_handle_completed = 1;
         }
 
-        start_processing_frame();
+        start_processing_frame(ctx_id);
     }
     dma_writer_config_done();
     system_dma_unmap_sg( arg );
@@ -670,7 +670,7 @@ static void dma_complete_metering_func( void *arg )
             g_firmware.handler_flag_interrupt_handle_completed = 1;
         }
 
-        start_processing_frame();
+        start_processing_frame(ctx_id);
     }
     dma_writer_config_done();
     system_dma_unmap_sg( arg );
