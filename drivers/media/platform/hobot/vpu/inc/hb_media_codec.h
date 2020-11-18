@@ -5126,7 +5126,7 @@ typedef struct _mc_video_intra_refresh_params {
  *     1: row
  *     2: column
  *     3: step size in MB or CTU
- *     4: adaptive intra refresh (only for H265)
+ *     4: adaptive intra refresh (only for H265 of XJ3)
  *
  * - Note: It's unchangable parameter in the same sequence.
  * - Encoding: Support.
@@ -5916,6 +5916,22 @@ typedef struct _mc_h265_slice_params {
 } mc_h265_slice_params_t;
 
 /**
+* Define the parameters of jpeg/mjpeg slice encode.
+**/
+typedef struct _mc_mjpeg_slice_params {
+/**
+ * It specifies a slice height for slice encoding.
+ * Values[0, picture height]
+ *
+ * - Note: It's changable parameters.
+ * - Encoding: Support.
+ * - Decoding: Unsupport.
+ * - Default: 0.(no slice)
+ */
+	hb_u32 mjpeg_slice_height;
+} mc_mjpeg_slice_params_t;
+
+/**
 * Define the parameters of slice mode.
 **/
 typedef struct _mc_video_slice_params {
@@ -5926,6 +5942,7 @@ typedef struct _mc_video_slice_params {
 	union {
 		mc_h264_slice_params_t h264_slice;
 		mc_h265_slice_params_t h265_slice;
+		mc_mjpeg_slice_params_t mjpeg_slice;
 	};
 } mc_video_slice_params_t;
 
@@ -6058,6 +6075,7 @@ typedef struct _mc_h265_pred_unit_params {
  *     0 : disable
  *     1 : enable
  * - Note: It's unchangable parameters in same sequence.
+ *         It's only for XJ3.
  * - Encoding: Support.
  * - Decoding: Unsupport.
  * - Default: 0.
@@ -6177,7 +6195,8 @@ typedef struct _mc_h265_transform_params {
  * The value of chroma(Cb) QP offset.
  * Values[-12~12]
  * 
- * - Note: It's changable parameter in the same sequence.
+ * - Note: It's changable parameter in the same sequence for XJ3.
+ *         It's only for XJ3.
  * - Encoding: Support.
  * - Decoding: Unsupport.
  * - Default: 0
@@ -6188,7 +6207,8 @@ typedef struct _mc_h265_transform_params {
  * The value of chroma(Cr) QP offset.
  * Values[-12~12]
  * 
- * - Note: It's changable parameter in the same sequence.
+ * - Note: It's changable parameter in the same sequence for XJ3.
+ *         It's only for XJ3.
  * - Encoding: Support.
  * - Decoding: Unsupport.
  * - Default: 0
@@ -6305,7 +6325,8 @@ typedef struct _mc_video_transform_params {
 **/
 typedef struct _mc_video_roi_params {
 /**
- * It enablea ROI encoding throughout the sequence level.
+ * It enable ROI encoding throughout the sequence level.
+ * It only support CTU QP map mode.
  * The valid numbers are as follows.
  *     0 : disable
  *     1 : enable
@@ -6346,6 +6367,94 @@ typedef struct _mc_video_roi_params {
  */
 	hb_u32 roi_map_array_count;
 } mc_video_roi_params_t;
+
+/**
+* Define the parameters of H264/H265 ROI-Ex encoding.
+**/
+typedef struct _mc_video_roi_params_ex {
+/**
+ * It specifies ROI mode. ROI supports CTU ROI map and CTU QP map mode.
+ * The CTU ROI map mode supports setting importance level(0 ~ 8) of the ROI
+ * for the #th CTU. The final QP of the CTUs is
+ * QP(importance_level) = QP(non-ROI) - (roi_delta_qp * importance_level).
+ * The larger value means the #th CTU (ROI) is more
+ * important than other CTUs. It can work with rate control.
+ *
+ * The CTU QP map mode supports setting QP(0 ~ 51) of the ROI
+ * for the #th CTU. The setting QP is just the final QP of the CTUs.
+ * The larger value means poor quality. It can't work with
+ * rate control.
+ * The valid numbers are as follows.
+ *     0 : disable roi
+ *     1 : CTU ROI map mode
+ *     2 : CTU QP map mode
+ *
+ * - Note: It's unchangable parameter in the same sequence.
+ * - Encoding: Support.
+ * - Decoding: Unsupport.
+ * - Default: 0
+ */
+	hb_u32 roi_mode;
+
+/**
+ * It specifies ROI index. Max 64 number roi regions are supported.
+ * The index 0 region has the highest priority.
+ * Values[0~63]
+ *
+ * - Note: It's changable RC parameter in the same sequence.
+ * - Encoding: Support.
+ * - Decoding: Unsupport.
+ * - Default: 0
+ */
+	hb_u32 roi_idx;
+
+/**
+ * It enables ROI encoding throughout the sequence level.
+ * The valid numbers are as follows.
+ *	   0 : disable
+ *	   1 : enable
+ *
+ * - Note: It's changable RC parameter in the same sequence.
+ *		   It's valid when rate control is on.
+ * - Encoding: Support.
+ * - Decoding: Unsupport.
+ * - Default: 0
+ */
+	hb_u32 roi_enable;
+
+/**
+ * It specifies ROI values for CTUs in the specified region.
+ * Values[0,8] for CTU ROI map mode
+ * Values[0,51] for CTU QP map mode
+ *
+ * - Note: It's changable parameter in the same sequence.
+ * - Encoding: Support.
+ * - Decoding: Unsupport.
+ * - Default: 0
+ */
+	hb_u8 roi_val;
+
+/**
+ * It specifies ROI Delta QP for CTU ROI map mode.
+ * Values[0,51]
+ *
+ * - Note: It's changable parameter in the same sequence.
+ * - Encoding: Support.
+ * - Decoding: Unsupport.
+ * - Default: 0
+ */
+	hb_u32 roi_delta_qp;
+
+/* It specifies ROI region. The coordinate unit is CTU(64x64 for HEVC).
+ * Values[0, ALIGN64(picWidth)>>6] or [0, ALIGN64(picHeight)>>6]
+ *
+ * - Note: It's changable parameters in the same sequence.
+ * - Encoding: Support.
+ * - Decoding: Unsupport.
+ * - Default:
+ */
+	mc_av_codec_rect_t crop_rect;
+} mc_video_roi_params_ex_t;
 
 /**
 * Define the parameters of block encoding mode decision.
@@ -6710,7 +6819,7 @@ typedef struct _mc_mjpeg_enc_params {
  * And It's valid only when mc_jpeg_enc_config_t.extended_sequential = 0.
  * Values[0~255]
  *
- * - Note:
+ * - Note: It's changable parameter in the same sequence.
  * - Encoding: Support.
  * - Decoding: Unsupport.
  * - Default: 0
@@ -6723,7 +6832,7 @@ typedef struct _mc_mjpeg_enc_params {
  * And It's valid only when mc_jpeg_enc_config_t.extended_sequential = 0.
  * Values[0~255]
  *
- * - Note:
+ * - Note: It's changable parameter in the same sequence.
  * - Encoding: Support.
  * - Decoding: Unsupport.
  * - Default: 0
@@ -6736,7 +6845,7 @@ typedef struct _mc_mjpeg_enc_params {
  * And It's valid only when mc_jpeg_enc_config_t.extended_sequential = 1.
  * Values[0~65535]
  *
- * - Note:
+ * - Note: It's changable parameter in the same sequence.
  * - Encoding: Support.
  * - Decoding: Unsupport.
  * - Default: 0
@@ -6749,7 +6858,7 @@ typedef struct _mc_mjpeg_enc_params {
  * And It's valid only when mc_jpeg_enc_config_t.extended_sequential = 1.
  * Values[0~255]
  *
- * - Note:
+ * - Note: It's changable parameter in the same sequence.
  * - Encoding: Support.
  * - Decoding: Unsupport.
  * - Default: 0
@@ -6760,7 +6869,7 @@ typedef struct _mc_mjpeg_enc_params {
  * Specify the number of MCU in the restart interval.
  * Values [0~((picwidth+15)>>4) * ((picheight+15)>>4) * 2]
  *
- * - Note:
+ * - Note: It's changable parameter in the same sequence.
  * - Encoding: Support.
  * - Decoding: Unsupport.
  * - Default: 0;
@@ -6794,7 +6903,7 @@ typedef struct _mc_jpeg_enc_params {
  * And It's valid only when mc_jpeg_enc_config_t.extended_sequential = 0.
  * Values[0~255]
  *
- * - Note:
+ * - Note: It's changable parameter in the same sequence.
  * - Encoding: Support.
  * - Decoding: Unsupport.
  * - Default: 0
@@ -6807,7 +6916,7 @@ typedef struct _mc_jpeg_enc_params {
  * And It's valid only when mc_jpeg_enc_config_t.extended_sequential = 0.
  * Values[0~255]
  *
- * - Note:
+ * - Note: It's changable parameter in the same sequence.
  * - Encoding: Support.
  * - Decoding: Unsupport.
  * - Default: 0
@@ -6820,7 +6929,7 @@ typedef struct _mc_jpeg_enc_params {
  * And It's valid only when mc_jpeg_enc_config_t.extended_sequential = 1.
  * Values[0~65535]
  *
- * - Note:
+ * - Note: It's changable parameter in the same sequence.
  * - Encoding: Support.
  * - Decoding: Unsupport.
  * - Default: 0
@@ -6833,7 +6942,7 @@ typedef struct _mc_jpeg_enc_params {
  * And It's valid only when mc_jpeg_enc_config_t.extended_sequential = 1.
  * Values[0~65535]
  *
- * - Note:
+ * - Note: It's changable parameter in the same sequence.
  * - Encoding: Support.
  * - Decoding: Unsupport.
  * - Default: 0
@@ -6844,7 +6953,7 @@ typedef struct _mc_jpeg_enc_params {
  * Specify the number of MCU in the restart interval.
  * Values [0~((picwidth+15)>>4) * ((picheight+15)>>4) * 2]
  *
- * - Note: 
+ * - Note: It's changable parameter in the same sequence.
  * - Encoding: Support.
  * - Decoding: Unsupport.
  * - Default: 0
@@ -6857,9 +6966,10 @@ typedef struct _mc_jpeg_enc_params {
  * 0:disable
  * 1:enable
  * 
- *-Encoding:Support
- *-Decoding:Support
- *-Default:0
+ * - Note: It's changable parameter in the same sequence.
+ * - Encoding:Support
+ * - Decoding:Support
+ * - Default:0
  */
   hb_bool crop_en;
 
@@ -6867,9 +6977,10 @@ typedef struct _mc_jpeg_enc_params {
  *crop rect area
  *valid only when crop_en enable
  *
- *-Encoding:Support
- *-Decoding:Support
- *-Default:
+ * - Note: It's changable parameter in the same sequence.
+ * - Encoding:Support
+ * - Decoding:Support
+ * - Default:
  */
   mc_av_codec_rect_t crop_rect;
 } mc_jpeg_enc_params_t;
@@ -7461,6 +7572,7 @@ extern hb_s32 hb_mm_mc_get_longterm_ref_mode(
 * Set the parameters of long-term reference mode.
 *
 * Only applied in H264 and H265 codec.
+* Support dynamic setting.
 *
 * @param[in]       codec context
 * @param[in]       long-term reference parameters
@@ -7529,6 +7641,7 @@ extern hb_s32 hb_mm_mc_get_rate_control_config(
 * Set the parameters of rate control.
 *
 * Only applied in H264, H265 and MJPEG codec.
+* Support dynamic setting.
 *
 * @param[in]       codec context
 * @param[in]       rate control parameters
@@ -7540,6 +7653,40 @@ extern hb_s32 hb_mm_mc_get_rate_control_config(
 extern hb_s32 hb_mm_mc_set_rate_control_config(
 				media_codec_context_t *context,
 				const mc_rate_control_params_t *params);
+
+/**
+* Get the max bit rate of rate control. It's only useful for AVBR.
+*
+* Only applied in H265 codec of J5.
+*
+* @param[in]	   codec context
+* @param[out]	   max bitrate
+*
+* @return >=0 on success, negative HB_MEDIA_ERROR in case of failure
+* @see media_codec_context_t
+*/
+extern hb_s32 hb_mm_mc_get_max_bit_rate_config(
+				media_codec_context_t *context,
+				hb_u32 *params);
+
+/**
+* Set the max bit rate of AVBR rate control.
+* The max bitrate of the encoded data in kbps. When max bit rate is < bit_rate,
+* the peak transmission bitrate is supposed to be infinitely great.
+* Values[0,700000]kbps
+*
+* Only applied in H265 codec of J5.
+* Support dynamic setting.
+*
+* @param[in]	   codec context
+* @param[in]	   rate control parameters
+*
+* @return >=0 on success, negative HB_MEDIA_ERROR in case of failure
+* @see media_codec_context_t
+*/
+extern hb_s32 hb_mm_mc_set_max_bit_rate_config(
+				media_codec_context_t *context,
+				hb_u32 params);
 
 /**
 * Get the parameters of deblock filter.
@@ -7702,7 +7849,7 @@ extern hb_s32 hb_mm_mc_set_vui_config(
 /**
 * Get the slice parameters.
 *
-* Only applied in H264 and H265 codec.
+* Applied in H264/H265/MJPEG/JPEG codec.
 *
 * @param[in]       codec context
 * @param[out]      slice parameters @see mc_video_slice_params_t
@@ -7760,6 +7907,7 @@ extern hb_s32 hb_mm_mc_request_idr_frame(media_codec_context_t *context);
 * Request the VPS/SPS/PPS header.
 *
 * Only applied in H264 and H265 codec.
+* Support dynamic setting.
 *
 * @param[in]       codec context
 * @param[in]       force header mode
@@ -7970,6 +8118,67 @@ extern hb_s32 hb_mm_mc_get_roi_config(media_codec_context_t * context,
 */
 extern hb_s32 hb_mm_mc_set_roi_config(media_codec_context_t * context,
 				const mc_video_roi_params_t *params);
+
+/**
+* Get the ROI average QP.
+*
+* Only applied in H264 and H265 codec.
+*
+* @param[in]	   codec context
+* @param[out]	   ROI average QP
+*
+* @return >=0 on success, negative HB_MEDIA_ERROR in case of failure
+* @see media_codec_context_t
+*/
+extern hb_s32 hb_mm_mc_get_roi_avg_qp(media_codec_context_t * context,
+				hb_u32 * params);
+
+/**
+* Set the ROI average QP.
+*
+* Only applied in H264 and H265 codec.
+* It's useful only when CBR or AVBR is on.
+*
+* @param[in]	   codec context
+* @param[in]	   ROI average QP [0, 51]
+*                  0: using the average qp of QP map.
+*
+* @return >=0 on success, negative HB_MEDIA_ERROR in case of failure
+* @see media_codec_context_t
+*/
+extern hb_s32 hb_mm_mc_set_roi_avg_qp(media_codec_context_t * context,
+				hb_u32 params);
+
+/**
+* Get the ROI parameters.
+*
+* Only applied in J5 H265 codec.
+*
+* @param[in]	   codec context
+* @param[in]	   roi index
+* @param[out]	   ROI parameters @see mc_video_roi_params_ex_t
+*
+* @return >=0 on success, negative HB_MEDIA_ERROR in case of failure
+* @see media_codec_context_t
+* @see mc_video_roi_params_ex_t
+*/
+extern hb_s32 hb_mm_mc_get_roi_config_ex(media_codec_context_t *context,
+				hb_u32 roi_idx, mc_video_roi_params_ex_t *params);
+
+/**
+* Set the ROI parameters.
+*
+* Only applied in J5 H265 codec.
+*
+* @param[in]	   codec context
+* @param[in]	   ROI parameters @see mc_video_roi_params_ex_t
+*
+* @return >=0 on success, negative HB_MEDIA_ERROR in case of failure
+* @see media_codec_context_t
+* @see mc_video_roi_params_ex_t
+*/
+extern hb_s32 hb_mm_mc_set_roi_config_ex(media_codec_context_t *context,
+				const mc_video_roi_params_ex_t *params);
 
 /**
 * Get the encoding mode decision parameters.
