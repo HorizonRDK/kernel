@@ -245,6 +245,13 @@ vb2_q_fail:
     isp_v4l2_fh_release( file );
 
 fh_open_fail:
+	atomic_sub_return(1, &dev->opened);
+	//isp hardware stop
+	if (isp_open_check() == 0) {
+		pm_qos_remove_request(&isp_pm_qos_req);
+		ips_set_clk_ctrl(ISP0_CLOCK_GATE, false);
+		acamera_fw_mem_free();
+	}
 	mutex_unlock(&init_lock);
     return rc;
 }

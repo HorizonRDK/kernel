@@ -646,6 +646,7 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
             p_ctx->p_gfw->cache_area = vmalloc(HOBOT_DMA_SRAM_ONE_ZONE);
             if (p_ctx->p_gfw->cache_area == NULL) {
                 pr_err("cache area alloc failed.\n");
+				vfree(p_ctx->sw_reg_map.isp_sw_config_map);
                 mutex_unlock(&p_ctx->p_gfw->ctx_chg_lock);
                 return -1;
             }
@@ -667,6 +668,8 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
             p_ctx->sw_reg_map.isp_sw_config_map = system_sw_get_dma_addr(p_ctx->dma_chn_idx);
             if (p_ctx->sw_reg_map.isp_sw_config_map == NULL) {
                 pr_err("idma is not remap, get addr failed.\n");
+				clear_bit(p_ctx->dma_chn_idx, &g_fw->dma_chn_bitmap);
+				p_ctx->dma_chn_idx = -1;
                 mutex_unlock(&p_ctx->p_gfw->ctx_chg_lock);
                 return -1;
             }
@@ -685,6 +688,8 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
                 //save for other ctx initialized later
                 p_ctx->p_gfw->backup_context = vmalloc(HOBOT_DMA_SRAM_ONE_ZONE);
                 if (p_ctx->p_gfw->backup_context == NULL) {
+					clear_bit(p_ctx->dma_chn_idx, &g_fw->dma_chn_bitmap);
+					p_ctx->dma_chn_idx = -1;
                     pr_err("backup_context alloc failed.\n");
                     mutex_unlock(&p_ctx->p_gfw->ctx_chg_lock);
                     return -1;
@@ -737,6 +742,22 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
 
         sprintf(name, "isp_evt%d", p_ctx->context_id);
         p_ctx->evt_thread = kthread_run( isp_fw_process, (void *)&p_ctx->context_id, name );
+		if (IS_ERR(p_ctx->evt_thread)) {
+			if (p_ctx->initialized == 0)
+				acamera_fw_deinit(p_ctx);
+			if (p_ctx->content_side == SIDE_DDR) {
+				vfree(p_ctx->sw_reg_map.isp_sw_config_map);
+			} else {
+				if (p_ctx->dma_chn_idx >= 0 &&
+					p_ctx->dma_chn_idx < HW_CONTEXT_NUMBER) {
+						clear_bit(p_ctx->dma_chn_idx, &g_fw->dma_chn_bitmap);
+						p_ctx->dma_chn_idx = -1;
+					}
+			}
+			pr_err("failed to create evt thread, err(%ld)\n",
+					PTR_ERR(p_ctx->evt_thread));
+			return -1;
+		}
         sched_setscheduler_nocheck(p_ctx->evt_thread, SCHED_FIFO, &param);
         // set_cpus_allowed_ptr(p_ctx->evt_thread, cpumask_of(p_ctx->context_id % 4));
 
