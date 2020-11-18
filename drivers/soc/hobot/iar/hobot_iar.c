@@ -140,6 +140,9 @@ struct disp_timing video_720x1280_touch = {
 struct disp_timing video_704x576 = {
 	288, 0, 0, 22, 2, 0, 0
 };
+struct disp_timing video_720x480 = {
+	276, 0, 0, 19, 3, 0, 0
+};
 
 uint32_t pixel_clk_video_1920x1080 = 163000000;
 uint32_t pixel_clk_video_800x480 = 32000000;
@@ -147,6 +150,7 @@ uint32_t pixel_clk_video_720x1280 = 68000000;
 uint32_t pixel_clk_video_1080x1920 = 32000000;
 uint32_t pixel_clk_video_720x1280_touch = 54000000;
 uint32_t pixel_clk_video_704x576 = 27000000;
+uint32_t pixel_clk_video_720x480 = 27000000;
 EXPORT_SYMBOL(disp_user_config_done);
 EXPORT_SYMBOL(disp_copy_done);
 EXPORT_SYMBOL(video_1920x1080);
@@ -155,6 +159,7 @@ EXPORT_SYMBOL(video_720x1280);
 EXPORT_SYMBOL(video_1080x1920);
 EXPORT_SYMBOL(video_720x1280_touch);
 EXPORT_SYMBOL(video_704x576);
+EXPORT_SYMBOL(video_720x480);
 
 uint32_t g_iar_regs[93];
 
@@ -539,6 +544,18 @@ void hobot_iar_dump(void)
 	}
 }
 EXPORT_SYMBOL_GPL(hobot_iar_dump);
+
+static void set_iar_pixel_clk_inv(void)
+{
+	void __iomem *regaddr;
+	uint32_t reg_val = 0;
+
+	regaddr = ioremap_nocache(0xA1000000 + 0x310, 4);
+	reg_val = readl(regaddr);
+	reg_val = reg_val | 0x1000;
+	writel(reg_val, regaddr);
+	iounmap(regaddr);
+}
 
 buf_addr_t iar_addr_convert(phys_addr_t paddr)
 {
@@ -1035,6 +1052,8 @@ static int disp_clk_enable(void)
 			pr_err("%s: err checkout iar pixel clock rate!!\n", __func__);
 			return -1;
 		}
+		if (display_type == BT656_TYPE)
+			set_iar_pixel_clk_inv();
 		pixel_clock = clk_get_rate(g_iar_dev->iar_pixel_clk);
 		pr_err("%s: iar pixel rate is %lld\n", __func__, pixel_clock);
 	}
@@ -1395,8 +1414,12 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 		if (ret)
 			return -1;
 		display_type = BT656_TYPE;
-		disp_set_panel_timing(&video_704x576);
-		writel(0x8, g_iar_dev->regaddr + REG_IAR_DE_OUTPUT_SEL);
+		//disp_set_panel_timing(&video_704x576);
+		if (cfg->height == 576)
+			disp_set_panel_timing(&video_704x576);
+		else if (cfg->height == 480)
+			disp_set_panel_timing(&video_720x480);
+		writel(0x18, g_iar_dev->regaddr + REG_IAR_DE_OUTPUT_SEL);
 		value = readl(g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
 		value = IAR_REG_SET_FILED(IAR_PANEL_COLOR_TYPE, 1, value);
 		value = IAR_REG_SET_FILED(IAR_INTERLACE_SEL, 1, value);
@@ -3447,6 +3470,21 @@ static int hobot_iar_probe(struct platform_device *pdev)
 	} else {
 		pixel_clk_video_704x576 = 27000000;
 		pr_err("can't find timing for 704*576 touch, use default!!\n");
+	}
+
+	ret = of_property_read_u32_array(pdev->dev.of_node,
+			"timing_720x480", timing, 7);
+	if (ret == 0) {
+		pixel_clk_video_720x480 = timing[0];
+		video_720x480.hbp = timing[1];
+		video_720x480.hfp = timing[2];
+		video_720x480.hs = timing[3];
+		video_720x480.vbp = timing[4];
+		video_720x480.vfp = timing[5];
+		video_720x480.vs = timing[6];
+	} else {
+		pixel_clk_video_720x480 = 27000000;
+		pr_err("can't find timing for 720*480 touch, use default!!\n");
 	}
 
 	ret = fb_get_options("hobot", &type);
