@@ -316,7 +316,7 @@ static irqreturn_t jpu_irq_handler(int irq, void *dev_id)
 		  dev->interrupt_reason[i], MJPEG_PIC_STATUS_REG(i));
 
 	// clear interrupt status register
-	JPU_WRITEL(MJPEG_PIC_STATUS_REG(i), flag);
+	// JPU_WRITEL(MJPEG_PIC_STATUS_REG(i), flag);
 
 	// notify the interrupt to userspace
 	if (dev->async_queue)
@@ -865,6 +865,7 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 		if (ret != 0) {
 			jpu_err
 				("JDI_IOCTL_POLL_WAIT_INSTANCE copy from user fail.\n");
+			up(&dev->jpu_sem);
 			return -EFAULT;
 		}
 		inst_no = info.inst_idx;
@@ -883,10 +884,10 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 				jpu_err
 					("JDI_IOCTL_POLL_WAIT_INSTANCE invalid instance reason"
 					"(%d) or index(%d).", info.intr_reason, inst_no);
-				return -EINVAL;
+				ret = -EINVAL;
 			}
 		} else {
-			return -EINVAL;
+			ret = -EINVAL;
 		}
 		up(&dev->jpu_sem);
 		}
@@ -902,12 +903,14 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 			if (ret != 0) {
 				jpu_err
 					("JDI_IOCTL_SET_CTX_INFO copy from user fail.\n");
+				up(&dev->jpu_sem);
 				return -EFAULT;
 			}
 			inst_index = info.context.instance_index;
 			if (inst_index < 0 || inst_index >= MAX_NUM_JPU_INSTANCE) {
 				jpu_err
 					("Invalid instance index %d.\n", inst_index);
+				up(&dev->jpu_sem);
 				return -EINVAL;
 			}
 			spin_lock(&dev->jpu_info_spinlock);
@@ -927,12 +930,14 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 			if (ret != 0) {
 				jpu_err
 					("JDI_IOCTL_SET_STATUS_INFO copy from user fail.\n");
+				up(&dev->jpu_sem);
 				return -EFAULT;
 			}
 			inst_index = info.inst_idx;
 			if (inst_index < 0 || inst_index >= MAX_NUM_JPU_INSTANCE) {
 				jpu_err
 					("Invalid instance index %d.\n", inst_index);
+				up(&dev->jpu_sem);
 				return -EINVAL;
 			}
 			spin_lock(&dev->jpu_info_spinlock);
@@ -1513,7 +1518,7 @@ static int jpu_probe(struct platform_device *pdev)
 	dev->irq = res->start;
 	// TODO Add top half irq and bottom half irq?
 	err = request_threaded_irq(dev->irq, jpu_irq_handler, NULL,
-				   IRQF_ONESHOT, pdev->name, dev);
+				   IRQF_TRIGGER_RISING|IRQF_ONESHOT, pdev->name, dev);
 	if (err) {
 		dev_err(&pdev->dev,
 			"failed to install register interrupt handler\n");

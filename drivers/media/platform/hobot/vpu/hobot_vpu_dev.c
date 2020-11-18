@@ -2438,6 +2438,7 @@ INTERRUPT_REMAIN_IN_QUEUE:
 			if (ret != 0) {
 				vpu_err
 					("JDI_IOCTL_POLL_WAIT_INSTANCE copy from user fail.\n");
+				up(&dev->vpu_sem);
 				return -EFAULT;
 			}
 			intr_inst_index = info.intr_inst_index;
@@ -2460,10 +2461,10 @@ INTERRUPT_REMAIN_IN_QUEUE:
 						("VDI_IOCTL_POLL_WAIT_INSTANCE invalid instance reason"
 						"(%d) or index(%d).\n",
 						info.intr_reason, intr_inst_index);
-					return -EINVAL;
+					ret = -EINVAL;
 				}
 			} else {
-				return -EINVAL;
+				ret = -EINVAL;
 			}
 			up(&dev->vpu_sem);
 			}
@@ -2479,12 +2480,14 @@ INTERRUPT_REMAIN_IN_QUEUE:
 				if (ret != 0) {
 					vpu_err
 						("VDI_IOCTL_SET_CTX_INFO copy from user fail.\n");
+					up(&dev->vpu_sem);
 					return -EFAULT;
 				}
 				inst_index = info.context.instance_index;
 				if (inst_index < 0 || inst_index >= MAX_NUM_VPU_INSTANCE) {
 					vpu_err
 						("Invalid instance index %d.\n", inst_index);
+					up(&dev->vpu_sem);
 					return -EINVAL;
 				}
 				spin_lock(&dev->vpu_info_spinlock);
@@ -2504,12 +2507,14 @@ INTERRUPT_REMAIN_IN_QUEUE:
 				if (ret != 0) {
 					vpu_err
 						("VDI_IOCTL_SET_STATUS_INFO copy from user fail.\n");
+					up(&dev->vpu_sem);
 					return -EFAULT;
 				}
 				inst_index = info.inst_idx;
 				if (inst_index < 0 || inst_index >= MAX_NUM_VPU_INSTANCE) {
 					vpu_err
 						("Invalid instance index %d.\n", inst_index);
+					up(&dev->vpu_sem);
 					return -EINVAL;
 				}
 				spin_lock(&dev->vpu_info_spinlock);
