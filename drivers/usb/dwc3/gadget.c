@@ -999,14 +999,6 @@ static void dwc3_prepare_one_trb(struct dwc3_ep *dep,
 	unsigned		no_interrupt = req->request.no_interrupt;
 	dma_addr_t		dma = req->request.dma;
 
-	if (req->request.num_sgs > 0) {
-		length = sg_dma_len(req->sg);
-		dma = sg_dma_address(req->sg);
-	} else {
-		length = req->request.length;
-		dma = req->request.dma;
-	}
-
 	trb = &dep->trb_pool[dep->trb_enqueue];
 
 	if (!req->trb) {
@@ -1200,11 +1192,6 @@ static void dwc3_prepare_trbs(struct dwc3_ep *dep)
 		req->num_pending_sgs	= req->request.num_mapped_sgs;
 
 		if (req->num_pending_sgs > 0) {
-			if (req->num_pending_sgs > 1) {
-				pr_warn("dwc3 driver can not support sgs_num > 1\n");
-				req->num_pending_sgs = 0;
-				return;
-			}
 			dwc3_prepare_one_trb_sg(dep, req);
 		} else {
 			dwc3_prepare_one_trb_linear(dep, req);
