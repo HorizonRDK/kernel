@@ -40,6 +40,7 @@ const char *ddr_size;
 const char *som_name;
 const char *base_board_name;
 const char *board_name;
+const char *chip_id;
 EXPORT_SYMBOL_GPL(base_board_name);
 
 #if 0
@@ -303,6 +304,16 @@ ssize_t base_board_name_show(struct class *class,
 	return strlen(buf);
 }
 
+ssize_t chip_id_show(struct class *class,
+			struct class_attribute *attr, char *buf)
+{
+	if (!buf)
+		return 0;
+	snprintf(buf, BUF_LEN, "0x%s\n", chip_id);
+
+	return strlen(buf);
+}
+
 ssize_t soc_store(struct class *class, struct class_attribute *attr,
 				const char *buf, size_t count)
 {
@@ -342,6 +353,9 @@ static struct class_attribute boot_attribute =
 static struct class_attribute socuid_attribute =
 	__ATTR(soc_uid, 0644, socuid_show, soc_store);
 
+static struct class_attribute chip_id_attribute =
+	__ATTR(chip_id, 0644, chip_id_show, soc_store);
+
 static struct attribute *socinfo_attributes[] = {
 	&name_attribute.attr,
 	&id_attribute.attr,
@@ -354,6 +368,7 @@ static struct attribute *socinfo_attributes[] = {
 	&base_board_name_attribute.attr,
 	&boot_attribute.attr,
 	&socuid_attribute.attr,
+	&chip_id_attribute.attr,
 	NULL
 };
 
@@ -453,6 +468,12 @@ static int socinfo_probe(struct platform_device *pdev)
 	}
 
 	ret = of_property_read_string(pdev->dev.of_node, "socuid", &socuid);
+	if (ret != 0) {
+		pr_err("of_property_read_string error\n");
+		return ret;
+	}
+
+	ret = of_property_read_string(pdev->dev.of_node, "chip_id", &chip_id);
 	if (ret != 0) {
 		pr_err("of_property_read_string error\n");
 		return ret;
