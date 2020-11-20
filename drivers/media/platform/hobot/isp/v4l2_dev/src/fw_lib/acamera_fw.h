@@ -137,6 +137,7 @@ typedef struct _isp_status_t {
     uint32_t fr_y_dma_drop;
     uint32_t fr_uv_dma_drop;
     uint32_t evt_process_drop;
+    uint32_t ispctx_dma_error;
 
     uint32_t qbuf_cnt;
     uint32_t dqbuf_cnt;

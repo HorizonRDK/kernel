@@ -33,7 +33,7 @@
 #if FW_USE_HOBOT_DMA
 
 #define HOBOT_DMA_IRQ_INDEX        1
-#define HOBOT_DMA_IRQ_NAME         "hobot dma interrupt for irq"
+#define HOBOT_DMA_IRQ_NAME         "ispctx_dma"
 #define HOBOT_DMA_DIR_WRITE_ISP   0
 #define HOBOT_DMA_DIR_READ_ISP    1
 #define HOBOT_DMA_MAX_CMD         4

@@ -224,6 +224,7 @@ static ssize_t isp_status_show(struct device *dev,
                         "fr_y_dma_drop: %u\n"
                         "fr_uv_dma_drop: %u\n"
                         "evt_process_drop: %u\n"
+                        "ispctx_dma_error: %u\n"
                         "qbuf_cnt: %u\n"
                         "dqbuf_cnt: %u\n"
                         "free_to_busy_cnt: %u\n"
@@ -243,6 +244,7 @@ static ssize_t isp_status_show(struct device *dev,
                         p_ctx->sts.fr_y_dma_drop,
                         p_ctx->sts.fr_uv_dma_drop,
                         p_ctx->sts.evt_process_drop,
+                        p_ctx->sts.ispctx_dma_error,
                         p_ctx->sts.qbuf_cnt,
                         p_ctx->sts.dqbuf_cnt,
                         p_ctx->sts.free_to_busy_cnt,

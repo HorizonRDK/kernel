@@ -1057,7 +1057,7 @@ int sif_isp_ctx_sync_func(int ctx_id)
 	} else {
         p_ctx->sts.evt_process_drop++;
         system_semaphore_raise( p_ctx->sem_evt_avail );
-        pr_err("[s%d] previous frame events are not process done\n", ctx_id);
+        pr_err("[s%d] =>previous frame events are not process done\n", ctx_id);
         // pr_info("sem cnt %d, ev_q head %d tail %d\n",
         //     ((struct semaphore *)p_ctx->sem_evt_avail)->count,
         //     p_ctx->fsm_mgr.event_queue.buf.head,
@@ -1270,8 +1270,9 @@ int32_t acamera_interrupt_handler()
 #endif
 
                     if ( g_firmware.dma_flag_isp_metering_completed == 0 || g_firmware.dma_flag_isp_config_completed == 0 ) {
-                        LOG( LOG_ERR, "DMA is not finished, cfg: %d, meter: %d, skip this frame.", g_firmware.dma_flag_isp_config_completed, g_firmware.dma_flag_isp_metering_completed );
-                        return -2;
+                        p_ctx->sts.ispctx_dma_error++;
+                        pr_err("DMA is not finished, cfg: %d, meter: %d.\n", g_firmware.dma_flag_isp_config_completed, g_firmware.dma_flag_isp_metering_completed );
+                        // return -2;
                     }
 
                     // we must finish all previous processing before scheduling new dma
@@ -1316,7 +1317,7 @@ int32_t acamera_interrupt_handler()
                             ((struct semaphore *)p_ctx->sem_evt_avail)->count,
                             p_ctx->fsm_mgr.event_queue.buf.head,
                             p_ctx->fsm_mgr.event_queue.buf.tail);
-                        pr_err("prevous frame is not processing done, skip this frame\n");
+                        pr_err("->prevous frame event is not processing done, skip this frame\n");
                     } //if ( acamera_event_queue_empty( &p_ctx->fsm_mgr.event_queue ) )
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_ISP_END_FRAME_END ) {
                     pr_debug("frame done, ctx id %d\n", cur_ctx_id);
