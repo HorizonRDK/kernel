@@ -113,6 +113,7 @@ struct usb_request {
 
 	int			status;
 	unsigned		actual;
+	int			hb_direct_dma;
 };
 
 /*-------------------------------------------------------------------------*/

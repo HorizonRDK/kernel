@@ -19,7 +19,7 @@
 
 #define FRAME_CTRL_START_MAGIC	0xA5626474  /*a5bct*/
 
-#define HBUSB_SYNC_TX_USED_FRAMEBUF	_IO('B', 0x02)
+#define HBUSB_SYNC_TX_VALID_FRAMEBUF	_IO('B', 0x02)
 
 const char hbusb_class_name[] = {"hbusb"};
 static struct hbusb_dev *global_hbusb_dev;
@@ -43,11 +43,6 @@ enum {
 
 /*-------------------tx/rx flag enum--------------------*/
 enum {
-	FLAG_USER_RX_WAIT,
-	FLAG_USER_RX_NOT_WAIT
-};
-
-enum {
 	FLAG_RX_FRAME_NOT_VALID,
 	FLAG_RX_FRAME_VALID
 };
@@ -62,6 +57,10 @@ enum {
 enum {
 	FLAG_USER_TX_WAIT,
 	FLAG_USER_TX_NOT_WAIT
+};
+enum {
+	FLAG_USER_RX_WAIT,
+	FLAG_USER_RX_NOT_WAIT
 };
 /*-------------------------------------------------*/
 
@@ -83,6 +82,8 @@ void tx_complete_ctrl_head_event(struct hbusb_tx_chan *tx)
 		frame_ctrl->tx_ctrl_head_actual_size
 					= frame_info->elem.ctrl_info.size;
 	frame_ctrl->hbusb_send_event = EVENT_HBUSB_TX_USER_DATA;
+	frame_ctrl->curr_sg_index_per_frame_info = 0;
+	frame_ctrl->curr_slice_index_per_sg = 0;
 }
 
 void tx_complete_user_data_event(struct hbusb_tx_chan *tx)
@@ -153,24 +154,10 @@ void tx_start_ctrl_head_event(struct hbusb_tx_chan *tx)
 
 	req->buf = frame_ctrl->tx_ctrl_head_buf;
 	req->length = HBUSB_CTRL_FRAME_SIZE;
-	req->num_sgs = 0;
 	req->complete = lowlevel_tx_complete;
 	req->context = tx;
 	req->zero = 1;
-}
-
-void prepare_one_sg_tx_info(struct hbusb_tx_chan *tx)
-{
-	struct frame_tx_ctrl *frame_ctrl = &tx->frame_ctrl;
-	struct usb_request	*req = tx->req;
-
-	sg_init_table(&frame_ctrl->scatterlist, 1);
-	frame_ctrl->scatterlist.dma_address = frame_ctrl->send_slice_phys;
-	frame_ctrl->scatterlist.length = frame_ctrl->send_slice_size;
-	req->sg = &frame_ctrl->scatterlist;
-	req->num_sgs = 1;
-	req->complete = lowlevel_tx_complete;
-	req->context = tx;
+	req->hb_direct_dma = 0;
 }
 
 void tx_start_user_data_event(struct hbusb_tx_chan *tx)
@@ -178,6 +165,7 @@ void tx_start_user_data_event(struct hbusb_tx_chan *tx)
 	int sg_index = 0, slice_index = 0;
 	struct frame_tx_ctrl *frame_ctrl = &tx->frame_ctrl;
 	struct frame_info *frame_info = frame_ctrl->frame_info;
+	struct usb_request	*req = tx->req;
 	struct frame_sg_info *sg_info	= NULL;
 
 	/*Make sure in this funciton,current sg_index and silce index is valid*/
@@ -186,7 +174,14 @@ void tx_start_user_data_event(struct hbusb_tx_chan *tx)
 	sg_info = &frame_info->sg_info[sg_index];
 	frame_ctrl->send_slice_phys = sg_info->slice_addr[slice_index];
 	frame_ctrl->send_slice_size = sg_info->slice_size[slice_index];
-	prepare_one_sg_tx_info(tx);
+
+	/*preapre req buf*/
+	req->dma = (void *)frame_ctrl->send_slice_phys;
+	req->length = frame_ctrl->send_slice_size;
+	req->complete = lowlevel_tx_complete;
+	req->context = tx;
+	req->hb_direct_dma = 1;
+	req->dma_mapped = 1;
 }
 
 static int hbusb_start_tx_event(struct hbusb_tx_chan *tx)
@@ -404,14 +399,15 @@ int parse_tx_param_to_frame_info(struct hbusb_tx_chan	*tx,
 	}
 
 	if ((elem->ctrl_info.size == 0 && elem->data_info.num_sgs == 0)
+			|| (elem->ctrl_info.size > USER_CTRL_INFO_MAX_SIZE)
 			|| (elem->data_info.num_sgs > HBUSB_SG_MAX_NUM)) {
-		dev_err(chan->dev, "sgs num is not valid\n");
+		dev_err(chan->dev, "elem length is not valid\n");
 		return -EFAULT;
 	}
 
 	/*handle ctrl info*/
 	if (elem->ctrl_info.size != 0) {
-		if (copy_from_user(frame_ctrl->tx_ctrl_head_buf,
+		if (copy_from_user(frame_ctrl->tx_ctrl_head_buf + USB_FRAME_HEAD_SIZE,
 			(void __user *)elem->ctrl_info.buf, elem->ctrl_info.size)) {
 			dev_err(chan->dev, "sgs num is not valid\n");
 			return -EFAULT;
@@ -475,7 +471,7 @@ int ret_frame_info_to_tx_param(struct hbusb_tx_chan	*tx,
 		sg_info = &frame_info->sg_info[i];
 		user_sg = &elem->data_info.sg[i];
 		for (j = 0, user_sg->actual_length = 0; j < sg_info->slice_num; j++)
-			user_sg->actual_length += elem->data_info.sg[i].actual_length;
+			user_sg->actual_length += sg_info->slice_actual_size[j];
 	}
 
 	if (copy_to_user(user_elem, elem, sizeof(elem_t))) {
@@ -486,7 +482,7 @@ int ret_frame_info_to_tx_param(struct hbusb_tx_chan	*tx,
 	return 0;
 }
 
-static int hbusb_sync_tx_used_framebuf(struct file *filp,
+static int hbusb_sync_tx_valid_framebuf(struct file *filp,
 								void __user *user_elem)
 {
 	unsigned int status;
@@ -542,13 +538,13 @@ static long hbusb_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	struct hbusb_channel		*chan = filp->private_data;
 
 	switch (cmd) {
-	case HBUSB_SYNC_TX_USED_FRAMEBUF:
+	case HBUSB_SYNC_TX_VALID_FRAMEBUF:
 		if (mutex_lock_interruptible(&chan->write_lock)) {
 			dev_info(chan->dev, "write lock signal interrupted\n");
 			return -EINTR;
 		}
 
-		status = hbusb_sync_tx_used_framebuf(filp, argp);
+		status = hbusb_sync_tx_valid_framebuf(filp, argp);
 		mutex_unlock(&chan->write_lock);
 		break;
 	default:
