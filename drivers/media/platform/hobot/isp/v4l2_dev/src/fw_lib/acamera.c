@@ -90,6 +90,13 @@ static int cur_chn_id;
 static int last_chn_id;
 static int swap_ctx_id;
 
+int event_debug = 0;
+int threshold = 10;
+int isp_debug_mask = 0;
+module_param(event_debug, int, S_IRUGO|S_IWUSR);
+module_param(threshold, int, S_IRUGO|S_IWUSR);
+module_param(isp_debug_mask, int, S_IRUGO|S_IWUSR);
+
 #if FW_USE_HOBOT_DMA
 extern hobot_dma_t g_hobot_dma;
 #endif
@@ -586,8 +593,11 @@ static void start_processing_frame(int ctx_id)
 	acamera_context_ptr_t p_ctx =
 				(acamera_context_ptr_t)&g_firmware.fw_ctx[ctx_id];
     // new_frame event to start reading metering memory and run 3A
-	if (p_ctx->initialized != 0)
+	if (p_ctx->initialized != 0) {
+		if ((1 << ctx_id) & isp_debug_mask)
+			do_gettimeofday(&(p_ctx->frame_process_start));
 		acamera_fw_raise_event(p_ctx, event_id_new_frame);
+	}
     // dma_writer_status(p_ctx);
 }
 
@@ -1014,7 +1024,11 @@ int sif_isp_ctx_sync_func(int ctx_id)
 	isp_input_port_size_config(p_ctx->fsm_mgr.fsm_arr[FSM_ID_SENSOR]->p_fsm);
 	ldc_set_ioctl(ctx_id, 0);
 	dis_set_ioctl(ctx_id, 0);
-
+	if ((1 << ctx_id) & isp_debug_mask) {
+		int index = p_ctx->process_start.index;
+		do_gettimeofday(&(p_ctx->process_start.time[index % 2]));
+		p_ctx->process_start.index ++;
+	}
 	if (acamera_event_queue_empty(&p_ctx->fsm_mgr.event_queue)
         || acamera_event_queue_has_mask_event(&p_ctx->fsm_mgr.event_queue)) {
 
@@ -1263,6 +1277,11 @@ int32_t acamera_interrupt_handler()
                 }
                 if ( p_ctx->p_gfw->sif_isp_offline == 0 && irq_bit == ISP_INTERRUPT_EVENT_ISP_START_FRAME_START ) {
                     static uint32_t fs_cnt = 0;
+					if ((1 << cur_ctx_id) & isp_debug_mask) {
+						int index = p_ctx->process_start.index;
+						do_gettimeofday(&(p_ctx->process_start.time[index % 2]));
+						p_ctx->process_start.index ++;
+					}
                     if ( fs_cnt < 10 ) {
                         LOG( LOG_INFO, "[KeyMsg]: FS interrupt: %d", fs_cnt++ );
                     }

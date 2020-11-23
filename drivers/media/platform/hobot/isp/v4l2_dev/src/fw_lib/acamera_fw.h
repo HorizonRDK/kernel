@@ -51,6 +51,10 @@ struct _isp_info_t {
     uint8_t state;
 };
 
+struct time_record_s {
+	int index;
+	struct timeval time[2];
+};
 #include "acamera_fsm_mgr.h"
 #include "fsm_util.h"
 #include "fsm_param.h"
@@ -137,7 +141,7 @@ typedef struct _isp_status_t {
     uint32_t fr_y_dma_drop;
     uint32_t fr_uv_dma_drop;
     uint32_t evt_process_drop;
-    uint32_t ispctx_dma_error;
+	uint32_t ispctx_dma_error;
 
     uint32_t qbuf_cnt;
     uint32_t dqbuf_cnt;
@@ -207,8 +211,17 @@ struct _acamera_context_t {
     isp_status_t sts;
 
     acamera_isp_sw_regs_map sw_reg_map;
-};
 
+	struct timeval frame_process_start;
+	struct time_record_s process_start;
+	struct timeval event_start;
+	struct timeval A_write_time[5];
+	struct timeval wake_3a_time;
+};
+extern int event_debug;
+extern int isp_debug_mask;
+extern const char * const event_name[];
+extern int threshold;
 
 struct _acamera_firmware_t {
 #if ISP_DMA_RAW_CAPTURE

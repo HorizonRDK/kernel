@@ -143,6 +143,7 @@ struct sbuf_context {
 };
 
 static struct sbuf_context sbuf_contexts[FIRMWARE_CONTEXT_NUMBER];
+extern void *acamera_get_ctx_ptr(uint32_t ctx_id);
 
 static int is_sbuf_inited( struct sbuf_mgr *p_sbuf_mgr )
 {
@@ -772,6 +773,9 @@ void sbuf_update_ae_idx( sbuf_fsm_t *p_fsm )
         return;
     }
 
+	int debug_flag = ((1 << fw_id) & isp_debug_mask);
+	acamera_context_ptr_t pipe_ctx = acamera_get_ctx_ptr(fw_id);
+
     p_ctx = &( sbuf_contexts[fw_id] );
 
     /* no matter UF is running or not, we need drain stats from the queue,
@@ -850,8 +854,11 @@ void sbuf_update_ae_idx( sbuf_fsm_t *p_fsm )
 
     mutex_unlock( &p_ctx->idx_set_lock );
 
-	if (is_idx_all_valid_item(&p_ctx->idx_set))
+	if (is_idx_all_valid_item(&p_ctx->idx_set)) {
+		if (debug_flag)
+			do_gettimeofday(&(pipe_ctx->wake_3a_time));
 		wake_up_interruptible(&p_ctx->idx_set_wait_queue);
+	}
 }
 
 void sbuf_update_awb_idx( sbuf_fsm_t *p_fsm )
@@ -865,6 +872,8 @@ void sbuf_update_awb_idx( sbuf_fsm_t *p_fsm )
         LOG( LOG_ERR, "Invalid FW context ID: %d, max is: %d", fw_id, acamera_get_context_number() - 1 );
         return;
     }
+	int debug_flag = ((1 << fw_id) & isp_debug_mask);
+	acamera_context_ptr_t pipe_ctx = acamera_get_ctx_ptr(fw_id);
 
     p_ctx = &( sbuf_contexts[fw_id] );
 
@@ -902,8 +911,11 @@ void sbuf_update_awb_idx( sbuf_fsm_t *p_fsm )
 
     mutex_unlock( &p_ctx->idx_set_lock );
 
-	if (is_idx_all_valid_item(&p_ctx->idx_set))
+	if (is_idx_all_valid_item(&p_ctx->idx_set)) {
+		if (debug_flag)
+			do_gettimeofday(&(pipe_ctx->wake_3a_time));
 		wake_up_interruptible(&p_ctx->idx_set_wait_queue);
+	}
 }
 
 void sbuf_update_af_idx( sbuf_fsm_t *p_fsm )
@@ -917,7 +929,8 @@ void sbuf_update_af_idx( sbuf_fsm_t *p_fsm )
         LOG( LOG_ERR, "Invalid FW context ID: %d, max is: %d", fw_id, acamera_get_context_number() - 1 );
         return;
     }
-
+	int debug_flag = ((1 << fw_id) & isp_debug_mask);
+	acamera_context_ptr_t pipe_ctx = acamera_get_ctx_ptr(fw_id);
     p_ctx = &( sbuf_contexts[fw_id] );
 
     /* no matter UF is running or not, we need drain stats from the queue,
@@ -953,8 +966,11 @@ void sbuf_update_af_idx( sbuf_fsm_t *p_fsm )
 
     mutex_unlock( &p_ctx->idx_set_lock );
 
-	if (is_idx_all_valid_item(&p_ctx->idx_set))
+	if (is_idx_all_valid_item(&p_ctx->idx_set)) {
+		if (debug_flag)
+			do_gettimeofday(&(pipe_ctx->wake_3a_time));
 		wake_up_interruptible(&p_ctx->idx_set_wait_queue);
+	}
 }
 
 void sbuf_update_gamma_idx( sbuf_fsm_t *p_fsm )
@@ -969,6 +985,8 @@ void sbuf_update_gamma_idx( sbuf_fsm_t *p_fsm )
         return;
     }
 
+	int debug_flag = ((1 << fw_id) & isp_debug_mask);
+	acamera_context_ptr_t pipe_ctx = acamera_get_ctx_ptr(fw_id);
     p_ctx = &( sbuf_contexts[fw_id] );
 
     /* no matter UF is running or not, we need drain stats from the queue,
@@ -1004,8 +1022,11 @@ void sbuf_update_gamma_idx( sbuf_fsm_t *p_fsm )
 
     mutex_unlock( &p_ctx->idx_set_lock );
 
-	if (is_idx_all_valid_item(&p_ctx->idx_set))
+	if (is_idx_all_valid_item(&p_ctx->idx_set)) {
+		if (debug_flag)
+			do_gettimeofday(&(pipe_ctx->wake_3a_time));
 		wake_up_interruptible(&p_ctx->idx_set_wait_queue);
+	}
 }
 
 static uint32_t sbuf_is_ready_to_send_data( struct sbuf_context *p_ctx )
@@ -1121,12 +1142,20 @@ static void sbuf_mgr_get_latest_idx_set( struct sbuf_context *p_ctx, struct sbuf
 static void sbuf_mgr_apply_new_param( struct sbuf_context *p_ctx, struct sbuf_idx_set *p_idx_set )
 {
     struct sbuf_item item;
+    uint32_t fw_id = p_ctx->fw_id;
+	if ( fw_id >= acamera_get_context_number() ) {
+	    LOG( LOG_ERR, "Invalid FW context ID: %d, max is: %d", fw_id, acamera_get_context_number() - 1 );
+	    return;
+	}
+	int debug_flag = ((1 << fw_id) & isp_debug_mask);
+	acamera_context_ptr_t pipe_ctx = acamera_get_ctx_ptr(fw_id);
 
 #if defined( ISP_HAS_AE_MANUAL_FSM )
     /* AE */
     if ( p_idx_set->ae_idx_valid && ( p_idx_set->ae_idx < SBUF_STATS_ARRAY_SIZE ) ) {
         sbuf_ae_t *p_sbuf_ae;
-
+		if (debug_flag)
+			do_gettimeofday(&pipe_ctx->A_write_time[0]);
         p_sbuf_ae = (sbuf_ae_t *)&( p_ctx->sbuf_mgr.sbuf_base->ae_sbuf[p_idx_set->ae_idx] );
 
         acamera_fsm_mgr_set_param( p_ctx->p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_AE_NEW_PARAM, p_sbuf_ae, sizeof( *p_sbuf_ae ) );
@@ -1146,6 +1175,8 @@ static void sbuf_mgr_apply_new_param( struct sbuf_context *p_ctx, struct sbuf_id
     /* AWB */
     if ( p_idx_set->awb_idx_valid && ( p_idx_set->awb_idx < SBUF_STATS_ARRAY_SIZE ) ) {
         sbuf_awb_t *p_sbuf_awb;
+		if (debug_flag)
+			do_gettimeofday(&pipe_ctx->A_write_time[1]);
 
         p_sbuf_awb = (sbuf_awb_t *)&( p_ctx->sbuf_mgr.sbuf_base->awb_sbuf[p_idx_set->awb_idx] );
 
@@ -1173,6 +1204,8 @@ static void sbuf_mgr_apply_new_param( struct sbuf_context *p_ctx, struct sbuf_id
     /* AF */
     if ( p_idx_set->af_idx_valid && ( p_idx_set->af_idx < SBUF_STATS_ARRAY_SIZE ) ) {
         sbuf_af_t *p_sbuf_af;
+		if (debug_flag)
+			do_gettimeofday(&pipe_ctx->A_write_time[2]);
 
         p_sbuf_af = (sbuf_af_t *)&( p_ctx->sbuf_mgr.sbuf_base->af_sbuf[p_idx_set->af_idx] );
 
@@ -1193,6 +1226,8 @@ static void sbuf_mgr_apply_new_param( struct sbuf_context *p_ctx, struct sbuf_id
     /* Gamma */
     if ( p_idx_set->gamma_idx_valid && ( p_idx_set->gamma_idx < SBUF_STATS_ARRAY_SIZE ) ) {
         sbuf_gamma_t *p_sbuf_gamma;
+		if (debug_flag)
+			do_gettimeofday(&pipe_ctx->A_write_time[3]);
 
         p_sbuf_gamma = (sbuf_gamma_t *)&( p_ctx->sbuf_mgr.sbuf_base->gamma_sbuf[p_idx_set->gamma_idx] );
         acamera_fsm_mgr_set_param( p_ctx->p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_GAMMA_NEW_PARAM, p_sbuf_gamma, sizeof( *p_sbuf_gamma ) );
@@ -1211,6 +1246,8 @@ static void sbuf_mgr_apply_new_param( struct sbuf_context *p_ctx, struct sbuf_id
     /* Iridix */
     if ( p_idx_set->iridix_idx_valid && ( p_idx_set->iridix_idx < SBUF_STATS_ARRAY_SIZE ) ) {
         sbuf_iridix_t *p_sbuf_iridix;
+		if (debug_flag)
+			do_gettimeofday(&pipe_ctx->A_write_time[4]);
 
         p_sbuf_iridix = (sbuf_iridix_t *)&( p_ctx->sbuf_mgr.sbuf_base->iridix_sbuf[p_idx_set->iridix_idx] );
         acamera_fsm_mgr_set_param( p_ctx->p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_IRIDIX_NEW_PARAM, p_sbuf_iridix, sizeof( *p_sbuf_iridix ) );

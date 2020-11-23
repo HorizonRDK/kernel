@@ -25,6 +25,7 @@
 #endif
 #include "acamera_logger.h"
 #include "system_semaphore.h"
+#include <linux/ratelimit.h>
 
 extern fsm_common_t * sensor_get_fsm_common(uint8_t ctx_id);
 extern fsm_common_t * cmos_get_fsm_common(uint8_t ctx_id);
@@ -163,6 +164,12 @@ const char * const event_name[] = {
 void acamera_fsm_mgr_process_events(acamera_fsm_mgr_t *p_fsm_mgr,int n_max_events)
 {
     int n_event=0;
+	struct timeval start;
+	struct timeval end;
+	int diff;
+	int ctx_id = p_fsm_mgr->ctx_id;
+	int debug_flag = ((1 << ctx_id) & isp_debug_mask);
+
     for(;;)
     {
         int event=acamera_event_queue_pop(&(p_fsm_mgr->event_queue));
@@ -177,13 +184,26 @@ void acamera_fsm_mgr_process_events(acamera_fsm_mgr_t *p_fsm_mgr,int n_max_event
             uint8_t idx;
             pr_debug("Processing event: %d %s\n",event_id,event_name[event_id]);
 
+			if (event_id == event_id_new_frame && debug_flag) {
+				do_gettimeofday(&(p_fsm_mgr->p_ctx->event_start));
+			}
+
             for(idx = 0; idx < FSM_ID_MAX; idx++) {
                 if(p_fsm_mgr->fsm_arr[idx]->ops.proc_event) {
 #if ACAMERA_ISP_PROFILING
                     acamera_profiler_start(idx+1);
 #endif
+					do_gettimeofday(&start);
                     b_processed = p_fsm_mgr->fsm_arr[idx]->ops.proc_event(p_fsm_mgr->fsm_arr[idx]->p_fsm, event_id);
-                    b_event_processed |= b_processed;
+					do_gettimeofday(&end);
+					if (debug_flag) {
+						diff = (end.tv_sec*1000000 + end.tv_usec) -
+							(start.tv_sec*1000000 + start.tv_usec);
+						diff = diff / 1000;
+						if (diff > threshold)
+							printk_ratelimited("%s cost %d ms\n", event_name[event_id], diff);
+					}
+					b_event_processed |= b_processed;
 #if ACAMERA_ISP_PROFILING
                     acamera_profiler_stop(idx+1,b_processed);
 #endif
