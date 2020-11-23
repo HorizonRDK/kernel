@@ -85,6 +85,19 @@ static uint16_t _calibration_sinter_strength1[][2] = {
     {9 * 256, 85},    //255 4 int
     {10 * 256, 110}}; //255 4 int
 
+static uint16_t _calibration_sinter_strength4[][2] = {
+
+    {0 * 256, 0},     //255
+    {1 * 256, 0},     //255
+    {2 * 256, 10},    //255
+    {3 * 256, 20},    //255
+    {4 * 256, 45},    //255 4 int
+    {5 * 256, 50},    //255 4 int
+    {6 * 256, 55},    //255 4 int
+    {7 * 256, 65},    //255 4 int
+    {8 * 256, 65},    //255 4 int
+    {9 * 256, 85},    //255 4 int
+    {10 * 256, 110}}; //255 4 int
 
 static uint16_t _calibration_sinter_thresh1[][2] = {
     {0 * 256, 0},
@@ -561,6 +574,8 @@ static uint32_t _calibration_zoom_af_lms[][21] = {
 {11520/4, 11520/4, 11520/4, 12800/4, 12800/4, 12800/4, 22400/4, 22400/4, 22400/4, 24320/4, 24320/4, 24320/4,11,6,2,30,131072,131072,262144,65536, 0}
 };
 
+static int16_t _calibration_bypass_control[] = {0, 0, 1*256, 2*256};
+
 static LookupTable calibration_fs_mc_off = {.ptr = _calibration_fs_mc_off, .rows = 1, .cols = sizeof( _calibration_fs_mc_off ) / sizeof( _calibration_fs_mc_off[0] ), .width = sizeof( _calibration_fs_mc_off[0] )};
 static LookupTable calibration_exposure_ratio_adjustment = {.ptr = _calibration_exposure_ratio_adjustment, .rows = sizeof( _calibration_exposure_ratio_adjustment ) / sizeof( _calibration_exposure_ratio_adjustment[0] ), .cols = 2, .width = sizeof( _calibration_exposure_ratio_adjustment[0][0] )};
 static LookupTable AWB_colour_preference = {.ptr = _AWB_colour_preference, .rows = 1, .cols = sizeof( _AWB_colour_preference ) / sizeof( _AWB_colour_preference[0] ), .width = sizeof( _AWB_colour_preference[0] )};
@@ -628,6 +643,10 @@ static LookupTable calibration_gamma_ev1 = {.ptr = _calibration_gamma_ev1, .rows
 static LookupTable calibration_gamma_ev2 = {.ptr = _calibration_gamma_ev2, .rows = 1, .cols = sizeof( _calibration_gamma_ev2 ) / sizeof( _calibration_gamma_ev2[0] ), .width = sizeof( _calibration_gamma_ev2[0] )};
 
 static LookupTable calibration_gamma_threshold = {.ptr = _calibration_gamma_threshold, .rows = 1, .cols = sizeof( _calibration_gamma_threshold ) / sizeof( _calibration_gamma_threshold[0] ), .width = sizeof( _calibration_gamma_threshold[0] )};
+
+static LookupTable calibration_bypass_control = {.ptr = _calibration_bypass_control, .rows = 1, .cols = sizeof(_calibration_bypass_control) / sizeof(_calibration_bypass_control[0]), .width = sizeof( _calibration_bypass_control[0])};
+static LookupTable calibration_sinter_strength4 = {.ptr = _calibration_sinter_strength4, .rows = sizeof(_calibration_sinter_strength4) / sizeof(_calibration_sinter_strength4[0]), .cols = 2, .width = sizeof(_calibration_sinter_strength4[0][0])};
+
 
 uint32_t get_calibrations_dynamic_fs_lin_dummy( ACameraCalibrations *c )
 {
@@ -699,6 +718,8 @@ uint32_t get_calibrations_dynamic_fs_lin_dummy( ACameraCalibrations *c )
 	c->calibrations[CALIBRATION_GAMMA_EV1] = &calibration_gamma_ev1;
 	c->calibrations[CALIBRATION_GAMMA_EV2] = &calibration_gamma_ev2;
 	c->calibrations[CALIBRATION_GAMMA_THRESHOLD] = &calibration_gamma_threshold;
+	c->calibrations[CALIBRATION_BYPASS_CONTROL] = &calibration_bypass_control;
+	c->calibrations[CALIBRATION_SINTER_STRENGTH4] = &calibration_sinter_strength4;
     } else {
         result = -1;
     }

@@ -568,7 +568,7 @@ void cmos_fsm_process_interrupt( cmos_fsm_const_ptr_t p_fsm, uint8_t irq_event )
     switch ( irq_event ) {
     case ACAMERA_IRQ_FRAME_START:
 	// commple irq fs
-	isp_irq_completion(fw_id, 0);
+	// isp_irq_completion(fw_id, 0);
         cmos_move_exposure_history( (cmos_fsm_ptr_t)p_fsm );
         {
             exposure_data_set_t exp_set = {0};
@@ -708,7 +708,7 @@ void cmos_fsm_process_interrupt( cmos_fsm_const_ptr_t p_fsm, uint8_t irq_event )
         break;
     case ACAMERA_IRQ_FRAME_END: {
 	// commple irq fs
-	isp_irq_completion(fw_id, 1);
+	//isp_irq_completion(fw_id, 1);
         if ( ( wdr_mode == WDR_MODE_FS_LIN ) && ( ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_manual_frame_stitch == 0 ) ) {
 
             if ( sensor_info.sensor_exp_number == 4 ) {

@@ -50,7 +50,7 @@ typedef struct {
 
 
 #if defined( CUR_MOD_NAME )
-#undef CUR_MOD_NAME 
+#undef CUR_MOD_NAME
 #define CUR_MOD_NAME LOG_MODULE_SENSOR
 #else
 #define CUR_MOD_NAME LOG_MODULE_SENSOR
@@ -248,6 +248,8 @@ void sensor_update_black( sensor_fsm_ptr_t p_fsm )
 	uint8_t sensor_blc_shfit_wb = BLACK_LEVEL_SHIFT_WB;
 	uint8_t sensor_blc_shfit_dg = BLACK_LEVEL_SHIFT_DG;
 	const uint8_t sensor_bits_max = 20;
+	uint64_t blc_shift_temp = 0;
+	uint32_t blc_shift_write = 0;
 
 	if (wdr_mode == WDR_MODE_NATIVE) {
 		if (sensor_bits >= 12) {
@@ -293,6 +295,15 @@ void sensor_update_black( sensor_fsm_ptr_t p_fsm )
             acamera_isp_sensor_offset_pre_shading_offset_11_write(p_fsm->cmn.isp_base,
 		(uint32_t)_GET_MOD_ENTRY16_PTR(ACAMERA_FSM2CTX_PTR(p_fsm),
 		idx_b )->y << sensor_blc_shfit_wb);
+	    blc_shift_temp =
+		(((uint32_t)_GET_MOD_ENTRY16_PTR(ACAMERA_FSM2CTX_PTR(p_fsm), idx_r)->y << sensor_blc_shfit_wb) +
+		((uint32_t)_GET_MOD_ENTRY16_PTR(ACAMERA_FSM2CTX_PTR(p_fsm), idx_gr)->y << sensor_blc_shfit_wb) +
+		((uint32_t)_GET_MOD_ENTRY16_PTR(ACAMERA_FSM2CTX_PTR(p_fsm), idx_gb)->y << sensor_blc_shfit_wb) +
+		((uint32_t)_GET_MOD_ENTRY16_PTR(ACAMERA_FSM2CTX_PTR(p_fsm), idx_b)->y << sensor_blc_shfit_wb)) >> 2;
+	    blc_shift_write = (uint32_t)blc_shift_temp;
+
+	    acamera_isp_sqrt_black_level_in_write(p_fsm->cmn.isp_base, blc_shift_write);
+	    acamera_isp_square_be_black_level_out_write(p_fsm->cmn.isp_base, blc_shift_write);
 	 }
 
         //acamera_isp_digital_gain_offset_write( p_fsm->cmn.isp_base, (uint32_t)_GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), idx_gr )->y << BLACK_LEVEL_SHIFT_DG );
@@ -311,6 +322,12 @@ void sensor_update_black( sensor_fsm_ptr_t p_fsm )
             acamera_isp_sensor_offset_pre_shading_offset_10_write(p_fsm->cmn.isp_base, gb << sensor_blc_shfit_wb);
             acamera_isp_sensor_offset_pre_shading_offset_11_write(p_fsm->cmn.isp_base, b << sensor_blc_shfit_wb);
 
+	    blc_shift_temp = ((r << sensor_blc_shfit_wb) + (gr << sensor_blc_shfit_wb) +
+		(gb << sensor_blc_shfit_wb) + (b << sensor_blc_shfit_wb)) >> 2;
+	    blc_shift_write = (uint32_t)blc_shift_temp;
+
+	    acamera_isp_sqrt_black_level_in_write(p_fsm->cmn.isp_base, blc_shift_write);
+	    acamera_isp_square_be_black_level_out_write(p_fsm->cmn.isp_base, blc_shift_write);
         }
 
         //acamera_isp_digital_gain_offset_write( p_fsm->cmn.isp_base, (uint32_t)p_fsm->black_level << BLACK_LEVEL_SHIFT_DG );

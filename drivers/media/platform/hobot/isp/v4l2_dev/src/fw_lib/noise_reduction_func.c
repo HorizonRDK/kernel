@@ -182,6 +182,7 @@ void sinter_strength_calculate( noise_reduction_fsm_t *p_fsm )
         // get lut indexes for the current hdr mode
         uint32_t sinter_strength_idx = CALIBRATION_SINTER_STRENGTH;
         uint32_t sinter_strength1_idx = CALIBRATION_SINTER_STRENGTH1;
+	uint32_t sinter_strength4_idx = CALIBRATION_SINTER_STRENGTH4;
         uint32_t sinter_thresh1_idx = CALIBRATION_SINTER_THRESH1;
         uint32_t sinter_thresh4_idx = CALIBRATION_SINTER_THRESH4;
         uint32_t sinter_int_config_idx = CALIBRATION_SINTER_INTCONFIG;
@@ -217,6 +218,13 @@ void sinter_strength_calculate( noise_reduction_fsm_t *p_fsm )
         uint16_t sinter_strenght1 = acamera_calc_modulation_u16( log2_gain, _GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), sinter_strength1_idx ), _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), sinter_strength1_idx ) );
         // LOG( LOG_INFO, "sinter_strenght1 %d log2_gain %d ", (int)sinter_strenght1, (int)log2_gain );
         acamera_isp_sinter_strength_1_write( p_fsm->cmn.isp_base, sinter_strenght1 );
+
+	if (_GET_ROWS(ACAMERA_FSM2CTX_PTR(p_fsm), sinter_strength4_idx) != 0) {
+		uint16_t sinter_strenght4 = acamera_calc_modulation_u16(log2_gain, _GET_MOD_ENTRY16_PTR(ACAMERA_FSM2CTX_PTR(p_fsm), sinter_strength4_idx), _GET_ROWS(ACAMERA_FSM2CTX_PTR(p_fsm), sinter_strength4_idx));
+		// LOG( LOG_INFO, "sinter_strenght4 %d log2_gain %d ", (int)sinter_strenght4, (int)log2_gain );
+		acamera_isp_sinter_strength_4_write(p_fsm->cmn.isp_base, sinter_strenght4);
+	}
+
         uint16_t sinter_thresh1 = acamera_calc_modulation_u16( log2_gain, _GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), sinter_thresh1_idx ), _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), sinter_thresh1_idx ) );
         acamera_isp_sinter_thresh_1h_write( p_fsm->cmn.isp_base, sinter_thresh1 );
         acamera_isp_sinter_thresh_1v_write( p_fsm->cmn.isp_base, sinter_thresh1 );
@@ -527,6 +535,29 @@ void noise_reduction_update( noise_reduction_fsm_t *p_fsm )
         acamera_isp_cnr_uv_delta1_slope_write( p_fsm->cmn.isp_base, uv_delta_slope );
         acamera_isp_cnr_uv_delta2_slope_write( p_fsm->cmn.isp_base, uv_delta_slope );
     }
+
+    // ctrl bypass by gain
+	uint32_t temp_count = 0;
+	control_top_model_bypass *mode_ctrl = (control_top_model_bypass *)_GET_USHORT_PTR(ACAMERA_FSM2CTX_PTR(p_fsm), CALIBRATION_BYPASS_CONTROL);
+	if (mode_ctrl) {
+		temp_count = _GET_COLS(ACAMERA_FSM2CTX_PTR(p_fsm), CALIBRATION_BYPASS_CONTROL);
+		if ((mode_ctrl->enable_ctrl != 0) && (temp_count == 4)) {
+			if ((mode_ctrl->model_status != 0) && (log2_gain < mode_ctrl->gain_l_threshold)) {
+				mode_ctrl->model_status = 0;
+			} else if ((mode_ctrl->model_status == 0) && (log2_gain > mode_ctrl->gain_h_threshold)) {
+				mode_ctrl->model_status = 1;
+			}
+			if (mode_ctrl->model_status) {
+				// bypass
+				acamera_isp_top_bypass_square_be_write(p_fsm->cmn.isp_base, 1);
+				acamera_isp_top_bypass_fe_sqrt_write(p_fsm->cmn.isp_base, 1);
+			} else {
+				// enable
+				acamera_isp_top_bypass_square_be_write(p_fsm->cmn.isp_base, 0);
+				acamera_isp_top_bypass_fe_sqrt_write(p_fsm->cmn.isp_base, 0);
+			}
+		}
+	}
 
     if ( wdr_mode == WDR_MODE_FS_LIN ) {
         stitching_error_calculate( p_fsm );

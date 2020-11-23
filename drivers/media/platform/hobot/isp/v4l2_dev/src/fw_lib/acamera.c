@@ -1252,6 +1252,8 @@ int32_t acamera_interrupt_handler()
 
                     //clear error status
                     isp_error_sts = 0;
+		    //
+		    isp_irq_completion(cur_ctx_id, 0);
 
 
                     p_ctx->sts.fs_irq_cnt++;
@@ -1333,6 +1335,7 @@ int32_t acamera_interrupt_handler()
                             wake_up(&wq_frame_end);
                         }
                     }
+		    isp_irq_completion(cur_ctx_id, 1);
                     vio_set_stat_info(cur_ctx_id, ISP_FE,
                             p_ctx->isp_frame_counter);
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_FR_Y_WRITE_DONE ) {

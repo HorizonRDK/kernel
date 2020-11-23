@@ -183,12 +183,14 @@
 #define CALIBRATION_GAMMA_EV1                             0x00000077
 #define CALIBRATION_GAMMA_EV2                             0x00000078
 #define CALIBRATION_GAMMA_THRESHOLD                       0x00000079
+#define CALIBRATION_SINTER_STRENGTH4                      0x0000007a
+#define CALIBRATION_BYPASS_CONTROL                        0x0000007b
 
 // ------------------------------------------------------------------------------ //
 //		DYNAMIC STATE VALUES
 // ------------------------------------------------------------------------------ //
 
-#define CALIBRATION_TOTAL_SIZE 122
+#define CALIBRATION_TOTAL_SIZE 124
 //------------------FILE TRANSFER-------------------
 
 

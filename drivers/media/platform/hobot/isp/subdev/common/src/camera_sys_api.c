@@ -1076,19 +1076,9 @@ int camera_sys_set_ex_gain_control(uint32_t port, sensor_priv_t *priv_param,
 	char buf[2];
 	uint32_t param_hold, reg_width, param_hold_length;
 
-	reg_width = camera_mod[port]->camera_param.reg_width;
-	param_hold = camera_mod[port]->camera_param.pwl.param_hold;
-	param_hold_length = camera_mod[port]->camera_param.pwl.param_hold_length;
-
-	buf[0] = 0x00;
-	buf[1] = 0x01;
-	ret = camera_sys_write(port, param_hold, reg_width, buf, param_hold_length);
 	camera_sys_set_pwl_line(port, priv_param->line_num, input_line);
 	camera_sys_set_pwl_gain(port, priv_param->gain_num, input_gain);
 	camera_sys_set_pwl_dgain(port, priv_param->gain_num, input_dgain);
-	buf[0] = 0x00;
-	buf[1] = 0x00;
-	ret = camera_sys_write(port, param_hold, reg_width, buf, param_hold_length);
 
 	return ret;
 }
@@ -1098,7 +1088,7 @@ int  camera_sys_set_param_hold(uint32_t port, uint32_t value)
 	int ret = 0;
 	uint32_t param_hold = 0, param_hold_length = 0;
 	int  reg_width;
-	char buf[2];
+	char buf[2] = {0};
 
 	reg_width = camera_mod[port]->camera_param.reg_width;
 	switch(camera_mod[port]->camera_param.mode) {
@@ -1115,6 +1105,8 @@ int  camera_sys_set_param_hold(uint32_t port, uint32_t value)
 			param_hold_length = camera_mod[port]->camera_param.dol3.param_hold_length;
 			break;
 		case PWL_M:
+			param_hold = camera_mod[port]->camera_param.pwl.param_hold;
+			param_hold_length = camera_mod[port]->camera_param.pwl.param_hold_length;
 			break;
 		default:
 			pr_err("[%s -- %d ] mode is err %d !", __func__, __LINE__,
@@ -1165,7 +1157,9 @@ int  camera_sys_set_gain_line_control(uint32_t port, sensor_priv_t *priv_param)
 			camera_sys_set_param_hold(port, 0x0);
 			break;
 		case PWL_M:
+			camera_sys_set_param_hold(port, 0x1);
 			camera_sys_set_ex_gain_control(port, priv_param, a_gain, d_gain, a_line);
+			camera_sys_set_param_hold(port, 0x0);
 			break;
 		default:
 			pr_err("[%s -- %d ] mode is err %d !", __func__, __LINE__,

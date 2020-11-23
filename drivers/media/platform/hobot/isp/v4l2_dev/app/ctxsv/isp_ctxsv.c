@@ -259,7 +259,7 @@ int isp_irq_wait_for_completion(int ctx_id, uint8_t irq_type, unsigned long time
 		pr_err("param is err, ctx[%d] or irq_type[%d] is err!\n", ctx_id, irq_type);
 		return -1;
 	}
-	td = wait_for_completion_timeout(&irq_completion[ctx_id][irq_type], timeout);
+	td = wait_for_completion_timeout(&irq_completion[ctx_id][irq_type], msecs_to_jiffies(timeout));
 	if (!td) {
 		pr_debug("ctx[%d] irq_type[%d] is time_out\n", ctx_id, irq_type);
 		ret = -1;
@@ -275,7 +275,8 @@ void isp_irq_completion(int ctx_id, uint8_t irq_type)
 		return;
 	}
 	if (completion_flag) {
-	complete_all(&irq_completion[ctx_id][irq_type]);
+		//complete_all(&irq_completion[ctx_id][irq_type]);
+		complete(&irq_completion[ctx_id][irq_type]);
 	}
 }
 

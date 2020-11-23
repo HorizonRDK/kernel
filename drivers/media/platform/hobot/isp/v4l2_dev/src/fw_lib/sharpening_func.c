@@ -71,7 +71,7 @@ void sharpening_update( sharpening_fsm_t *p_fsm )
 #endif //ISP_WDR_SWITCH
 
     //  Do not update values if manual mode
-    if ( ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_manual_demosaic == 0 ) {
+    if ( ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_manual_sharpen == 0 ) {
 #if ISP_WDR_SWITCH
         //use luts for modulation instead!
         alt_d = acamera_calc_modulation_u16( log2_gain, sharp_alt_d_table_ptr, _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), sharp_alt_d_idx ) );

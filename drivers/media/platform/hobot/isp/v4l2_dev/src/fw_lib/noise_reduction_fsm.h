@@ -62,6 +62,12 @@ struct _noise_reduction_fsm_t {
     noise_reduction_mode_t nr_mode;
 };
 
+typedef struct _control_top_model_bypass_t {
+	uint16_t enable_ctrl;
+	uint16_t model_status;
+	uint16_t gain_h_threshold;
+	uint16_t gain_l_threshold;
+} control_top_model_bypass;
 
 void noise_reduction_fsm_clear( noise_reduction_fsm_ptr_t p_fsm );
 
