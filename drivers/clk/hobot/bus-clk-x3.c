@@ -466,6 +466,7 @@ static int hobot_bus_probe(struct platform_device *pdev)
 
 static const struct of_device_id hobot_bus_of_match[] = {
 	{ .compatible = "hobot,hobot-bus", },
+	{}
 };
 
 MODULE_DEVICE_TABLE(of, hobot_bus_of_match);

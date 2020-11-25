@@ -175,6 +175,7 @@ static int extcon_usb_notifier(struct notifier_block *self,
 
 static const struct of_device_id of_dwc3_powersave_match[] = {
 	{ .compatible = "hobot,dwc3-powersave", },
+	{}
 };
 
 static int dwc3_powersave_probe(struct platform_device *pdev)
