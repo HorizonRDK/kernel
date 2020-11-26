@@ -1041,12 +1041,10 @@ int isp_init_iridix(uint32_t ctx_id, uint32_t ctrl_val)
 	int stream_on = 0;
 	acamera_context_t *ptr_tmp;
 	acamera_context_t *ptr = acamera_get_ctx_ptr(ctx_id);
-	isp_v4l2_dev_t *d = isp_v4l2_get_dev(ctx_id);
-	stream_on = atomic_read(&d->stream_on_cnt);
-	if (ptr->initialized == 1 && stream_on == 0) {
+	mutex_lock(&ptr->p_gfw->ctx_chg_lock);
+	if (ptr->initialized == 1 && ptr->iridix_chn_idx == -1) {
 		acamera_isp_top_bypass_iridix_write(ptr->settings.isp_base, 1);
 		acamera_isp_iridix_enable_write(ptr->settings.isp_base, 0);
-		mutex_lock(&ptr->p_gfw->ctx_chg_lock);
 		for (i = 0; i < HW_CONTEXT_NUMBER; i++) {
 			 if (!test_bit(i, &ptr->p_gfw->iridix_chn_bitmap))
 				 break;
@@ -1081,8 +1079,8 @@ int isp_init_iridix(uint32_t ctx_id, uint32_t ctrl_val)
 			}
 		}
 		ptr->isp_sensor_mode = ctrl_val;
-		mutex_unlock(&ptr->p_gfw->ctx_chg_lock);
 	}
+	mutex_unlock(&ptr->p_gfw->ctx_chg_lock);
     return ret;
 }
 
