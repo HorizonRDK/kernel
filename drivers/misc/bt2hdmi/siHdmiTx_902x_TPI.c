@@ -1869,6 +1869,7 @@ static struct VModeInfoType VModesTable[] = {
 	//2-41280x720p@60Hz
 	{{5, 0, NSM}, 7425, {InterlaceVPosHPos, 6000, {2200, 562} },
 		{192, 20},
+		//{132, 7},
 		{1920, 1080}, R_16, {0, 44, 5, 15, 148, 88, 2, 1100}, 0,
 		{0, 0, 0, 0, 0}, NO_3D_SUPPORT},
 	//3-51920x1080i
@@ -1983,15 +1984,20 @@ static struct VModeInfoType VModesTable[] = {
 		{0, 0, 0, 0, 0}, NO_3D_SUPPORT},
 	//25-32(2)1920x1080p@24Hz
 	{{33, 0, NSM}, 7425, {ProgrVPosHPos, 2500, {2640, 1125} },
-		{192, 41},
+		//{192, 41},
+		{572, 9},
 		{1920, 1080}, R_16, {0, 44, 5, 36, 148, 528, 4, 0}, 0,
 		{0, 0, 0, 0, 0}, NO_3D_SUPPORT},
-	//26-33(3)1920x1080p
-	{{34, 0, NSM}, 7417, {ProgrVPosHPos, 3000, {2200, 1125} },
-		{192, 41},
-		{1920, 1080}, R_16, {0, 44, 5, 36, 148, 528, 4, 0}, 0,
+	//26-33(3)1920x1080p@25fps
+	{{34, 0, NSM}, 7425, {ProgrVPosHPos, 3000, {2200, 1125} },
+		//{192, 41},
+		{132, 9},
+		{1920, 1080}, R_16,
+		//{0, 44, 5, 36, 148, 528, 4, 0},
+		{0, 44, 5, 36, 148, 88, 4, 0},
+		0,
 		{0, 0, 0, 0, 0}, NO_3D_SUPPORT},
-	//27-34(4)1920x1080p
+	//27-34(4)1920x1080p@30fps
 	{{35, 36, NSM}, 10800, {ProgrVNegHNeg, 5994, {3432, 525} },
 		{488, 36},
 		{2880, 480}, R_4or16, {0, 248, 6, 30, 240, 64, 10, 0}, 0,
@@ -2069,7 +2075,8 @@ static struct VModeInfoType VModesTable[] = {
 	//42-58, 59, 1440x480i@239.76/240Hz, pixrepl
 
 	{{19, 0, NSM}, 7425, {ProgrVPosHPos, 3000, {3300, 750} },	//1280*720P30
-		{260, 25},
+		//{260, 25},
+		{1760, 10},
 		{1280, 720}, R_16, {0, 40, 5, 20, 260, 1720, 5, 0}, 0,
 		{0, 0, 0, 0, 0}, NO_3D_SUPPORT},
 	//43-191280x720p@30Hz
@@ -2462,7 +2469,7 @@ static u8 VIC2Index[] = {
 	23, 24, 25, 26, 27, 28, 28, 29, 29, 30,
 	31, 32, 33, 33, 34, 34, 35, 36, 37, 37,
 	38, 38, 39, 39, 40, 40, 41, 41, 42, 42,//59
-	0, 0, 0
+	0, 44, 43
 };
 
 //------------------------------------------------------------------------------
@@ -2491,6 +2498,7 @@ byte ConvertVIC_To_VM_Index(void)
 		// This is a regular 861-D format VIC, so we use the VIC to
 		// Index table to look up the index.
 		index = VIC2Index[siHdmiTx.VIC];
+		pr_debug("sii902xA_driver: %s: index is %d\n", __func__, index);
 	} else if (siHdmiTx.HDMIVideoFormat == VMD_HDMIFORMAT_HDMI_VIC) {
 		// HDMI_VIC conversion is simple.  We need to subtract one
 		// because the codes start with one instead of zero.  These
