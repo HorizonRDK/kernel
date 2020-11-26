@@ -20,49 +20,21 @@
 #define FRAME_CTRL_START_MAGIC	0xA5626474  /*a5bct*/
 
 #define HBUSB_SYNC_TX_VALID_FRAMEBUF	_IO('B', 0x02)
+#define HBUSB_DEV_PRESENT	_IO('B', 0x03)
+
 
 const char hbusb_class_name[] = {"hbusb"};
 static struct hbusb_dev *global_hbusb_dev;
 
 #define HBUSB_TX_MAX_PACKET 1024
 
-enum {
-	HBUSB_CHANNEL_CLOSED,
-	HBUSB_CHANNEL_OPENED
-};
-
-enum {
-	HBUSB_USB_PLUGOUT,
-	HBUSB_USB_PLUGIN
-};
-
-enum {
-	HBUSB_CHANNEL_NOT_RUNNING,
-	HBUSB_CHANNEL_RUNNING,
-};
-
-/*-------------------tx/rx flag enum--------------------*/
-enum {
-	FLAG_RX_FRAME_NOT_VALID,
-	FLAG_RX_FRAME_VALID
-};
-
-enum {
-	EVENT_HBUSB_TX_CTRL_HEAD = 1,
-	EVENT_HBUSB_TX_USER_DATA,
-	EVENT_HBUSB_TX_CTRL_END,
-	EVENT_HBUSB_TX_FINISHED
-};
-
-enum {
-	FLAG_USER_TX_WAIT,
-	FLAG_USER_TX_NOT_WAIT
-};
-enum {
-	FLAG_USER_RX_WAIT,
-	FLAG_USER_RX_NOT_WAIT
-};
-/*-------------------------------------------------*/
+/*---------------------function declare--------------------------*/
+static int lowlevel_tx_submit(struct hbusb_tx_chan *tx);
+static void lowlevel_tx_complete(struct usb_ep *ep,
+						struct usb_request *req);
+static void tx_frame_info_var_init(struct hbusb_tx_chan *tx);
+static void tx_frame_ctrl_var_init(struct hbusb_tx_chan *tx);
+/*------------------------------------------------------------*/
 
 /*------------------------lowlevel read--------------------------*/
 
@@ -176,7 +148,7 @@ void tx_start_user_data_event(struct hbusb_tx_chan *tx)
 	frame_ctrl->send_slice_size = sg_info->slice_size[slice_index];
 
 	/*preapre req buf*/
-	req->dma = (void *)frame_ctrl->send_slice_phys;
+	req->dma = frame_ctrl->send_slice_phys;
 	req->length = frame_ctrl->send_slice_size;
 	req->complete = lowlevel_tx_complete;
 	req->context = tx;
@@ -242,6 +214,10 @@ static int lowlevel_tx_submit(struct hbusb_tx_chan *tx)
 	struct usb_request	*req;
 	struct hbusb_channel	*chan = tx->parent_chan;
 
+	if (atomic_read(&chan->chan_running)
+			== HBUSB_CHANNEL_NOT_RUNNING)
+		return -ENODEV;
+
 	spin_lock_irqsave(&tx->ep_lock, flags);
 	ep = tx->ep;
 	req = usb_ep_alloc_request(ep, GFP_ATOMIC);
@@ -264,7 +240,6 @@ static int lowlevel_tx_submit(struct hbusb_tx_chan *tx)
 	spin_unlock_irqrestore(&tx->ep_lock, flags);
 
 	return -EIOCBQUEUED;
-
 fail1:
 	usb_ep_free_request(ep, req);
 fail0:
@@ -273,9 +248,55 @@ fail0:
 }
 /*-------------------------------------------------------------*/
 
-
 /*--------------------hbusb file operations-------------------------*/
 static void tx_frame_ctrl_var_init(struct hbusb_tx_chan *tx);
+
+/*this function can be call by close or hbusb_disconnect*/
+void release_usb_request(struct hbusb_channel *chan,
+					spinlock_t		  *ep_lock,
+					struct usb_ep **ep,
+					struct usb_request **req)
+{
+	unsigned long		flags;
+	struct usb_ep		*temp_ep = NULL;
+	struct usb_request	*temp_req = NULL;
+
+	if (ep_lock == NULL)
+		return;
+
+	spin_lock_irqsave(ep_lock, flags);
+	if ((*req) != NULL && (*ep) != NULL) {
+		temp_req = *req;
+		temp_ep = *ep;
+		/*we set channel rx/tx->req is NULL,
+		 *complete will return by flag
+		 */
+		*req = NULL;
+	} else {
+		spin_unlock_irqrestore(ep_lock, flags);
+		return;
+	}
+	spin_unlock_irqrestore(ep_lock, flags);
+
+	if (atomic_read(&chan->chan_running) != HBUSB_CHANNEL_NOT_RUNNING)
+		/*usb_ep_dequeue when usb plug out will block*/
+		usb_ep_dequeue(temp_ep, temp_req);
+}
+
+static void hbusb_release_work_func(struct work_struct *work)
+{
+	struct hbusb_channel *chan = container_of(work, struct hbusb_channel,
+						close_work.work);
+	struct hbusb_tx_chan *tx = &chan->tx;
+
+	/*stop rx channel req*/
+
+	/*stop tx channel req*/
+	release_usb_request(chan, &tx->ep_lock, &tx->ep, &tx->req);
+
+	atomic_set(&chan->chan_running, HBUSB_CHANNEL_NOT_RUNNING);
+	atomic_set(&chan->chan_opened, HBUSB_CHANNEL_CLOSED);
+}
 
 void hbusb_chan_open_init(struct hbusb_channel *chan)
 {
@@ -290,27 +311,16 @@ void hbusb_chan_open_init(struct hbusb_channel *chan)
 	mutex_init(&chan->write_lock);
 }
 
-#if 0
-int start_bct_chan_transfer(struct bct_channel *chan)
+int hbusb_chan_start_transfer(struct hbusb_channel *chan)
 {
-	struct bct_rx_chan *rx = &chan->rx;
-	struct bct_tx_chan *tx = &chan->tx;
-
-	/*init and submit rx channel*/
-	rx_frame_ctrl_var_init(rx);
-	rx_frame_info_var_init(rx);
-        if (rx_test_buf == NULL)
-            rx_test_buf = kmalloc(0x400000, GFP_KERNEL);
-        //lowlevel_rx_submit(rx);
-        rx_test_submit(rx);
+	struct hbusb_tx_chan *tx = &chan->tx;
 
 	/*init tx channel*/
 	tx_frame_ctrl_var_init(tx);
-
+	tx_frame_info_var_init(tx);
 
 	return 0;
 }
-#endif
 
 static int hbusb_open(struct inode *inode, struct file *filp)
 {
@@ -321,35 +331,26 @@ static int hbusb_open(struct inode *inode, struct file *filp)
 	hbusb_dev = global_hbusb_dev;
 	chan = &hbusb_dev->chan[minor];
 
-	hbusb_chan_open_init(chan);
+	if (atomic_read(&chan->chan_opened) == HBUSB_CHANNEL_OPENED) {
+		/*close <--> open too fast, last close time not execte timely*/
+		msleep(2 * WRITE_FOR_CALLBACK_COMPLETE);
+		if (atomic_read(&chan->chan_opened) == HBUSB_CHANNEL_OPENED) {
+			pr_err("Failed to repeate to open bct channel\n");
+			return -EBUSY;
+		}
+	}
 
 	filp->private_data = chan;
+	hbusb_chan_open_init(chan);
+
+	atomic_set(&chan->chan_opened, HBUSB_CHANNEL_OPENED);
+	if (atomic_read(&hbusb_dev->usb_plugin) == HBUSB_DEV_PLUGIN) {
+		atomic_set(&chan->chan_running, HBUSB_CHANNEL_RUNNING);
+		(void)hbusb_chan_start_transfer(chan);
+	}
 
 	return 0;
-#if 0
-fail:
-	filp->private_data = NULL;
-	return status;
-#endif
 }
-
-#if 0
-static void bct_release_work_func(struct work_struct *work)
-{
-	struct bct_channel *chan = container_of(work, struct bct_channel,
-						close_work.work);
-	struct bct_rx_chan *rx = &chan->rx;
-	struct bct_tx_chan *tx = &chan->tx;
-
-	/*stop rx channel req*/
-	release_usb_request(chan, &rx->ep_lock, &rx->ep, &rx->req);
-	/*stop tx channel req*/
-	release_usb_request(chan, &tx->ep_lock, &tx->ep, &tx->req);
-
-	atomic_set(&chan->chan_running, BCT_CHANNEL_NOT_RUNNING);
-	atomic_set(&chan->chan_opened, BCT_CHANNEL_CLOSED);
-}
-#endif
 
 static int hbusb_release(struct inode *inode, struct file *filp)
 {
@@ -359,6 +360,10 @@ static int hbusb_release(struct inode *inode, struct file *filp)
 		pr_err("Failed to close hbusb, chan not been open\n");
 		return -ENODEV;
 	}
+
+	/*delay some close operation to delay*/
+	schedule_delayed_work(&chan->close_work,
+			WRITE_FOR_CALLBACK_COMPLETE * HZ / 1000);
 
 	filp->private_data = NULL;
 	return 0;
@@ -513,10 +518,8 @@ static int hbusb_sync_tx_valid_framebuf(struct file *filp,
 			dev_info(chan->dev, "wait write data signal interrupted\n");
 			return -EINTR;
 		} else if (tx->cond != FLAG_USER_TX_NOT_WAIT) {
-#if 0
 			release_usb_request(chan, &tx->ep_lock,
 				&tx->ep, &tx->req);
-#endif
 			return -ENODEV;
 		}
 	}
@@ -536,6 +539,8 @@ static long hbusb_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	int status = 0;
 	void __user *argp = (void __user *)arg;
 	struct hbusb_channel		*chan = filp->private_data;
+	struct hbusb_dev		*dev = global_hbusb_dev;
+	unsigned int 				usb_plug_val = 0;
 
 	switch (cmd) {
 	case HBUSB_SYNC_TX_VALID_FRAMEBUF:
@@ -546,6 +551,10 @@ static long hbusb_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 		status = hbusb_sync_tx_valid_framebuf(filp, argp);
 		mutex_unlock(&chan->write_lock);
+		break;
+	case HBUSB_DEV_PRESENT:
+		usb_plug_val = atomic_read(&dev->usb_plugin);
+		*(unsigned int *)argp = usb_plug_val;
 		break;
 	default:
 		return -EINVAL;
@@ -667,6 +676,10 @@ static int hbusb_channels_init(struct hbusb_dev	*hbusb_dev)
 					MKDEV(hbusb_dev->cdev_major, i), NULL,
 					"hbusb%d", i);
 		hbusb_dev->chan[i].chan_minor = i;
+
+		/*init timer*/
+		INIT_DELAYED_WORK(&hbusb_dev->chan[i].close_work,
+					hbusb_release_work_func);
 	}
 
 	return 0;
@@ -683,7 +696,7 @@ static void hbusb_channels_deinit(struct hbusb_dev	*hbusb_dev)
 	for (i = 0; i < HBUSB_MINOR_COUNT; i++) {
 		if (hbusb_dev->chan[i].dev == NULL)
 			continue;
-		//cancel_delayed_work_sync(&bct_dev->chan[i].close_work);
+		cancel_delayed_work_sync(&hbusb_dev->chan[i].close_work);
 		device_destroy(hbusb_dev->dev_class, MKDEV(major, i));
 		hbusb_dev->chan[i].dev = NULL;
 		hbusb_tx_chan_deinit(&hbusb_dev->chan[i]);
@@ -823,6 +836,7 @@ int hbusb_connect(struct    hbusb *link)
 	if (!dev)
 		return -EINVAL;
 
+	atomic_set(&dev->usb_plugin, HBUSB_DEV_PLUGIN);
 	for (i = 0; i < HBUSB_MINOR_COUNT; i++) {
 		chan = &dev->chan[i];
 		result = usb_ep_enable(link->bulkout[i]);
@@ -833,6 +847,7 @@ int hbusb_connect(struct    hbusb *link)
 		}
 
 		tx = &chan->tx;
+		link->bulkin[i]->driver_data = tx;
 		result = usb_ep_enable(link->bulkin[i]);
 		if (result != 0) {
 			DBG(dev, "enable %s --> %d\n",
@@ -842,13 +857,34 @@ int hbusb_connect(struct    hbusb *link)
 		spin_lock_irqsave(&tx->ep_lock, flags);
 		tx->ep = link->bulkin[i];
 		spin_unlock_irqrestore(&tx->ep_lock, flags);
+
+		if (atomic_read(&chan->chan_opened) == HBUSB_CHANNEL_OPENED) {
+			atomic_set(&chan->chan_running, HBUSB_CHANNEL_RUNNING);
+			result = hbusb_chan_start_transfer(chan);
+			if (result < 0) {
+				pr_err("Failed to start hbusb channel transfer when usb is plugin\n");
+				goto fail;
+			}
+		}
 	}
 
 	return 0;
 fail:
 	for (i = 0; i < HBUSB_MINOR_COUNT; i++) {
 		(void) usb_ep_disable(link->bulkout[i]);
-		(void) usb_ep_disable(link->bulkin[i]);
+
+		if (tx->ep != NULL)
+			(void) usb_ep_disable(link->bulkin[i]);
+
+		if (tx->ep != NULL) {
+			atomic_set(&chan->chan_running,
+					HBUSB_CHANNEL_NOT_RUNNING);
+			atomic_set(&dev->usb_plugin, HBUSB_DEV_PLUGOUT);
+
+			spin_lock_irqsave(&tx->ep_lock, flags);
+			tx->ep = NULL;
+			spin_unlock_irqrestore(&tx->ep_lock, flags);
+		}
 	}
 	return result;
 }
@@ -858,6 +894,9 @@ void hbusb_disconnect(struct      hbusb *link)
 {
 	int i;
 	struct hbusb_dev		*dev = link->ioport;
+	struct hbusb_channel	*chan;
+	struct hbusb_tx_chan	*tx;
+	unsigned long			flags;
 
 	WARN_ON(!dev);
 	if (!dev)
@@ -870,8 +909,20 @@ void hbusb_disconnect(struct      hbusb *link)
 	 * and forget about the endpoints.
 	 */
 	for (i = 0; i < HBUSB_MINOR_COUNT; i++) {
+		chan = &dev->chan[i];
+		atomic_set(&chan->chan_running, HBUSB_CHANNEL_NOT_RUNNING);
+	}
+	atomic_set(&dev->usb_plugin, HBUSB_DEV_PLUGOUT);
+
+	for (i = 0; i < HBUSB_MINOR_COUNT; i++) {
 		usb_ep_disable(link->bulkout[i]);
+
+		tx = &chan->tx;
+		tx->req = NULL;
 		usb_ep_disable(link->bulkin[i]);
+		spin_lock_irqsave(&tx->ep_lock, flags);
+		tx->ep = NULL;
+		spin_unlock_irqrestore(&tx->ep_lock, flags);
 
 		link->bulkout[i]->driver_data = NULL;
 		link->bulkout[i]->desc = NULL;
