@@ -1823,15 +1823,14 @@ void pym_frame_done(struct pym_subdev *subdev)
 			vio_dbg("[S%d] pym online frame_id %d",
 				group->instance, frmid.frame_id);
 			frame->frameinfo.frame_id = frmid.frame_id;
-			frame->frameinfo.timestamps =
-			    frmid.timestamps;
+			frame->frameinfo.timestamps = frmid.timestamps;
+			frame->frameinfo.tv = frmid.tv;
 		}
 		vio_dbg("[S%d]pym done fid %d timestamps %llu",
 			group->instance,
 			frame->frameinfo.frame_id,
 			frame->frameinfo.timestamps);
 		vio_set_stat_info(group->instance, PYM_FE, group->frameid.frame_id);
-		do_gettimeofday(&frame->frameinfo.tv);
 
 		pym_set_iar_output(subdev, frame);
 		event = VIO_FRAME_DONE;

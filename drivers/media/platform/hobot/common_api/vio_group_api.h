@@ -147,6 +147,7 @@ struct vio_core {
 struct vio_frame_id {
 	u32 frame_id;
 	u64 timestamps;
+	struct timeval tv;
 };
 
 typedef int (*isp_callback)(int);

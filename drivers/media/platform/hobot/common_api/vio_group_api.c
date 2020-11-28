@@ -386,6 +386,7 @@ void vio_get_sif_frame_info(u32 instance, struct vio_frame_id *frame_info)
 {
 	frame_info->frame_id = sif_frame_info[instance].frame_id;
 	frame_info->timestamps = sif_frame_info[instance].timestamps;
+	frame_info->tv = sif_frame_info[instance].tv;
 }
 EXPORT_SYMBOL(vio_get_sif_frame_info);
 
@@ -393,6 +394,7 @@ void vio_get_ipu_frame_info(u32 instance, struct vio_frame_id *frame_info)
 {
 	frame_info->frame_id = ipu_frame_info[instance].frame_id;
 	frame_info->timestamps = ipu_frame_info[instance].timestamps;
+	frame_info->tv = ipu_frame_info[instance].tv;
 }
 EXPORT_SYMBOL(vio_get_ipu_frame_info);
 

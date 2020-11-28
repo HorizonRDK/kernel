@@ -608,7 +608,8 @@ int callback_stream_put_frame( uint32_t ctx_id, acamera_stream_type_t type, afra
 #if ( LINUX_VERSION_CODE >= KERNEL_VERSION( 4, 4, 0 ) )
     // vb->timestamp = ktime_get_ns();
     vb->timestamp = metadata_cb->timestamps;
-
+    vvb->timecode.type = metadata_cb->tv_sec;
+    vvb->timecode.flags = metadata_cb->tv_usec;
 #else
     v4l2_get_timestamp( &vb->v4l2_buf.timestamp );
 #endif

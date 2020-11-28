@@ -660,6 +660,7 @@ void ipu_frame_work(struct vio_group *group)
 
 	u32 src_frame_id = 0;
 	uint64_t src_timestamps = 0;
+	struct timeval src_tv = {0, 0};
 
 	instance = group->instance;
 	subdev = group->sub_ctx[0];
@@ -675,9 +676,11 @@ void ipu_frame_work(struct vio_group *group)
 		if (frame) {
 			src_frame_id = frame->frameinfo.frame_id;
 			src_timestamps = frame->frameinfo.timestamps;
+			src_tv = frame->frameinfo.tv;
 			// save for pym get
 			group->frameid.frame_id = src_frame_id;
 			group->frameid.timestamps = src_timestamps;
+			group->frameid.tv = src_tv;
 			vio_dbg("[S%d] frame_id %d src_timestamps %llu\n",
 		    	instance, src_frame_id, src_timestamps);
 		}
@@ -770,6 +773,7 @@ void ipu_frame_work(struct vio_group *group)
 				if (subdev->ipu_cfg.ctrl_info.source_sel == IPU_FROM_DDR_YUV420) {
 					frame->frameinfo.frame_id = src_frame_id;
 					frame->frameinfo.timestamps = src_timestamps;
+					frame->frameinfo.tv = src_tv;
 				}
 				break;
 			case GROUP_ID_DS0:
@@ -783,6 +787,7 @@ void ipu_frame_work(struct vio_group *group)
 				if (subdev->ipu_cfg.ctrl_info.source_sel == IPU_FROM_DDR_YUV420) {
 					frame->frameinfo.frame_id = src_frame_id;
 					frame->frameinfo.timestamps = src_timestamps;
+					frame->frameinfo.tv = src_tv;
 				}
 				vio_dbg("subdev %d frame index:%d,%d", subdev->id,
 							frame->index, frame->frameinfo.bufferindex);
@@ -3085,10 +3090,8 @@ void ipu_frame_done(struct ipu_subdev *subdev)
 	frame = peek_frame(framemgr, FS_PROCESS);
 	if (frame) {
 		frame->frameinfo.frame_id = group->frameid.frame_id;
-		frame->frameinfo.timestamps =
-			group->frameid.timestamps;
-
-		do_gettimeofday(&frame->frameinfo.tv);
+		frame->frameinfo.timestamps = group->frameid.timestamps;
+		frame->frameinfo.tv = group->frameid.tv;
 		if (subdev->id != 0) {
 			vio_set_stat_info(group->instance, IPU_FS + subdev->id,
 				group->frameid.frame_id);
@@ -3504,14 +3507,17 @@ static irqreturn_t ipu_isr(int irq, void *data)
 			if (src_subdev->ipu_cfg.ctrl_info.source_sel == IPU_FROM_DDR_YUV420) {
 				ipu_frame_info[instance].frame_id = group->frameid.frame_id;
 				ipu_frame_info[instance].timestamps = group->frameid.timestamps;
+				ipu_frame_info[instance].tv = group->frameid.tv;
 				vio_dbg("[S%d] ipu offline frame_id %d", instance, group->frameid.frame_id);
 			} else if (src_subdev->ipu_cfg.ctrl_info.source_sel == IPU_FROM_SIF_YUV422 ||
 				src_subdev->ipu_cfg.ctrl_info.source_sel == IPU_FROM_ISP_YUV420) {
 				vio_get_sif_frame_info(instance, &frmid);
 				ipu_frame_info[instance].frame_id = frmid.frame_id;
 				ipu_frame_info[instance].timestamps = frmid.timestamps;
+				ipu_frame_info[instance].tv = frmid.tv;
 				group->frameid.frame_id = ipu_frame_info[instance].frame_id;
 				group->frameid.timestamps = ipu_frame_info[instance].timestamps;
+				group->frameid.tv = ipu_frame_info[instance].tv;
 				vio_dbg("[S%d] ipu online frame_id %d", instance, frmid.frame_id);
 			}
 		}

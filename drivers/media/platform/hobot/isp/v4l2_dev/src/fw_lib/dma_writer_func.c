@@ -357,6 +357,8 @@ void frame_buffer_fr_finished(dma_writer_fsm_ptr_t p_fsm)
     if ( metadata_cb ) {
         metadata_cb->frame_id = ACAMERA_FSM2CTX_PTR(p_fsm)->isp_frame_counter;
         metadata_cb->timestamps = ACAMERA_FSM2CTX_PTR(p_fsm)->timestamps;
+        metadata_cb->tv_sec = ACAMERA_FSM2CTX_PTR(p_fsm)->tv.tv_sec;
+        metadata_cb->tv_usec = ACAMERA_FSM2CTX_PTR(p_fsm)->tv.tv_usec;
     }
 }
 

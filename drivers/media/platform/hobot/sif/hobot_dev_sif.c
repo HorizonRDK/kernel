@@ -181,8 +181,10 @@ void sif_read_frame_work(struct vio_group *group)
 			frameinfo = &frame->frameinfo;
 			group->frameid.frame_id = frameinfo->frame_id;
 			group->frameid.timestamps = frameinfo->timestamps;
+			group->frameid.tv = frameinfo->tv;
 			sif_frame_info[instance].frame_id = frameinfo->frame_id;
 			sif_frame_info[instance].timestamps = frameinfo->timestamps;
+			sif_frame_info[instance].tv = frameinfo->tv;
 			vio_dbg("sif_read_frame_work frame_id %d", frameinfo->frame_id);
 			sif_config_rdma_cfg(subdev, 0, frameinfo);
 			if (subdev->dol_num > 1) {
@@ -1350,12 +1352,10 @@ void sif_frame_done(struct sif_subdev *subdev)
 	frame = peek_frame(framemgr, FS_PROCESS);
 	if (frame) {
 		frame->frameinfo.frame_id = group->frameid.frame_id;
-		frame->frameinfo.timestamps =
-		    group->frameid.timestamps;
+		frame->frameinfo.timestamps = group->frameid.timestamps;
+		frame->frameinfo.tv = group->frameid.tv;
 		vio_set_stat_info(group->instance, SIF_CAP_FE + group->id * 2,
 				group->frameid.frame_id);
-
-		do_gettimeofday(&frame->frameinfo.tv);
 
 		trans_frame(framemgr, frame, FS_COMPLETE);
 		event = VIO_FRAME_DONE;

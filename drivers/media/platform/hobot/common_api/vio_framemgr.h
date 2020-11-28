@@ -108,6 +108,7 @@ struct vio_frame_info {
 struct frame_id {
 	u32 frame_id;
 	u64 timestamps;
+	struct timeval tv;
 };
 
 struct special_buffer {

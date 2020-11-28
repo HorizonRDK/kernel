@@ -191,6 +191,7 @@ struct _acamera_context_t {
     uint32_t isp_frame_counter_raw; // frame counter for raw callback
     uint32_t isp_frame_counter;     // frame counter for frame / metadata callbacks
     uint64_t timestamps;
+    struct timeval tv;
 
     // isp context save on/off
     uint8_t isp_ctxsv_on;

@@ -1185,6 +1185,7 @@ int32_t acamera_interrupt_handler()
 		vio_get_sif_frame_info(cur_ctx_id, &frmid);
 		p_ctx->isp_frame_counter = frmid.frame_id;
 		p_ctx->timestamps = frmid.timestamps;
+		p_ctx->tv = frmid.tv;
 	}
 
     pr_debug("[s%d] IRQ MASK is 0x%x, frame id %d timestamps %llu ms\n",
