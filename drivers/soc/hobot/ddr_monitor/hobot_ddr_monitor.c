@@ -10,7 +10,7 @@
  * (at your option) any later version.
  */
 
-#define pr_fmt(fmt) KBUILD_MODNAME ":%s " fmt, __func__
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <linux/init.h>
 #include <linux/module.h>
@@ -278,10 +278,12 @@ static int hobot_dfi_get_event(struct devfreq_event_dev *edev,
 	struct ddr_monitor_result_s* cur_info;
 	unsigned long read_cnt = 0;
 	unsigned long write_cnt = 0;
+	unsigned long mwrite_cnt = 0;
 	unsigned long cur_ddr_rate;
 	int cur;
+	void __iomem *clk_reg = ioremap(0xa1000030, 32);
 
-	pr_debug("%s %d\n", __func__, __LINE__);
+	spin_lock_irqsave(&g_ddr_monitor_dev->lock, flags);
 
 	if (g_record_num <= 0) {
 		/* set to max load when not ready*/
@@ -299,25 +301,28 @@ static int hobot_dfi_get_event(struct devfreq_event_dev *edev,
 		pr_debug("get cur_ddr_rate %ld from ddr_mclk\n", cur_ddr_rate);
 	}
 
-	pr_debug("cur_ddr_freq: %ld\n", cur_ddr_rate);
-
-	spin_lock_irqsave(&g_ddr_monitor_dev->lock, flags);
 	cur_info = &ddr_info[cur];
 
 	read_cnt = cur_info->rd_cmd_num * rd_cmd_bytes *
 			(1000000 / g_monitor_period) >> 20;
 
-	write_cnt = (cur_info->wr_cmd_num * cur_info->mwr_cmd_num) * 64 *
+	write_cnt = cur_info->wr_cmd_num * 64 *
 			(1000000 / g_monitor_period) >> 20;
 
-	edata->load_count = read_cnt + write_cnt;
+	mwrite_cnt = cur_info->mwr_cmd_num * 64 *
+			(1000000 / g_monitor_period) >> 20;
+
+	edata->load_count = read_cnt + write_cnt + mwrite_cnt;
 	edata->total_count = (cur_ddr_rate * 4) >> 20;
 
 	spin_unlock_irqrestore(&g_ddr_monitor_dev->lock, flags);
 
-	pr_debug("rd:%6ld, wr:%6ld, load:%6ld, total:%6ld, ddr_clk:%ldMHz\n",
-		read_cnt, write_cnt, edata->load_count , edata->total_count,
-		cur_ddr_rate / 1000000);
+	pr_debug("rd:%6ld, wr:%6ld, mwr:%6ld, load:%6ld, total:%6ld, "\
+		"ddr_clk:%4ldMHz, clk_reg:%08x\n",
+		read_cnt, write_cnt, mwrite_cnt, edata->load_count,
+		edata->total_count, cur_ddr_rate / 1000000, readl(clk_reg));
+
+	iounmap(clk_reg);
 
 	return 0;
 }
