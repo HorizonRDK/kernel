@@ -785,7 +785,29 @@ int dm_table_add_target(struct dm_table *t, const char *type,
 		goto bad;
 	}
 
+#ifdef CONFIG_HOBOT_XJ3
+	 {
+		#define WAIT_TOTAL 10000
+		#define WAIT_STEP 10
+		int wait_ms = WAIT_TOTAL;
+		do {
+			r = tgt->type->ctr(tgt, argc, argv);
+			if (!r) {
+				if (WAIT_TOTAL - wait_ms > 0)
+					pr_info("%s: waited %dms for root device ready.\n",
+						__func__, WAIT_TOTAL - wait_ms);
+				break;
+			}
+			wait_ms -= WAIT_STEP;
+			if (wait_ms < WAIT_TOTAL / 2)
+				pr_err_ratelimited("%s: waiting root device overtime %dms.\n",
+					__func__, WAIT_TOTAL - wait_ms);
+			msleep(WAIT_STEP);
+		} while (wait_ms > 0);
+	 }
+#else
 	r = tgt->type->ctr(tgt, argc, argv);
+#endif
 	kfree(argv);
 	if (r)
 		goto bad;
