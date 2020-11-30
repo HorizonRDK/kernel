@@ -36,6 +36,7 @@ struct hobot_dmcfreq {
 	struct mutex lock;
 
 	unsigned long rate, target_rate;
+	int suspend_event;
 };
 
 /*
@@ -153,10 +154,13 @@ static __maybe_unused int hobot_dmcfreq_suspend(struct device *dev)
 	struct hobot_dmcfreq *dmcfreq = dev_get_drvdata(dev);
 	int ret = 0;
 
-	ret = devfreq_event_disable_edev(dmcfreq->edev);
-	if (ret < 0) {
-		dev_err(dev, "failed to disable the devfreq-event devices\n");
-		return ret;
+	if (devfreq_event_is_enabled(dmcfreq->edev)) {
+		ret = devfreq_event_disable_edev(dmcfreq->edev);
+		if (ret < 0) {
+			dev_err(dev, "failed to disable the devfreq-event devices\n");
+			return ret;
+		}
+		dmcfreq->suspend_event = 1;
 	}
 
 	ret = devfreq_suspend_device(dmcfreq->devfreq);
@@ -173,10 +177,13 @@ static __maybe_unused int hobot_dmcfreq_resume(struct device *dev)
 	struct hobot_dmcfreq *dmcfreq = dev_get_drvdata(dev);
 	int ret = 0;
 
-	ret = devfreq_event_enable_edev(dmcfreq->edev);
-	if (ret < 0) {
-		dev_err(dev, "failed to enable the devfreq-event devices\n");
-		return ret;
+	if (dmcfreq->suspend_event == 1) {
+		ret = devfreq_event_enable_edev(dmcfreq->edev);
+		if (ret < 0) {
+			dev_err(dev, "failed to enable the devfreq-event devices\n");
+			return ret;
+		}
+		dmcfreq->suspend_event = 0;
 	}
 
 	ret = devfreq_resume_device(dmcfreq->devfreq);
