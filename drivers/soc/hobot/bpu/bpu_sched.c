@@ -45,6 +45,31 @@ void bpu_sched_seed_update(void)
 EXPORT_SYMBOL(bpu_sched_seed_update);
 // PRQA S ALL --
 
+static int32_t bpu_core_used_by_user(struct bpu_core *core)
+{
+	struct list_head *pos, *pos_n;
+	struct bpu_user *tmp_user;
+	unsigned long flags;/*PRQA S ALL*/
+
+	if (core == NULL) {
+		return 0;
+	}
+
+	spin_lock_irqsave(&core->spin_lock, flags);/*PRQA S ALL*/
+	list_for_each_safe(pos, pos_n, &core->user_list) {/*PRQA S ALL*/
+		tmp_user = (struct bpu_user *)list_entry(pos, struct bpu_user, node);/*PRQA S ALL*/
+		if (tmp_user != NULL) {
+			if (tmp_user->is_alive > 0) {
+				spin_unlock_irqrestore(&core->spin_lock, flags);
+				return tmp_user->is_alive;
+			}
+		}
+	}
+	spin_unlock_irqrestore(&core->spin_lock, flags);
+
+	return 0;
+}
+
 static void bpu_sched_check_to_core(struct bpu *bpu)
 {
 	struct bpu_core *tmp_core;
@@ -67,7 +92,8 @@ static void bpu_sched_check_to_core(struct bpu *bpu)
 				continue;
 			}
 
-			if (tmp_core->hw_ops->reset != NULL) {
+			if ((tmp_core->hw_ops->reset != NULL)
+					&& (bpu_core_used_by_user(tmp_core) > 0)) {
 				tmp_core->hw_ops->reset(tmp_core);
 
 				ret = bpu_core_process_recover(tmp_core);
