@@ -235,7 +235,7 @@ static void common_update(uint8_t chn, struct sensor_priv_old updata)
 	}
 }
 
-static void sensor_awb_update(uint8_t chn, uint32_t rgain, uint32_t bgain)
+static void sensor_awb_update(uint8_t chn, uint32_t rgain, uint32_t grgain, uint32_t gbgain, uint32_t bgain)
 {
 	int ret = 0;
 	struct sensor_arg settings;
@@ -243,6 +243,8 @@ static void sensor_awb_update(uint8_t chn, uint32_t rgain, uint32_t bgain)
 	if (common_subdev != NULL && chn < FIRMWARE_CONTEXT_NUMBER) {
 		settings.port = chn;
 		sensor_ctl[chn].rgain = rgain;
+		sensor_ctl[chn].grgain = grgain;
+		sensor_ctl[chn].gbgain = gbgain;
 		sensor_ctl[chn].bgain = bgain;
 		settings.sensor_priv = &sensor_ctl[chn];
 		LOG(LOG_ERR, "chn is %d", chn);

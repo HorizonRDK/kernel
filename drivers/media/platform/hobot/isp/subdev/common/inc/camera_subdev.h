@@ -30,6 +30,8 @@ typedef struct sensor_priv {
 	  uint32_t line_buf[4];
 	  uint32_t rgain;
 	  uint32_t bgain;
+	  uint32_t grgain;
+	  uint32_t gbgain;
 	  uint8_t  mode;
 }sensor_priv_t;
 
@@ -158,6 +160,10 @@ typedef struct sensor_awb_ctrl_s {
 	uint32_t rgain_length[4];
 	uint32_t bgain_addr[4];
 	uint32_t bgain_length[4];
+	uint32_t grgain_addr[4];
+	uint32_t grgain_length[4];
+	uint32_t gbgain_addr[4];
+	uint32_t gbgain_length[4];
 	uint32_t rb_prec;
 } sensor_awb_ctrl_t;
 

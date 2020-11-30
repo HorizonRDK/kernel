@@ -377,14 +377,15 @@ static void start_streaming( void *ctx )
 		sensor_ops[p_ctx->channel]->start_streaming(p_ctx->channel);
 }
 
-static void sensor_awb_update( void *ctx, uint32_t rgain, uint32_t bgain )
+static void sensor_awb_update( void *ctx, void *p_awb )
 {
-//-- TODO
+	sns_param_awb_cfg_t *awb = p_awb;
 	sensor_context_t *p_ctx = ctx;
         LOG( LOG_INFO, "IE&E %s", __func__);
 
+	pr_debug("r %d, gr %d, gb %d, b %d\n", awb->rgain, awb->grgain, awb->gbgain, awb->bgain);
 	if (sensor_ops[p_ctx->channel])
-		sensor_ops[p_ctx->channel]->sensor_awb_update(p_ctx->channel, rgain, bgain);
+		sensor_ops[p_ctx->channel]->sensor_awb_update(p_ctx->channel, awb->rgain, awb->grgain, awb->gbgain, awb->bgain);
 }
 
 void sensor_deinit_dummy(uint32_t ctx_id, void *ctx )

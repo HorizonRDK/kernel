@@ -434,7 +434,7 @@ int sensor_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t in
 
 	fsm_param_awb_cfg_t *p_awb = (fsm_param_awb_cfg_t *)input;
 
-        p_fsm->ctrl.sensor_awb_update( p_fsm->sensor_ctx, p_awb->rgain, p_awb->bgain);
+        p_fsm->ctrl.sensor_awb_update( p_fsm->sensor_ctx, (void *)p_awb);
 
         break;
 

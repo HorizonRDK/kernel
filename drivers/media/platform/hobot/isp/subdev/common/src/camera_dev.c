@@ -10,6 +10,9 @@
  *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *    GNU General Public License for more details.
  */
+
+#define pr_fmt(fmt) "[isp_drv:cam]: %s: " fmt, __func__
+
 #include <linux/cdev.h>
 #include <linux/device.h>
 #include <linux/of_device.h>

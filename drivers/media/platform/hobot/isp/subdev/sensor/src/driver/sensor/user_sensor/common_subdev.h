@@ -26,6 +26,8 @@ typedef struct sensor_priv {
 	uint32_t line_buf[4];
 	uint32_t rgain;
 	uint32_t bgain;
+	uint32_t grgain;
+	uint32_t gbgain;
 	uint8_t  mode;
 } sensor_priv_t;
 

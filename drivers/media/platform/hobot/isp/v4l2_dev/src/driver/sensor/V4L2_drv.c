@@ -346,17 +346,20 @@ static void sensor_update( void *ctx )
 }
 
 
-static void sensor_awb_update( void *ctx , uint32_t rgain, uint32_t bgain)
+static void sensor_awb_update( void *ctx, void *p_awb)
 {
     sensor_context_t *p_ctx = ctx;
+    sns_param_awb_cfg_t *awb = p_awb;
     if ( p_ctx != NULL ) {
         struct soc_sensor_ioctl_args settings;
         struct v4l2_subdev *sd = p_ctx->soc_sensor;
         uint32_t ctx_num = get_ctx_num( ctx );
         if ( sd != NULL && ctx_num < FIRMWARE_CONTEXT_NUMBER ) {
             settings.ctx_num = ctx_num;
-            settings.args.general.val_in = rgain;
-            settings.args.general.val_in2 = bgain;
+            settings.args.general.val_in = awb->rgain;
+            settings.args.general.val_in2 = awb->grgain;
+            settings.args.general.val_in3 = awb->gbgain;
+            settings.args.general.val_in4 = awb->bgain;
             int rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_AWB_UPDATE, &settings );
             if ( rc != 0 ) {
                 LOG( LOG_ERR, "Failed to update sensor awb. rc = %d", rc );

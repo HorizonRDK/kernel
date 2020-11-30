@@ -669,7 +669,10 @@ void cmos_fsm_process_interrupt( cmos_fsm_const_ptr_t p_fsm, uint8_t irq_event )
 			if (param->global_sensor_awb_mode) {
 				fsm_param_awb_cfg_t awb_f;
 				awb_f.rgain = ((cmos_fsm_ptr_t)p_fsm)->wb[0];
+                awb_f.grgain = ((cmos_fsm_ptr_t)p_fsm)->wb[1];
+                awb_f.gbgain = ((cmos_fsm_ptr_t)p_fsm)->wb[2];
 				awb_f.bgain = ((cmos_fsm_ptr_t)p_fsm)->wb[3];
+                pr_debug("r %d, gr %d, gb %d, b %d\n", awb_f.rgain, awb_f.grgain, awb_f.gbgain, awb_f.bgain);
 				acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_SENSOR_AWB_UPDATE, &awb_f, sizeof( awb_f ) );
 			}
 		}

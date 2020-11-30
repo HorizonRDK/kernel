@@ -1179,6 +1179,7 @@ int  camera_sys_set_awb_control(uint32_t port, sensor_priv_t *priv_param)
 	uint32_t data = 0;
 
 	uint32_t reg_width, rgain_addr, rgain_length, bgain_addr, bgain_length;
+	uint32_t grgain_addr, grgain_length, gbgain_addr, gbgain_length;
 
 	reg_width = camera_mod[port]->camera_param.reg_width;
 
@@ -1196,6 +1197,7 @@ int  camera_sys_set_awb_control(uint32_t port, sensor_priv_t *priv_param)
 				DOFFSET(&data, rgain_length);
 			}
 			camera_trans_value(&data, awb_gain);
+			pr_debug("rgain[%d] = %x\n", i, data);
 			ret = camera_sys_write(port, rgain_addr, reg_width, awb_gain, rgain_length);
 		}
 
@@ -1211,7 +1213,40 @@ int  camera_sys_set_awb_control(uint32_t port, sensor_priv_t *priv_param)
 				DOFFSET(&data, bgain_length);
 			}
 			camera_trans_value(&data, awb_gain);
+			pr_debug("bgain[%d] = %x\n", i, data);
 			ret = camera_sys_write(port, bgain_addr, reg_width, awb_gain, bgain_length);
+		}
+
+		grgain_addr = camera_mod[port]->camera_param.sensor_awb.grgain_addr[i];
+		grgain_length = camera_mod[port]->camera_param.sensor_awb.grgain_length[i];
+		if (grgain_length != 0) {
+			if (camera_mod[port]->camera_param.sensor_awb.rb_prec > 8) {
+				data = priv_param->grgain << (camera_mod[port]->camera_param.sensor_awb.rb_prec - 8);
+			} else {
+				data = priv_param->grgain >> (8 - camera_mod[port]->camera_param.sensor_awb.rb_prec);
+			}
+			if (camera_mod[port]->camera_param.sensor_data.conversion) {
+				DOFFSET(&data, grgain_length);
+			}
+			camera_trans_value(&data, awb_gain);
+			pr_debug("grgain[%d] = %x\n", i, data);
+			ret = camera_sys_write(port, grgain_addr, reg_width, awb_gain, grgain_length);
+		}
+
+		gbgain_addr = camera_mod[port]->camera_param.sensor_awb.gbgain_addr[i];
+		gbgain_length = camera_mod[port]->camera_param.sensor_awb.gbgain_length[i];
+		if (gbgain_length != 0) {
+			if (camera_mod[port]->camera_param.sensor_awb.rb_prec > 8) {
+				data = priv_param->gbgain << (camera_mod[port]->camera_param.sensor_awb.rb_prec - 8);
+			} else {
+				data = priv_param->gbgain >> (8 - camera_mod[port]->camera_param.sensor_awb.rb_prec);
+			}
+			if (camera_mod[port]->camera_param.sensor_data.conversion) {
+				DOFFSET(&data, gbgain_length);
+			}
+			camera_trans_value(&data, awb_gain);
+			pr_debug("gbgain[%d] = %x\n", i, data);
+			ret = camera_sys_write(port, gbgain_addr, reg_width, awb_gain, gbgain_length);
 		}
 	}
 	camera_sys_set_param_hold(port, 0x0);

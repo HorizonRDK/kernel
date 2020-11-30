@@ -245,6 +245,8 @@ typedef struct _fsm_param_reg_cfg_ {
 typedef struct _fsm_param_awb_cfg_ {
     uint32_t rgain;
     uint32_t bgain;
+    uint32_t grgain;
+    uint32_t gbgain;
 } fsm_param_awb_cfg_t;
 
 typedef struct _fsm_param_ccm_manual_ {

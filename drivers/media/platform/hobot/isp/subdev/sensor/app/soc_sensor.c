@@ -149,7 +149,7 @@ static long camera_ioctl( struct v4l2_subdev *sd, unsigned int cmd, void *arg )
         return rc;
     }
 
-
+    sns_param_awb_cfg_t awb_info;
     const sensor_param_t *params = ctx->camera_control.get_parameters( ctx->camera_context );
 
     switch ( cmd ) {
@@ -186,7 +186,11 @@ static long camera_ioctl( struct v4l2_subdev *sd, unsigned int cmd, void *arg )
         ctx->camera_control.write_sensor_register( ctx->camera_context, ARGS_TO_PTR( arg )->args.general.val_in, ARGS_TO_PTR( arg )->args.general.val_in2 );
         break;
     case SOC_SENSOR_AWB_UPDATE:
-        ctx->camera_control.sensor_awb_update( ctx->camera_context, ARGS_TO_PTR( arg )->args.general.val_in, ARGS_TO_PTR( arg )->args.general.val_in2 );
+        awb_info.rgain = ARGS_TO_PTR( arg )->args.general.val_in;
+        awb_info.grgain = ARGS_TO_PTR( arg )->args.general.val_in2;
+        awb_info.gbgain = ARGS_TO_PTR( arg )->args.general.val_in3;
+        awb_info.bgain = ARGS_TO_PTR( arg )->args.general.val_in4;
+        ctx->camera_control.sensor_awb_update( ctx->camera_context, &awb_info );
         break;
     case SOC_SENSOR_GET_PRESET_NUM:
         ARGS_TO_PTR( arg )

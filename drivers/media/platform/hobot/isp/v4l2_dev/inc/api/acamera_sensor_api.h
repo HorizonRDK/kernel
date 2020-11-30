@@ -22,7 +22,6 @@
 
 #include "acamera_types.h"
 
-
 // this structure represents image resolution
 // it is used in sensor driver to keep information
 // about the frame width and frame height
@@ -30,7 +29,6 @@ typedef struct _image_resolution_t {
     uint16_t width;
     uint16_t height;
 } image_resolution_t;
-
 
 // a sensor can support several different predefined modes.
 // this structure keeps all neccessary information about a mode
@@ -42,6 +40,12 @@ typedef struct _sensor_mode_t {
     uint8_t bits;                  // Bit depth of data from sensor
 } sensor_mode_t;
 
+typedef struct {
+    uint32_t rgain;
+    uint32_t bgain;
+    uint32_t grgain;
+    uint32_t gbgain;
+} sns_param_awb_cfg_t;
 
 // sensor parameters structure keeps information about the current
 // sensor state.
@@ -281,7 +285,7 @@ typedef struct _sensor_control_t {
      *      address - address of register
      *         data - data to write to register location
      */
-    void ( *sensor_awb_update )( void *ctx, uint32_t rgain, uint32_t bgain );
+    void ( *sensor_awb_update )( void *ctx, void *p_awb );
 
 } sensor_control_t;
 
