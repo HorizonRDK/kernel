@@ -29,6 +29,7 @@
 #include "acamera_logger.h"
 #include "system_spinlock.h"
 #include "hobot_isp_reg_dma_regset.h"
+#include "system_dma.h"
 
 #if FW_USE_HOBOT_DMA
 

@@ -22,10 +22,11 @@
 #include "acamera_logger.h"
 #include <linux/gfp.h>
 #include <linux/slab.h>
+#include <linux/delay.h>
 #include "acamera_fw.h"
 #include "acamera_command_api.h"
 #include <asm/io.h>
-#include "hobot_isp_reg_dma_regset.h"
+#include "hobot_isp_reg_dma.h"
 
 #define	BIT_FIELD_MASK(m, n)	((~0U >> (BITS_PER_LONG - (n - m + 1))) << m)
 
@@ -333,8 +334,11 @@ void system_sram_access_assert(uintptr_t addr)
 void system_sram_access_assert(uintptr_t addr)
 {}
 #endif
+extern hobot_dma_t g_hobot_dma;
 void system_reg_rw(struct regs_t *rg, uint8_t dir)
 {
+	unsigned long flags;
+	int retry_times = 0;
 	acamera_context_ptr_t context_ptr = (acamera_context_ptr_t)acamera_get_api_ctx_ptr();
 
     if (context_ptr->initialized == 0) {
@@ -342,6 +346,13 @@ void system_reg_rw(struct regs_t *rg, uint8_t dir)
         return;
     }
 
+	flags = system_spinlock_lock(g_hobot_dma.dma_ctrl_lock);
+	while (g_hobot_dma.is_busy == 1 && retry_times < 5) {
+		system_spinlock_unlock(g_hobot_dma.dma_ctrl_lock, flags);
+		msleep(5);
+		flags = system_spinlock_lock(g_hobot_dma.dma_ctrl_lock);
+		retry_times++;
+	}
     uintptr_t sw_addr = context_ptr->settings.isp_base + rg->addr;
     uint32_t data = system_sw_read_32(sw_addr);
 	uint32_t mask = BIT_FIELD_MASK(rg->m, rg->n);
@@ -353,4 +364,5 @@ void system_reg_rw(struct regs_t *rg, uint8_t dir)
 		data &= mask;
 		rg->v = data >> rg->m;
 	}
+	system_spinlock_unlock(g_hobot_dma.dma_ctrl_lock, flags);
 }
