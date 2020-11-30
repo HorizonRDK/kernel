@@ -1464,7 +1464,6 @@ static irqreturn_t sif_isr(int irq, void *data)
 				if (debug_log_print)
 					vio_print_stat_info(group->instance);
 
-				vio_exchanage_stat_info(group->instance);
 				vio_set_stat_info(group->instance, SIF_CAP_FS,
 						group->frameid.frame_id);
 
