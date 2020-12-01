@@ -8,7 +8,12 @@
 #include <linux/moduleparam.h>
 #include <linux/completion.h>
 #include <linux/jiffies.h>
+#include <linux/module.h>
+#include <linux/mutex.h>
+#include <linux/kthread.h>
 #include "isp_ctxsv.h"
+
+
 
 /*
 one single context memory layout
@@ -154,7 +159,7 @@ void isp_ctx_put(int ctx_id, isp_info_type_e type, uint8_t idx)
 void isp_ctx_done_queue_clear(int ctx_id)
 {
 	int k = 0;
- 
+
 	if (!ctx_queue[ctx_id][k].ctx_node_head[DONEQ].next)
 		return;
 
@@ -251,6 +256,12 @@ void isp_ctx_queue_state(char *tags)
 
 }
 
+static DECLARE_WAIT_QUEUE_HEAD(frame_start);
+static DECLARE_WAIT_QUEUE_HEAD(frame_end);
+
+static uint32_t frame_start_cond[8];
+static uint32_t frame_end_cond[8];
+
 int isp_irq_wait_for_completion(int ctx_id, uint8_t irq_type, unsigned long timeout)
 {
 	int ret = 0;
@@ -259,12 +270,19 @@ int isp_irq_wait_for_completion(int ctx_id, uint8_t irq_type, unsigned long time
 		pr_err("param is err, ctx[%d] or irq_type[%d] is err!\n", ctx_id, irq_type);
 		return -1;
 	}
-	td = wait_for_completion_timeout(&irq_completion[ctx_id][irq_type], msecs_to_jiffies(timeout));
+	if (irq_type == 0) {
+		td = wait_event_timeout(frame_start, frame_start_cond[ctx_id], msecs_to_jiffies(timeout));
+		frame_start_cond[ctx_id] = 0;
+	} else {
+		td = wait_event_timeout(frame_end, frame_end_cond[ctx_id], msecs_to_jiffies(timeout));
+		frame_end_cond[ctx_id] = 0;
+	}
+	// td = wait_for_completion_timeout(&irq_completion[ctx_id][irq_type], msecs_to_jiffies(timeout));
 	if (!td) {
 		pr_debug("ctx[%d] irq_type[%d] is time_out\n", ctx_id, irq_type);
 		ret = -1;
 	}
-	pr_debug("ctx %d, irq_type %d is require, time out is %d!\n", ctx_id, irq_type, td);
+	pr_debug("ctx %d, irq_type %d is require, time is %d!\n", ctx_id, irq_type, td);
 	return ret;
 }
 
@@ -275,8 +293,17 @@ void isp_irq_completion(int ctx_id, uint8_t irq_type)
 		return;
 	}
 	if (completion_flag) {
-		//complete_all(&irq_completion[ctx_id][irq_type]);
-		complete(&irq_completion[ctx_id][irq_type]);
+		if (irq_type == 0) {
+			wake_up(&frame_start);
+			frame_start_cond[ctx_id] = 1;
+			frame_end_cond[ctx_id] = 0;
+		} else {
+			wake_up(&frame_end);
+			frame_start_cond[ctx_id] = 0;
+			frame_end_cond[ctx_id] = 1;
+		}
+		// complete_all(&irq_completion[ctx_id][irq_type]);
+		// complete(&irq_completion[ctx_id][irq_type]);
 	}
 }
 

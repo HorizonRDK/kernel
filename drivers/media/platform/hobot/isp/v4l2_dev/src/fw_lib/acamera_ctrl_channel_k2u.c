@@ -416,6 +416,64 @@ static uint8_t is_uf_needed_command( uint8_t command_type, uint8_t command, uint
     return rc;
 }
 
+static uint8_t is_uf_needed_calibration( uint8_t command_type, uint8_t command, uint8_t direction )
+{
+    uint8_t rc = 1;
+
+    // we only support SET in user-FW.
+    if ( COMMAND_GET == direction )
+        return 0;
+
+    if ((command == CALIBRATION_SINTER_STRENGTH)
+	|| (command == CALIBRATION_SINTER_STRENGTH1)
+	|| (command == CALIBRATION_SINTER_STRENGTH4)
+	|| (command == CALIBRATION_SINTER_THRESH1)
+	|| (command == CALIBRATION_SINTER_THRESH4)
+	|| (command == CALIBRATION_BLACK_LEVEL_R)
+	|| (command == CALIBRATION_BLACK_LEVEL_GR)
+	|| (command == CALIBRATION_BLACK_LEVEL_GB)
+	|| (command == CALIBRATION_BLACK_LEVEL_B)
+	|| (command == CALIBRATION_SHADING_LS_D65_R)
+	|| (command == CALIBRATION_SHADING_LS_D65_G)
+	|| (command == CALIBRATION_SHADING_LS_D65_B)
+	|| (command == CALIBRATION_SHADING_LS_TL84_R)
+	|| (command == CALIBRATION_SHADING_LS_TL84_G)
+	|| (command == CALIBRATION_SHADING_LS_TL84_B)
+	|| (command == CALIBRATION_SHADING_LS_A_R)
+	|| (command == CALIBRATION_SHADING_LS_A_G)
+	|| (command == CALIBRATION_SHADING_LS_A_B)
+	|| (command == CALIBRATION_SHARP_ALT_D)
+	|| (command == CALIBRATION_SHARP_ALT_UD)
+	|| (command == CALIBRATION_SHARP_ALT_DU)
+	|| (command == CALIBRATION_SHARPEN_FR)
+	|| (command == CALIBRATION_TEMPER_STRENGTH)
+	|| (command == CALIBRATION_DEMOSAIC_NP_OFFSET)
+	|| (command == CALIBRATION_CNR_UV_DELTA12_SLOPE)
+	|| (command == CALIBRATION_RGB2YUV_CONVERSION)
+	|| (command == CALIBRATION_DP_SLOPE)
+	|| (command == CALIBRATION_DP_THRESHOLD)
+	|| (command == CALIBRATION_STITCHING_LM_MOV_MULT)
+	|| (command == CALIBRATION_STITCHING_LM_NP)
+	|| (command == CALIBRATION_STITCHING_MS_MOV_MULT)
+	|| (command == CALIBRATION_STITCHING_MS_NP)
+	|| (command == CALIBRATION_STITCHING_SVS_MOV_MULT)
+	|| (command == CALIBRATION_STITCHING_SVS_NP)
+	|| (command == CALIBRATION_CUSTOM_SETTINGS_CONTEXT)
+	|| (command == CALIBRATION_SHADING_RADIAL_IR)
+	|| (command == CALIBRATION_SHADING_RADIAL_CENTRE_AND_MULT)
+	|| (command == CALIBRATION_TEMPER_STRENGTH)
+	|| (command == CALIBRATION_DECOMPANDER0_MEM)
+	|| (command == CALIBRATION_DECOMPANDER1_MEM)
+	|| (command == CALIBRATION_CA_CORRECTION)
+	|| (command == CALIBRATION_GAMMA)
+	) {
+	    rc = 0;
+    }
+
+    return rc;
+}
+
+
 void ctrl_channel_handle_command( uint32_t cmd_ctx_id, uint8_t type, uint8_t command, uint32_t value, uint8_t direction )
 {
     struct ctrl_cmd_item *p_cmd = &ctrl_channel_ctx[cmd_ctx_id].cmd_item;
@@ -460,6 +518,11 @@ void ctrl_channel_handle_api_calibration( uint32_t cmd_ctx_id, uint8_t type, uin
 
     if ( !ctrl_channel_ctx[cmd_ctx_id].dev_opened ) {
         LOG( LOG_INFO, "FW ctrl channel is not opened, skip." );
+        return;
+    }
+
+    /* If user-FW is not needed this command, we do nothing */
+    if ( !is_uf_needed_calibration( type, id, direction ) ) {
         return;
     }
 

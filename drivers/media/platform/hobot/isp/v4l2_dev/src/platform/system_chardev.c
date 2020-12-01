@@ -422,7 +422,9 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		return -1;
 	}
 
-	mutex_lock(&isp_dev_ctx.fops_lock);
+	if (cmd != ISPIOC_IRQ_WAIT) {
+		mutex_lock(&isp_dev_ctx.fops_lock);
+	}
 
 	switch (cmd) {
 	case ISPIOC_REG_RW:
@@ -803,7 +805,9 @@ buf_free:
 	}
 
 out:
-	mutex_unlock(&isp_dev_ctx.fops_lock);
+	if (cmd != ISPIOC_IRQ_WAIT) {
+		mutex_unlock(&isp_dev_ctx.fops_lock);
+	}
 
 	return ret;
 }
