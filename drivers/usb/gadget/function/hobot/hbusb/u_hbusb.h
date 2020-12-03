@@ -37,11 +37,24 @@ enum {
 	FLAG_RX_FRAME_VALID
 };
 
+enum err_code{
+	HBUSB_SG_NUM_NOT_EQUAL = 2,
+	HBUSB_RECV_NOT_COMPLETE
+};
+
 enum {
 	EVENT_HBUSB_TX_CTRL_HEAD = 1,
 	EVENT_HBUSB_TX_USER_DATA,
 	EVENT_HBUSB_TX_CTRL_END,
 	EVENT_HBUSB_TX_FINISHED
+};
+
+enum {
+	EVENT_HBUSB_RX_CTRL_HEAD = 1,
+	EVENT_HBUSB_RX_USER_DATA,
+	EVENT_HBUSB_RX_CTRL_END,
+	EVENT_HBUSB_RX_FINISHED,
+	EVENT_HBUSB_RX_HEAD_IN_DATABUF
 };
 
 enum {
@@ -122,7 +135,40 @@ struct hbusb_frame_head {
 /*--------------------------------------------------*/
 
 /*----------------rx channel frame ctrl-----------------*/
+struct frame_rx_ctrl {
+	/* frame info */
+	struct frame_info	*frame_info;
+
+	/* rx ctrl head buf*/
+	void __iomem		*rx_ctrl_head_buf;
+	int 				rx_ctrl_head_actual_size;
+
+	/*curr_use_frame_info: used by usb ctrl to send data to hardware.*/
+	int curr_sg_index_per_frame_info;
+	int curr_slice_index_per_sg;
+
+	/*one time temp libusb recv param*/
+	unsigned long recv_slice_phys;
+	int 		recv_slice_size;
+
+	unsigned int		seq_num;
+
+	/*tx_envent*/
+	unsigned int 		hbusb_recv_event;
+};
+
 struct hbusb_rx_chan {
+	spinlock_t				ep_lock;
+	struct usb_ep			*ep;
+	struct usb_request		*req;
+	struct frame_rx_ctrl	frame_ctrl;
+
+	/*wait for rx valid data complete*/
+	size_t					cond;
+	wait_queue_head_t		wait;
+
+	/*channel index*/
+	struct hbusb_channel		*parent_chan;
 };
 /*---------------------------------------------------*/
 
@@ -143,7 +189,6 @@ struct frame_tx_ctrl {
 	/*one time temp libusb recv param*/
 	unsigned long send_slice_phys;
 	int 		send_slice_size;
-	struct scatterlist	scatterlist;
 
 	unsigned int		seq_num;
 

@@ -19,6 +19,7 @@
 
 #define FRAME_CTRL_START_MAGIC	0xA5626474  /*a5bct*/
 
+#define HBUSB_SYNC_RX_VALID_FRAMEBUF	_IO('B', 0x01)
 #define HBUSB_SYNC_TX_VALID_FRAMEBUF	_IO('B', 0x02)
 #define HBUSB_DEV_PRESENT	_IO('B', 0x03)
 
@@ -29,21 +30,266 @@ static struct hbusb_dev *global_hbusb_dev;
 #define HBUSB_TX_MAX_PACKET 1024
 
 /*---------------------function declare--------------------------*/
+static void lowlevel_rx_complete(struct usb_ep *ep,
+						struct usb_request *req);
+static int lowlevel_rx_submit(struct hbusb_rx_chan *rx);
 static int lowlevel_tx_submit(struct hbusb_tx_chan *tx);
 static void lowlevel_tx_complete(struct usb_ep *ep,
 						struct usb_request *req);
 static void tx_frame_info_var_init(struct hbusb_tx_chan *tx);
 static void tx_frame_ctrl_var_init(struct hbusb_tx_chan *tx);
+static void rx_frame_info_var_init(struct hbusb_rx_chan *rx);
+static void rx_frame_ctrl_var_init(struct hbusb_rx_chan *rx);
 /*------------------------------------------------------------*/
 
 /*------------------------lowlevel read--------------------------*/
+void rx_ctrl_head_event(struct hbusb_rx_chan *rx)
+{
+	int tmp_size;
+	struct frame_rx_ctrl *frame_ctrl = &rx->frame_ctrl;
+	struct frame_info *frame_info = frame_ctrl->frame_info;
+	struct hbusb_frame_head *head =
+		(struct hbusb_frame_head *)frame_ctrl->rx_ctrl_head_buf;
+	struct hbusb_channel *chan = rx->parent_chan;
 
+	if (head->start_end_magic_num != FRAME_CTRL_START_MAGIC)
+		/*if start magic is not right, we direct return
+		 * we do not update and wait for head info*/
+		return;
+
+	if (head->sgs_num > frame_info->sg_num) {
+		/*warnning is not a valid data, */
+		dev_err(chan->dev, "recv sgs num is more than user want[%d:%d]\n",
+				head->sgs_num, frame_info->sg_num);
+		frame_info->error_val	= -HBUSB_SG_NUM_NOT_EQUAL;
+		frame_ctrl->hbusb_recv_event = EVENT_HBUSB_RX_FINISHED;
+		return;
+	} else {
+		 frame_info->sg_num = head->sgs_num;
+	}
+
+	if (head->user_ctrl_info_len != 0) {
+		tmp_size = (head->user_ctrl_info_len < USER_CTRL_INFO_MAX_SIZE) ?
+				head->user_ctrl_info_len : USER_CTRL_INFO_MAX_SIZE;
+		memcpy(frame_info->elem.ctrl_info.buf,
+				((void *)head + USB_FRAME_HEAD_SIZE), tmp_size);
+		frame_info->elem.ctrl_info.actual_size = tmp_size;
+	}
+
+	frame_ctrl->recv_slice_phys = frame_info->sg_info[0].slice_addr[0];
+	frame_ctrl->recv_slice_size = frame_info->sg_info[0].slice_size[0];
+	frame_ctrl->curr_sg_index_per_frame_info = 0;
+	frame_ctrl->curr_slice_index_per_sg = 0;
+	frame_ctrl->hbusb_recv_event = EVENT_HBUSB_RX_USER_DATA;
+}
+
+void rx_user_data_event(struct hbusb_rx_chan *rx)
+{
+#if 0
+	struct hbusb_frame_head *head =  NULL;
+#endif
+	struct frame_rx_ctrl	*frame_ctrl = &rx->frame_ctrl;
+	struct frame_info		*frame_info = frame_ctrl->frame_info;
+	struct frame_sg_info *sg_info	= NULL;
+	int sg_index = 0, slice_index = 0;
+
+	/* judge recv buf is usb head, if it is head,
+	 * may be some wrong, need to wait next data
+	 */
+	if (frame_ctrl->recv_slice_size == HBUSB_CTRL_FRAME_SIZE) {
+		/*0. err handle when recevie head in data buf */
+#if 0
+		head = (struct hbusb_frame_head *)frame_ctrl->recv_slice_buf;
+		if (head->start_end_magic_num == FRAME_CTRL_START_MAGIC) {
+			memcpy(frame_ctrl->rx_ctrl_head_buf,
+				(void *)frame_ctrl->recv_slice_addr, HBUSB_CTRL_FRAME_SIZE);
+			frame_ctrl->recv_slice_size = HBUSB_CTRL_FRAME_SIZE;
+			frame_ctrl->hbusb_recv_event = EVENT_HBUSB_RX_HEAD_IN_DATABUF;
+			frame_info->error_val = -HBUSB_RECV_NOT_COMPLETE;
+			return;
+		}
+#else
+		frame_ctrl->recv_slice_size = HBUSB_CTRL_FRAME_SIZE;
+		frame_ctrl->hbusb_recv_event = EVENT_HBUSB_RX_HEAD_IN_DATABUF;
+		frame_info->error_val = -HBUSB_RECV_NOT_COMPLETE;
+#endif
+	}
+
+	/*we first handle received slice num info*/
+	sg_index = frame_ctrl->curr_sg_index_per_frame_info;
+	slice_index = frame_ctrl->curr_slice_index_per_sg;
+	sg_info = &frame_info->sg_info[sg_index];
+	sg_info->slice_actual_size[slice_index] = frame_ctrl->recv_slice_size;
+
+	if (frame_ctrl->recv_slice_size < HBUSB_DMA_BUF_MAX_SIZE) {
+		if ((frame_ctrl->recv_slice_size == 0)
+			&& (frame_ctrl->curr_slice_index_per_sg == 0)) {
+				/*1. this mean a not vaild info in first slice of sg info,
+					use the same slice buf to recv next send data */
+				return;
+		}
+		/* 2.This mean the last slice of per sg_info,
+				we need point to next sg*/
+		goto next_sg;
+	} else {
+		/*3.recv valid data in current slice goto next slice*/
+		goto next_slice_of_sg;
+	}
+
+next_slice_of_sg:
+	frame_ctrl->curr_slice_index_per_sg++;
+	if (frame_ctrl->curr_slice_index_per_sg >= sg_info->slice_num) {
+		/* 4.we have no more slice per sg, we need point to next sg*/
+		goto next_sg;
+	}
+
+	sg_index = frame_ctrl->curr_sg_index_per_frame_info;
+	slice_index = frame_ctrl->curr_slice_index_per_sg;
+	sg_info = &frame_info->sg_info[sg_index];
+	frame_ctrl->recv_slice_phys = sg_info->slice_addr[slice_index];
+	return;
+next_sg:
+	frame_info->sg_actual_num++;
+	frame_ctrl->curr_sg_index_per_frame_info++;
+	frame_ctrl->curr_slice_index_per_sg = 0;
+	if (frame_ctrl->curr_sg_index_per_frame_info >= frame_info->sg_num) {
+		/*5.we have fill full user sg num, return finish*/
+		goto recv_finished;
+	}
+
+	sg_index = frame_ctrl->curr_sg_index_per_frame_info;
+	slice_index = frame_ctrl->curr_slice_index_per_sg;
+	sg_info = &frame_info->sg_info[sg_index];
+	frame_ctrl->recv_slice_phys = sg_info->slice_addr[slice_index];
+	return;
+recv_finished:
+	frame_ctrl->hbusb_recv_event = EVENT_HBUSB_RX_FINISHED;
+	return;
+}
+
+static int hbusb_rx_event(struct hbusb_rx_chan *rx)
+{
+	int status = 0;
+	struct frame_rx_ctrl *frame_ctrl = &rx->frame_ctrl;
+
+	/*recv data and preapre to recv next buf by last event*/
+	switch (frame_ctrl->hbusb_recv_event) {
+	case EVENT_HBUSB_RX_CTRL_HEAD:
+		rx_ctrl_head_event(rx);
+		break;
+	case EVENT_HBUSB_RX_USER_DATA:
+		rx_user_data_event(rx);
+		break;
+	default:
+		status = -ENODATA;
+		break;
+	}
+
+	if ((frame_ctrl->hbusb_recv_event == EVENT_HBUSB_TX_FINISHED)
+		||(frame_ctrl->hbusb_recv_event == EVENT_HBUSB_RX_HEAD_IN_DATABUF)) {
+		/* if we complete send all user data
+		 * wakeup user write function complete
+		 */
+		rx->cond = FLAG_USER_RX_NOT_WAIT;
+		wake_up_interruptible(&rx->wait);
+	}
+
+	return status;
+}
+
+static void lowlevel_rx_complete(struct usb_ep *ep,
+						struct usb_request *req)
+{
+	int status;
+	struct hbusb_rx_chan		*rx = req->context;
+	struct frame_rx_ctrl	*frame_ctrl = &rx->frame_ctrl;
+
+	if (req == NULL)
+		return;
+
+	if ((req != NULL) && (rx->req !=req)) {
+		usb_ep_free_request(ep, req);
+		return;
+	}
+
+	frame_ctrl->recv_slice_size = req->actual;
+	usb_ep_free_request(ep, req);
+	rx->req = NULL;
+
+	status = hbusb_rx_event(rx);
+	if (status
+		|| (frame_ctrl->hbusb_recv_event == EVENT_HBUSB_TX_FINISHED)
+		||(frame_ctrl->hbusb_recv_event == EVENT_HBUSB_RX_HEAD_IN_DATABUF)) {
+		/*when tx finished, */
+		return;
+	}
+
+	do {
+		status = lowlevel_rx_submit(rx);
+	} while ((status != -EIOCBQUEUED)
+			&& (status != -ENODEV));
+}
+
+void hbusb_prepare_rx_req_buf(struct hbusb_rx_chan *rx)
+{
+	struct frame_rx_ctrl *frame_ctrl = &rx->frame_ctrl;
+	struct usb_request	*req = rx->req;
+
+	switch (frame_ctrl->hbusb_recv_event) {
+	case EVENT_HBUSB_RX_CTRL_HEAD:
+		req->buf = frame_ctrl->rx_ctrl_head_buf;
+		req->length = HBUSB_CTRL_FRAME_SIZE;
+		req->complete = lowlevel_rx_complete;
+		req->context = rx;
+		req->hb_direct_dma = 0;
+		break;
+	case EVENT_HBUSB_RX_USER_DATA:
+		req->dma = frame_ctrl->recv_slice_phys;
+		req->length = frame_ctrl->recv_slice_size;
+		req->complete = lowlevel_rx_complete;
+		req->context = rx;
+		req->hb_direct_dma = 1;
+		req->dma_mapped = 1;
+		break;
+	}
+}
+static int lowlevel_rx_submit(struct hbusb_rx_chan *rx)
+{
+	int					status = 0;
+	unsigned long		flags;
+	struct usb_ep		*ep;
+	struct usb_request	*req;
+	struct hbusb_channel	*chan = rx->parent_chan;
+
+	spin_lock_irqsave(&rx->ep_lock, flags);
+	ep = rx->ep;
+	req = usb_ep_alloc_request(ep, GFP_ATOMIC);
+	if (req == NULL) {
+		status = -ENOMEM;
+		goto fail0;
+	}
+	rx->req = req;
+
+	/*prepare usb request member*/
+	hbusb_prepare_rx_req_buf(rx);
+
+	status = usb_ep_queue(ep, req, GFP_ATOMIC);
+	if (unlikely(status != 0)) {
+		dev_err(chan->dev, "Failed to queue usb endpoint\n");
+		goto fail1;
+	}
+	spin_unlock_irqrestore(&rx->ep_lock, flags);
+
+	return -EIOCBQUEUED;
+fail1:
+	usb_ep_free_request(ep, req);
+fail0:
+	spin_unlock_irqrestore(&rx->ep_lock, flags);
+	return status;
+}
 /*------------------------------------------------------------*/
 
 /*------------------------lowlevel write--------------------------*/
-static int lowlevel_tx_submit(struct hbusb_tx_chan *tx);
-static void lowlevel_tx_complete(struct usb_ep *ep,
-						struct usb_request *req);
 void tx_complete_ctrl_head_event(struct hbusb_tx_chan *tx)
 {
 	struct usb_request	*req = tx->req;
@@ -300,10 +546,13 @@ static void hbusb_release_work_func(struct work_struct *work)
 
 void hbusb_chan_open_init(struct hbusb_channel *chan)
 {
-	//struct hbusb_rx_chan *rx = &chan->rx;
+	struct hbusb_rx_chan *rx = &chan->rx;
 	struct hbusb_tx_chan *tx = &chan->tx;
 
 	/*init rx channel*/
+	rx->cond = FLAG_USER_RX_NOT_WAIT;
+	init_waitqueue_head(&rx->wait);
+	mutex_init(&chan->read_lock);
 
 	/*init tx channel*/
 	tx->cond = FLAG_USER_TX_NOT_WAIT;
@@ -313,7 +562,12 @@ void hbusb_chan_open_init(struct hbusb_channel *chan)
 
 int hbusb_chan_start_transfer(struct hbusb_channel *chan)
 {
+	struct hbusb_rx_chan *rx = &chan->rx;
 	struct hbusb_tx_chan *tx = &chan->tx;
+
+	/*init and submit rx channel*/
+	rx_frame_ctrl_var_init(rx);
+	rx_frame_info_var_init(rx);
 
 	/*init tx channel*/
 	tx_frame_ctrl_var_init(tx);
@@ -369,7 +623,159 @@ static int hbusb_release(struct inode *inode, struct file *filp)
 	return 0;
 }
 
-/*--------------------hbusb tx operations-------------------------*/
+/*---------------------hbusb rx operations-------------------------*/
+int parse_rx_param_to_frame_info(struct hbusb_rx_chan	*rx,
+									void __user *user_elem)
+{
+	int i, j, slice_count, tmp_length;
+	struct hbusb_channel	*chan = rx->parent_chan;
+	struct frame_rx_ctrl *frame_ctrl = &rx->frame_ctrl;
+	struct frame_info *frame_info = frame_ctrl->frame_info;
+	elem_t *elem = &frame_info->elem;
+	struct frame_sg_info *sg_info = NULL;
+	scatterlist_t *user_sg = NULL;
+
+	if (copy_from_user(elem, user_elem, sizeof(elem_t))) {
+		dev_err(chan->dev, "Failed to copy elem from user param\n");
+		return -EFAULT;
+	}
+
+	if ((elem->ctrl_info.size == 0 && elem->data_info.num_sgs == 0)
+			|| (elem->data_info.num_sgs > HBUSB_SG_MAX_NUM)) {
+		dev_err(chan->dev, "elem length is not valid\n");
+		return -EFAULT;
+	}
+
+	/*handle data info*/
+	frame_info->sg_num = elem->data_info.num_sgs;
+	for (i = 0; i < frame_info->sg_num; i++) {
+		user_sg = &elem->data_info.sg[i];
+
+		sg_info = &frame_info->sg_info[i];
+		if (user_sg->length > HBUSB_MAX_SIZE_PER_SG) {
+			dev_err(chan->dev, "sg[%d] length is too big\n", user_sg->length);
+			return -EFAULT;
+		}
+
+		slice_count = user_sg->length / HBUSB_DMA_BUF_MAX_SIZE;
+		slice_count += (user_sg->length % HBUSB_DMA_BUF_MAX_SIZE) ? 1 : 0;
+		tmp_length = user_sg->length;
+		sg_info->slice_num = slice_count;
+		for (j = 0; j < slice_count; j++) {
+			sg_info->slice_addr[j] =
+				user_sg->phy_addr + (j * HBUSB_DMA_BUF_MAX_SIZE);
+			sg_info->slice_size[j] = (tmp_length > HBUSB_DMA_BUF_MAX_SIZE)
+						? HBUSB_DMA_BUF_MAX_SIZE : tmp_length;
+			tmp_length -= sg_info->slice_size[j];
+			sg_info->slice_actual_size[j] = 0;
+		}
+	}
+
+	frame_info->sg_actual_num = 0;
+	frame_info->error_val = 0;
+	frame_ctrl->hbusb_recv_event = EVENT_HBUSB_RX_CTRL_HEAD;
+
+	return 0;
+}
+
+void prepare_to_rx_head_info(struct hbusb_rx_chan *rx)
+{
+	struct frame_rx_ctrl *frame_ctrl = &rx->frame_ctrl;
+
+	if (frame_ctrl->hbusb_recv_event
+		== EVENT_HBUSB_RX_HEAD_IN_DATABUF) {
+		rx_ctrl_head_event(rx);
+	} else {
+		frame_ctrl->recv_slice_size = HBUSB_DMA_BUF_MAX_SIZE;
+		frame_ctrl->hbusb_recv_event = EVENT_HBUSB_RX_CTRL_HEAD;
+	}
+}
+
+int ret_frame_info_to_rx_param(struct hbusb_rx_chan	*rx,
+								void __user *user_elem)
+{
+	int i, j = 0;
+	struct frame_rx_ctrl *frame_ctrl = &rx->frame_ctrl;
+	struct frame_info *frame_info = frame_ctrl->frame_info;
+	struct hbusb_channel *chan = rx->parent_chan;
+	elem_t *elem = &frame_info->elem;
+	struct frame_sg_info *sg_info = NULL;
+	scatterlist_t *user_sg = NULL;
+
+	if (elem->ctrl_info.size != 0) {
+		elem->ctrl_info.actual_size = frame_ctrl->rx_ctrl_head_actual_size;
+		if (copy_to_user((void __user *)elem->ctrl_info.buf,
+			frame_ctrl->rx_ctrl_head_buf, elem->ctrl_info.actual_size)) {
+			dev_err(chan->dev, "Failed to copy rx elem ctrl info to user param\n");
+		}
+	}
+
+	for (i = 0; i < elem->data_info.num_sgs; i++) {
+		sg_info = &frame_info->sg_info[i];
+		user_sg = &elem->data_info.sg[i];
+		for (j = 0, user_sg->actual_length = 0; j < sg_info->slice_num; j++)
+			user_sg->actual_length += sg_info->slice_actual_size[j];
+	}
+
+	if (copy_to_user(user_elem, elem, sizeof(elem_t))) {
+		dev_err(chan->dev, "Failed to copy rx  elem data info to user param\n");
+		return -EFAULT;
+	}
+
+	return 0;
+}
+
+
+static int hbusb_sync_rx_valid_framebuf(struct file *filp,
+								void __user *user_elem)
+{
+	unsigned int status;
+	struct hbusb_channel	*chan = filp->private_data;
+	struct hbusb_rx_chan	*rx = &chan->rx;
+
+	/*parse user param to struct frame info*/
+	status = parse_rx_param_to_frame_info(rx, user_elem);
+	if (status < 0) {
+		dev_err(chan->dev, "Failed to parse user rx param\n");
+		return -EFAULT;
+	}
+	prepare_to_rx_head_info(rx);
+
+	/*init rx start transfer state and submit request*/
+	rx->cond = FLAG_USER_RX_WAIT;
+	status = lowlevel_rx_submit(rx);
+	if (status != -EIOCBQUEUED)
+		return status;
+
+	/*wait for request complete*/
+	if (rx->cond == FLAG_USER_RX_WAIT) {
+		status = wait_event_interruptible(rx->wait, rx->cond);
+		if (status == -ERESTARTSYS) {
+			/*if have kill signal, release_usb_request
+			 *will be called in dev release function
+			 */
+			dev_info(chan->dev, "wait read data signal interrupted\n");
+			return -EINTR;
+		} else if (rx->cond != FLAG_USER_RX_NOT_WAIT) {
+#if 0
+			release_usb_request(chan, &tx->ep_lock,
+				&tx->ep, &tx->req);
+#endif
+			return -ENODEV;
+		}
+	}
+
+	status = ret_frame_info_to_rx_param(rx, user_elem);
+	if (status < 0) {
+		dev_err(chan->dev, "Failed to return rxparam to user\n");
+		return -EFAULT;
+	}
+
+	return 0;
+}
+/*----------------------------------------------------------*/
+
+/*-----------------------hbusb tx operations---------------------------*/
 void wrap_hbusb_ctrl_frame_info(struct hbusb_tx_chan *tx)
 {
 	struct frame_tx_ctrl *frame_ctrl = &tx->frame_ctrl;
@@ -543,6 +949,15 @@ static long hbusb_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	unsigned int 				usb_plug_val = 0;
 
 	switch (cmd) {
+	case HBUSB_SYNC_RX_VALID_FRAMEBUF:
+		if (mutex_lock_interruptible(&chan->read_lock)) {
+			dev_info(chan->dev, "write lock signal interrupted\n");
+			return -EINTR;
+		}
+
+		status = hbusb_sync_rx_valid_framebuf(filp, argp);
+		mutex_unlock(&chan->read_lock);
+		break;
 	case HBUSB_SYNC_TX_VALID_FRAMEBUF:
 		if (mutex_lock_interruptible(&chan->write_lock)) {
 			dev_info(chan->dev, "write lock signal interrupted\n");
@@ -572,15 +987,76 @@ static const struct file_operations f_hbusb_fops = {
 /*--------------------------------------------------------*/
 
 /*--------------------hbusb channel init------------------------*/
+static void rx_frame_info_var_init(struct hbusb_rx_chan *rx)
+{
+	struct frame_rx_ctrl *frame_ctrl = &rx->frame_ctrl;
+	struct frame_info *frame_info = frame_ctrl->frame_info;
+
+	memset(frame_info, 0, sizeof (struct frame_info));
+}
+
+static void rx_frame_ctrl_var_init(struct hbusb_rx_chan *rx)
+{
+	struct frame_rx_ctrl *frame_ctrl = &rx->frame_ctrl;
+
+	frame_ctrl->curr_sg_index_per_frame_info = 0;
+	frame_ctrl->curr_slice_index_per_sg = 0;
+	frame_ctrl->recv_slice_phys = 0;
+	frame_ctrl->recv_slice_size = 0;
+	frame_ctrl->seq_num = 0;
+	frame_ctrl->rx_ctrl_head_actual_size = 0;
+	frame_ctrl->hbusb_recv_event = EVENT_HBUSB_TX_CTRL_HEAD;
+}
+
 static int hbusb_rx_chan_init(struct hbusb_channel *chan)
 {
+	struct hbusb_rx_chan *rx = &chan->rx;
+	struct frame_rx_ctrl *frame_ctrl = &rx->frame_ctrl;
+
+	rx->req = NULL;
+	spin_lock_init(&rx->ep_lock);
+
+	frame_ctrl->rx_ctrl_head_buf =
+	kmalloc(HBUSB_DMA_BUF_MAX_SIZE, GFP_KERNEL);
+	if (frame_ctrl->rx_ctrl_head_buf == NULL)
+		return -ENOMEM;
+
+	frame_ctrl->frame_info = kmalloc(sizeof (struct frame_info),
+							GFP_KERNEL);
+	if (frame_ctrl->frame_info == NULL)
+		goto fail;
+
+	rx_frame_ctrl_var_init(rx);
+	rx_frame_info_var_init(rx);
+	rx->cond = FLAG_USER_RX_NOT_WAIT;
+	init_waitqueue_head(&rx->wait);
+	rx->parent_chan = chan;
+
 	return 0;
+fail:
+	kfree(frame_ctrl->rx_ctrl_head_buf);
+	frame_ctrl->rx_ctrl_head_buf = NULL;
+	return -EINVAL;
 }
 
 static void hbusb_rx_chan_deinit(struct hbusb_channel *chan)
 {
-}
+	struct hbusb_rx_chan *rx = &chan->rx;
+	struct frame_rx_ctrl *frame_ctrl = &rx->frame_ctrl;
 
+	rx_frame_ctrl_var_init(rx);
+	rx_frame_info_var_init(rx);
+
+	rx->cond = FLAG_USER_TX_NOT_WAIT;
+	init_waitqueue_head(&rx->wait);
+	rx->parent_chan = NULL;
+
+	kfree(frame_ctrl->frame_info);
+	frame_ctrl->frame_info = NULL;
+
+	kfree(frame_ctrl->rx_ctrl_head_buf);
+	frame_ctrl->rx_ctrl_head_buf = NULL;
+}
 
 static void tx_frame_info_var_init(struct hbusb_tx_chan *tx)
 {
@@ -830,7 +1306,7 @@ int hbusb_connect(struct    hbusb *link)
 	struct hbusb_dev		*dev = link->ioport;
 	unsigned long			flags;
 	struct hbusb_channel		*chan;
-	//struct hbusb_rx_chan		*rx;
+	struct hbusb_rx_chan		*rx;
 	struct hbusb_tx_chan		*tx;
 
 	if (!dev)
@@ -839,12 +1315,16 @@ int hbusb_connect(struct    hbusb *link)
 	atomic_set(&dev->usb_plugin, HBUSB_DEV_PLUGIN);
 	for (i = 0; i < HBUSB_MINOR_COUNT; i++) {
 		chan = &dev->chan[i];
+		rx = &chan->rx;
 		result = usb_ep_enable(link->bulkout[i]);
 		if (result != 0) {
 			DBG(dev, "enable %s --> %d\n",
 				link->bulkout[i]->name, result);
 			goto fail;
 		}
+		spin_lock_irqsave(&rx->ep_lock, flags);
+		rx->ep = link->bulkout[i];
+		spin_unlock_irqrestore(&rx->ep_lock, flags);
 
 		tx = &chan->tx;
 		link->bulkin[i]->driver_data = tx;
