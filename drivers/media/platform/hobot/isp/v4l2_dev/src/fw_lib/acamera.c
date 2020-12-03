@@ -1179,6 +1179,7 @@ int32_t acamera_interrupt_handler()
     // read the irq vector from isp
     uint32_t irq_mask = acamera_isp_isp_global_interrupt_status_vector_read( 0 );
 
+    acamera_isp_isp_global_interrupt_clear_vector_write(0, irq_mask);
     // Update frame counter
 	if ( irq_mask & 1 << ISP_INTERRUPT_EVENT_ISP_START_FRAME_START ) {
 		vio_get_sif_frame_info(cur_ctx_id, &frmid);
