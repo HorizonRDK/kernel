@@ -1526,11 +1526,19 @@ static struct config_item_type uvcg_uncompressed_type = {
 static struct config_group *uvcg_uncompressed_make(struct config_group *group,
 						   const char *name)
 {
-	static char guid[] = {
+	static char guid_nv12[] = {
 		'N',  'V',  '1',  '2', 0x00, 0x00, 0x10, 0x00,
 		 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71
 	};
+	static char guid_yuy2[] = {
+		'Y',  'U',  'Y',  '2', 0x00, 0x00, 0x10, 0x00,
+		 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71
+	};
 	struct uvcg_uncompressed *h;
+	int is_yuy2 = 0;	/* only support nv12 & yuy2 now. nv12 default */
+
+	if (name)
+		is_yuy2 = strstr(name, "yuy2") ? 1 : 0;
 
 	h = kzalloc(sizeof(*h), GFP_KERNEL);
 	if (!h)
@@ -1539,8 +1547,13 @@ static struct config_group *uvcg_uncompressed_make(struct config_group *group,
 	h->desc.bLength			= UVC_DT_FORMAT_UNCOMPRESSED_SIZE;
 	h->desc.bDescriptorType		= USB_DT_CS_INTERFACE;
 	h->desc.bDescriptorSubType	= UVC_VS_FORMAT_UNCOMPRESSED;
-	memcpy(h->desc.guidFormat, guid, sizeof(guid));
-	h->desc.bBitsPerPixel		= 12;
+	if (is_yuy2) {
+		memcpy(h->desc.guidFormat, guid_yuy2, sizeof(guid_yuy2));
+		h->desc.bBitsPerPixel		= 16;	/* 2 byes pix width */
+	} else {
+		memcpy(h->desc.guidFormat, guid_nv12, sizeof(guid_nv12));
+		h->desc.bBitsPerPixel		= 12;	/* 1.5 bytes pix width */
+	}
 	h->desc.bDefaultFrameIndex	= 1;
 	h->desc.bAspectRatioX		= 0;
 	h->desc.bAspectRatioY		= 0;
