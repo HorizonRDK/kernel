@@ -697,7 +697,7 @@
 
 			usb_id_function: usb_id_function {
 				pinctrl-single,pins = <
-					0x104	 (MUX_F3 | DRIVE1_03MA | SCHMITT1_ENA | PULL1_DOWN) /* usb id pin */
+					0x104	 (MUX_F3 | DRIVE1_03MA | SCHMITT1_ENA | PULL1_UP) /* usb id pin */
 				>;
 			};
 		};
