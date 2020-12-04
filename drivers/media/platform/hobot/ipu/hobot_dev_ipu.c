@@ -2121,7 +2121,7 @@ static int ipu_flush_mp_prepare(struct ipu_video_ctx *ipu_ctx)
 			 * filled in qbuf ioctl, it's frameinfo content is invalid
 			 */
 			if (frame->dispatch_mask == 0x0000 && frame->poll_mask == 0x00
-					&& (this->index_state[i] == FRAME_IND_USING)
+					&& (this->index_state[i] != FRAME_IND_FREE)
 					&& (frame->state == FS_USED)) {
 				frame->dispatch_mask |= 0xFF00;
 				trans_frame(this, frame, FS_REQUEST);
