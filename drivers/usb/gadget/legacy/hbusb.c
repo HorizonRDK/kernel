@@ -10,12 +10,16 @@
 #define DRIVER_DESC		"Hobot HBUSB bulk channel"
 #define DRIVER_VERSION		"V1.0"
 
-#define DRIVER_VENDOR_NUM			0x1011
-#define DRIVER_PRODUCT_BASE_NUM		0x2021
-
 USB_GADGET_COMPOSITE_OPTIONS();
 
-static int devno_base = 0;
+static ushort vendor_id = 0x1011;
+static ushort product_id = 0x1;
+module_param(vendor_id, ushort, 0);
+module_param(product_id, ushort, 0);
+MODULE_PARM_DESC(vendor_id, "specified usb device vendor id");
+MODULE_PARM_DESC(product_id, "specified usb device product id");
+
+unsigned short devno_base = 0;
 
 /*-----------device/string desc------------------*/
 static struct usb_device_descriptor device_desc = {
@@ -27,8 +31,8 @@ static struct usb_device_descriptor device_desc = {
 		.bDeviceSubClass =	0,
 		.bDeviceProtocol =	0,
 
-		.idVendor =			cpu_to_le16(DRIVER_VENDOR_NUM),
-		.idProduct = 		cpu_to_le16(DRIVER_PRODUCT_BASE_NUM),
+		.idVendor =			0,
+		.idProduct = 		0,
 		.bNumConfigurations =	1,
 };
 
@@ -102,8 +106,8 @@ static int hbusb_bind(struct usb_composite_dev *cdev)
 		goto fail0;
 	device_desc.iManufacturer = usb_string[USB_GADGET_MANUFACTURER_IDX].id;
 	device_desc.iProduct = usb_string[USB_GADGET_PRODUCT_IDX].id;
-	device_desc.idProduct = cpu_to_le16(
-			DRIVER_PRODUCT_BASE_NUM + devno_base);
+	device_desc.idVendor = cpu_to_le16(vendor_id);
+	device_desc.idProduct = cpu_to_le16(product_id + devno_base);
 
 	status = usb_add_config(cdev, &hbusb_config, hbusb_do_config);
 	if (status < 0)

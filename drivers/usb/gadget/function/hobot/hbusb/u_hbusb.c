@@ -261,6 +261,10 @@ static int lowlevel_rx_submit(struct hbusb_rx_chan *rx)
 	struct usb_request	*req;
 	struct hbusb_channel	*chan = rx->parent_chan;
 
+	if (atomic_read(&chan->chan_running)
+			== HBUSB_CHANNEL_NOT_RUNNING)
+		return -ENODEV;
+
 	spin_lock_irqsave(&rx->ep_lock, flags);
 	ep = rx->ep;
 	req = usb_ep_alloc_request(ep, GFP_ATOMIC);
@@ -533,9 +537,11 @@ static void hbusb_release_work_func(struct work_struct *work)
 {
 	struct hbusb_channel *chan = container_of(work, struct hbusb_channel,
 						close_work.work);
+	struct hbusb_rx_chan *rx = &chan->rx;
 	struct hbusb_tx_chan *tx = &chan->tx;
 
 	/*stop rx channel req*/
+	release_usb_request(chan, &rx->ep_lock, &rx->ep, &rx->req);
 
 	/*stop tx channel req*/
 	release_usb_request(chan, &tx->ep_lock, &tx->ep, &tx->req);
@@ -725,7 +731,6 @@ int ret_frame_info_to_rx_param(struct hbusb_rx_chan	*rx,
 	return 0;
 }
 
-
 static int hbusb_sync_rx_valid_framebuf(struct file *filp,
 								void __user *user_elem)
 {
@@ -757,10 +762,8 @@ static int hbusb_sync_rx_valid_framebuf(struct file *filp,
 			dev_info(chan->dev, "wait read data signal interrupted\n");
 			return -EINTR;
 		} else if (rx->cond != FLAG_USER_RX_NOT_WAIT) {
-#if 0
-			release_usb_request(chan, &tx->ep_lock,
-				&tx->ep, &tx->req);
-#endif
+			release_usb_request(chan, &rx->ep_lock,
+				&rx->ep, &rx->req);
 			return -ENODEV;
 		}
 	}
@@ -1316,6 +1319,9 @@ int hbusb_connect(struct    hbusb *link)
 	for (i = 0; i < HBUSB_MINOR_COUNT; i++) {
 		chan = &dev->chan[i];
 		rx = &chan->rx;
+		tx = &chan->tx;
+
+		link->bulkout[i]->driver_data = rx;
 		result = usb_ep_enable(link->bulkout[i]);
 		if (result != 0) {
 			DBG(dev, "enable %s --> %d\n",
@@ -1326,7 +1332,6 @@ int hbusb_connect(struct    hbusb *link)
 		rx->ep = link->bulkout[i];
 		spin_unlock_irqrestore(&rx->ep_lock, flags);
 
-		tx = &chan->tx;
 		link->bulkin[i]->driver_data = tx;
 		result = usb_ep_enable(link->bulkin[i]);
 		if (result != 0) {
@@ -1351,12 +1356,13 @@ int hbusb_connect(struct    hbusb *link)
 	return 0;
 fail:
 	for (i = 0; i < HBUSB_MINOR_COUNT; i++) {
-		(void) usb_ep_disable(link->bulkout[i]);
+		if (rx->ep != NULL)
+			(void) usb_ep_disable(link->bulkout[i]);
 
 		if (tx->ep != NULL)
 			(void) usb_ep_disable(link->bulkin[i]);
 
-		if (tx->ep != NULL) {
+		if ((rx->ep != NULL) && (tx->ep != NULL)) {
 			atomic_set(&chan->chan_running,
 					HBUSB_CHANNEL_NOT_RUNNING);
 			atomic_set(&dev->usb_plugin, HBUSB_DEV_PLUGOUT);
@@ -1376,6 +1382,7 @@ void hbusb_disconnect(struct      hbusb *link)
 	struct hbusb_dev		*dev = link->ioport;
 	struct hbusb_channel	*chan;
 	struct hbusb_tx_chan	*tx;
+	struct hbusb_rx_chan	*rx;
 	unsigned long			flags;
 
 	WARN_ON(!dev);
@@ -1395,7 +1402,12 @@ void hbusb_disconnect(struct      hbusb *link)
 	atomic_set(&dev->usb_plugin, HBUSB_DEV_PLUGOUT);
 
 	for (i = 0; i < HBUSB_MINOR_COUNT; i++) {
+		rx = &chan->rx;
+		rx->req = NULL;
 		usb_ep_disable(link->bulkout[i]);
+		spin_lock_irqsave(&rx->ep_lock, flags);
+		rx->ep = NULL;
+		spin_unlock_irqrestore(&rx->ep_lock, flags);
 
 		tx = &chan->tx;
 		tx->req = NULL;
