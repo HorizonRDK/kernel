@@ -204,10 +204,14 @@ void awb_read_statistics( AWB_fsm_t *p_fsm )
     uint32_t _metering_lut_entry;
     uint16_t irg;
     uint16_t ibg;
+    uint32_t irg_1;
+    uint32_t ibg_1;
     sbuf_awb_t *p_sbuf_awb_stats = NULL;
     struct sbuf_item sbuf;
     int fw_id = p_fsm->cmn.ctx_id;
     acamera_context_t *p_ctx = ACAMERA_FSM2CTX_PTR( p_fsm );
+    awb_zone_t temp_awb_stats[MAX_AWB_ZONES] = {0};
+    uint32_t temp_wb[4] = {0};
 
     // Only selected number of zones will contribute
     uint16_t _i;
@@ -234,6 +238,10 @@ void awb_read_statistics( AWB_fsm_t *p_fsm )
     // Read out the per zone statistics
     p_fsm->curr_AWB_ZONES = acamera_isp_metering_awb_nodes_used_horiz_read( p_fsm->cmn.isp_base ) *
                             acamera_isp_metering_awb_nodes_used_vert_read( p_fsm->cmn.isp_base );
+    temp_wb[0] = acamera_isp_white_balance_gain_00_read(p_fsm->cmn.isp_base);
+    temp_wb[1] = acamera_isp_white_balance_gain_01_read(p_fsm->cmn.isp_base);
+    temp_wb[2] = acamera_isp_white_balance_gain_10_read(p_fsm->cmn.isp_base);
+    temp_wb[3] = acamera_isp_white_balance_gain_11_read(p_fsm->cmn.isp_base);
 
     for ( _i = 0; _i < p_fsm->curr_AWB_ZONES; ++_i ) {
         _metering_lut_entry = acamera_awb_statistics_data_read( p_fsm, _i * 2 );
@@ -242,6 +250,13 @@ void awb_read_statistics( AWB_fsm_t *p_fsm )
         //rg_coef is actually R_gain appiled to R Pixels.Since we get (G*G_gain)/(R*R_gain) from HW,we multiply by the gain rg_coef to negate its effect.
         irg = ( _metering_lut_entry & 0xfff );
         ibg = ( ( _metering_lut_entry >> 16 ) & 0xfff );
+
+	irg_1 = irg;
+	ibg_1 = ibg;
+	irg_1 = (((uint32_t)irg_1 * temp_wb[0] * 256) / temp_wb[1]) >> 8;
+	ibg_1 = (((uint32_t)ibg_1 * temp_wb[3] * 256) / temp_wb[1]) >> 8;
+        irg_1 = ( irg_1 == 0 ) ? 1 : irg_1;
+        ibg_1 = ( ibg_1 == 0 ) ? 1 : ibg_1;
 
         irg = ( irg * ( p_fsm->rg_coef ) ) >> 8;
         ibg = ( ibg * ( p_fsm->bg_coef ) ) >> 8;
@@ -252,6 +267,10 @@ void awb_read_statistics( AWB_fsm_t *p_fsm )
         p_sbuf_awb_stats->stats_data[_i].bg = U16_MAX / ibg;
         p_sbuf_awb_stats->stats_data[_i].sum = acamera_awb_statistics_data_read( p_fsm, _i * 2 + 1 );
         p_fsm->sum += p_sbuf_awb_stats->stats_data[_i].sum;
+
+	temp_awb_stats[_i].rg =  (uint16_t)(irg_1);
+	temp_awb_stats[_i].bg =  (uint16_t)(ibg_1);
+	temp_awb_stats[_i].sum =  p_sbuf_awb_stats->stats_data[_i].sum;
     }
 
     int rc = 0;
@@ -261,7 +280,8 @@ void awb_read_statistics( AWB_fsm_t *p_fsm )
 	    cn = isp_ctx_get_node(fw_id, ISP_AWB, FREEQ);
 	    if (cn) {
 		    cn->ctx.frame_id = p_ctx->isp_frame_counter;
-		    memcpy(cn->base, p_sbuf_awb_stats->stats_data, sizeof(p_sbuf_awb_stats->stats_data));
+		    //memcpy(cn->base, p_sbuf_awb_stats->stats_data, sizeof(p_sbuf_awb_stats->stats_data));
+		    memcpy(cn->base, temp_awb_stats, sizeof(p_sbuf_awb_stats->stats_data));
 		    cn->ctx.crc16 = crc16(~0, cn->base, sizeof(p_sbuf_awb_stats->stats_data));
 		    isp_ctx_put_node(fw_id, cn, ISP_AWB, DONEQ);
 
