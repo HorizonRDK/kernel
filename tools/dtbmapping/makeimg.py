@@ -28,7 +28,7 @@ def resolveJsonKey(path):
     return tmp_list
 
 def bootInfoOutput():
-    result = resolveJson(bootInfoPath)
+    result = resolveJson(dtb_header_path)
     i = 0
     for i in range(len(result)):
         result[i] = int(result[i], 16)
@@ -38,7 +38,7 @@ def bootInfoOutput():
 
 
 def bootloaderInfoOutput():
-    result = resolveJson(bootLoaderPath)
+    result = resolveJson(dtb_file_out_path)
     return result
 
 def getFileSize(filePath):
@@ -86,20 +86,20 @@ def str2hex(s):
             odata += tmp - ord('A') + 10
     return odata
 
-bootInfoPath   = r"bootinfo.json"
-bootLoaderPath = r"bootfile.json"
-bootDtb     = r"bootdtb_x3.json"
+dtb_header_path   = r"dtb_header.json"
+dtb_file_out_path = r"dtb_file_out.json"
+bootDtb     = r"dtb_mapping_xj3.json"
 alignment = 4 * 1024
 
 if __name__ == '__main__':
 
     if len(sys.argv) == 3:
         print ('len = 3')
-        bootInfoPath   = sys.argv[1]
-        bootLoaderPath = sys.argv[2]
+        dtb_header_path   = sys.argv[1]
+        dtb_file_out_path = sys.argv[2]
 
     if len(sys.argv) == 2:
-        bootInfoPath = sys.argv[1]
+        dtb_header_path = sys.argv[1]
         print ('len = 2')
 
     # bootInfoContent = bootInfoOutput()
@@ -117,7 +117,7 @@ if __name__ == '__main__':
     filePath[8] = dtbPath + filePath[8]
     file_produced1 = open(filePath[6], "wb")
 
-    file = open(bootLoaderPath, "rb")
+    file = open(dtb_file_out_path, "rb")
     fjson = json.load(file, object_pairs_hook=OrderedDict)
 
     bootInfoContent[0] = np.asarray(str2hex(fjson['imageaddr']), dtype=np.int32)
@@ -148,7 +148,7 @@ if __name__ == '__main__':
         if dict_key in dict:
             value = dict[dict_key]
             bootInfoContent[j+2] = value
-        else :
+        else:
             bootInfoContent[j+2] = addr
             dict[dict_key] = addr
             # alignment
@@ -167,7 +167,7 @@ if __name__ == '__main__':
         j = j + 12
     file_produced1.close()
 
-    dtbname = resolveJson(bootLoaderPath)
+    dtbname = resolveJson(dtb_file_out_path)
     listname = list(dtbname[0])
 
     file_produced0 = open(filePath[5], 'wb')

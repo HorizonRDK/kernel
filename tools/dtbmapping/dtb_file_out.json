@@ -7,5 +7,5 @@
     "output0"   :   "dtb-mapping.conf",
     "output1"   :   "hobot-dtb.img",
     "output2"   :   "hobot-dtb.gz",
-    "output3"   :   "hobot-x3-dtb.img"
+    "output3"   :   "hobot-xj3-dtb.img"
 }
