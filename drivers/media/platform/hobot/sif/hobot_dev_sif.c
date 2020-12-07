@@ -629,6 +629,8 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 		set_bit(VIO_GROUP_OTF_OUTPUT, &group->state);
 		cfg = ips_get_bus_ctrl() | 0xd21e << 16;
 	} else {
+		if (isp_flyby)
+			set_bit(VIO_GROUP_OTF_OUTPUT, &group->state);
 		set_bit(VIO_GROUP_DMA_OUTPUT, &group->state);
 		cfg = ips_get_bus_ctrl() | 0x9002 << 16;
 
