@@ -1461,7 +1461,8 @@ static irqreturn_t sif_isr(int irq, void *data)
 					subdev->initial_frameid = false;
 				}
 				sif_get_frameid_timestamps(sif->base_reg, mux_index, subdev->ipi_index,
-				 &group->frameid, subdev->dol_num, group->instance, &subdev->sif_cfg.output);
+				 &group->frameid, subdev->dol_num, group->instance, &subdev->sif_cfg.output,
+				 &subdev->sif_cfg.input);
 
 				if (debug_log_print)
 					vio_print_stat_info(group->instance);

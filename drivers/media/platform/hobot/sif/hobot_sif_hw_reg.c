@@ -12,6 +12,7 @@
 static uint32_t s_enable_pattern_gen = 0;
 static uint32_t path_sel = 0;
 extern struct vio_frame_id  sif_frame_info[VIO_MAX_STREAM];
+u32 frame_id_mux;
 
 void sif_enable_frame_intr(void __iomem *base_reg, u32 mux_index,
 				bool enable)
@@ -864,7 +865,8 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
 		i_step = yuv_format ? 2 : 1;
 		if (p_mipi->channels > 1)
 			sif_set_dol_channels(p_mipi, &p_out->isp, ch_index);
-
+		if(p_mipi->ipi_mode >= 2)
+			frame_id_mux = 0;  /*short*/
 		for (i = 0; i < p_mipi->channels; i += i_step) {
 			mux_out_index = p_mipi->func.set_mux_out_index + ch_index[i];
 			ddr_mux_out_index = p_out->ddr.mux_index + ch_index[i];
@@ -1439,21 +1441,36 @@ void sif_hw_enable(u32 __iomem *base_reg)
 }
 
 void sif_get_frameid_timestamps(u32 __iomem *base_reg, u32 mux,	u32 ipi_index,
- struct frame_id *info, u32 dol_num, u32 instance, sif_output_t *output)
+	 struct frame_id *info, u32 dol_num, u32 instance, sif_output_t *output,
+ 	sif_input_t *input)
 {
 	u32 value;
 	u64 timestamp_l, timestamp_m;
+	sif_input_mipi_t *p_mipi = &input->mipi;
+	u32 ipi_mode = p_mipi->ipi_mode;
 
-	if (dol_num >= 2)
+	if (dol_num >= 2) {
 		value = vio_hw_get_reg(base_reg,
 					&sif_regs[SIF_FRAME_ID_IPI_0_1 + ipi_index / 2]);
-	else
+		if(mux % 2 == 0)
+			info->frame_id = value & 0xffff;
+		else
+			info->frame_id = value >> 16;
+	} else if (ipi_mode >= 2) {
+		value = vio_hw_get_reg(base_reg,
+					&sif_regs[SIF_FRAME_ID_IN_BUF_0_1 + frame_id_mux / 2]);
+		if(frame_id_mux % 2 == 0)
+			info->frame_id = value & 0xffff;
+		else
+			info->frame_id = value >> 16;
+	} else {
 		value = vio_hw_get_reg(base_reg,
 					&sif_regs[SIF_FRAME_ID_IN_BUF_0_1 + mux / 2]);
-	if(mux % 2 == 0)
-		info->frame_id = value & 0xffff;
-	else
-		info->frame_id = value >> 16;
+		if(mux % 2 == 0)
+			info->frame_id = value & 0xffff;
+		else
+			info->frame_id = value >> 16;
+	}
 
 	timestamp_l = vio_hw_get_reg(base_reg,
 						&sif_regs[SIF_TIMESTAMP0_LSB + mux * 2]);
@@ -1467,7 +1484,10 @@ void sif_get_frameid_timestamps(u32 __iomem *base_reg, u32 mux,	u32 ipi_index,
 		sif_frame_info[instance].timestamps = info->timestamps;
 		sif_frame_info[instance].tv = info->tv;
 	}
+	vio_dbg("%s frame_id %d info->timestamps %llu\n",
+		__func__, info->frame_id, info->timestamps);
 }
+
 
 u32 sif_get_current_bufindex(u32 __iomem *base_reg, u32 mux)
 {
