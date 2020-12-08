@@ -215,6 +215,7 @@ void vio_group_init(struct vio_group *group)
 	group->frameid.frame_id = 0;
 	group->target_sema = 0x3;
 	group->sema_flag = 0x00;
+	group->group_scenario = -1;
 	atomic_set(&group->rcount, 0);
 	atomic_set(&group->node_refcount, 0);
 	atomic_set(&group->work_insert, 0);
@@ -503,6 +504,11 @@ void vio_group_done(struct vio_group *group)
 
 	group_leader = group->head;
 	group_task = group_leader->gtask;
+	if (group_task == NULL) {
+		vio_info("WARN: group%d's group leader(%d) task is NULL\n",
+				group->id, group_leader->id);
+		return;
+	}
 
 	if (group->next && group->head != group &&
 		test_bit(VIO_GROUP_DMA_OUTPUT, &group->state)) {
