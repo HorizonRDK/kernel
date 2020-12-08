@@ -27,6 +27,8 @@
 #define VPU_IRQ_NUM 			(66+32)
 #endif
 
+#define SUPPORT_TIMEOUT_RESOLUTION
+
 #define WAVE420_CODE                    0x4200	// Wave420
 #define WAVE420L_CODE                   0x4201	// Wave420L
 #define WAVE521_CODE                    0x5210
