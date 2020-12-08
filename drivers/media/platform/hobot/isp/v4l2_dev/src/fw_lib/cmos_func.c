@@ -1035,7 +1035,7 @@ void cmos_exposure_update_extern_ae( cmos_fsm_ptr_t p_fsm )
 
             time.int_time = p_fsm->ae_out_info.line[0];
             time.int_time_M = p_fsm->ae_out_info.line[1];
-            time.int_time_M2 = p_fsm->ae_out_info.line[2];
+            time.int_time_L = p_fsm->ae_out_info.line[2];
             pr_debug(" short %d medium %d long %d", p_fsm->integration_time_short, p_fsm->integration_time_medium, p_fsm->integration_time_long );
 
             acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_SENSOR_ALLOC_INTEGRATION_TIME, &time, sizeof( time ) );
@@ -1047,7 +1047,7 @@ void cmos_exposure_update_extern_ae( cmos_fsm_ptr_t p_fsm )
 
         } else if ( sensor_info.sensor_exp_number == 2 ) {
             time.int_time = p_fsm->ae_out_info.line[0];
-            time.int_time_M = p_fsm->ae_out_info.line[1];
+            time.int_time_L = p_fsm->ae_out_info.line[1];
 
             acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_SENSOR_ALLOC_INTEGRATION_TIME, &time, sizeof( time ) );
 
