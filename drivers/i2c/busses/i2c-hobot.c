@@ -505,6 +505,12 @@ static int hobot_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int n
 	}
 
 	reset_client_freq(dev);
+
+	disable_irq(dev->irq);
+	hobot_mask_int(dev);
+	hobot_clear_int(dev);
+	enable_irq(dev->irq);
+
 	clk_disable_unprepare(dev->clk);
 	mutex_unlock(&dev->lock);
 
@@ -645,6 +651,12 @@ static int hobot_i2c_xfer_smbus(struct i2c_adapter *adap, u16 addr,
 	}
 
 	reset_client_freq(dev);
+
+	disable_irq(dev->irq);
+	hobot_mask_int(dev);
+	hobot_clear_int(dev);
+	enable_irq(dev->irq);
+
 	clk_disable_unprepare(dev->clk);
 	mutex_unlock(&dev->lock);
 
