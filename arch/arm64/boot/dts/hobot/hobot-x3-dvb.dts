@@ -66,6 +66,21 @@
 };
 
 &cnn_opp_table {
+	opp00 {
+		opp-hz = /bits/ 64 <1000000000>;
+		opp-microvolt = <820000>;
+		clock-latency-ns = <500000>;
+	};
+	opp01 {
+		opp-hz = /bits/ 64 <800000000>;
+		opp-microvolt = <820000>;
+		clock-latency-ns = <500000>;
+	};
+	opp02 {
+		opp-hz = /bits/ 64 <400000000>;
+		opp-microvolt = <820000>;
+		clock-latency-ns = <500000>;
+	};
 	opp03 {
 		opp-hz = /bits/ 64 <1200000000>;
 		opp-microvolt = <1000000>;
