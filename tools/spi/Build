@@ -1,2 +1,3 @@
 spidev_test-y += spidev_test.o
 spidev_fdx-y += spidev_fdx.o
+spidev_tc-y += spidev_tc.o

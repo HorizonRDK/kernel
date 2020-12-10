@@ -15,7 +15,7 @@ CC = $(CROSS_COMPILE)gcc
 LD = $(CROSS_COMPILE)ld
 CFLAGS += -O2 -Wall -g -D_GNU_SOURCE -I$(OUTPUT)include
 
-ALL_TARGETS := spidev_test spidev_fdx
+ALL_TARGETS := spidev_test spidev_fdx spidev_tc
 ALL_PROGRAMS := $(patsubst %,$(OUTPUT)%,$(ALL_TARGETS))
 
 all: $(ALL_PROGRAMS)
@@ -48,6 +48,15 @@ SPIDEV_FDX_IN := $(OUTPUT)spidev_fdx-in.o
 $(SPIDEV_FDX_IN): prepare FORCE
 	$(Q)$(MAKE) $(build)=spidev_fdx
 $(OUTPUT)spidev_fdx: $(SPIDEV_FDX_IN)
+	$(QUIET_LINK)$(CC) $(CFLAGS) $(LDFLAGS) $< -o $@
+
+#
+# spidev_tc
+#
+SPIDEV_TC_IN := $(OUTPUT)spidev_tc-in.o
+$(SPIDEV_TC_IN): prepare FORCE
+	$(Q)$(MAKE) $(build)=spidev_tc
+$(OUTPUT)spidev_tc: $(SPIDEV_TC_IN)
 	$(QUIET_LINK)$(CC) $(CFLAGS) $(LDFLAGS) $< -o $@
 
 clean:
