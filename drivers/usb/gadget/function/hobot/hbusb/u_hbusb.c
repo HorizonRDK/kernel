@@ -71,9 +71,7 @@ void rx_ctrl_head_event(struct hbusb_rx_chan *rx)
 	if (head->user_ctrl_info_len != 0) {
 		tmp_size = (head->user_ctrl_info_len < USER_CTRL_INFO_MAX_SIZE) ?
 				head->user_ctrl_info_len : USER_CTRL_INFO_MAX_SIZE;
-		memcpy(frame_info->elem.ctrl_info.buf,
-				((void *)head + USB_FRAME_HEAD_SIZE), tmp_size);
-		frame_info->elem.ctrl_info.actual_size = tmp_size;
+		frame_ctrl->rx_ctrl_head_actual_size = tmp_size;
 	}
 
 	frame_ctrl->recv_slice_phys = frame_info->sg_info[0].slice_addr[0];
@@ -112,6 +110,7 @@ void rx_user_data_event(struct hbusb_rx_chan *rx)
 		frame_ctrl->recv_slice_size = HBUSB_CTRL_FRAME_SIZE;
 		frame_ctrl->hbusb_recv_event = EVENT_HBUSB_RX_HEAD_IN_DATABUF;
 		frame_info->error_val = -HBUSB_RECV_NOT_COMPLETE;
+		return;
 #endif
 	}
 
@@ -711,7 +710,8 @@ int ret_frame_info_to_rx_param(struct hbusb_rx_chan	*rx,
 	if (elem->ctrl_info.size != 0) {
 		elem->ctrl_info.actual_size = frame_ctrl->rx_ctrl_head_actual_size;
 		if (copy_to_user((void __user *)elem->ctrl_info.buf,
-			frame_ctrl->rx_ctrl_head_buf, elem->ctrl_info.actual_size)) {
+			frame_ctrl->rx_ctrl_head_buf + USB_FRAME_HEAD_SIZE,
+			elem->ctrl_info.actual_size)) {
 			dev_err(chan->dev, "Failed to copy rx elem ctrl info to user param\n");
 		}
 	}
