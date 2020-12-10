@@ -976,6 +976,7 @@ extern int dis_set_ioctl(uint32_t port, uint32_t online);
 extern void isp_input_port_size_config(sensor_fsm_ptr_t p_fsm);
 extern int ips_get_isp_frameid(void);
 extern int dma_writer_configure_pipe( dma_pipe *pipe );
+extern void dma_writer_disable_write(dma_pipe *pipe);
 int sif_isp_ctx_sync_func(int ctx_id)
 {
     int ret = 0;
@@ -1360,6 +1361,9 @@ int32_t acamera_interrupt_handler()
                     vio_set_stat_info(cur_ctx_id, ISP_FE,
                             p_ctx->isp_frame_counter);
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_FR_Y_WRITE_DONE ) {
+                    dma_handle *dh = NULL;
+                    dh = ((dma_writer_fsm_const_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_DMA_WRITER]->p_fsm))->handle;
+
                     pr_debug("frame write to ddr done\n");
                     acamera_dma_alarms_error_occur();
                     p_ctx->sts.frame_write_done_irq_cnt++;
@@ -1372,6 +1376,8 @@ int32_t acamera_interrupt_handler()
                         atomic_set(&g_firmware.dma_done, 1);
                         wake_up(&wq_dma_done);
                     }
+
+                    dma_writer_disable_write(&dh->pipe[dma_fr]);
 
                     if (isp_error_sts == 0) {
 					    acamera_fw_raise_event( p_ctx, event_id_frame_done );

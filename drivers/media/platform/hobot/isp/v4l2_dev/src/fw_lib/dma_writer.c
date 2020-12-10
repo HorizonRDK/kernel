@@ -333,6 +333,33 @@ int dma_writer_configure_pipe( dma_pipe *pipe )
     return 0;
 }
 
+void dma_writer_disable_write(dma_pipe *pipe)
+{
+    uintptr_t base;
+    dma_writer_reg_ops_t *primary_ops = &pipe->primary;
+    dma_writer_reg_ops_t *secondary_ops = &pipe->secondary;
+
+    if ( acamera_isp_isp_global_ping_pong_config_select_read( 0 ) == ISP_CONFIG_PING ) {
+	    base = 0;
+        pr_debug("ping, ");
+    } else {
+	    base = ISP_CONFIG_PING_SIZE;
+        pr_debug("pong, ");
+    }
+
+    primary_ops->write_on_write( pipe->settings.isp_base, 0 );
+    secondary_ops->write_on_write( pipe->settings.isp_base, 0 );
+    primary_ops->bank0_base_write( pipe->settings.isp_base, 0 );
+    secondary_ops->bank0_base_write( pipe->settings.isp_base, 0 );
+
+    primary_ops->write_on_write_hw( base, 0 );
+    secondary_ops->write_on_write_hw( base, 0 );
+    primary_ops->bank0_base_write_hw( base, 0 );
+    secondary_ops->bank0_base_write_hw( base, 0 );
+
+    pr_debug("disable dma write\n");
+}
+
 static int dma_writer_done_process( dma_pipe *pipe )
 {
     struct _acamera_context_t *p_ctx = pipe->settings.p_ctx;

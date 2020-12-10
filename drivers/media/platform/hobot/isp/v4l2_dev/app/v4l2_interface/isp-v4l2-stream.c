@@ -274,7 +274,7 @@ static int isp_v4l2_stream_get_plane( struct vb2_buffer *vb,
     addr = vb2_dma_contig_plane_dma_addr( vb, plane_no );
     aframe->virt_addr = vb2_plane_vaddr( vb, plane_no );
     aframe->address = (uint32_t)addr;
-
+    pr_debug("plane %d, phy_addr 0x%x\n", plane_no, aframe->address);
     aframe->status = dma_buf_empty;
     aframe->type = isp_v4l2_format_to_dma_output( pix_mp->pixelformat, plane_no );
     aframe->width = pix_mp->width;
@@ -604,6 +604,12 @@ int callback_stream_put_frame( uint32_t ctx_id, acamera_stream_type_t type, afra
             isp_v4l2_stream_put_plane( vb, &aframes[i], i );
     }
 #endif
+    int i;
+    for ( i = 0; i < vb->num_planes; i++ ) {
+        dma_addr_t addr;
+        addr = vb2_dma_contig_plane_dma_addr( vb, i );
+        pr_debug("plane %d, phy_addr 0x%x\n", i, (uint32_t)addr);
+    }
 
 #if ( LINUX_VERSION_CODE >= KERNEL_VERSION( 4, 4, 0 ) )
     // vb->timestamp = ktime_get_ns();
