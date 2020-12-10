@@ -105,8 +105,8 @@ static int hobot_dmcfreq_target(struct device *dev, unsigned long *freq,
 
 	/* If get the incorrect rate, set voltage to old value. */
 	if (dmcfreq->rate != target_rate) {
-		dev_err(dev, "Get wrong ddr frequency, Request frequency %lu,\
-			Current frequency %lu\n", target_rate, dmcfreq->rate);
+		/* dev_err(dev, "Get wrong ddr frequency, Request frequency %lu,\ */
+		/*	Current frequency %lu\n", target_rate, dmcfreq->rate); 	  */
 		goto out;
 	}
 

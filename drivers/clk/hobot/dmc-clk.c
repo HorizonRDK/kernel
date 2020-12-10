@@ -64,9 +64,26 @@ struct dmc_clk {
 	uint32_t channel;
 	struct clk *ddr_mclk;
 	atomic_t vote_cnt;
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
+	struct mutex mlock;
+#endif
 };
 
 struct dmc_clk *g_ddrclk;
+
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
+void dmc_lock(void)
+{
+	mutex_lock(&g_ddrclk->mlock);
+}
+EXPORT_SYMBOL(dmc_lock);
+
+void dmc_unlock(void)
+{
+	mutex_unlock(&g_ddrclk->mlock);
+}
+EXPORT_SYMBOL(dmc_unlock);
+#endif
 
 /**
  * hobot_smccc_smc() - Method to call firmware via SMC.
@@ -341,12 +358,19 @@ static int dmc_set_rate(struct clk_hw *hw,
 	struct dmc_clk *dclk = container_of(hw, struct dmc_clk, hw);
 	struct arm_smccc_res res;
 	unsigned long flags;
-	int timeout = 1000000;
+	int timeout = 2000;
 
 	spin_lock_irqsave(&dclk->lock, flags);
 
 	atomic_set(&dclk->vote_cnt, 0);
 	park_other_cpus();
+
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
+	if(!mutex_trylock(&dclk->mlock)) {
+		spin_unlock_irqrestore(&dclk->lock, flags);
+		return -EBUSY;
+	}
+#endif
 
 	while(atomic_read(&dclk->vote_cnt) > 0 && timeout > 0) {
 		udelay(100);
@@ -355,8 +379,10 @@ static int dmc_set_rate(struct clk_hw *hw,
 
 	if (timeout <= 0) {
 		pr_err("timeout waiting for ipi voting\n");
-		local_irq_restore(flags);
-		spin_unlock(&dclk->lock);
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
+		mutex_unlock(&dclk->mlock);
+#endif
+		spin_unlock_irqrestore(&dclk->lock, flags);
 		return -EBUSY;
 	}
 
@@ -368,11 +394,18 @@ static int dmc_set_rate(struct clk_hw *hw,
 	if (res.a0 != 0) {
 		pr_err("%s: ddr channel:%u set rate to %lu failed with status :%ld\n",
 			__func__, dclk->channel, rate, res.a0);
-		spin_unlock(&dclk->lock);
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
+		mutex_unlock(&dclk->mlock);
+#endif
+		spin_unlock_irqrestore(&dclk->lock, flags);
 		return -EINVAL;
 	}
 	dclk->rate = rate;
 	cur_ddr_rate = rate;
+
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
+	mutex_unlock(&dclk->mlock);
+#endif
 
 	spin_unlock_irqrestore(&dclk->lock, flags);
 
@@ -501,6 +534,9 @@ static struct clk *dmc_clk_register(struct device *dev, struct device_node *node
 	ddrclk->hw.init = &init;
 
 	spin_lock_init(&ddrclk->lock);
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
+	mutex_init(&ddrclk->mlock);
+#endif
 	clk = clk_register(dev, &ddrclk->hw);
 	if (IS_ERR(clk)) {
 		pr_err("Failed to register clock for %s!\n", node->full_name);
