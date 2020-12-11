@@ -198,13 +198,6 @@ void af_read_stats_data( AF_fsm_ptr_t p_fsm )
 	if (rc == 0 && p_ctx->isp_af_stats_on) {
 		isp_ctx_node_t *cn;
 		cn = isp_ctx_get_node(fw_id, ISP_AF, FREEQ);
-		if (!cn) {
-			if (count++ >= 150) { //about 5s
-				count = 0;
-				p_ctx->isp_af_stats_on = 0;
-			}
-			cn = isp_ctx_get_node(fw_id, ISP_AF, DONEQ);
-		}
 		if (cn) {
 			cn->ctx.frame_id = p_ctx->isp_frame_counter;
 			memcpy(cn->base, p_sbuf_af->stats_data, sizeof(p_sbuf_af->stats_data));

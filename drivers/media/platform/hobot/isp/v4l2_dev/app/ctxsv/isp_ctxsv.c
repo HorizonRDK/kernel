@@ -249,9 +249,9 @@ void isp_ctx_queue_state(char *tags)
 			list_for_each_safe(this, next, &ctx_queue[i][j].ctx_node_head[DONEQ])
 				k2++;
 			spin_unlock(&lock);
-			pr_debug("ctx[%d] type[%d] free queue count %d\n", i, j, k1);
-			pr_debug("ctx[%d] type[%d] done queue count %d\n", i, j, k2);
 		}
+		pr_debug("ctx[%d] type[%d] free queue count %d\n", i, j, k1);
+		pr_debug("ctx[%d] type[%d] done queue count %d\n", i, j, k2);
 	}
 
 }

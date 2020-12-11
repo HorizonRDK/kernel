@@ -24,6 +24,7 @@
 #include <linux/miscdevice.h>
 #include <linux/kfifo.h>
 #include <linux/sched.h>
+#include <linux/slab.h>
 #include <linux/wait.h>
 #include <linux/string.h>
 #include <linux/ioctl.h>
@@ -37,6 +38,7 @@
 #include "acamera_command_api.h"
 #include "general_fsm.h"
 #include "isp_ctxsv.h"
+
 
 #define SYSTEM_CHARDEV_FIFO_SIZE (50*1024)
 #define SYSTEM_CHARDEV_NAME "ac_isp"
@@ -820,6 +822,7 @@ int isp_fops_mmap(struct file *file, struct vm_area_struct *vma)
 		LOG(LOG_ERR, "mmap size exceed valid range %d.", p_ctx->mem_size);
 		return -ENOMEM;
 	}
+	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
 	vma->vm_flags |= VM_IO;
 	vma->vm_flags |= VM_LOCKED;
 	vma->vm_pgoff = p_ctx->phy_addr >> PAGE_SHIFT;
