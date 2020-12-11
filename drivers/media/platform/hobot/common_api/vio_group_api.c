@@ -386,6 +386,13 @@ void vio_bind_group_done(int instance)
 				group->next = NULL;
 				continue;
 			}
+			/*
+			 * clear leader flag make sure only one leader
+			 */
+			while (group->next) {
+				group->next->leader = false;
+				group = group->next;
+			}
 			break;
 		} else if (i >= GROUP_ID_IPU) {
 			if (test_bit(VIO_GROUP_DMA_OUTPUT, &group->state)) {
