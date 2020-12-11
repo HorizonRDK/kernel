@@ -26,7 +26,7 @@
 #include <soc/hobot/diag.h>
 #include <linux/timer.h>
 #include <linux/clk.h>
-#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
+#ifdef CONFIG_SPI_HOBOT_DFS_PROTECT
 #include <uapi/linux/sched/types.h>
 #endif
 #ifdef CONFIG_SPI_HOBOT_SPIDEV_MODULE
@@ -213,7 +213,7 @@ struct hb_spi {
 	struct hobot_dpm dpm;
 #endif
 
-#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
+#ifdef CONFIG_SPI_HOBOT_DFS_PROTECT
 	struct task_struct *task;
 	wait_queue_head_t wq_spi;
 #endif
@@ -631,7 +631,9 @@ static irqreturn_t hb_spi_int_handle(int irq, void *data)
 		hb_spi_wr(hbspi, HB_SPI_SRCPND_REG, pnd);
 
 	if (pnd & HB_SPI_INT_DMA_TRDONE) {
+#ifdef CONFIG_SPI_HOBOT_DFS_PROTECT
 		wake_up_interruptible(&hbspi->wq_spi);
+#endif
 
 #ifdef	CONFIG_HB_SPI_FIFO_MODE
 		hb_spi_wr(hbspi, HB_SPI_FIFO_RESET_REG, HB_SPI_FRST_ABORT);
@@ -1163,7 +1165,7 @@ static int hb_spi_dpm_callback(struct hobot_dpm *self,
 }
 #endif
 
-#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
+#ifdef CONFIG_SPI_HOBOT_DFS_PROTECT
 extern void dmc_lock(void);
 extern void dmc_unlock(void);
 
@@ -1195,7 +1197,7 @@ static int hb_spi_probe(struct platform_device *pdev)
 	char ctrl_mode[16];
 	int ret, spi_id, rate, isslave = MASTER_MODE;
 	u32 num_cs;
-#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
+#ifdef CONFIG_SPI_HOBOT_DFS_PROTECT
 	struct sched_param param = { .sched_priority = MAX_RT_PRIO - 1 };
 #endif
 
@@ -1318,7 +1320,7 @@ static int hb_spi_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "bus register failed\n");
 #endif
 
-#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
+#ifdef CONFIG_SPI_HOBOT_DFS_PROTECT
 	init_waitqueue_head(&hbspi->wq_spi);
 	hbspi->task = kthread_create(hb_spi_sync_thread, (void *)hbspi, "spi-sync");
 	if (IS_ERR(hbspi->task)) {

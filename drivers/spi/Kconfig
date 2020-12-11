@@ -772,6 +772,13 @@ config SPI_HOBOT
 	help
 	  This selects the hobot SPI controller master driver
 
+config SPI_HOBOT_DFS_PROTECT
+	bool "HOBOT SPI controller protect when ddr freq scailing"
+	depends on SPI_HOBOT && HOBOT_DMC_CLK
+	default n
+	help
+	  This selects the hobot SPI controller protect when ddr freq scailing.
+
 config SPI_HOBOT_QSPI
 	tristate "HOBOT QSPI controller"
 	depends on SPI_MASTER
