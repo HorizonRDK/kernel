@@ -10,12 +10,37 @@
 #include "vio_group_api.h"
 
 static struct vio_core iscore;
+u32 ldc_reset_flag;
+struct mutex ldc_access_mutex;
 
 struct vio_frame_id  sif_frame_info[VIO_MAX_STREAM];
 struct vio_frame_id  ipu_frame_info[VIO_MAX_STREAM];
 
 EXPORT_SYMBOL(sif_frame_info);
 EXPORT_SYMBOL(ipu_frame_info);
+struct mutex *vio_get_ldc_access_mutex(void)
+{
+	return &ldc_access_mutex;
+}
+EXPORT_SYMBOL(vio_get_ldc_access_mutex);
+
+void vio_init_ldc_access_mutex()
+{
+	mutex_init(&ldc_access_mutex);
+}
+EXPORT_SYMBOL(vio_init_ldc_access_mutex);
+
+void vio_get_ldc_rst_flag(u32 *ldc_rst_flag)
+{
+	*ldc_rst_flag = ldc_reset_flag;
+}
+EXPORT_SYMBOL(vio_get_ldc_rst_flag);
+
+void vio_set_ldc_rst_flag(u32 ldc_rst_flag)
+{
+	ldc_reset_flag = ldc_rst_flag;
+}
+EXPORT_SYMBOL(vio_set_ldc_rst_flag);
 
 isp_callback sif_isp_ctx_sync;
 EXPORT_SYMBOL(sif_isp_ctx_sync);

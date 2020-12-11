@@ -160,6 +160,10 @@ void vio_group_start_trigger(struct vio_group *group, struct vio_frame *frame);
 void vio_group_start_trigger_mp(struct vio_group *group, struct vio_frame *frame);
 void vio_group_insert_work(struct vio_group *group, struct kthread_work *work);
 
+void vio_init_ldc_access_mutex(void);
+struct mutex *vio_get_ldc_access_mutex(void);
+void vio_get_ldc_rst_flag(u32 *ldc_rst_flag);
+void vio_set_ldc_rst_flag(u32 ldc_rst_flag);
 
 struct vio_group *vio_get_chain_group(int instance, u32 group_id);
 int vio_bind_chain_groups(struct vio_group *src_group, struct vio_group *dts_group);

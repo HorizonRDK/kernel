@@ -44,6 +44,7 @@
 #include "dwe_char.h"
 #include "acamera_logger.h"
 #include "system_dwe_api.h"
+#include "vio_group_api.h"
 
 #if defined(CUR_MOD_NAME)
 #undef CUR_MOD_NAME
@@ -64,6 +65,7 @@ extern void vio_dwe_clk_disable(void);
 static int dwe_fop_open(struct inode *pinode, struct file *pfile)
 {
 	int ret = 0;
+	u32 ldc_rst_flag = 0;
 	uint32_t tmp = 0;
 	dwe_charmod_s *dwe_cdev = NULL;
 	//int minor = iminor(pinode);
@@ -94,6 +96,7 @@ static int dwe_fop_open(struct inode *pinode, struct file *pfile)
 
 	mutex_lock(&g_lock);
 	if (pipe_count == 0) {
+		vio_set_ldc_rst_flag(ldc_rst_flag);
 		vio_dwe_clk_enable();
 		dwe_sw_init();
 	}

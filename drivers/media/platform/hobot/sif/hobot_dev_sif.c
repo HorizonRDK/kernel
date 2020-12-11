@@ -149,13 +149,14 @@ void sif_config_rdma_cfg(struct sif_subdev *subdev, u8 index,
 void sif_read_frame_work(struct vio_group *group)
 {
 	unsigned long flags;
-	u32 instance = 0;
+	u32 instance = 0, ldc_rst_flag;
 	int ret = 0;
 	struct x3_sif_dev *sif;
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
 	struct frame_info *frameinfo;
 	struct sif_subdev * subdev;
+	struct mutex *ldc_acess_mutex = NULL;
 
 	instance = group->instance;
 
@@ -170,6 +171,9 @@ void sif_read_frame_work(struct vio_group *group)
 	}
 
 	sif = subdev->sif_dev;
+	ldc_acess_mutex = vio_get_ldc_access_mutex();
+	mutex_lock(ldc_acess_mutex);
+	vio_get_ldc_rst_flag(&ldc_rst_flag);
 
 	atomic_set(&sif->instance, instance);
 
@@ -177,29 +181,36 @@ void sif_read_frame_work(struct vio_group *group)
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_REQUEST);
 	if (frame) {
-		if (ret == 0) {
-			frameinfo = &frame->frameinfo;
-			group->frameid.frame_id = frameinfo->frame_id;
-			group->frameid.timestamps = frameinfo->timestamps;
-			group->frameid.tv = frameinfo->tv;
-			sif_frame_info[instance].frame_id = frameinfo->frame_id;
-			sif_frame_info[instance].timestamps = frameinfo->timestamps;
-			sif_frame_info[instance].tv = frameinfo->tv;
-			vio_dbg("sif_read_frame_work frame_id %d", frameinfo->frame_id);
-			sif_config_rdma_cfg(subdev, 0, frameinfo);
-			if (subdev->dol_num > 1) {
-				sif_config_rdma_cfg(subdev, 1, frameinfo);
-			}
+		if(ldc_rst_flag == 1) {
+			vio_dbg("[S%d]%s:ret %d ldc_rst_flag %d", group->instance,
+						__func__, ret, ldc_rst_flag);
+			trans_frame(framemgr, frame, FS_COMPLETE);
+		} else {
+			if (ret == 0) {
+				frameinfo = &frame->frameinfo;
+				group->frameid.frame_id = frameinfo->frame_id;
+				group->frameid.timestamps = frameinfo->timestamps;
+				group->frameid.tv = frameinfo->tv;
+				sif_frame_info[instance].frame_id = frameinfo->frame_id;
+				sif_frame_info[instance].timestamps = frameinfo->timestamps;
+				sif_frame_info[instance].tv = frameinfo->tv;
+				vio_dbg("sif_read_frame_work frame_id %d", frameinfo->frame_id);
+				sif_config_rdma_cfg(subdev, 0, frameinfo);
+				if (subdev->dol_num > 1) {
+					sif_config_rdma_cfg(subdev, 1, frameinfo);
+				}
 
-			if (subdev->dol_num > 2) {
-				sif_config_rdma_cfg(subdev, 2, frameinfo);
+				if (subdev->dol_num > 2) {
+					sif_config_rdma_cfg(subdev, 2, frameinfo);
+				}
+				sif_set_rdma_trigger(sif->base_reg, 1);
 			}
-			sif_set_rdma_trigger(sif->base_reg, 1);
+			trans_frame(framemgr, frame, FS_PROCESS);
 		}
-		trans_frame(framemgr, frame, FS_PROCESS);
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 	vio_dbg("[S%d]%s:done", group->instance, __func__);
+	mutex_unlock(ldc_acess_mutex);
 }
 
 
@@ -2343,6 +2354,7 @@ static int x3_sif_probe(struct platform_device *pdev)
 	atomic_set(&sif->rsccount, 0);
 	atomic_set(&sif->isp_init_cnt, 0);
 	atomic_set(&sif->open_cnt, 0);
+	vio_init_ldc_access_mutex();
 
 	mutex_init(&sif->shared_mutex);
 

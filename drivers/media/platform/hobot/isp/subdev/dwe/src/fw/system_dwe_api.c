@@ -35,6 +35,7 @@
 #include <media/v4l2-subdev.h>
 #include <media/v4l2-async.h>
 #include "acamera_logger.h"
+#include "vio_group_api.h"
 
 #include "system_dwe_api.h"
 #include "dwe_dev.h"
@@ -472,7 +473,7 @@ int dwe_reset_api(dwe_context_t *ctx)
 	ctx->dis_cur_num = 0;
 	ctx->online_enable = 1;
 	ctx->online_port = 0;
-	
+
 	for (tmp = 0; tmp < FIRMWARE_CONTEXT_NUMBER; tmp++) {
 		//the data is temp, ldc is bypass
 		dwe_param[tmp].ldc_param.ldc_enable = 0;
@@ -532,6 +533,8 @@ void dwe_sw_deinit(void)
 	uint32_t tmp = 0;
 	uint32_t tmp_dis = 0;
 	uint32_t count = 0;
+	u32 ldc_rst_flag = 1;
+	struct mutex *ldc_acess_mutex = NULL;
 
 	while (count < 5) {
 		get_ldc_int_status(dev_ptr->ldc_dev->io_vaddr, &tmp);
@@ -581,7 +584,11 @@ void dwe_sw_deinit(void)
 	tmp = 0x03;
 	set_ldc_soft_reset(dev_ptr->ldc_dev->io_vaddr, &tmp);
 
+	ldc_acess_mutex = vio_get_ldc_access_mutex();
+	mutex_lock(ldc_acess_mutex);
 	gdc_rst_func();
+	vio_set_ldc_rst_flag(ldc_rst_flag);
+	mutex_unlock(ldc_acess_mutex);
 	reset_dwe_ctx();
 }
 
@@ -740,13 +747,13 @@ int ldc_hwparam_set(dwe_context_t *ctx, uint32_t port)
 {
 	int ret = 0;
 	uint32_t tmp_cur = 0;
-	
+
 	if ((ctx == NULL) || (port >= FIRMWARE_CONTEXT_NUMBER)) {
 		LOG(LOG_ERR, "---port %d param is error!---", port);
 		return -EINVAL;
 	}
 
-	
+
 	get_ldc_setting(dev_ptr->ldc_dev->io_vaddr, &tmp_cur);
 	tmp_cur = (tmp_cur & 0x30000) >> 16;
 	if (tmp_cur == 0) {
@@ -767,7 +774,7 @@ int dis_hwparam_set(dwe_context_t *ctx, uint32_t port)
 	int ret = 0;
 	uint32_t tmp_cur = 0;
 	uint32_t tmp_addr = 0;
-	
+
 	if ((ctx == NULL) || (port >= FIRMWARE_CONTEXT_NUMBER)) {
 		LOG(LOG_ERR, "---port %d param is error!---", port);
 		return -EINVAL;
@@ -804,7 +811,7 @@ int dis_hwparam_set(dwe_context_t *ctx, uint32_t port)
 		&ctx->dframes[port].address, ctx->dis_dev_num);
 
 	LOG(LOG_DEBUG, "dis_hwparam_set success!, dis_dev_num %d", ctx->dis_dev_num);
-	
+
 	return ret;
 }
 
