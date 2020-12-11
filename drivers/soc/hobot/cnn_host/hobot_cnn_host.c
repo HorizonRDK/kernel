@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2019 Horizon Robotics
  * X2 CNN driver (found in Hobot Platform)
  *
  * 2017 - 2018 (C) Hobot Inc.
@@ -119,6 +120,21 @@ static inline void hobot_bpu_reg_write(struct hobot_bpu_dev *dev,
 	u32 off, u32 val)
 {
 	writel(val, dev->cnn_base + off);
+}
+
+static int soc_is_x3e(void)
+{
+	int32_t chipid;
+
+	void __iomem *chipid_reg = ioremap_nocache(0xa6008070, 4);
+	chipid = readl(chipid_reg);
+	iounmap(chipid_reg);
+
+	if (((chipid>>12)&0x1) == 0x1) {
+		return 1;
+	}
+
+	return 0;
 }
 
 int fc_fifo_stat_info(struct seq_file *m, void *data)
@@ -1585,6 +1601,12 @@ static int cnnfreq_target(struct device *dev, unsigned long *freq,
 	target_rate = clk_round_rate(cnn_dev->cnn_mclk, rate);
 	if ((long)target_rate <= 0)
 		target_rate = rate;
+
+	if (soc_is_x3e() == 1) {
+		if (rate > 600000000) {
+			rate = 600000000;
+		}
+	}
 
 	if (cnnfreq->rate == target_rate) {
 		if (cnnfreq->volt == target_volt) {

@@ -16,6 +16,21 @@
 #endif
 #include "bpu_ctrl.h"
 
+static int soc_is_x3e(void)
+{
+	int32_t chipid;
+
+	void __iomem *chipid_reg = ioremap_nocache(0xa6008070, 4);
+	chipid = readl(chipid_reg);
+	iounmap(chipid_reg);
+
+	if (((chipid>>12)&0x1) == 0x1) {
+		return 1;
+	}
+
+	return 0;
+}
+
 static int32_t bpu_core_pend_on(struct bpu_core *core)
 {
 	if (core == NULL) {
@@ -495,6 +510,12 @@ static int32_t bpu_core_raw_set_clk(const struct bpu_core *core, uint64_t rate)
 {
 	uint64_t last_rate;
 	int32_t ret = 0;
+
+	if (soc_is_x3e() == 1) {
+		if (rate > 600000000) {
+			rate = 600000000;
+		}
+	}
 
 	if (core == NULL) {
 		pr_err("Set invalid bpu core clk!\n");/*PRQA S ALL*/
