@@ -131,8 +131,12 @@ static int x3_ipu_try_release_process_ion(struct ipu_video_ctx *ipu_ctx,
 		frame = (struct mp_vio_frame *)frame_array_addr[i];
 		if (!frame)
 			continue;
-		for (k = 0; k < frame->plane_count; k++) {
-			ion_free(ipu->ion_client , frame->ion_handle[k]);
+		if (frame->ion_alloc_type == Y_UV_NON_CONTINUOUS_ALIGN_4K) {
+			for (k = 0; k < frame->plane_count; k++) {
+				ion_free(ipu->ion_client , frame->ion_handle[k]);
+			}
+		} else if (frame->ion_alloc_type == Y_UV_CONTINUOUS_ALIGN) {
+			ion_free(ipu->ion_client , frame->ion_handle[0]);
 		}
 		frame_array_addr[i] = NULL;
 	}
@@ -246,8 +250,12 @@ static int x3_ipu_release_subdev_all_ion(struct ipu_subdev *subdev)
 			frame = (struct mp_vio_frame *)frame_array_addr[j];
 			if (!frame)
 				continue;
-			for (k = 0; k < frame->plane_count; k++) {
-				ion_free(ipu->ion_client , frame->ion_handle[k]);
+			if (frame->ion_alloc_type == Y_UV_NON_CONTINUOUS_ALIGN_4K) {
+				for (k = 0; k < frame->plane_count; k++) {
+					ion_free(ipu->ion_client , frame->ion_handle[k]);
+				}
+			} else if (frame->ion_alloc_type == Y_UV_CONTINUOUS_ALIGN) {
+				ion_free(ipu->ion_client , frame->ion_handle[0]);
 			}
 			frame_array_addr[j] = NULL;
 		}
@@ -2678,8 +2686,9 @@ static void print_ipu_ion_addr(struct ipu_video_ctx *ipu_ctx,
 	   k = i - ipu_ctx->frm_fst_ind;
 	   // every plane will have a phy addr
 	   for (j = 0; j < ion_buffer->one[k].planecount; j++) {
-			vio_dbg("frame index %d,plane %d,frame addr[0x%llx],buffer addr[0x%llx]",
-				i, j, frame->addr[j], ion_buffer->one[k].paddr[j]);
+			vio_dbg("index %d,plane %d,frame[0x%llx],buffer[0x%llx],type:%d",
+				i, j, frame->addr[j], ion_buffer->one[k].paddr[j],
+					frame->ion_alloc_type);
 	   }
 	}
 }
@@ -2687,17 +2696,50 @@ static void print_ipu_ion_addr(struct ipu_video_ctx *ipu_ctx,
 static void print_ipu_user_buffer_cfg(struct ipu_video_ctx *ipu_ctx,
 				struct kernel_ion *ion_buffer)
 {
-	int i = 0, j = 0;
+	int i = 0;
 	for (i = 0; i < ion_buffer->buf_num; i++) {
-		for (j = 0; j < ion_buffer->one[i].planecount; j++) {
-			vio_dbg("buffer %d, plane %d, size:%zu",
-					i, j, ion_buffer->one[i].planeSize[j]);
-		}
+		vio_dbg("buffer %d, plane %d, size:%zu, plane %d, size:%zu",
+				i, 0, ion_buffer->one[i].planeSize[0],
+					1, ion_buffer->one[i].planeSize[1]);
 	}
 }
 
+/*
+ *4K align  Y                  4K align  UV
+ *+->+----------+            +--->+----------+
+ *   |          |                 |          |
+ *   |          |                 |          |
+ *   |          |                 |          |
+ *   |          |                 |          |
+ *   |          |                 |          |
+ *   |          |                 +----------+
+ *   |          |
+ *   +----------+
+ * this funtion alloc Y and UV indepently as above
+ * when cmd_tpye==IPU_IOC_KERNEL_ION
+ *
+ * USER ALIGN
+ * +--->+------------+
+ *		|			 |
+ *		|			 |
+ *		|			 |
+ *		|	 Y		 |
+ *		|			 |
+ *		|			 |
+ *		|			 |
+ *		|			 |
+ *		+------------>
+ *		|			 |
+ *		|			 |
+ *		|	 UV 	 |
+ *		|			 |
+ *		+------------+
+ * this function alloc Y and UV continous as above
+ * and align begin address in the continuous buffer area
+ * when cmd_tpye==IPU_IOC_KERNEL_ION_CONTINOUS
+ */
 int ipu_alloc_ion_bufffer(struct ipu_video_ctx *ipu_ctx,
-			struct kernel_ion *ion_buffer)
+			struct kernel_ion *ion_buffer, unsigned long cmd_type)
 {
 	int i = 0, j = 0, k = 0, m = 0;
 	int ret = 0;
@@ -2706,6 +2748,7 @@ int ipu_alloc_ion_bufffer(struct ipu_video_ctx *ipu_ctx,
 	struct x3_ipu_dev *ipu;
 	unsigned long flags;
 	unsigned int ion_flag;
+	size_t frame_total_size = 0;
 
 	// ion cached
 	ion_flag = ION_FLAG_CACHED | ION_FLAG_CACHED_NEEDS_SYNC;
@@ -2737,6 +2780,8 @@ int ipu_alloc_ion_bufffer(struct ipu_video_ctx *ipu_ctx,
 	framemgr = ipu_ctx->framemgr;
 	ipu = ipu_ctx->ipu_dev;
 
+	vio_dbg("in func %s, alloc_type:%s", __func__,
+			cmd_type == IPU_IOC_KERNEL_ION ? "NONCONTINUOUS":"CONTINUOUS");
 	print_ipu_user_buffer_cfg(ipu_ctx, ion_buffer);
 
 	// for all frame, allocated Y/UV ion buffer
@@ -2744,32 +2789,65 @@ int ipu_alloc_ion_bufffer(struct ipu_video_ctx *ipu_ctx,
 		i < (ipu_ctx->frm_fst_ind+ipu_ctx->frm_num); i++) {
 	   frame = (struct mp_vio_frame *)framemgr->frames_mp[i];
 	   k = i - ipu_ctx->frm_fst_ind; // for ion_buffer index
+	   // Y and UV allocated indepently
 	   // every plane will have a phy addr
-	   for (j = 0; j < ion_buffer->one[k].planecount; j++) {
-		   frame->ion_handle[j] = ion_alloc(ipu->ion_client,
-			ion_buffer->one[k].planeSize[j], PAGE_SIZE,
-			ION_HEAP_CARVEOUT_MASK, ion_flag);
-		   if (IS_ERR(frame->ion_handle[j])) {
-			   vio_err("ipu ion alloc failed failed %d", i);
+	   if (cmd_type == IPU_IOC_KERNEL_ION) {
+			for (j = 0; j < ion_buffer->one[k].planecount; j++) {
+			   frame->ion_handle[j] = ion_alloc(ipu->ion_client,
+				ion_buffer->one[k].planeSize[j], PAGE_SIZE,
+				ION_HEAP_CARVEOUT_MASK, ion_flag);
+			   if (IS_ERR(frame->ion_handle[j])) {
+				   vio_err("ipu ion alloc failed failed %d", i);
 
-			   // clean up current frame ion
-			   for (m = j-1; m >= 0; m--)
-					   ion_free(ipu->ion_client, frame->ion_handle[m]);
-			   goto ion_cleanup;
-		   }
-		   ret = ion_phys(ipu->ion_client, frame->ion_handle[j]->id,
-				&ion_buffer->one[k].paddr[j], &ion_buffer->one[k].planeSize[j]);
-		   if (ret) {
-			   vio_err("ipu ion get phys addr failed");
-			   // clean up current frame ion
-			   for (; j >= 0; j--)
-					   ion_free(ipu->ion_client, frame->ion_handle[j]);
-			   goto ion_cleanup;
-		   }
+				   // clean up current frame ion
+				   for (m = j-1; m >= 0; m--)
+						   ion_free(ipu->ion_client, frame->ion_handle[m]);
+				   goto ion_cleanup;
+			   }
+			   ret = ion_phys(ipu->ion_client, frame->ion_handle[j]->id,
+								&ion_buffer->one[k].paddr[j],
+								&ion_buffer->one[k].planeSize[j]);
+			   if (ret) {
+				   vio_err("ipu ion get phys addr failed");
+				   // clean up current frame ion
+				   for (; j >= 0; j--)
+						   ion_free(ipu->ion_client, frame->ion_handle[j]);
+				   goto ion_cleanup;
+			   }
 
-		   // set vio_frame addr the same as allocted ion phys
-		   frame->addr[j] = ion_buffer->one[k].paddr[j];
-	   }
+			   // set vio_frame addr the same as allocted ion phys
+			   frame->addr[j] = ion_buffer->one[k].paddr[j];
+			   frame->ion_alloc_type = Y_UV_NON_CONTINUOUS_ALIGN_4K;
+			}
+	  } else {
+			// one frame, Y and UV allocated continous one buffer
+			frame_total_size = ion_buffer->one[k].planeSize[0] +
+									ion_buffer->one[k].planeSize[1];
+			//begin addr and Y addr are the same
+			frame->ion_handle[0] = ion_alloc(ipu->ion_client,
+			frame_total_size, PAGE_SIZE, ION_HEAP_CARVEOUT_MASK, ion_flag);
+			if (IS_ERR(frame->ion_handle[0])) {
+				vio_err("ipu continuous ion alloc failed failed %d", i);
+				// clean up current already allocated frame ion
+				goto ion_cleanup;
+			}
+
+			ret = ion_phys(ipu->ion_client, frame->ion_handle[j]->id,
+					&ion_buffer->one[k].paddr[0], &frame_total_size);
+			if (ret) {
+			vio_err("ipu continuous ion get phys addr failed");
+			// clean up current frame ion
+			ion_free(ipu->ion_client, frame->ion_handle[0]);
+			goto ion_cleanup;
+			}
+
+			// Y and UV addr for frame
+			frame->addr[0] = ion_buffer->one[k].paddr[0];
+			ion_buffer->one[k].paddr[1] = ion_buffer->one[k].paddr[0] +
+										ion_buffer->one[k].planeSize[0];
+			frame->addr[1] = ion_buffer->one[k].paddr[1];
+			frame->ion_alloc_type = Y_UV_CONTINUOUS_ALIGN;
+	  }
 	}
 
 	// every frame rembers which process it belongs to
@@ -2797,8 +2875,12 @@ ion_cleanup:
 	for (i = i-1; i >= (int)ipu_ctx->frm_fst_ind; i--) {
 		   frame = (struct mp_vio_frame *)framemgr->frames_mp[i];
 		   k = i - ipu_ctx->frm_fst_ind;
-		   for (j = 0; j < ion_buffer->one[k].planecount; j++) {
-				   ion_free(ipu->ion_client, frame->ion_handle[j]);
+		   if (cmd_type == IPU_IOC_KERNEL_ION) {
+			   for (j = 0; j < ion_buffer->one[k].planecount; j++) {
+					   ion_free(ipu->ion_client, frame->ion_handle[j]);
+			   }
+		   } else {
+			   ion_free(ipu->ion_client, frame->ion_handle[0]);
 		   }
 		   frame->ion_handle[0] = NULL;
 		   frame->ion_handle[1] = NULL;
@@ -2806,6 +2888,7 @@ ion_cleanup:
 		   frame->addr[0] = 0;
 		   frame->addr[1] = 0;
 		   frame->addr[2] = 0;
+		   frame->ion_alloc_type = Y_UV_NON_CONTINUOUS_ALIGN_4K;
 	}
 	return -ENOMEM;
 }
@@ -2914,6 +2997,7 @@ static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 		ipu_video_user_stats(ipu_ctx, &stats);
 		break;
 	case IPU_IOC_KERNEL_ION:
+	case IPU_IOC_KERNEL_ION_CONTINOUS:
 		ipu_ion = (struct kernel_ion *)vmalloc(sizeof(struct kernel_ion));
 		if (!ipu_ion) {
 			vio_err("alloc ipu ion struct faild");
@@ -2924,7 +3008,7 @@ static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 			vfree(ipu_ion);
 			return -EFAULT;
 		}
-		ret = ipu_alloc_ion_bufffer(ipu_ctx, ipu_ion);
+		ret = ipu_alloc_ion_bufffer(ipu_ctx, ipu_ion, cmd);
 		if (ret) {
 			vfree(ipu_ion);
 			vio_err("alloc ion buffer failed");
@@ -3026,9 +3110,9 @@ int x3_ipu_mmap(struct file *file, struct vm_area_struct *vma)
 		goto err;
 	}
 
-	vio_dbg("[S%d][V%d] %s map success, proc %d index %d size %d paddr %x.",
-		ipu_ctx->group->instance, ipu_ctx->id, __func__,
-		ipu_ctx->ctx_index, buffer_index, size, paddr);
+	//vio_dbg("[S%d][V%d] %s map success, proc %d index %d paddr %x.",
+	//	ipu_ctx->group->instance, ipu_ctx->id, __func__,
+	//	ipu_ctx->ctx_index, buffer_index, size, paddr);
 	return 0;
 err:
 	return ret;

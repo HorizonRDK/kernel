@@ -154,6 +154,20 @@ struct vio_frame {
 	u16			dispatch_mask;
 };
 
+/*
+ * Y_UV_NON_CONTINUOUS_ALIGN_4K:
+ * IPU default ION, Y and UV are indepent-allocated
+ * and their begin address all align to 4K
+ *
+ * Y_UV_CONTINUOUS_ALIGN:
+ * Y and UV are allocated in a continous buffer,
+ * and begin address is align as user set
+ */
+enum yuv_buf_type {
+	Y_UV_NON_CONTINUOUS_ALIGN_4K,
+	Y_UV_CONTINUOUS_ALIGN
+};
+
 struct mp_vio_frame {
 	// must be the first
 	struct vio_frame common_frame;
@@ -171,6 +185,10 @@ struct mp_vio_frame {
 	int proc_id;
 	int first_indx;
 	int ion_bufffer_num;
+
+	// if Y and UV are continous allocated
+	// used only in ipu driver
+	enum yuv_buf_type ion_alloc_type;
 };
 
 struct vio_framemgr {
