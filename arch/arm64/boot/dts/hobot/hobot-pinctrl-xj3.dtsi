@@ -484,15 +484,10 @@
 
 			spi1_func: spi1_func {
 				pinctrl-single,pins = <
+					0x00c	(MUX_F1 | DRIVE2_09MA | SCHMITT2_ENA | PULL2_DOWN) /*SPI1_SCLK*/
 					0x014	(MUX_F1 | DRIVE1_09MA | SCHMITT2_DIS | PULL2_UP) /*SPI1_CSN*/
 					0x018	(MUX_F1 | DRIVE1_09MA | SCHMITT2_DIS | PULL2_UP) /*SPI1_MISO*/
 					0x01c	(MUX_F1 | DRIVE1_09MA | SCHMITT2_DIS | PULL2_UP) /*SPI1_MOSI*/
-				>;
-			};
-
-			spi1_funcc: spi1_funcc {
-				pinctrl-single,pins = <
-					0x00c	(MUX_F1 | DRIVE2_09MA | SCHMITT2_ENA | PULL2_DOWN) /*SPI1_SCLK*/
 				>;
 			};
 

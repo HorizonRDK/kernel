@@ -803,21 +803,14 @@ static void hb_spi_chipselect(struct spi_device *spi, bool is_high)
 		dev_info(hbspi->dev, "A chip_select=%d CTRL=%08X high=%d\n",
 			spi->chip_select, val, is_high);
 
-	if (is_high) {
-		// val |= HB_SPI_SS_MASK;
+	if (hbspi->spi_id == 0) {
 		val &= (~HB_SPI_SS_MASK);
-		if (spi->chip_select == HB_SELECT_SLAVE0)
-			val |= (HB_SELECT_SLAVE1 << HB_SPI_SS_OFFSET);
-		else
-			val |= (HB_SELECT_SLAVE0 << HB_SPI_SS_OFFSET);
+		val |= (spi->chip_select << HB_SPI_SS_OFFSET);
 	} else {
 		val &= (~HB_SPI_SS_MASK);
-		// val |= (spi->chip_select << HB_SPI_SS_OFFSET);
-		if (spi->chip_select == HB_SELECT_SLAVE0)
-			val |= (HB_SELECT_SLAVE0 << HB_SPI_SS_OFFSET);
-		else if (spi->chip_select == HB_SELECT_SLAVE1)
-			val |= (HB_SELECT_SLAVE1 << HB_SPI_SS_OFFSET);
+		val |= (HB_SELECT_SLAVE0 << HB_SPI_SS_OFFSET);
 	}
+
 	hb_spi_wr(hbspi, HB_SPI_CTRL_REG, val);
 	if (debug > 2) {
 		val = hb_spi_rd(hbspi, HB_SPI_CTRL_REG);
