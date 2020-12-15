@@ -10,6 +10,7 @@
  *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *    GNU General Public License for more details.
  */
+#define pr_fmt(fmt) "[isp_drv]: %s: " fmt, __func__
 #include <linux/platform_device.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
@@ -1073,8 +1074,6 @@ int camera_sys_set_ex_gain_control(uint32_t port, sensor_priv_t *priv_param,
 		uint32_t *input_gain, uint32_t *input_dgain, uint32_t *input_line)
 {
 	int ret = 0;
-	char buf[2];
-	uint32_t param_hold, reg_width, param_hold_length;
 
 	camera_sys_set_pwl_line(port, priv_param->line_num, input_line);
 	camera_sys_set_pwl_gain(port, priv_param->gain_num, input_gain);

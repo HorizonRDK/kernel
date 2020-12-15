@@ -211,6 +211,7 @@ typedef struct {
 typedef struct {
 	struct list_head  list_node;
 	uint32_t port;
+	uint32_t cmd;
 	sensor_priv_t priv_param;
 } event_node_t;
 

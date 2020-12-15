@@ -10,6 +10,8 @@
  *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *    GNU General Public License for more details.
  */
+
+#define pr_fmt(fmt) "[isp_drv]: %s: " fmt, __func__
 #include <linux/platform_device.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
@@ -60,10 +62,20 @@ static void write_sensor_work(struct work_struct *data)
 	list_splice_init(&event_header.list_busy, &event_list);
 	spin_unlock(&event_header.lock);
 	list_for_each_entry(event_p, &event_list, list_node) {
-		ret = camera_sys_priv_set(event_p->port,
-			&event_p->priv_param);
-		if(ret < 0) {
-		   pr_err("SENSOR_UPDATE error port%d\n", event_p->port);
+		if (event_p->cmd == SENSOR_UPDATE) {
+			ret = camera_sys_priv_set(event_p->port,
+				&event_p->priv_param);
+			if(ret < 0) {
+			pr_err("SENSOR_UPDATE error port%d\n", event_p->port);
+			}
+		} else if (event_p->cmd == SENSOR_AWB_UPDATE) {
+			ret = camera_sys_priv_awb_set(event_p->port,
+				&event_p->priv_param);
+			if(ret < 0) {
+			pr_err("SENSOR_AWB_UPDATE error port%d\n", event_p->port);
+			}
+		} else {
+			pr_err("unknown cmd %d\n", event_p->cmd);
 		}
 	}
 	spin_lock(&event_header.lock);
@@ -71,31 +83,38 @@ static void write_sensor_work(struct work_struct *data)
 	spin_unlock(&event_header.lock);
 }
 
+static void cmd_add_to_work(uint32_t cmd, void *arg)
+{
+	struct list_head *list;
+	event_node_t *event_p;
+
+	spin_lock(&event_header.lock);
+	if (!list_empty(&event_header.list_free)) {
+		list = event_header.list_free.next;
+		list_del(list);
+		event_p = list_entry(list, event_node_t, list_node);
+		event_p->port = ARGS_TO_PTR(arg)->port;
+		event_p->cmd = cmd;
+		memcpy(&event_p->priv_param,
+				ARGS_TO_PTR(arg)->sensor_priv,
+				sizeof(sensor_priv_t));
+		list_add(list, &event_header.list_busy);
+	}
+	spin_unlock(&event_header.lock);
+	schedule_work(&event_header.updata_work);
+}
+
 static long camera_subdev_ioctl(struct v4l2_subdev *sd,
 		unsigned int cmd, void *arg)
 {
 	int ret = 0;
-	struct list_head *list;
-	event_node_t *event_p;
 	if (ARGS_TO_PTR(arg)->port >= CAMERA_TOTAL_NUMBER) {
 		pr_err("Failed to control dwe_ioctl :%d\n", ARGS_TO_PTR(arg)->port);
 		return -1;
 	}
 	switch (cmd) {
 	case SENSOR_UPDATE:
-		spin_lock(&event_header.lock);
-		if (!list_empty(&event_header.list_free)) {
-			list = event_header.list_free.next;
-			list_del(list);
-			event_p = list_entry(list, event_node_t, list_node);
-			event_p->port = ARGS_TO_PTR(arg)->port;
-			memcpy(&event_p->priv_param,
-					ARGS_TO_PTR(arg)->sensor_priv,
-					sizeof(sensor_priv_t));
-			list_add(list, &event_header.list_busy);
-		}
-		spin_unlock(&event_header.lock);
-		schedule_work(&event_header.updata_work);
+		cmd_add_to_work(cmd, arg);
 		break;
 	case SENSOR_GET_PARAM:
 		ret = camera_sys_get_param(ARGS_TO_PTR(arg)->port,
@@ -149,11 +168,7 @@ static long camera_subdev_ioctl(struct v4l2_subdev *sd,
 		//		ARGS_TO_PTR(arg)->integration_time);
 		break;
 	case SENSOR_AWB_UPDATE:
-		ret = camera_sys_priv_awb_set(ARGS_TO_PTR(arg)->port,
-				ARGS_TO_PTR(arg)->sensor_priv);
-		if(ret < 0) {
-		   pr_err("SENSOR_AWB_UPDATE error port%d\n", ARGS_TO_PTR(arg)->port);
-		}
+		cmd_add_to_work(cmd, arg);
 		break;
 	default:
 		pr_err("Unknown camera_subdev_ioctl cmd %d", cmd);
