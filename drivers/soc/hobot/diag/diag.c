@@ -387,7 +387,7 @@ int32_t diagnose_send_event(struct diag_event *event)
 	/* check send time interval */
 	ret = is_send_condition_ready(event_id, event);
 	if (ret == 0) {
-		pr_err("event send condition not meet\n");	/* PRQA S ALL */
+		pr_debug("event send condition not meet\n");	/* PRQA S ALL */
 		return -1;
 	}
 
@@ -555,7 +555,7 @@ int32_t diag_send_event_stat_and_env_data(
 	}
 	ret = diagnose_send_event(&event);
 	if (ret < 0) {
-		pr_err("diagnose send event with env fail, module_id = %d, event_id = %d\n",
+		pr_debug("diagnose send event with env fail, module_id = %d, event_id = %d\n",
 				event.module_id, event.event_id);
 		return -1;
 	}
@@ -580,7 +580,7 @@ int32_t diag_send_event_stat(
 
 	ret = diagnose_send_event(&event);
 	if (ret < 0) {
-		pr_err("diagnose send event fail, module_id = %d, event_id = %d\n",
+		pr_debug("diagnose send event fail, module_id = %d, event_id = %d\n",
 				event.module_id, event.event_id);
 		return -1;
 	}
