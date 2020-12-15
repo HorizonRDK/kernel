@@ -59,11 +59,13 @@ enum {
 
 enum {
 	FLAG_USER_TX_WAIT,
-	FLAG_USER_TX_NOT_WAIT
+	FLAG_USER_TX_NOT_WAIT,
+	FLAG_USER_TX_FORCE_QUIT
 };
 enum {
 	FLAG_USER_RX_WAIT,
-	FLAG_USER_RX_NOT_WAIT
+	FLAG_USER_RX_NOT_WAIT,
+	FLAG_USER_RX_FORCE_QUIT,
 };
 /*-------------------------------------------------*/
 

@@ -647,7 +647,7 @@ int parse_rx_param_to_frame_info(struct hbusb_rx_chan	*rx,
 
 	if ((elem->ctrl_info.size == 0 && elem->data_info.num_sgs == 0)
 			|| (elem->data_info.num_sgs > HBUSB_SG_MAX_NUM)) {
-		dev_err(chan->dev, "elem length is not valid\n");
+		dev_err(chan->dev, "rx elem length is not valid\n");
 		return -EFAULT;
 	}
 
@@ -734,7 +734,7 @@ int ret_frame_info_to_rx_param(struct hbusb_rx_chan	*rx,
 static int hbusb_sync_rx_valid_framebuf(struct file *filp,
 								void __user *user_elem)
 {
-	unsigned int status;
+	int status;
 	struct hbusb_channel	*chan = filp->private_data;
 	struct hbusb_rx_chan	*rx = &chan->rx;
 
@@ -749,8 +749,10 @@ static int hbusb_sync_rx_valid_framebuf(struct file *filp,
 	/*init rx start transfer state and submit request*/
 	rx->cond = FLAG_USER_RX_WAIT;
 	status = lowlevel_rx_submit(rx);
-	if (status != -EIOCBQUEUED)
+	if (status != -EIOCBQUEUED) {
+		rx->cond = FLAG_USER_RX_NOT_WAIT;
 		return status;
+	}
 
 	/*wait for request complete*/
 	if (rx->cond == FLAG_USER_RX_WAIT) {
@@ -815,7 +817,7 @@ int parse_tx_param_to_frame_info(struct hbusb_tx_chan	*tx,
 	if ((elem->ctrl_info.size == 0 && elem->data_info.num_sgs == 0)
 			|| (elem->ctrl_info.size > USER_CTRL_INFO_MAX_SIZE)
 			|| (elem->data_info.num_sgs > HBUSB_SG_MAX_NUM)) {
-		dev_err(chan->dev, "elem length is not valid\n");
+		dev_err(chan->dev, "tx elem length is not valid\n");
 		return -EFAULT;
 	}
 
@@ -899,7 +901,7 @@ int ret_frame_info_to_tx_param(struct hbusb_tx_chan	*tx,
 static int hbusb_sync_tx_valid_framebuf(struct file *filp,
 								void __user *user_elem)
 {
-	unsigned int status;
+	int status;
 	struct hbusb_channel	*chan = filp->private_data;
 	struct hbusb_tx_chan	*tx = &chan->tx;
 
@@ -914,8 +916,10 @@ static int hbusb_sync_tx_valid_framebuf(struct file *filp,
 	/*init tx start transfer state and submit request*/
 	tx->cond = FLAG_USER_TX_WAIT;
 	status = lowlevel_tx_submit(tx);
-	if (status != -EIOCBQUEUED)
+	if (status != -EIOCBQUEUED) {
+		tx->cond = FLAG_USER_TX_NOT_WAIT;
 		return status;
+	}
 
 	/*wait for request complete*/
 	if (tx->cond == FLAG_USER_TX_WAIT) {
@@ -1408,6 +1412,10 @@ void hbusb_disconnect(struct      hbusb *link)
 		spin_lock_irqsave(&rx->ep_lock, flags);
 		rx->ep = NULL;
 		spin_unlock_irqrestore(&rx->ep_lock, flags);
+		if (rx->cond == FLAG_USER_RX_WAIT) {
+			rx->cond = FLAG_USER_RX_FORCE_QUIT;
+			wake_up_interruptible(&rx->wait);
+		}
 
 		tx = &chan->tx;
 		tx->req = NULL;
@@ -1415,6 +1423,10 @@ void hbusb_disconnect(struct      hbusb *link)
 		spin_lock_irqsave(&tx->ep_lock, flags);
 		tx->ep = NULL;
 		spin_unlock_irqrestore(&tx->ep_lock, flags);
+		if (tx->cond == FLAG_USER_TX_WAIT) {
+			tx->cond = FLAG_USER_TX_FORCE_QUIT;
+			wake_up_interruptible(&tx->wait);
+		}
 
 		link->bulkout[i]->driver_data = NULL;
 		link->bulkout[i]->desc = NULL;

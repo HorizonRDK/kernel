@@ -8,7 +8,7 @@
 #include "hobot/hbusb/u_hbusb.h"
 
 #define DRIVER_DESC		"Hobot HBUSB bulk channel"
-#define DRIVER_VERSION		"V1.0"
+#define DRIVER_VERSION		"V1.1"
 
 USB_GADGET_COMPOSITE_OPTIONS();
 
