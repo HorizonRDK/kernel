@@ -109,7 +109,9 @@ static const struct file_operations iar_mmap_ops = {
 
 int __init iar_mmap_init(void)
 {
-	int error, index;
+	int ret, index, i;
+	dev_t dev_start = 0;
+	dev_t dev = 0;
 
 	g_iar_mmap = kmalloc(sizeof(struct iar_mmap_s), GFP_KERNEL);
 	if (!g_iar_mmap) {
@@ -119,35 +121,56 @@ int __init iar_mmap_init(void)
 	g_iar_mmap->iar_class = fb_class;
 
 	g_iar_mmap->name = "iar_mmap";
-	error = alloc_chrdev_region(&g_iar_mmap->dev_num, 0, IAR_CHANNEL_MAX, g_iar_mmap->name);
-	if (!error) {
+	ret = alloc_chrdev_region(&g_iar_mmap->dev_num, 0,
+			IAR_CHANNEL_MAX, g_iar_mmap->name);
+	if (!ret) {
 		g_iar_mmap->major = MAJOR(g_iar_mmap->dev_num);
 		g_iar_mmap->minor = MINOR(g_iar_mmap->dev_num);
+	} else {
+		pr_err("%s: error alloc chrdev region!\n", __func__);
+		goto err0;
 	}
 
 	cdev_init(&g_iar_mmap->cdev, &iar_mmap_ops);
 
-	error = cdev_add(&g_iar_mmap->cdev, g_iar_mmap->dev_num, IAR_CHANNEL_MAX);
-	if (error) {
-		unregister_chrdev_region(g_iar_mmap->dev_num, IAR_CHANNEL_MAX);
-		return error;
+	ret = cdev_add(&g_iar_mmap->cdev, g_iar_mmap->dev_num, IAR_CHANNEL_MAX);
+	if (ret) {
+		pr_err("%s: error add cdev!\n", __func__);
+		goto err1;
 	}
 
 	//device_create(g_iar_mmap->iar_class, NULL, g_iar_mmap->dev_num, NULL, g_iar_mmap->name);
-
+	dev_start = MKDEV(g_iar_mmap->major, g_iar_mmap->minor);
 	for (index = 0; index < IAR_CHANNEL_MAX; index++) {
 		char name[64];
-		dev_t dev = MKDEV(g_iar_mmap->major, g_iar_mmap->minor) + index;
+		dev = dev_start + index;
 		sprintf(name, "iar_channel_%d", index);
-		device_create(g_iar_mmap->iar_class, NULL, dev, NULL, name);
+		if (IS_ERR(device_create(g_iar_mmap->iar_class, NULL, dev, NULL, name))) {
+			for (i = index - 1; i >= 0; i--) {
+				device_destroy(g_iar_mmap->iar_class, dev + i);
+			}
+			goto err1;
+		}
 	}
 
 	return 0;
+err1:
+	unregister_chrdev_region(g_iar_mmap->dev_num, IAR_CHANNEL_MAX);
+	return ret;
+err0:
+	kfree(g_iar_mmap);
+	g_iar_mmap = NULL;
+	return ret;
 }
 
 void __exit iar_mmap_exit(void)
 {
-	device_destroy(g_iar_mmap->iar_class, g_iar_mmap->dev_num);
+	int i = 0;
+
+	for (i = 0; i < IAR_CHANNEL_MAX; i++) {
+		device_destroy(g_iar_mmap->iar_class,
+				MKDEV(g_iar_mmap->major, g_iar_mmap->minor) + i);
+	}
 	cdev_del(&g_iar_mmap->cdev);
 	unregister_chrdev_region(g_iar_mmap->dev_num, 1);
 }

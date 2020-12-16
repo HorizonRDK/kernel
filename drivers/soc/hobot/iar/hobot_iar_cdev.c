@@ -179,6 +179,11 @@ int32_t iar_display_update(update_cmd_t *update_cmd)
 {
 	int index = 0;
 	int ret = -1;
+
+	if (g_iar_cdev == NULL) {
+		pr_err("%s: iar cdev not init!\n", __func__);
+		return -1;
+	}
 	for (index = IAR_CHANNEL_1; index < IAR_CHANNEL_MAX; index++) {
 		if (index == IAR_CHANNEL_2 || index == IAR_CHANNEL_4)
 			continue; //TODO, now channnel 2 and 4 is disable
@@ -204,6 +209,10 @@ static int iar_cdev_open(struct inode *inode, struct file *filp)
 	struct iar_cdev_s *iarcdev_p;
 	int ret = 0;
 
+	if (g_iar_cdev == NULL) {
+		pr_err("%s: iar cdev not init!\n", __func__);
+		return -1;
+	}
 	mutex_lock(&g_iar_cdev->iar_mutex);
 	if (iar_open_cnt == 0) {
 		iarcdev_p = container_of(inode->i_cdev, struct iar_cdev_s, cdev);
@@ -220,6 +229,11 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 {
 	int ret = 0;
 	void	__user *arg = (void __user *)p;
+
+	if (g_iar_cdev == NULL) {
+		pr_err("%s: iar cdev not init!\n", __func__);
+		return -1;
+	}
 	mutex_lock(&g_iar_cdev->iar_mutex);
 	switch (cmd) {
 	case IAR_START:
@@ -689,6 +703,10 @@ static ssize_t iar_cdev_read(struct file *filp, char __user *ubuf,
 
 int iar_cdev_release(struct inode *inode, struct file *filp)
 {
+	if (g_iar_cdev == NULL) {
+		pr_err("%s: iar cdev not init!\n", __func__);
+		return -1;
+	}
 	mutex_lock(&g_iar_cdev->iar_mutex);
 	iar_open_cnt--;
 	if (iar_open_cnt == 0) {
@@ -716,12 +734,17 @@ static ssize_t hobot_iar_show(struct kobject *kobj, struct kobj_attribute *attr,
 {
 	char *s = buf;
 
-	enable_sif_mclk();
-	iar_pixel_clk_enable();
-	hobot_iar_dump();
-	iar_pixel_clk_disable();
-	disable_sif_mclk();
+	if (enable_sif_mclk() != 0)
+		goto err;
+	if (iar_pixel_clk_enable() != 0)
+		goto err;
 
+	hobot_iar_dump();
+	if (iar_pixel_clk_disable() != 0)
+		goto err;
+	if (disable_sif_mclk() != 0)
+		goto err;
+err:
 	return (s - buf);
 }
 static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t n)
@@ -735,8 +758,14 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 	int board_id = 0;
 
 	tmp = (char *)buf;
-	enable_sif_mclk();
-	iar_pixel_clk_enable();
+	if (enable_sif_mclk() != 0) {
+		ret = error;
+		goto err1;
+	}
+	if (iar_pixel_clk_enable() != 0) {
+		ret = error;
+		goto err1;
+	}
 	board_id = simple_strtoul(base_board_name, NULL, 16);
 	if (strncmp(tmp, "start", 5) == 0) {
 		pr_info("iar start......\n");
@@ -938,8 +967,11 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 		}
 	}
 err:
-	iar_pixel_clk_disable();
-	disable_sif_mclk();
+	if (iar_pixel_clk_disable() != 0)
+		ret = error;
+	if (disable_sif_mclk() != 0)
+		ret = error;
+err1:
 	return ret ? ret : n;
 }
 
@@ -963,7 +995,7 @@ static struct attribute_group attr_group = {
 
 int __init iar_cdev_init(void)
 {
-	int error;
+	int ret = 0;
 	//struct device *dev;
 
 	g_iar_cdev = kmalloc(sizeof(struct iar_cdev_s), GFP_KERNEL);
@@ -977,26 +1009,54 @@ int __init iar_cdev_init(void)
 
 	g_iar_cdev->iar_classes = fb_class;
 
-	error = alloc_chrdev_region(&g_iar_cdev->dev_num, 0, 1, g_iar_cdev->name);
-	if (!error) {
+	ret = alloc_chrdev_region(&g_iar_cdev->dev_num, 0, 1, g_iar_cdev->name);
+	if (!ret) {
 		g_iar_cdev->major = MAJOR(g_iar_cdev->dev_num);
 		g_iar_cdev->minor = MINOR(g_iar_cdev->dev_num);
+	} else {
+		pr_err("%s: error alloc chrdev region with return value %d!\n",
+				__func__, ret);
+		goto err;
 	}
 
 	cdev_init(&g_iar_cdev->cdev, &iar_cdev_ops);
 
-	error = cdev_add(&g_iar_cdev->cdev, g_iar_cdev->dev_num, 1);
-	if (error) {
+	ret = cdev_add(&g_iar_cdev->cdev, g_iar_cdev->dev_num, 1);
+	if (ret) {
 		unregister_chrdev_region(g_iar_cdev->dev_num, 1);
-		return error;
+		pr_err("%s: error add cdev with return value %d\n", __func__, ret);
+		goto err1;
 	}
 
 	g_iar_cdev->dev = device_create(g_iar_cdev->iar_classes, NULL, g_iar_cdev->dev_num, NULL, g_iar_cdev->name);
-
+	if (IS_ERR(g_iar_cdev->dev)) {
+		pr_err("%s: error create device!\n", __func__);
+		ret = -1;
+		goto err2;
+	}
 	g_iar_cdev->framebuf_user[IAR_CHANNEL_1] = hobot_iar_get_framebuf_addr(IAR_CHANNEL_1);
 	g_iar_cdev->framebuf_user[IAR_CHANNEL_3] = hobot_iar_get_framebuf_addr(IAR_CHANNEL_3);
-
-	return sysfs_create_group(&g_iar_cdev->dev->kobj, &attr_group);
+	if (g_iar_cdev->framebuf_user[IAR_CHANNEL_1] == NULL ||
+			g_iar_cdev->framebuf_user[IAR_CHANNEL_3] == NULL) {
+		ret = -1;
+		goto err3;
+	}
+	ret = sysfs_create_group(&g_iar_cdev->dev->kobj, &attr_group);
+	if (ret) {
+		pr_err("%s: error create sysfs group with return value %d!\n", __func__, ret);
+		goto err3;
+	}
+	return 0;
+err3:
+	device_destroy(g_iar_cdev->iar_classes, g_iar_cdev->dev_num);
+err2:
+	cdev_del(&g_iar_cdev->cdev);
+err1:
+	unregister_chrdev_region(g_iar_cdev->dev_num, 1);
+err:
+	kfree(g_iar_cdev);
+	g_iar_cdev = NULL;
+	return ret;
 }
 
 void __exit iar_cdev_exit(void)
@@ -1005,6 +1065,10 @@ void __exit iar_cdev_exit(void)
 	device_destroy(g_iar_cdev->iar_classes, g_iar_cdev->dev_num);
 	cdev_del(&g_iar_cdev->cdev);
 	unregister_chrdev_region(g_iar_cdev->dev_num, 1);
+	if (g_iar_cdev != NULL) {
+		kfree(g_iar_cdev);
+		g_iar_cdev = NULL;
+	}
 }
 
 module_init(iar_cdev_init);

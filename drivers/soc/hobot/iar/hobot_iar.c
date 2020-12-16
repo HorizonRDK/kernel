@@ -427,8 +427,10 @@ static void iar_regs_store(void)
 		return;
 	}
 
-	enable_sif_mclk();
-	iar_pixel_clk_enable();
+	if (enable_sif_mclk() != 0)
+		return;
+	if (iar_pixel_clk_enable() != 0)
+		return;
 	/* offset: 0x0 ~ 0x94, 0x98 writeonly. */
 	for (i = 0; i < 37; i++) {
 		regaddr = g_iar_dev->regaddr + 0x4 * i;
@@ -482,8 +484,10 @@ static void iar_regs_restore(void)
 		return;
 	}
 
-	enable_sif_mclk();
-	iar_pixel_clk_enable();
+	if (enable_sif_mclk() != 0)
+		return;
+	if (iar_pixel_clk_enable() != 0)
+		return;
 	/* offset: 0x0 ~ 0x94, 0x98 writeonly. */
 	for (i = 0; i < 37; i++) {
 		regaddr = g_iar_dev->regaddr + 0x4 * i;
@@ -673,7 +677,7 @@ int disp_set_interlace_mode(void)
 	}
 
 	value = readl(g_iar_dev->regaddr + REG_IAR_PANEL_SIZE);
-	if (value & 0x7ff == 0 || value & 0x7ff0000 == 0)
+	if ((value & 0x7ff) == 0 || (value & 0x7ff0000) == 0)
 		pr_err("%s: user not config output!!!\n", __func__);
 	height = (value & 0x7ff0000) >> 17;//>>16 /2
 	value = IAR_REG_SET_FILED(IAR_PANEL_HEIGHT, height, value);
@@ -981,6 +985,13 @@ int8_t disp_set_pixel_clk(uint64_t pixel_clk)
 	void __iomem *iar_clk_reg_addr;
 	uint32_t reg_val = 0;
 
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+	}
+
+	if (g_iar_dev->iar_pixel_clk == NULL)
+		return -1;
 #ifdef CONFIG_HOBOT_XJ2
 	if (pixel_clk < 102000000)
 		ips_set_iar_clk32(1);
@@ -1025,7 +1036,10 @@ EXPORT_SYMBOL_GPL(disp_set_pixel_clk);
 
 static int disp_clk_disable(void)
 {
-
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+	}
 	if (g_iar_dev->iar_pixel_clk == NULL)
 		return -1;
 	if (disp_clk_already_enable == 1) {
@@ -1040,6 +1054,10 @@ static int disp_clk_enable(void)
 	uint64_t pixel_clock;
 	int ret = 0;
 
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+	}
 	if (g_iar_dev->iar_pixel_clk == NULL)
 		return -1;
 	if (disp_clk_already_enable == 0) {
@@ -1081,6 +1099,10 @@ int iar_pixel_clk_enable(void)
 {
 	int ret = 0;
 
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+	}
 	if (g_iar_dev->iar_pixel_clk == NULL)
 		return -1;
 	ret = clk_prepare_enable(g_iar_dev->iar_pixel_clk);
@@ -1094,6 +1116,10 @@ EXPORT_SYMBOL_GPL(iar_pixel_clk_enable);
 
 int iar_pixel_clk_disable(void)
 {
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+	}
 	if (g_iar_dev->iar_pixel_clk == NULL)
 		return -1;
 	clk_disable_unprepare(g_iar_dev->iar_pixel_clk);
@@ -1104,6 +1130,10 @@ EXPORT_SYMBOL_GPL(iar_pixel_clk_disable);
 
 static int ipi_clk_disable(void)
 {
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+	}
 	if (g_iar_dev->iar_ipi_clk == NULL)
 		return -1;
 	if (ipi_clk_already_enable == 1) {
@@ -1117,6 +1147,10 @@ static int ipi_clk_enable(void)
 {
 	int ret = 0;
 
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+	}
 	if (g_iar_dev->iar_ipi_clk == NULL)
 		return -1;
 	if (ipi_clk_already_enable == 0) {
@@ -1253,6 +1287,10 @@ EXPORT_SYMBOL_GPL(set_screen_backlight);
 
 int disp_pinmux_bt1120(void)
 {
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+	}
 	if (!g_iar_dev->pins_bt1120)
 		return -ENODEV;
 	return pinctrl_select_state(g_iar_dev->pinctrl,
@@ -1261,6 +1299,10 @@ int disp_pinmux_bt1120(void)
 
 int disp_pinmux_bt656(void)
 {
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+        }
 	if (!g_iar_dev->pins_bt656)
 		return -ENODEV;
 	return pinctrl_select_state(g_iar_dev->pinctrl,
@@ -1269,6 +1311,10 @@ int disp_pinmux_bt656(void)
 
 int disp_pinmux_mipi_dsi(void)
 {
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+	}
 	if (!g_iar_dev->pins_mipi_dsi)
 		return -ENODEV;
 	return pinctrl_select_state(g_iar_dev->pinctrl,
@@ -1277,6 +1323,10 @@ int disp_pinmux_mipi_dsi(void)
 
 int disp_pinmux_rgb(void)
 {
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+        }
 	if (!g_iar_dev->pins_rgb)
 		return -ENODEV;
 	return pinctrl_select_state(g_iar_dev->pinctrl,
@@ -1285,6 +1335,10 @@ int disp_pinmux_rgb(void)
 
 int disp_pinmux_rgb_gpio(void)
 {
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+        }
 	if (!g_iar_dev->pins_rgb_gpio)
 		return -ENODEV;
 	return pinctrl_select_state(g_iar_dev->pinctrl,
@@ -1818,6 +1872,10 @@ static int iar_thread(void *data)
 	buf_addr_t display_addr;
 	buf_addr_t display_addr_video1;
 
+	if (g_iar_dev == NULL) {
+                pr_err("%s: iar not init!!\n", __func__);
+                return -1;
+        }
 	while (!kthread_should_stop()) {
 		if (kthread_should_stop())
 			break;
@@ -1867,8 +1925,10 @@ int32_t iar_open(void)
 		return -1;
 	}
 
-	enable_sif_mclk();
-	iar_pixel_clk_enable();
+	if (enable_sif_mclk() != 0)
+		return -1;
+	if (iar_pixel_clk_enable() != 0)
+		return -1;
 	enable_iar_irq();
 	enable_irq(g_iar_dev->irq);
 
@@ -1954,9 +2014,10 @@ int32_t iar_close(void)
 	}
 	if (hb_disp_base_board_id == 0x1)
 		screen_backlight_deinit();
-	disable_sif_mclk();
-	iar_pixel_clk_disable();
-
+	if (disable_sif_mclk() != 0)
+		return -1;
+	if (iar_pixel_clk_disable() != 0)
+		return -1;
 	return 0;
 }
 EXPORT_SYMBOL_GPL(iar_close);
@@ -1986,9 +2047,9 @@ int32_t iar_start(int update)
 		printk(KERN_ERR "IAR dev not inited!");
 		return -1;
 	}
-	iar_enable_sif_mclk();
-	ret = disp_clk_enable();
-	if (ret)
+	if (iar_enable_sif_mclk() != 0)
+		return -1;
+	if (disp_clk_enable() != 0)
 		return -1;
 	value = readl(g_iar_dev->regaddr + REG_IAR_DE_REFRESH_EN);
 	value = IAR_REG_SET_FILED(IAR_DPI_TV_START, 0x1, value);
@@ -2002,7 +2063,9 @@ int32_t iar_start(int update)
 		if (ret)
 			pr_err("error pinmux rgb func!!\n");
 	} else if (display_type == SIF_IPI) {
-		ipi_clk_enable();
+		//ipi_clk_enable();
+		if (ipi_clk_enable() != 0)
+			return -1;
 	}
 
 	return 0;
@@ -2032,8 +2095,11 @@ int32_t iar_stop(void)
 		if (ret)
 			pr_err("erroc pinmux rgb pins to gpio func!!\n");
 	}
-	ret = disp_clk_disable();
-	iar_disable_sif_mclk();
+
+	if (disp_clk_disable() != 0)
+		return -1;
+	if (iar_disable_sif_mclk() != 0)
+		return -1;
 	//del_timer(&iartimer);
 	return ret;
 }
@@ -2092,7 +2158,10 @@ EXPORT_SYMBOL_GPL(hobot_iar_get_framebuf_addr);
 
 int iar_wb_stream_on(void)
 {
-	//
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+	}
 	if (!(g_iar_dev->state & (BIT(IAR_WB_STOP) | BIT(IAR_WB_REBUFS)
 			| BIT(IAR_WB_INIT)))) {
 		pr_err("invalid STREAM ON is requested(%lX)", g_iar_dev->state);
@@ -2107,6 +2176,10 @@ int iar_wb_stream_on(void)
 
 int iar_wb_stream_off(void)
 {
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+	}
 	if (!(g_iar_dev->state & BIT(IAR_WB_START))) {
 		pr_err("invalid STREAMOFF is requested(%lX)", g_iar_dev->state);
 		return -EINVAL;
@@ -2126,6 +2199,10 @@ int iar_wb_reqbufs(u32 buffers)
 	int ret = 0;
 	struct vio_framemgr *framemgr;
 
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+	}
 	if (!(g_iar_dev->state & (BIT(IAR_WB_STOP) | BIT(IAR_WB_INIT)))) {
 		pr_err("invalid REQBUFS is requested(%lX)",
 			g_iar_dev->state);
@@ -2193,6 +2270,10 @@ int iar_wb_dqbuf(struct frame_info *frameinfo)
 	struct vio_frame *frame;
 	unsigned long flags;
 
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+	}
 	framemgr = &g_iar_dev->framemgr;
 
 	done_list = &framemgr->queued_list[FS_COMPLETE];
@@ -2211,6 +2292,10 @@ int iar_wb_dqbuf(struct frame_info *frameinfo)
 
 void iar_wb_setcfg(int value)
 {
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return;
+	}
 	g_iar_dev->wb_sel = (value>>8) & 0xff;
 	if (g_iar_dev->wb_sel < 0) {
 		g_iar_dev->wb_sel = 0;
@@ -2232,7 +2317,13 @@ void iar_wb_setcfg(int value)
 
 int iar_wb_getcfg()
 {
-	int value = g_iar_dev->wb_format;
+	int value = 0;
+
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+	}
+	value = g_iar_dev->wb_format;
 	value += (g_iar_dev->wb_sel << 8);
 	return value;
 }
@@ -2264,6 +2355,10 @@ int iar_wb_capture_start(void)
 	int wbcon = ((g_iar_dev->wb_sel&0x3) << 3) + (g_iar_dev->wb_format&0x7);
 	size_t frame_size_y = 0;
 
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+	}
 	framemgr = &g_iar_dev->framemgr;
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_REQUEST);
@@ -2394,6 +2489,10 @@ int iar_wb_capture_done(void)
 	unsigned long flags;
 
 	// group = pym_ctx->group;
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+	}
 	framemgr = &g_iar_dev->framemgr;
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_PROCESS);
@@ -2427,7 +2526,10 @@ int iar_output_stream_on(layer_no)
 	// 	pr_err("invalid STREAM ON is requested(%lX)", g_iar_dev->state);
 	// 	return -EINVAL;
 	// }
-
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+        }
 	g_iar_dev->output_state[layer_no] = 1;
 	// g_iar_dev->state = BIT(IAR_WB_START);
 
@@ -2441,7 +2543,10 @@ int iar_output_stream_off(layer_no)
 	// 	pr_err("invalid STREAMOFF is requested(%lX)", g_iar_dev->state);
 	// 	return -EINVAL;
 	// }
-
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+	}
 	if (g_iar_dev->output_state[layer_no] == 1) {
 		frame_manager_flush(&g_iar_dev->framemgr_layer[layer_no]);
 		frame_manager_close(&g_iar_dev->framemgr_layer[layer_no]);
@@ -2464,6 +2569,10 @@ int iar_output_dqbuf(int layer_no, struct frame_info *frameinfo)
 	struct vio_frame *frame;
 	unsigned long flags;
 
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+	}
 	framemgr = &g_iar_dev->framemgr_layer[layer_no];
 
 	done_list = &framemgr->queued_list[FS_COMPLETE];
@@ -2489,6 +2598,10 @@ int iar_output_qbuf(int layer_no, struct frame_info *frameinfo)
 	unsigned long flags;
 	int index;
 
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+	}
 	index = frameinfo->bufferindex;
 	framemgr = &g_iar_dev->framemgr_layer[layer_no];
 	BUG_ON(index >= framemgr->num_frames);
@@ -2516,6 +2629,10 @@ int iar_output_buf_init(int layer_no, struct frame_info *frameinfo)
 	unsigned long flags;
 	int index;
 
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+	}
 	index = frameinfo->bufferindex;
 	framemgr = &g_iar_dev->framemgr_layer[layer_no];
 	BUG_ON(index >= framemgr->num_frames);
@@ -2540,6 +2657,10 @@ int iar_output_reqbufs(int layer_no, u32 buffers)
 	int ret = 0;
 	struct vio_framemgr *framemgr;
 
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+	}
 	framemgr = &g_iar_dev->framemgr_layer[layer_no];
 	ret = frame_manager_open(framemgr, buffers);
 	if (ret) {
@@ -2562,6 +2683,10 @@ int iar_output_done(int layer_no)
 	int ret = -1;
 
 	// group = pym_ctx->group;
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+	}
 	framemgr = &g_iar_dev->framemgr_layer[layer_no];
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_PROCESS);
@@ -2592,6 +2717,10 @@ int iar_output_start(int layer_no)
 	// int regval = 0;
 	buf_addr_t display_addr;
 
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+	}
 	framemgr = &g_iar_dev->framemgr_layer[layer_no];
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_REQUEST);
@@ -2700,6 +2829,10 @@ int disp_set_ppbuf_addr(uint8_t layer_no, void *yaddr, void *caddr)
 	void __iomem *video_to_display_vaddr;
 	int ret = 0;
 
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+	}
 	if (layer_no > 1)
 		return -1;
 	if (yaddr == NULL)
@@ -2884,6 +3017,10 @@ EXPORT_SYMBOL_GPL(panel_hardware_reset);
 
 int get_iar_module_rst_pin(void)
 {
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+	}
 	return panel_reset_pin;
 }
 EXPORT_SYMBOL_GPL(get_iar_module_rst_pin);
@@ -3139,6 +3276,10 @@ static int iar_debug_show(struct seq_file *s, void *unused)
 	int channel_display_position[4][2];
 	int i = 0;
 
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+	}
 	if (__clk_is_enabled(g_iar_dev->sif_mclk) &&
 			__clk_is_enabled(g_iar_dev->iar_pixel_clk)) {
 		iar_open = 1;
@@ -3147,8 +3288,10 @@ static int iar_debug_show(struct seq_file *s, void *unused)
 		iar_open = 0;
 		seq_printf(s, "Display module status: display module is stop\n");
 	}
-	enable_sif_mclk();
-	iar_pixel_clk_enable();
+	if (enable_sif_mclk() != 0)
+		return -1;
+	if (iar_pixel_clk_enable() != 0)
+		return -1;
 	reg_value = readl(g_iar_dev->regaddr + 0x0);
 	for (i = 0; i < 4; i++) {
 		if ((reg_value >> (24 + i))  & 0x1) {
@@ -3203,8 +3346,13 @@ static int iar_debug_show(struct seq_file *s, void *unused)
 	reg_value = readl(g_iar_dev->regaddr + 0x200);
 	seq_printf(s, "        output resolution width is %d, height is %d\n",
 			reg_value & 0x7ff, (reg_value >> 16) & 0x7ff);
-	disable_sif_mclk();
-	iar_pixel_clk_disable();
+
+	if (disable_sif_mclk() != 0)
+		return -1;
+
+	if (iar_pixel_clk_disable() != 0)
+		return -1;
+
         return 0;
 }
 
@@ -3268,22 +3416,31 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		pr_err("Failed to create client debugfs at %s\n", "iar");
 
 	g_iar_dev->sif_mclk = devm_clk_get(&pdev->dev, "sif_mclk");
-        if (IS_ERR(g_iar_dev->sif_mclk)) {
+        if (IS_ERR_OR_NULL(g_iar_dev->sif_mclk)) {
                 dev_err(&pdev->dev, "failed to get sif_mclk\n");
-                return PTR_ERR(g_iar_dev->sif_mclk);
+                goto err1;
+		//return PTR_ERR(g_iar_dev->sif_mclk);
         }
 	sif_mclk_is_open = __clk_is_enabled(g_iar_dev->sif_mclk);
-	iar_enable_sif_mclk();
+	if (iar_enable_sif_mclk() != 0) {
+		pr_err("Error enable sif mclk!!\n");
+		goto err1;
+	}
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	g_iar_dev->regaddr = devm_ioremap_resource(&pdev->dev, res);
-	if (IS_ERR(g_iar_dev->regaddr))
-		return PTR_ERR(g_iar_dev->regaddr);
+	if (IS_ERR(g_iar_dev->regaddr)) {
+		pr_err("Error remap resource of iar register!\n");
+		goto err1;
+	}
+		//return PTR_ERR(g_iar_dev->regaddr);
 #ifdef CONFIG_HOBOT_XJ3
 	res_mipi = platform_get_resource(pdev, IORESOURCE_MEM, 1);
 	g_iar_dev->mipi_dsi_regaddr =
 		devm_ioremap_resource(&pdev->dev, res_mipi);
-	if (IS_ERR(g_iar_dev->mipi_dsi_regaddr))
-		return PTR_ERR(g_iar_dev->mipi_dsi_regaddr);
+	if (IS_ERR(g_iar_dev->mipi_dsi_regaddr)) {
+		pr_err("Error remap resource of mipi dsi register!\n");
+		goto err1;
+	}
 
 	ret = of_property_read_u32(pdev->dev.of_node,
                         "default_display_type", &display_type);
@@ -3294,7 +3451,7 @@ static int hobot_iar_probe(struct platform_device *pdev)
 			"disp_panel_reset_pin", &panel_reset_pin);
 	if (ret) {
 		dev_err(&pdev->dev, "Filed to get panel_reset_pin\n");
-		return -ENODEV;
+		goto err1;
 	}
 
 	EMBEDIMG(0, "drivers/soc/hobot/iar/bootlogo.bmp");
@@ -3302,7 +3459,7 @@ static int hobot_iar_probe(struct platform_device *pdev)
 	g_iar_dev->rst = devm_reset_control_get(&pdev->dev, "iar");
 	if (IS_ERR(g_iar_dev->rst)) {
 		dev_err(&pdev->dev, "missing controller reset\n");
-		return PTR_ERR(g_iar_dev->rst);
+		goto err1;
 	} else {
 		reset_control_assert(g_iar_dev->rst);
 		udelay(2);
@@ -3317,7 +3474,6 @@ static int hobot_iar_probe(struct platform_device *pdev)
 	g_iar_dev->irq = irq->start;
 	pr_debug("g_iar_dev->irq is %lld\n", irq->start);
 
-	//return 0;
 	g_iar_dev->pinctrl = devm_pinctrl_get(&pdev->dev);
 	if (IS_ERR(g_iar_dev->pinctrl)) {
 		dev_warn(&pdev->dev, "pinctrl get none\n");
@@ -3387,7 +3543,7 @@ static int hobot_iar_probe(struct platform_device *pdev)
 	g_iar_dev->iar_pixel_clk = devm_clk_get(&pdev->dev, "iar_pix_clk");
 	if (IS_ERR(g_iar_dev->iar_pixel_clk)) {
 		dev_err(&pdev->dev, "failed to get iar_pix_clk\n");
-		return PTR_ERR(g_iar_dev->iar_pixel_clk);
+		goto err1;
 	}
 	clk_prepare_enable(g_iar_dev->iar_pixel_clk);
 
@@ -3980,6 +4136,7 @@ static int hobot_iar_probe(struct platform_device *pdev)
 	return 0;
 err1:
 	devm_kfree(&pdev->dev, g_iar_dev);
+	g_iar_dev = NULL;
 	return -1;
 err2:
 #ifdef USE_ION_MEM
@@ -3993,7 +4150,14 @@ static int hobot_iar_remove(struct platform_device *pdev)
 	struct iar_dev_s *iar;
 
 	iar = dev_get_drvdata(&pdev->dev);
-
+	debugfs_remove_recursive(iar->debug_file_iar);
+#ifdef USE_ION_MEM
+	ion_client_destroy(g_iar_dev->iar_iclient);
+#endif
+	free_irq(g_iar_dev->irq, g_iar_dev);
+	devm_kfree(&pdev->dev, g_iar_dev);
+	dev_set_drvdata(&pdev->dev, NULL);
+	g_iar_dev = NULL;
 	return 0;
 }
 

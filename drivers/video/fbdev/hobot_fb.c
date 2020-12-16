@@ -1671,10 +1671,14 @@ static int hbfb_probe(struct platform_device *pdev)
 	}
 
 	strcpy(hobot_fbi->fb.fix.id, DRIVER_NAME);
+	if (hobot_iar_get_framebuf_addr(2) == NULL ||
+			hobot_iar_get_framebuf_addr(3) == NULL) {
+		pr_err("%s: error get fb paddr!!\n", __func__);
+		ret = -1;
+		goto err0;
+	}
 	framebuf_user = *hobot_iar_get_framebuf_addr(2);
 	framebuf_user1 = *hobot_iar_get_framebuf_addr(3);
-//	framebuf_user.paddr = framebuf_user.paddr + 3*MAX_FRAME_BUF_SIZE;
-//	framebuf_user.vaddr = framebuf_user.vaddr + 3*MAX_FRAME_BUF_SIZE;
 	pr_debug("framebuf_user.paddr = 0x%llx\n", framebuf_user.paddr);
 	pr_debug("framebuf_uset.vaddr = 0x%p\n", framebuf_user.vaddr);
 
@@ -1701,54 +1705,32 @@ static int hbfb_probe(struct platform_device *pdev)
 	if (display_type == HDMI_TYPE) {
 		hobot_fbi->fb.fix = fb_1920_1080_fix_default;
 		hobot_fbi->fb.var = fb_1920_1080_var_default;
-		//hobot_fbi->fb.flags = FBINFO_DEFAULT | FBINFO_HWACCEL_YPAN;
-		hobot_fbi->fb.fbops = &hbfb_ops;
-		hobot_fbi->fb.screen_base = framebuf_user.vaddr;
-		hobot_fbi->fb.screen_size = MAX_FRAME_BUF_SIZE;
-		hobot_fbi->fb.pseudo_palette = &hbfb_pseudo_palette;
-		if (fb_alloc_cmap(&hobot_fbi->fb.cmap, 256, 0))
-			return -ENOMEM;
-		hobot_fbi->fb1 = hobot_fbi->fb;
-		hobot_fbi->fb1.fix.smem_start = framebuf_user1.paddr;
-		snprintf(hobot_fbi->fb1.fix.id, sizeof(hobot_fbi->fb1.fix.id),
-				"hobot-fb1");
-		hobot_fbi->fb1.screen_base = framebuf_user1.vaddr;
-		if (fb_alloc_cmap(&hobot_fbi->fb1.cmap, 256, 0))
-			return -ENOMEM;
 	} else if (display_type == MIPI_720P || display_type == MIPI_720P_TOUCH) {
 		hobot_fbi->fb.fix = fb_720_1280_fix_default;
 		hobot_fbi->fb.var = fb_720_1280_var_default;
-		// hobot_fbi->fb.flags = FBINFO_DEFAULT | FBINFO_HWACCEL_YPAN;
-		hobot_fbi->fb.fbops = &hbfb_ops;
-		hobot_fbi->fb.screen_base = framebuf_user.vaddr;
-		hobot_fbi->fb.screen_size = MAX_FRAME_BUF_SIZE;
-		hobot_fbi->fb.pseudo_palette = &hbfb_pseudo_palette;
-		if (fb_alloc_cmap(&hobot_fbi->fb.cmap, 256, 0))
-			return -ENOMEM;
-		hobot_fbi->fb1 = hobot_fbi->fb;
-		hobot_fbi->fb1.fix.smem_start = framebuf_user1.paddr;
-		snprintf(hobot_fbi->fb1.fix.id, sizeof(hobot_fbi->fb1.fix.id),
-				"hobot-fb1");
-		hobot_fbi->fb1.screen_base = framebuf_user1.vaddr;
-		if (fb_alloc_cmap(&hobot_fbi->fb1.cmap, 256, 0))
-			return -ENOMEM;
 	} else if (outmode == OUTPUT_BT1120 && lcd_type == RGB888_700) {
 		hobot_fbi->fb.fix = RGB700_fix_default;
 		hobot_fbi->fb.var = RGB700_var_default;
-		//hobot_fbi->fb.flags = FBINFO_DEFAULT | FBINFO_HWACCEL_YPAN;
-		hobot_fbi->fb.fbops = &hbfb_ops;
-		hobot_fbi->fb.screen_base = framebuf_user.vaddr;
-		hobot_fbi->fb.screen_size = MAX_FRAME_BUF_SIZE;
-		hobot_fbi->fb.pseudo_palette = &hbfb_pseudo_palette;
-		if (fb_alloc_cmap(&hobot_fbi->fb.cmap, 256, 0))
-			return -ENOMEM;
-		hobot_fbi->fb1 = hobot_fbi->fb;
-		hobot_fbi->fb1.fix.smem_start = framebuf_user1.paddr;
-		snprintf(hobot_fbi->fb1.fix.id, sizeof(hobot_fbi->fb1.fix.id),
-				"hobot-fb1");
-		hobot_fbi->fb1.screen_base = framebuf_user1.vaddr;
-		if (fb_alloc_cmap(&hobot_fbi->fb1.cmap, 256, 0))
-			return -ENOMEM;
+	}
+
+	hobot_fbi->fb.fbops = &hbfb_ops;
+	hobot_fbi->fb.screen_base = framebuf_user.vaddr;
+	hobot_fbi->fb.screen_size = MAX_FRAME_BUF_SIZE;
+	hobot_fbi->fb.pseudo_palette = &hbfb_pseudo_palette;
+	if (fb_alloc_cmap(&hobot_fbi->fb.cmap, 256, 0)) {
+		pr_err("%s: fb0 error alloc cmap!!\n", __func__);
+		ret = -ENOMEM;
+		goto err0;
+	}
+	hobot_fbi->fb1 = hobot_fbi->fb;
+	hobot_fbi->fb1.fix.smem_start = framebuf_user1.paddr;
+	snprintf(hobot_fbi->fb1.fix.id, sizeof(hobot_fbi->fb1.fix.id),
+			"hobot-fb1");
+	hobot_fbi->fb1.screen_base = framebuf_user1.vaddr;
+	if (fb_alloc_cmap(&hobot_fbi->fb1.cmap, 256, 0)) {
+		pr_err("%s: fb1 error alloc cmap!!\n", __func__);
+		ret = -ENOMEM;
+		goto err1;
 	}
 
 	platform_set_drvdata(pdev, hobot_fbi);
@@ -1758,8 +1740,7 @@ static int hbfb_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev,
 			"Failed to register framebuffer device: %d\n", ret);
 		if (hobot_fbi->fb.cmap.len)
-			fb_dealloc_cmap(&hobot_fbi->fb.cmap);
-		return ret;
+			goto err1;
 	}
 
 	fb_info(&hobot_fbi->fb, "%s frame buffer at 0x%lx-0x%lx\n",
@@ -1773,8 +1754,7 @@ static int hbfb_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev,
 				"Failed to register framebuffer device: %d\n", ret);
 			if (hobot_fbi->fb1.cmap.len)
-				fb_dealloc_cmap(&hobot_fbi->fb1.cmap);
-			return ret;
+				goto err2;
 		}
 		fb_info(&hobot_fbi->fb1, "%s frame buffer at 0x%lx-0x%lx\n",
 			hobot_fbi->fb1.fix.id, hobot_fbi->fb1.fix.smem_start,
@@ -1783,6 +1763,15 @@ static int hbfb_probe(struct platform_device *pdev)
 #endif
 	pr_info("Hobot fb probe ok!!!\n");
 	return 0;
+err2:
+	fb_dealloc_cmap(&hobot_fbi->fb1.cmap);
+	unregister_framebuffer(&hobot_fbi->fb);
+err1:
+	fb_dealloc_cmap(&hobot_fbi->fb.cmap);
+err0:
+	devm_kfree(&pdev->dev, hobot_fbi);
+	hobot_fbi = NULL;
+	return ret;
 }
 
 static int hbfb_remove(struct platform_device *pdev)
