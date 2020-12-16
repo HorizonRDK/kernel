@@ -15,6 +15,33 @@
 
 / {
 	model = "Hobot X3 SOC MP DVB";
+
+	cnn0_pd_reg_dc: cnn0_pd_reg_dc@2 {
+
+		status = "disabled";
+		compatible = "regulator-gpio";
+		regulator-name = "VCC_CNN0";
+		regulator-min-microvolt = <800000>;
+		regulator-max-microvolt = <800000>;
+		enable-gpio = <&gpios 1 0>;
+		states = <800000 0>;
+		startup-delay-us = <3000>;
+		regulator-boot-on;
+		enable-active-high;
+	};
+
+	cnn1_pd_reg_dc: cnn1_pd_reg_dc@3 {
+		status = "disabled";
+		compatible = "regulator-gpio";
+		regulator-name = "VCC_CNN1";
+		regulator-min-microvolt = <800000>;
+		regulator-max-microvolt = <800000>;
+		enable-gpio = <&gpios 2 0>;
+		states = <800000 0>;
+		startup-delay-us = <3000>;
+		regulator-boot-on;
+		enable-active-high;
+	};
 };
 
 &i2c0 {
@@ -106,11 +133,13 @@
 
 &cnn0 {
 	cnn-supply = <&cnn0_pd_reg>;
+    cnn-supply-dc = <&cnn0_pd_reg_dc>;
 	governor = "userspace";
 };
 
 &cnn1 {
 	cnn-supply = <&cnn1_pd_reg>;
+    cnn-supply-dc = <&cnn1_pd_reg_dc>;
 	governor = "userspace";
 };
 
