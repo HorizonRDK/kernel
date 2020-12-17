@@ -756,6 +756,14 @@ static int hobot_i2c_probe(struct platform_device *pdev)
 
 	dev_info(&pdev->dev, "clkdiv = 0x%x\n", dev->clkdiv);
 
+	dev->i2c_id = i2c_id;
+	dev_err(&pdev->dev, "i2c%d diag register....\n", i2c_id);
+	if (diag_register(ModuleDiag_i2c, EventIdI2cController0Err + i2c_id,
+			5, 300, 4000, NULL) < 0) {
+		dev_err(&pdev->dev, "i2c%d diag register fail\n",
+				EventIdI2cController0Err + i2c_id);
+	}
+
 	irq = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
 	if (!irq) {
 		dev_err(&pdev->dev, "No IRQ resource\n");
@@ -801,13 +809,6 @@ static int hobot_i2c_probe(struct platform_device *pdev)
 	/*
 	 * diag ref init
 	 */
-	dev->i2c_id = i2c_id;
-	dev_info(&pdev->dev, "i2c%d diag register....\n", i2c_id);
-	if (diag_register(ModuleDiag_i2c, EventIdI2cController0Err + i2c_id,
-			5, 300, 4000, NULL) < 0) {
-		dev_err(&pdev->dev, "i2c%d diag register fail\n",
-				EventIdI2cController0Err + i2c_id);
-	}
 	ret = device_create_file(&adap->dev, &speed_attr);
 	if (ret) {
 		dev_err(dev->dev, "create i2c speed_attr error");
