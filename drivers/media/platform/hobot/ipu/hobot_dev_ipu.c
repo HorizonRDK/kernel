@@ -862,6 +862,13 @@ end_req_to_pro:
 	}
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy | (1 << 4) | (1 << shadow_index);
+
+	// rdy bit 1 should set
+	// when using ipu group2 or group3
+	// or ds2 will output all 0 data
+	if (shadow_index == 2 || shadow_index == 3) {
+		rdy |= 0x00000002;
+	}
 	ipu_set_shd_rdy(ipu->base_reg, rdy);
 
 	if (dma_enable) {
@@ -908,6 +915,9 @@ end_req_to_pro:
 			vio_group_done(group);
 			ipu_frame_done(group->sub_ctx[0]);
 		} else {
+			//vio_dbg("[%d]before read, begin dump register\n", instance);
+			//ipu_hw_dump(ipu->base_reg);
+			//vio_dbg("[%d]before read, done dump register\n", instance);
 			ipu_set_rdma_start(ipu->base_reg);
 		}
 	} else {
