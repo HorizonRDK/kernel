@@ -546,7 +546,7 @@ void dwe_sw_deinit(void)
 		}
 		count++;
 	}
-
+#if 0
 	//init ldc
 	tmp = 0x03;
 	set_ldc_soft_reset(dev_ptr->ldc_dev->io_vaddr, &tmp);
@@ -583,10 +583,10 @@ void dwe_sw_deinit(void)
 
 	tmp = 0x03;
 	set_ldc_soft_reset(dev_ptr->ldc_dev->io_vaddr, &tmp);
-
+#endif
 	ldc_acess_mutex = vio_get_ldc_access_mutex();
 	mutex_lock(ldc_acess_mutex);
-	gdc_rst_func();
+	// gdc_rst_func();
 	vio_set_ldc_rst_flag(ldc_rst_flag);
 	mutex_unlock(ldc_acess_mutex);
 	reset_dwe_ctx();

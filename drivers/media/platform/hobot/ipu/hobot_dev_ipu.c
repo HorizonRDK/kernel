@@ -2187,7 +2187,7 @@ int ipu_video_streamoff(struct ipu_video_ctx *ipu_ctx)
 		&& !test_bit(IPU_HW_FORCE_STOP, &ipu_dev->state))
 		goto p_dec;
 
-	vio_reset_module(group->id);
+	// vio_reset_module(group->id);
 
 	clear_bit(IPU_HW_RUN, &ipu_dev->state);
 p_dec:
