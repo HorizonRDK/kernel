@@ -770,6 +770,7 @@
 			offset = <0x240>;
 			bits = <11>;
 			field = <1>;
+			clk-mux-flags = <CLK_MUX_ROUND_CLOSEST>;
 		};
 
 		sensor_1stdiv_clk: sensor_1stdiv_clk {
@@ -779,6 +780,7 @@
 			offset = <0x240>;
 			bits = <0>;
 			field = <5>;
+			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
 		sensor0_mclk: sensor0_mclk {
