@@ -3190,7 +3190,8 @@ static void dw_mci_cto_timer(unsigned long arg)
 		break;
 	default:
 		dev_err(host->dev, "Unexpected command%d timeout, state %d, status:0x%08x\n",
-			 host->cmd->opcode, host->state, mci_readl(host, STATUS));
+			 host->cmd != NULL ? host->cmd->opcode : -1,
+			 host->state, mci_readl(host, STATUS));
 		break;
 	}
 
