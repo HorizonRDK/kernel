@@ -52,6 +52,12 @@ void ae_roi_update( AE_fsm_ptr_t p_fsm )
     uint16_t vert_zones = acamera_isp_metering_hist_aexp_nodes_used_vert_read( p_fsm->cmn.isp_base );
     uint16_t x, y;
 
+    if (horz_zones > ISP_METERING_ZONES_MAX_H || vert_zones > ISP_METERING_ZONES_MAX_V) {
+        pr_err("ae horiz %d, vert %x error.\n", horz_zones, vert_zones);
+        horz_zones = ISP_METERING_ZONES_MAX_H;
+        vert_zones = ISP_METERING_ZONES_MAX_V;
+    }
+
     uint16_t *ptr_ae_zone_whgh_h = _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_AE_ZONE_WGHT_HOR );
     uint16_t *ptr_ae_zone_whgh_v = _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_AE_ZONE_WGHT_VER );
 

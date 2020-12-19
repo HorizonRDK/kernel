@@ -76,6 +76,12 @@ void awb_roi_update( AWB_fsm_ptr_t p_fsm )
     uint16_t *ptr_awb_zone_whgh_h = _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_AWB_ZONE_WGHT_HOR );
     uint16_t *ptr_awb_zone_whgh_v = _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_AWB_ZONE_WGHT_VER );
 
+    if (horz_zones > ISP_METERING_ZONES_MAX_H || vert_zones > ISP_METERING_ZONES_MAX_V) {
+        pr_err("awb horiz %d, vert %x error.\n", horz_zones, vert_zones);
+        horz_zones = ISP_METERING_ZONES_MAX_H;
+        vert_zones = ISP_METERING_ZONES_MAX_V;
+    }
+
     uint8_t x_start = ( uint8_t )( ( ( ( p_fsm->roi >> 24 ) & 0xFF ) * horz_zones + 128 ) >> 8 );
     uint8_t x_end = ( uint8_t )( ( ( ( p_fsm->roi >> 8 ) & 0xFF ) * horz_zones + 128 ) >> 8 );
     uint8_t y_start = ( uint8_t )( ( ( ( p_fsm->roi >> 16 ) & 0xFF ) * vert_zones + 128 ) >> 8 );
@@ -209,12 +215,19 @@ void awb_read_statistics( AWB_fsm_t *p_fsm )
     sbuf_awb_t *p_sbuf_awb_stats = NULL;
     struct sbuf_item sbuf;
     int fw_id = p_fsm->cmn.ctx_id;
-    acamera_context_t *p_ctx = ACAMERA_FSM2CTX_PTR( p_fsm );
-    awb_zone_t temp_awb_stats[MAX_AWB_ZONES] = {0};
+    acamera_context_t *p_ctx = ACAMERA_FSM2CTX_PTR( p_fsm );    
     uint32_t temp_wb[4] = {0};
 
     // Only selected number of zones will contribute
     uint16_t _i;
+    uint16_t horz_zones = acamera_isp_metering_awb_nodes_used_horiz_read( p_fsm->cmn.isp_base );
+    uint16_t vert_zones = acamera_isp_metering_awb_nodes_used_vert_read( p_fsm->cmn.isp_base );
+
+    if (horz_zones > ISP_METERING_ZONES_MAX_H || vert_zones > ISP_METERING_ZONES_MAX_V) {
+        pr_err("awb horiz %d, vert %x error.\n", horz_zones, vert_zones);
+        horz_zones = ISP_METERING_ZONES_MAX_H;
+        vert_zones = ISP_METERING_ZONES_MAX_V;
+    }
 
     p_fsm->sum = 0;
 
@@ -236,8 +249,8 @@ void awb_read_statistics( AWB_fsm_t *p_fsm )
     p_sbuf_awb_stats->frame_id = awb_flow.frame_id_tracking;
 
     // Read out the per zone statistics
-    p_fsm->curr_AWB_ZONES = acamera_isp_metering_awb_nodes_used_horiz_read( p_fsm->cmn.isp_base ) *
-                            acamera_isp_metering_awb_nodes_used_vert_read( p_fsm->cmn.isp_base );
+    p_fsm->curr_AWB_ZONES = horz_zones * vert_zones;
+
     temp_wb[0] = acamera_isp_white_balance_gain_00_read(p_fsm->cmn.isp_base);
     temp_wb[1] = acamera_isp_white_balance_gain_01_read(p_fsm->cmn.isp_base);
     temp_wb[2] = acamera_isp_white_balance_gain_10_read(p_fsm->cmn.isp_base);
@@ -268,9 +281,9 @@ void awb_read_statistics( AWB_fsm_t *p_fsm )
         p_sbuf_awb_stats->stats_data[_i].sum = acamera_awb_statistics_data_read( p_fsm, _i * 2 + 1 );
         p_fsm->sum += p_sbuf_awb_stats->stats_data[_i].sum;
 
-	temp_awb_stats[_i].rg =  (uint16_t)(irg_1);
-	temp_awb_stats[_i].bg =  (uint16_t)(ibg_1);
-	temp_awb_stats[_i].sum =  p_sbuf_awb_stats->stats_data[_i].sum;
+	p_fsm->awb_stats[_i].rg =  (uint16_t)(irg_1);
+	p_fsm->awb_stats[_i].bg =  (uint16_t)(ibg_1);
+	p_fsm->awb_stats[_i].sum =  p_sbuf_awb_stats->stats_data[_i].sum;
     }
 
     int rc = 0;
@@ -281,7 +294,7 @@ void awb_read_statistics( AWB_fsm_t *p_fsm )
 	    if (cn) {
 		    cn->ctx.frame_id = p_ctx->isp_frame_counter;
 		    //memcpy(cn->base, p_sbuf_awb_stats->stats_data, sizeof(p_sbuf_awb_stats->stats_data));
-		    memcpy(cn->base, temp_awb_stats, sizeof(p_sbuf_awb_stats->stats_data));
+		    memcpy(cn->base, p_fsm->awb_stats, sizeof(p_sbuf_awb_stats->stats_data));
 		    cn->ctx.crc16 = crc16(~0, cn->base, sizeof(p_sbuf_awb_stats->stats_data));
 		    isp_ctx_put_node(fw_id, cn, ISP_AWB, DONEQ);
 

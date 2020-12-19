@@ -103,7 +103,7 @@ struct _AWB_fsm_t {
     uint32_t pre_result_gain_frame_id;
     uint32_t cur_result_gain_frame_id;
     uint32_t first_frame;
-
+    awb_zone_t awb_stats[MAX_AWB_ZONES];
     awb_state_t state;
 };
 

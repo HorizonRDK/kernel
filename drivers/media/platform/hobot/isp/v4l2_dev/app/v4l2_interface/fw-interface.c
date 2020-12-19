@@ -1331,6 +1331,7 @@ int isp_fw_set_power_line_freq(uint32_t ctx_id, int freq)
 }
 int isp_fw_do_set_gamma(uint32_t ctx_id, uint32_t gamma)
 {
+#if 0
 	int result;
 	sbuf_gamma_t sbuf_gamma;
 
@@ -1341,10 +1342,7 @@ int isp_fw_do_set_gamma(uint32_t ctx_id, uint32_t gamma)
 		pr_err("context %d is not initialized.\n", ctx_id);
 		return -1;
 	}
-	if (p_ctx && p_ctx->initialized == 0) {
-		pr_err("context %d is not initialized.\n", ctx_id);
-		return -1;
-	}
+
 	sbuf_gamma.gamma_gain = gamma;
 	sbuf_gamma.gamma_offset = 0;
     result = acamera_fsm_mgr_set_param(&p_ctx->fsm_mgr,
@@ -1355,6 +1353,7 @@ int isp_fw_do_set_gamma(uint32_t ctx_id, uint32_t gamma)
 					gamma, result);
         return result;
     }
+#endif
 	return 0;
 }
 /* ----------------------------------------------------------------

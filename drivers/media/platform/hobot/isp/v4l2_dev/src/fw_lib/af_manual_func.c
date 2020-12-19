@@ -141,7 +141,6 @@ void af_set_new_param( AF_fsm_ptr_t p_fsm, sbuf_af_t *p_sbuf_af )
 void af_read_stats_data( AF_fsm_ptr_t p_fsm )
 {
     uint8_t zones_horiz, zones_vert, x, y;
-    uint32_t( *stats )[2];
     sbuf_af_t *p_sbuf_af = NULL;
     struct sbuf_item sbuf;
     int fw_id = p_fsm->cmn.ctx_id;
@@ -164,10 +163,10 @@ void af_read_stats_data( AF_fsm_ptr_t p_fsm )
 
     zones_horiz = acamera_isp_metering_af_nodes_used_horiz_read( p_fsm->cmn.isp_base );
     zones_vert = acamera_isp_metering_af_nodes_used_vert_read( p_fsm->cmn.isp_base );
-    stats = p_sbuf_af->stats_data;
     p_sbuf_af->frame_num = p_fsm->frame_num;
 
-    if ( !zones_horiz || !zones_vert ) {
+    if ( !zones_horiz || !zones_vert || zones_horiz * zones_vert > AF_ZONES_COUNT_MAX * 2 ) {
+        pr_err("af horiz %d, vert %x error.\n", zones_horiz, zones_vert);
         zones_horiz = ISP_DEFAULT_AF_ZONES_HOR;
         zones_vert = ISP_DEFAULT_AF_ZONES_VERT;
     }
@@ -186,8 +185,8 @@ void af_read_stats_data( AF_fsm_ptr_t p_fsm )
         uint32_t inx = (uint32_t)y * zones_horiz;
         for ( x = 0; x < zones_horiz; x++ ) {
             uint32_t full_inx = inx + x;
-            stats[full_inx][0] = acamera_metering_stats_mem_array_data_read( p_fsm->cmn.isp_base, ISP_METERING_OFFSET_AUTO_FOCUS + ( ( full_inx ) << 1 ) + 0 );
-            stats[full_inx][1] = acamera_metering_stats_mem_array_data_read( p_fsm->cmn.isp_base, ISP_METERING_OFFSET_AUTO_FOCUS + ( ( full_inx ) << 1 ) + 1 );
+            p_sbuf_af->stats_data[full_inx][0] = acamera_metering_stats_mem_array_data_read( p_fsm->cmn.isp_base, ISP_METERING_OFFSET_AUTO_FOCUS + ( ( full_inx ) << 1 ) + 0 );
+            p_sbuf_af->stats_data[full_inx][1] = acamera_metering_stats_mem_array_data_read( p_fsm->cmn.isp_base, ISP_METERING_OFFSET_AUTO_FOCUS + ( ( full_inx ) << 1 ) + 1 );
         }
     }
 
