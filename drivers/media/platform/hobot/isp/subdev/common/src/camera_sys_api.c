@@ -10,7 +10,7 @@
  *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *    GNU General Public License for more details.
  */
-#define pr_fmt(fmt) "[isp_drv]: %s: " fmt, __func__
+#define pr_fmt(fmt) "[isp_drv:cam]: %s: " fmt, __func__
 #include <linux/platform_device.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
@@ -1680,7 +1680,7 @@ int camera_sys_stream_off(uint32_t port)
 		// pr_info("stream off setting_size %d\n", setting_size);
 		for(i = 0; i < setting_size; i++) {
 			// pr_info(" stream_off[i*2] 0x%x stream_off[i*2 + 1] 0x%x \n",
-			//		stream_off[i*2], stream_off[i*2 + 1]);
+			// 		stream_off[i*2], stream_off[i*2 + 1]);
 			if(stream_off[i*2]) {
 				if(data_length == 1) {
 					buf[0] = (char)(stream_off[i*2 + 1] & 0xff);

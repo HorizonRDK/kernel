@@ -13,7 +13,7 @@
  *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *    GNU General Public License for more details.
  */
-
+#define pr_fmt(fmt) "[dwe_drv]: %s: " fmt, __func__
 #include <linux/cdev.h>
 #include <linux/device.h>
 #include <linux/of_device.h>
@@ -61,6 +61,7 @@ struct mutex g_lock;
 
 extern void vio_dwe_clk_enable(void);
 extern void vio_dwe_clk_disable(void);
+extern void ldc_clk_disable(void);
 
 static int dwe_fop_open(struct inode *pinode, struct file *pfile)
 {
@@ -70,6 +71,8 @@ static int dwe_fop_open(struct inode *pinode, struct file *pfile)
 	//int minor = iminor(pinode);
 	int minor = imajor(pinode);
 
+	vio_rst_mutex_lock();
+	pr_debug("+\n");
 	for (tmp = 0; tmp < FIRMWARE_CONTEXT_NUMBER; tmp++) {
 		if (dwe_mod[tmp]->dev_minor_id == minor) {
 			dwe_cdev = dwe_mod[tmp];
@@ -80,11 +83,13 @@ static int dwe_fop_open(struct inode *pinode, struct file *pfile)
 
 	if (dwe_cdev == NULL) {
 		LOG(LOG_ERR, " minor is error !\n");
+		vio_rst_mutex_unlock();
 		return -EINVAL;
 	}
 
 	if (dwe_cdev->user_num > 0) {
 		LOG(LOG_ERR, " more than one pthred use !\n");
+		vio_rst_mutex_unlock();
 		return -ENXIO;
 	}
 
@@ -95,15 +100,16 @@ static int dwe_fop_open(struct inode *pinode, struct file *pfile)
 
 	mutex_lock(&g_lock);
 	if (pipe_count == 0) {
-		vio_ldc_access_mutex_lock();
+		if (sif_mclk_freq)
+			vio_set_clk_rate("sif_mclk", sif_mclk_freq);
+		ips_set_clk_ctrl(DWE0_CLOCK_GATE, true);
+		ips_set_clk_ctrl(LDC0_CLOCK_GATE, true);
 		vio_set_ldc_rst_flag(0);
-		vio_ldc_access_mutex_unlock();
-		vio_dwe_clk_enable();
 		dwe_sw_init();
 	}
 	pipe_count++;
 	mutex_unlock(&g_lock);
-
+	vio_rst_mutex_unlock();
 	//init stream
 	ret = dwe_v4l2_stream_init(&dwe_mod[tmp]->pstream, tmp);
 
@@ -125,11 +131,17 @@ static int dwe_fop_open(struct inode *pinode, struct file *pfile)
 		goto vb2_failed;
 	}
 
-	LOG(LOG_INFO, "open is success !\n");
+	pr_debug("-\n");
 
 	return 0;
 vb2_failed:
 	dwe_v4l2_stream_deinit(dwe_mod[tmp]->pstream);
+
+	pipe_count--;
+	if (pipe_count == 0) {
+		vio_down_func_unregister(LDC_RST);
+		ldc_clk_disable();
+	}
 	//dwe_vb2_queue_release(&dwe_mod[tmp]->vb2_q);
 	return ret;
 }
@@ -143,6 +155,8 @@ static int dwe_fop_release(struct inode *pinode, struct file *pfile)
 		return -ENXIO;
 	}
 
+	pr_debug("+\n");
+	vio_rst_mutex_lock();
 	//mutex_lock(&dwe_cdev->slock);
 	dwe_cdev->user_num--;
 	//mutex_unlock(&dwe_cdev->slock);
@@ -168,11 +182,11 @@ static int dwe_fop_release(struct inode *pinode, struct file *pfile)
 	pipe_count--;
 	if (pipe_count == 0) {
 		dwe_sw_deinit();
-		vio_dwe_clk_disable();
 	}
 	mutex_unlock(&g_lock);
+	vio_rst_mutex_unlock();
+	pr_debug("-\n");
 
-	LOG(LOG_DEBUG, "close is success!\n");
 	return 0;
 }
 

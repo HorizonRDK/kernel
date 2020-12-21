@@ -35,13 +35,15 @@ enum FrameErrorType{
 
 enum RST_id{
 	SIF_RST,
+	ISP0_RST,
+	LDC_RST,
 	DWE1_RST,
 	DWE0_RST,
 	IPU0_RST,
-	ISP0_RST,
 	IRAM_RST,
-	IPU_PYM_RST,
 	PYM_RST,
+	IPU_PYM_RST,
+	MAX_RST,
 };
 
 enum clock_gate{

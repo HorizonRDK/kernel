@@ -316,9 +316,12 @@ static irqreturn_t x3_ldc_irq(int this_irq, void *data)
 		//debug
 		uint32_t addr;
 		uint32_t tmp;
-		pr_debug("----ldc start----");
-		pr_debug("----next port 0x%x----", dwe_ctx->ctx.ldc_next_port);
-		pr_debug("----ldc_irqstatus 0x%x----", dwe_ctx->ldc_irqstatus);
+		// pr_debug("----ldc start----");
+		// pr_debug("----next port 0x%x----", dwe_ctx->ctx.ldc_next_port);
+		pr_debug("ldc irq %x\n", dwe_ctx->ldc_irqstatus);
+		if (dwe_ctx->ldc_irqstatus & 0x20)
+			pr_debug("ldc overflow\n");
+#if 0
 		addr = 0x44;
 		ldc_debug_info(dwe_ctx->dev_ctx->ldc_dev->io_vaddr, addr, &tmp);
 		pr_debug("[dump] addr 0x%x, data 0x%x", addr, tmp);
@@ -330,7 +333,7 @@ static irqreturn_t x3_ldc_irq(int this_irq, void *data)
 		pr_debug("[dump] addr 0x%x, data 0x%x", addr, tmp);
 		//
 		LOG(LOG_INFO, "----ldc_irqstatus %x----", dwe_ctx->ldc_irqstatus);
-
+#endif
 		ldc_error_sts = 0;
 
 		dwe_ctx->ldc_irqstatus = tmp_irq.status_g;
@@ -355,7 +358,7 @@ static irqreturn_t x3_ldc_irq(int this_irq, void *data)
 	if (tmp_irq.status_b.output_frame_done == 1) {
 		dwe_ctx->ldc_irqstatus |= tmp_irq.status_g;
 		dwe_ctx->ctx.ldc_running = 0;
-		pr_debug("----ldc done----");
+		pr_debug("ldc frame done\n");
 		//if online
 		if (dwe_ctx->ctx.online_enable == 1) {
 			dwe_ctx->ctx.ldc_next_port = dwe_ctx->ctx.online_port;

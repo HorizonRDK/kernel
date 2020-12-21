@@ -164,6 +164,26 @@ int isp_v4l2_update_ctx(int ctx_id)
     return rc;
 }
 
+static void isp_reset(void)
+{
+    pr_debug("+");
+    ips_set_module_reset(ISP0_RST);
+    pr_debug("-");
+}
+
+static void isp_clk_disable(void)
+{
+    pr_debug("+");
+    ips_set_clk_ctrl(ISP0_CLOCK_GATE, false);
+    pm_qos_remove_request(&isp_pm_qos_req);
+    pr_debug("-");
+}
+
+static vio_module_down_t isp_down = {
+	.rst_cb = isp_reset,
+	.clk_cb = isp_clk_disable,
+};
+
 /* ----------------------------------------------------------------
  * V4L2 file operations
  */
@@ -173,9 +193,11 @@ static int isp_v4l2_fop_open( struct file *file )
     isp_v4l2_dev_t *dev = video_drvdata( file );
     struct isp_v4l2_fh *sp;
 
+    vio_rst_mutex_lock();
     if (!(0 <= dev->ctx_id && dev->ctx_id < FIRMWARE_CONTEXT_NUMBER)) {
         rc = -1;
         pr_err("ctx_id %d exceed valid range\n", dev->ctx_id);
+        vio_rst_mutex_unlock();
         return rc;
     }
 
@@ -188,6 +210,7 @@ static int isp_v4l2_fop_open( struct file *file )
         mdelay(1);
         ips_set_module_reset(ISP0_RST);
         mdelay(1);
+        vio_down_func_register(ISP0_RST, &isp_down);
     }
 
     /* update open counter */
@@ -235,6 +258,7 @@ static int isp_v4l2_fop_open( struct file *file )
 
     pr_debug("ctx_id %d -\n", dev->ctx_id);
     mutex_unlock(&init_lock);
+    vio_rst_mutex_unlock();
 
     return rc;
 
@@ -248,11 +272,12 @@ fh_open_fail:
 	atomic_sub_return(1, &dev->opened);
 	//isp hardware stop
 	if (isp_open_check() == 0) {
-		pm_qos_remove_request(&isp_pm_qos_req);
-		ips_set_clk_ctrl(ISP0_CLOCK_GATE, false);
-		acamera_fw_mem_free();
+        vio_down_func_unregister(ISP0_RST);
+        acamera_fw_mem_free();
+        isp_clk_disable();
 	}
 	mutex_unlock(&init_lock);
+    vio_rst_mutex_unlock();
     return rc;
 }
 
@@ -266,6 +291,7 @@ static int isp_v4l2_fop_close( struct file *file )
 
     pr_debug("ctx_id %d +\n", dev->ctx_id);
 
+    vio_rst_mutex_lock();
 	mutex_lock(&init_lock);
 
     dev->stream_mask &= ~( 1 << sp->stream_id );
@@ -283,9 +309,8 @@ static int isp_v4l2_fop_close( struct file *file )
         acamera_fw_isp_stop(dev->ctx_id);
         general_temper_disable();
         dma_writer_disable(dev->ctx_id);
-        ips_set_clk_ctrl(ISP0_CLOCK_GATE, false);
         acamera_fw_mem_free();
-        pm_qos_remove_request(&isp_pm_qos_req);
+        vio_reset_module(ISP0_RST);
     }
     acamera_isp_deinit_context(dev->ctx_id);
 
@@ -316,6 +341,7 @@ static int isp_v4l2_fop_close( struct file *file )
     isp_v4l2_fh_release( file );
 
     mutex_unlock(&init_lock);
+    vio_rst_mutex_unlock();
 
     pr_debug("ctx_id %d -\n", dev->ctx_id);
 
@@ -542,9 +568,6 @@ static int _v4l2_stream_off(struct file *file)
 
     /* Stop hardware */
     if (isp_stream_onoff_check() == 0) {
-        acamera_fw_isp_stop(dev->ctx_id);
-        general_temper_disable();
-        dma_writer_disable(dev->ctx_id);
 #if FW_USE_HOBOT_DMA
         system_dma_desc_flush();
 #endif
