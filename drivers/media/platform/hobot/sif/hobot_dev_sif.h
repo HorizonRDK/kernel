@@ -263,6 +263,8 @@ struct x3_sif_dev {
 
 	struct vio_group_task	sifin_task;
 	struct vio_group_task	sifout_task[SIF_MUX_MAX];
+	struct vio_work sifout_work[VIO_MAX_STREAM][VIO_MP_MAX_FRAMES];
+	struct vio_work sifin_work[VIO_MAX_STREAM][VIO_MP_MAX_FRAMES];
 };
 
 typedef enum HB_SYS_MOD_ID_E {

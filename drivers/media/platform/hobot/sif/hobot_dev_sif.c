@@ -423,10 +423,7 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 	if (atomic_dec_return(&sif->open_cnt) == 0) {
 		clear_bit(SIF_DMA_IN_ENABLE, &sif->state);
 		clear_bit(SIF_OTF_OUTPUT, &sif->state);
-		sif_hw_disable(sif->base_reg);
-		clear_bit(SIF_HW_RUN, &sif->state);
 		atomic_set(&sif->isp_init_cnt, 0);
-		atomic_set(&sif->rsccount, 0);
 		//it should disable after ipu stream off because it maybe contain ipu/sif clk
 		//vio_clk_disable("sif_mclk");
 		ips_set_module_reset(SIF_RST);
@@ -842,20 +839,19 @@ int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 		sif_raw_isp_output_config(sif_dev->base_reg, &subdev->sif_cfg.output);
 	}
 	if (atomic_read(&sif_dev->rsccount) > 0) {
-		mutex_unlock(&sif_dev->shared_mutex);
 		goto p_inc;
 	}
 	sif_dev->error_count = 0;
 	sif_hw_post_config(sif_dev->base_reg, &subdev->sif_cfg);
 	sif_hw_enable(sif_dev->base_reg);
 	set_bit(SIF_HW_RUN, &sif_dev->state);
-	mutex_unlock(&sif_dev->shared_mutex);
 
 p_inc:
 	if(isp_enable) {
 		atomic_inc(&sif_dev->isp_init_cnt);
 	}
 	atomic_inc(&sif_dev->rsccount);
+	mutex_unlock(&sif_dev->shared_mutex);
 	set_bit(SIF_SUBDEV_STREAM_ON, &subdev->state);
 
 	vio_clear_stat_info(sif_ctx->group->instance);
@@ -897,8 +893,17 @@ int sif_video_streamoff(struct sif_video_ctx *sif_ctx)
 		for (i = 0; i < subdev->ipi_channels; i++)
 			sif_disable_ipi(sif_dev->base_reg, subdev->ipi_index + i);
 	}
+	if (atomic_dec_return(&sif_dev->rsccount) > 0) {
+		mutex_unlock(&sif_dev->shared_mutex);
+		goto p_dec;
+	}
+
+	msleep(100);
+	sif_hw_disable(sif_dev->base_reg);
+	clear_bit(SIF_HW_RUN, &sif_dev->state);
+	atomic_set(&sif_dev->rsccount, 0);
 	mutex_unlock(&sif_dev->shared_mutex);
-	atomic_dec_return(&sif_dev->rsccount);
+p_dec:
 
 	if (framemgr->frames != NULL)
 		frame_manager_flush(framemgr);
@@ -926,9 +931,10 @@ int sif_video_s_stream(struct sif_video_ctx *sif_ctx, bool enable)
 int sif_video_reqbufs(struct sif_video_ctx *sif_ctx, u32 buffers)
 {
 	int ret = 0;
-	int i = 0;
+	int i = 0, instance;
 	struct vio_framemgr *framemgr;
 	struct vio_group *group;
+	struct x3_sif_dev *sif;
 	struct sif_subdev *subdev;
 
 	if (!(sif_ctx->state & (BIT(VIO_VIDEO_STOP) | BIT(VIO_VIDEO_REBUFS) |
@@ -938,8 +944,9 @@ int sif_video_reqbufs(struct sif_video_ctx *sif_ctx, u32 buffers)
 		return -EINVAL;
 	}
 	sif_ctx->state = BIT(VIO_VIDEO_REBUFS);
-
+	sif = sif_ctx->sif_dev;
 	subdev = sif_ctx->subdev;
+	instance = sif_ctx->group->instance;
 	if (test_bit(SIF_SUBDEV_REQBUF, &subdev->state)) {
 		vio_info("subdev already reqbufs, current refcount(%d)\n",
 				atomic_read(&subdev->refcount));
@@ -955,9 +962,16 @@ int sif_video_reqbufs(struct sif_video_ctx *sif_ctx, u32 buffers)
 
 	group = sif_ctx->group;
 	for (i = 0; i < buffers; i++) {
-		framemgr->frames[i].data = group;
+		if (sif_ctx->id == 0) {
+			framemgr->frames[i].mp_work = &sif->sifout_work[instance][i].work;
+			frame_work_init(&sif->sifout_work[instance][i].work);
+			sif->sifout_work[instance][i].group = group;
+		} else {
+			frame_work_init(&sif->sifin_work[instance][i].work);
+			framemgr->frames[i].mp_work = &sif->sifin_work[instance][i].work;
+			sif->sifin_work[instance][i].group = group;
+		}
 	}
-
 	set_bit(SIF_SUBDEV_REQBUF, &subdev->state);
 
 	vio_info("[S%d][V%d]%s reqbuf num %d\n", group->instance,
@@ -1006,7 +1020,7 @@ int sif_video_qbuf(struct sif_video_ctx *sif_ctx,
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
 	group = sif_ctx->group;
-	vio_group_start_trigger(group, frame);
+	vio_group_start_trigger_mp(group, frame);
 
 	if (sif_ctx->ctx_index == 0)
 		sif->statistic.q_normal\

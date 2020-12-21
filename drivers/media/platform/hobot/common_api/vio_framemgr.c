@@ -311,7 +311,7 @@ int frame_manager_open(struct vio_framemgr *this, u32 buffers)
 	for (i = 0; i < buffers; ++i) {
 		this->frames[i].index = i;
 		put_frame(this, &this->frames[i], FS_FREE);
-		kthread_init_work(&this->frames[i].work, frame_work_function);
+		// kthread_init_work(&this->frames[i].work, frame_work_function);
 	}
 
 	spin_unlock_irqrestore(&this->slock, flag);
