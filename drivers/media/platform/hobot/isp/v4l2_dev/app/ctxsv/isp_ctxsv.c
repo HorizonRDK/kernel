@@ -122,7 +122,7 @@ isp_ctx_node_t *isp_ctx_get_node_timeout(int ctx_id, isp_info_type_e it,
 		system_chardev_lock();
 	}
 
-	if (ret == 0) {
+	if (ret >= 0) {
 		spin_lock(&lock);
 		if (!list_empty(&ctx_queue[ctx_id][it].ctx_node_head[qt])) {
 			node = ctx_queue[ctx_id][it].ctx_node_head[qt].next;
