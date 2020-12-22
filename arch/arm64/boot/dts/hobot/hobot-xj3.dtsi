@@ -1329,6 +1329,7 @@
 			ddr_type = "0";
 			ddr_freq = "0";
 			ddr_size = "0";
+			ddr_part_num = "0";
 			som_name = "0";
 			base_board_name = "0";
 			boot_mode = "0";

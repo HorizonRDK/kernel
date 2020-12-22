@@ -37,6 +37,7 @@ const char *ddr_vender;
 const char *ddr_type;
 const char *ddr_freq;
 const char *ddr_size;
+const char *ddr_part_num;
 const char *som_name;
 const char *base_board_name;
 const char *board_name;
@@ -284,6 +285,16 @@ ssize_t ddr_size_show(struct class *class,
 	return strlen(buf);
 }
 
+ssize_t ddr_part_num_show(struct class *class,
+			struct class_attribute *attr, char *buf)
+{
+	if (!buf)
+		return 0;
+	snprintf(buf, BUF_LEN, "%s\n", ddr_part_num);
+
+	return strlen(buf);
+}
+
 ssize_t som_name_show(struct class *class,
 			struct class_attribute *attr, char *buf)
 {
@@ -341,6 +352,9 @@ static struct class_attribute ddr_freq_attribute =
 static struct class_attribute ddr_size_attribute =
 	__ATTR(ddr_size, 0644, ddr_size_show, soc_store);
 
+static struct class_attribute ddr_part_num_attribute =
+	__ATTR(ddr_part_num, 0644, ddr_part_num_show, soc_store);
+
 static struct class_attribute som_name_attribute =
 	__ATTR(som_name, 0644, som_name_show, soc_store);
 
@@ -364,6 +378,7 @@ static struct attribute *socinfo_attributes[] = {
 	&ddr_name_attribute.attr,
 	&ddr_freq_attribute.attr,
 	&ddr_size_attribute.attr,
+	&ddr_part_num_attribute.attr,
 	&som_name_attribute.attr,
 	&base_board_name_attribute.attr,
 	&boot_attribute.attr,
@@ -441,6 +456,13 @@ static int socinfo_probe(struct platform_device *pdev)
 
 	ret = of_property_read_string(pdev->dev.of_node, "ddr_size",
 		&ddr_size);
+	if (ret != 0) {
+		pr_err("of_property_read_string error\n");
+		return ret;
+	}
+
+	ret = of_property_read_string(pdev->dev.of_node, "ddr_part_num",
+		&ddr_part_num);
 	if (ret != 0) {
 		pr_err("of_property_read_string error\n");
 		return ret;
