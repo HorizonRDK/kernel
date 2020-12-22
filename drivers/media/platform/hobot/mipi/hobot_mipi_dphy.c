@@ -63,7 +63,7 @@ module_param(reg_addr, uint, 0644);
 module_param(reg_size, uint, 0644);
 #endif
 
-/* module params */
+/* module params: txout freq */
 unsigned int txout_freq_mode;
 unsigned int txout_freq_autolarge_enbale;
 unsigned int txout_freq_gain_precent = 5;
@@ -73,6 +73,12 @@ module_param(txout_freq_mode, uint, 0644);
 module_param(txout_freq_autolarge_enbale, uint, 0644);
 module_param(txout_freq_gain_precent, uint, 0644);
 module_param(txout_freq_force, uint, 0644);
+
+/* module params: rxdphy vref */
+unsigned int rxdphy_vrefcd_lprx = 1;
+unsigned int rxdphy_v400_prog = 4;
+module_param(rxdphy_vrefcd_lprx, uint, 0644);
+module_param(rxdphy_v400_prog, uint, 0644);
 
 #define DPHY_RAISE               (1)
 #define DPHY_RESETN              (0)
@@ -98,6 +104,7 @@ module_param(txout_freq_force, uint, 0644);
 #define REGS_RX_STARTUP_OVR_4    (0xE4)
 #define REGS_RX_STARTUP_OVR_5    (0xE5)
 #define REGS_RX_STARTUP_OVR_17   (0xF1)
+#define REGS_RX_CB_0             (0x1aa)
 #define REGS_RX_CB_2             (0x1ac)
 #define REGS_RX_CLKLANE_LANE_6   (0x307)
 #define REGS_RX_LANE0_DDL_4      (0x60A)
@@ -150,6 +157,7 @@ module_param(txout_freq_force, uint, 0644);
 #define RX_HS_SETTLE(s)          (0x80 | ((s) & 0x7F))
 #define RX_SYSTEM_CONFIG         (0x38)
 #define RX_CB_BIAS_ATB           (0x4D)
+#define RX_CB_VREF_CB(lp, v4)    ((((lp) & 0x3) << 5) | (((v4) & 0x7) << 2) | 0x03)
 #define RX_CLKLANE_PULLLONG      (0x80)
 #define RX_OSCFREQ_HIGH(f)       (((f) & 0xF00) >> 8)
 #define RX_OSCFREQ_LOW(f)        ((f) & 0xFF)
@@ -537,6 +545,7 @@ int32_t mipi_host_dphy_initialize(uint16_t mipiclk, uint16_t lane, uint16_t sett
 	mipi_host_dphy_testdata(phy, iomem, REGS_RX_SYS_7, RX_SYSTEM_CONFIG);
 	if (is_1p4) {
 		mipi_host_dphy_testdata(phy, iomem, REGS_RX_CLKLANE_LANE_6, RX_CLKLANE_PULLLONG);
+		mipi_host_dphy_testdata(phy, iomem, REGS_RX_CB_0, RX_CB_VREF_CB(rxdphy_vrefcd_lprx, rxdphy_v400_prog));
 		mipi_host_dphy_testdata(phy, iomem, REGS_RX_CB_2, RX_CB_BIAS_ATB);
 		mipi_host_dphy_testdata(phy, iomem, REGS_RX_STARTUP_OVR_2, RX_OSCFREQ_LOW(osc_freq));
 		mipi_host_dphy_testdata(phy, iomem, REGS_RX_STARTUP_OVR_3, RX_OSCFREQ_HIGH(osc_freq));

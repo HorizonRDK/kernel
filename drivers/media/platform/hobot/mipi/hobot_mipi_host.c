@@ -223,6 +223,7 @@ typedef struct _mipi_host_param_s {
 	/* type must be: uint32_t */
 	uint32_t nocheck;
 	uint32_t notimeout;
+	uint32_t wait_ms;
 	uint32_t dbg_value;
 	uint32_t adv_value;
 	uint32_t need_stop_check;
@@ -252,6 +253,7 @@ typedef struct _mipi_host_param_s {
 static const char *g_mh_param_names[] = {
 	"nocheck",
 	"notimeout",
+	"wait_ms",
 	"dbg_value",
 	"adv_value",
 	"need_stop_check",
@@ -1940,7 +1942,7 @@ static int32_t mipi_host_dphy_wait_stop(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 			return 0;
 		mdelay(1);
 		ncount++;
-	} while (param->notimeout || ncount <= HOST_DPHY_CHECK_MAX);
+	} while (param->notimeout || ncount <= param->wait_ms);
 
 	mipierr("lane state of host phy is error: 0x%x", stopstate);
 	return -1;
@@ -1957,16 +1959,21 @@ static int32_t mipi_host_dphy_start_hs_reception(mipi_hdev_t *hdev)
 {
 	struct device *dev = hdev->dev;
 	mipi_host_t *host = &hdev->host;
-	mipi_host_param_t *param = &host->param;
+	mipi_host_param_t *param;
 	void __iomem *iomem = host->iomem;
 	uint16_t ncount = 0;
 	uint32_t state = 0;
-	uint32_t notimeout;
 
 	if (!hdev || !iomem)
 		return -1;
 
 	mipiinfo("check hs reception");
+
+	/* param from main host if ex */
+	if (hdev->is_ex)
+		param = &(g_hdev[mipi_host_port_other(hdev)]->host.param);
+	else
+		param = &host->param;
 	/*Check that clock lane is in HS mode*/
 	do {
 		state = mipi_getreg(iomem + REG_MIPI_HOST_PHY_RX);
@@ -1976,9 +1983,7 @@ static int32_t mipi_host_dphy_start_hs_reception(mipi_hdev_t *hdev)
 		}
 		ncount++;
 		mdelay(1);
-		notimeout = (hdev->is_ex) ?
-			g_hdev[mipi_host_port_other(hdev)]->host.param.notimeout : param->notimeout;
-	} while (notimeout || ncount <= HOST_DPHY_CHECK_MAX);
+	} while (param->notimeout || ncount <= param->wait_ms);
 
 	mipiinfo("hs reception check error 0x%x", state);
 	return -1;
@@ -2852,6 +2857,7 @@ static ssize_t mipi_host_param_store(struct device *dev,
 
 MIPI_HOST_PARAM_DEC(nocheck);
 MIPI_HOST_PARAM_DEC(notimeout);
+MIPI_HOST_PARAM_DEC(wait_ms);
 MIPI_HOST_PARAM_DEC(dbg_value);
 MIPI_HOST_PARAM_DEC(adv_value);
 MIPI_HOST_PARAM_DEC(need_stop_check);
@@ -2880,6 +2886,7 @@ MIPI_HOST_PARAM_DEC(irq_debug);
 static struct attribute *param_attr[] = {
 	MIPI_HOST_PARAM_ADD(nocheck),
 	MIPI_HOST_PARAM_ADD(notimeout),
+	MIPI_HOST_PARAM_ADD(wait_ms),
 	MIPI_HOST_PARAM_ADD(dbg_value),
 	MIPI_HOST_PARAM_ADD(adv_value),
 	MIPI_HOST_PARAM_ADD(need_stop_check),
@@ -3522,6 +3529,7 @@ static int hobot_mipi_host_probe_param(void)
 		param->adv_value = MIPI_HOST_ADV_DEFAULT;
 		param->cut_through = MIPI_HOST_CUT_DEFAULT;
 		param->ipi_limit = MIPI_HOST_IPILIMIT_DEFAULT;
+		param->wait_ms = HOST_DPHY_CHECK_MAX;
 
 		hobot_mipi_host_phy_register(hdev);
 		g_hdev[i] = hdev;
@@ -3643,6 +3651,7 @@ static int hobot_mipi_host_probe(struct platform_device *pdev)
 	param->adv_value = MIPI_HOST_ADV_DEFAULT;
 	param->cut_through = MIPI_HOST_CUT_DEFAULT;
 	param->ipi_limit = MIPI_HOST_IPILIMIT_DEFAULT;
+	param->wait_ms = HOST_DPHY_CHECK_MAX;
 
 	platform_set_drvdata(pdev, hdev);
 

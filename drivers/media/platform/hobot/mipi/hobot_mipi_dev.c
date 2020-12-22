@@ -191,6 +191,7 @@ typedef struct _mipi_dev_param_s {
 	/* type must be: uint32_t */
 	uint32_t nocheck;
 	uint32_t notimeout;
+	uint32_t wait_ms;
 	uint32_t dbg_value;
 	uint32_t power_instart;
 	uint32_t hsync_pkt;
@@ -219,6 +220,7 @@ typedef struct _mipi_dev_param_s {
 static const char *g_md_param_names[] = {
 	"nocheck",
 	"notimeout",
+	"wait_ms",
 	"dbg_value",
 	"power_instart",
 	"hsync_pkt",
@@ -1362,7 +1364,7 @@ static int32_t mipi_dev_wait_phy_powerup(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 		}
 		ncount++;
 		mdelay(1);
-	} while (param->notimeout || ncount <= DEV_DPHY_CHECK_MAX);
+	} while (param->notimeout || ncount <= param->wait_ms);
 
 	mipierr("lane state of dev phy is error: 0x%x", state);
 	return -1;
@@ -1942,6 +1944,7 @@ static ssize_t mipi_dev_param_store(struct device *dev,
 
 MIPI_DEV_PARAM_DEC(nocheck);
 MIPI_DEV_PARAM_DEC(notimeout);
+MIPI_DEV_PARAM_DEC(wait_ms);
 MIPI_DEV_PARAM_DEC(dbg_value);
 MIPI_DEV_PARAM_DEC(power_instart);
 MIPI_DEV_PARAM_DEC(hsync_pkt);
@@ -1973,6 +1976,7 @@ MIPI_DEV_PARAM_DEC(txout_freq_force);
 static struct attribute *param_attr[] = {
 	MIPI_DEV_PARAM_ADD(nocheck),
 	MIPI_DEV_PARAM_ADD(notimeout),
+	MIPI_DEV_PARAM_ADD(wait_ms),
 	MIPI_DEV_PARAM_ADD(dbg_value),
 	MIPI_DEV_PARAM_ADD(power_instart),
 	MIPI_DEV_PARAM_ADD(hsync_pkt),
@@ -2581,6 +2585,7 @@ static int hobot_mipi_dev_probe_param(void)
 		param->hsync_pkt = MIPI_DEV_HSYNC_PKT_DEFAULT;
 		param->ipi_limit = MIPI_DEV_IPILIMIT_DEFAULT;
 		param->init_retry = MIPI_DEV_INIT_RETRY_DEFAULT;
+		param->wait_ms = DEV_DPHY_CHECK_MAX;
 
 		hobot_mipi_dev_phy_register(ddev);
 		g_ddev[i] = ddev;
@@ -2697,6 +2702,7 @@ static int hobot_mipi_dev_probe(struct platform_device *pdev)
 	param->hsync_pkt = MIPI_DEV_HSYNC_PKT_DEFAULT;
 	param->ipi_limit = MIPI_DEV_IPILIMIT_DEFAULT;
 	param->init_retry = MIPI_DEV_INIT_RETRY_DEFAULT;
+	param->wait_ms = DEV_DPHY_CHECK_MAX;
 
 	platform_set_drvdata(pdev, ddev);
 
