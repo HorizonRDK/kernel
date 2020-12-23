@@ -314,6 +314,7 @@ void vio_bind_group_done(int instance)
 	int offset = 0;
 	struct vio_chain *ischain;
 	struct vio_group *group;
+	struct vio_group *group_ipu;
 	struct vio_group *ipu_group, *pym_group;
 	int every_group_input[GROUP_ID_NUMBER] = {-1, -1, -1, -1};
 
@@ -408,7 +409,8 @@ void vio_bind_group_done(int instance)
 	if (group->next && group->next->next &&
 		test_bit(VIO_GROUP_DMA_OUTPUT, &group->next->state)) {
 		group->target_sema = 0x7;
-		vio_info("G1->G2->G3 case\n");
+		group->sema_flag = 0x00;
+		vio_info("[S%d]G1->G2->G3 case\n", group->instance);
 	}
 
 	vio_info("Stream%d path: G0%s\n", group->instance, stream);
