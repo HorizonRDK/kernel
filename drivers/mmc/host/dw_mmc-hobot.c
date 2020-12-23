@@ -79,10 +79,6 @@
 
 #define VER		"HOBOT-mmc_V20.200402"
 
-static int debug;
-module_param(debug, int, 0644);
-MODULE_PARM_DESC(debug, "mmc: 0 close debug, 1 open debug");
-
 static int hb_mmc_set_sd_padcctrl(struct dw_mci_hobot_priv_data *priv)
 {
 #ifdef CONFIG_HOBOT_XJ2
@@ -157,8 +153,7 @@ int hb_mmc_disable_clk(struct dw_mci_hobot_priv_data *priv)
 		}
 
 		timeout = jiffies + msecs_to_jiffies(10);
-		if (debug)
-			pr_warn("Warn disable mmc clk failed %d times\n", retry);
+		pr_debug("Warn disable mmc clk failed %d times\n", retry);
 	}
 
 	pr_err("Err disable mmc clk, ctrl_id:%d!\n", priv->ctrl_id);
@@ -206,8 +201,7 @@ int hb_mmc_enable_clk(struct dw_mci_hobot_priv_data *priv)
 		}
 
 		timeout = jiffies + msecs_to_jiffies(10);
-		if (debug)
-			pr_warn("Warn enable mmc clk failed %d times\n", retry);
+		pr_debug("Warn enable mmc clk failed %d times\n", retry);
 	}
 
 	pr_err("Err enable mmc clk, ctrl_id:%d!\n", priv->ctrl_id);
@@ -221,7 +215,7 @@ int hb_mmc_enable_clk(struct dw_mci_hobot_priv_data *priv)
 	return 0;
 #endif
 }
-#ifdef CONFIG_HOBOT_XJ2
+
 void hb_mmc_set_power(struct dw_mci_hobot_priv_data *priv, bool val)
 {
 	bool logic_val = val;
@@ -235,11 +229,10 @@ void hb_mmc_set_power(struct dw_mci_hobot_priv_data *priv, bool val)
 	if (priv->ctrl_id != DWMMC_MMC_ID) {
 		if (priv->powerup_gpio) {
 			gpio_direction_output(priv->powerup_gpio, logic_val);
-			usleep_range(10000, 20000);
+			usleep_range(1000, 2000);
 		}
 	}
 }
-#endif
 
 static int hb_mmc_set_sample_phase(struct dw_mci_hobot_priv_data *priv,
 				   int degrees)
@@ -544,14 +537,12 @@ static void dw_mci_hb_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 	}
 
 	hb_mmc_set_drv_phase(priv, phase);
-	if (debug) {
-		pr_err("%s ctrl_id=%d sample_phase=%d phase=%d"
-			" ios->timing=%d ios->signal_voltage=%d ios->clock=%d"
-			" cclkin=%d bus_hz=%lu host->bus_hz=%d\n",
-			__func__, priv->ctrl_id, priv->default_sample_phase,
-			phase, ios->timing, ios->signal_voltage, ios->clock,
-			cclkin, bus_hz, host->bus_hz);
-	}
+	pr_debug("%s ctrl_id=%d sample_phase=%d phase=%d"
+		" ios->timing=%d ios->signal_voltage=%d ios->clock=%d"
+		" cclkin=%d bus_hz=%lu host->bus_hz=%d\n",
+		__func__, priv->ctrl_id, priv->default_sample_phase,
+		phase, ios->timing, ios->signal_voltage, ios->clock,
+		cclkin, bus_hz, host->bus_hz);
 	return;
 }
 
@@ -592,7 +583,7 @@ static int dw_mci_hb_parse_dt(struct dw_mci *host)
 	priv->powerup_gpio = 0;
 	priv->powerup_logic = 0;
 	priv->mmc_fixed_voltage = 0;
-#ifdef CONFIG_HOBOT_XJ2
+
 	of_val = 0;
 	if (!device_property_read_u32(host->dev, "powerup-logic", &of_val)) {
 		if (of_val)
@@ -603,12 +594,13 @@ static int dw_mci_hb_parse_dt(struct dw_mci *host)
 	of_val = 0;
 	if (!device_property_read_u32(host->dev, "powerup-gpio", &of_val)) {
 		priv->powerup_gpio = of_val;
-		gpio_request(priv->powerup_gpio, NULL);
-		hb_mmc_set_power(priv, 0);
-		usleep_range(20000, 30000);
-		hb_mmc_set_power(priv, 1);
+		gpio_request(priv->powerup_gpio, "sd-power");
+		if (priv->ctrl_id == DWMMC_SD1_ID) {
+			hb_mmc_set_power(priv, 0);
+			hb_mmc_set_power(priv, 1);
+		}
 	}
-#endif
+
 	of_val = 0;
 	if (!device_property_read_u32(host->dev, "uhs-180v-logic", &of_val)) {
 		if (of_val)
@@ -673,8 +665,7 @@ static int dw_mci_set_sel18(struct dw_mci *host, bool val)
 			logic_val = 1;
 	}
 
-	if (debug)
-		dev_err(host->dev, "ctrl_id=%d uhs_180v_gpio=%d val=%d lval=%d\n",
+	dev_dbg(host->dev, "ctrl_id=%d uhs_180v_gpio=%d val=%d lval=%d\n",
 			priv->ctrl_id, priv->uhs_180v_gpio, val, logic_val);
 
 	if (priv->uhs_180v_gpio) {
@@ -850,12 +841,11 @@ static int dw_mci_hobot_remove(struct platform_device *pdev)
 		iounmap(priv->sysctrl_reg);
 	if (priv->uhs_180v_gpio)
 		gpio_free(priv->uhs_180v_gpio);
-#ifdef CONFIG_HOBOT_XJ2
+
 	if (priv->powerup_gpio) {
 		hb_mmc_set_power(priv, 0);
 		gpio_free(priv->powerup_gpio);
 	}
-#endif
 
 	pm_runtime_get_sync(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
