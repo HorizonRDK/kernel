@@ -794,6 +794,7 @@ int32_t iar_close(void);
 int32_t iar_pre_init(void);
 void hobot_iar_dump(void);
 frame_buf_t* hobot_iar_get_framebuf_addr(int channel);
+int hobot_iar_get_layer_size(unsigned int *width, unsigned int *height);
 //int32_t iar_set_video_buffer(uint32_t yaddr, uint32_t caddr, int index);
 int32_t iar_set_video_buffer(uint32_t slot_id);
 //int32_t ipu_set_display_addr(uint32_t yaddr, uint32_t caddr);
@@ -854,6 +855,7 @@ int iar_output_reqbufs(int layer_no, unsigned int buffers);
 int iar_output_stream_on(int layer_no);
 int iar_output_stream_off(int layer_no);
 int disp_set_interlace_mode(void);
+int user_config_display(enum DISPLAY_TYPE d_type);
 
 // Supported rotation.
 enum RotationMode {

@@ -184,6 +184,9 @@ int32_t iar_display_update(update_cmd_t *update_cmd)
 		pr_err("%s: iar cdev not init!\n", __func__);
 		return -1;
 	}
+	if (g_iar_cdev->framebuf_user[IAR_CHANNEL_1] == NULL ||
+			g_iar_cdev->framebuf_user[IAR_CHANNEL_3] == NULL)
+		return -1;
 	for (index = IAR_CHANNEL_1; index < IAR_CHANNEL_MAX; index++) {
 		if (index == IAR_CHANNEL_2 || index == IAR_CHANNEL_4)
 			continue; //TODO, now channnel 2 and 4 is disable
@@ -864,19 +867,19 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 		if (board_id == 0x1)
 			screen_backlight_init();
 		iar_start(1);
-		user_set_fb();
+		user_config_display(display_type);
 	} else if (strncmp(tmp, "mipi", 4) == 0) {
 		pr_info("iar output lcd mipi 720p panel config......\n");
 		display_type = MIPI_720P;
 		disp_set_pixel_clk(69000000);
-		user_set_fb();
+		user_config_display(display_type);
 	} else if (strncmp(tmp, "dsi1080", 7) == 0) {
 		pr_info("iar output lcd mipi 1080p panel config......\n");
 		display_type = MIPI_1080P;
 		if (board_id == 0x1)
 			screen_backlight_init();
 		iar_start(1);
-		user_set_fb();
+		user_config_display(display_type);
 		set_mipi_display(0);
 	} else if (strncmp(tmp, "dsi720p", 7) == 0) {
 		pr_info("iar output lcd mipi 720p touch panel config......\n");
@@ -884,19 +887,19 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 		if (board_id == 0x1)
 			screen_backlight_init();
 		iar_start(1);
-		user_set_fb();
+		user_config_display(display_type);
 		set_mipi_display(1);
 	} else if (strncmp(tmp, "dsi720x1280", 11) == 0) {
 		pr_info("iar output lcd mipi 720p sdb touch panel config......\n");
 		display_type = MIPI_720P_TOUCH;
 		screen_backlight_init();
 		iar_start(1);
-		user_set_fb();
+		user_config_display(display_type);
 		set_mipi_display(2);
 	} else if (strncmp(tmp, "hdmi", 4) == 0) {
 		pr_info("iar output hdmi panel config......\n");
 		display_type = HDMI_TYPE;
-		user_set_fb();
+		user_config_display(display_type);
 		iar_start(1);
 		if (config_hdmi == NULL)
 			goto err;
@@ -917,12 +920,12 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 	} else if (strncmp(tmp, "bt656", 4) == 0) {
 		pr_info("iar output bt656 panel config......\n");
 		display_type = BT656_TYPE;
-		user_set_fb();
+		user_config_display(display_type);
 		iar_start(1);
 	} else if (strncmp(tmp, "ipi", 3) == 0) {
 		pr_info("iar output ipi panel config......\n");
 		display_type = SIF_IPI;
-		user_set_fb();
+		user_config_display(display_type);
 		iar_start(1);
 	} else if (strncmp(buf, "enable", 6) == 0) {
 		tmp = buf + 6;
@@ -1036,11 +1039,7 @@ int __init iar_cdev_init(void)
 	}
 	g_iar_cdev->framebuf_user[IAR_CHANNEL_1] = hobot_iar_get_framebuf_addr(IAR_CHANNEL_1);
 	g_iar_cdev->framebuf_user[IAR_CHANNEL_3] = hobot_iar_get_framebuf_addr(IAR_CHANNEL_3);
-	if (g_iar_cdev->framebuf_user[IAR_CHANNEL_1] == NULL ||
-			g_iar_cdev->framebuf_user[IAR_CHANNEL_3] == NULL) {
-		ret = -1;
-		goto err3;
-	}
+
 	ret = sysfs_create_group(&g_iar_cdev->dev->kobj, &attr_group);
 	if (ret) {
 		pr_err("%s: error create sysfs group with return value %d!\n", __func__, ret);

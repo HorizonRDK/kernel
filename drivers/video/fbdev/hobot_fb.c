@@ -112,6 +112,7 @@ enum {
 	GAMMA_CFG,
 	OUTPUT_CFG,
 };
+unsigned int frame_size = 1920*1080*4;
 static int lcd_type = RGB888_700;
 //static int outmode = OUTPUT_RGB888;
 static int outmode = OUTPUT_BT1120;
@@ -563,9 +564,12 @@ static int hbfb_mmap(struct fb_info *info, struct vm_area_struct *pvma)
 
 	pr_debug("hobot mmap begin!\n");
 	flag = 0;
+
 	if (info->fix.smem_start == 0 ||
-			(pvma->vm_end - pvma->vm_start) > MAX_FRAME_BUF_SIZE)
+			(pvma->vm_end - pvma->vm_start) > frame_size) {
+		pr_err("%s: mmap size exceed layer size!\n", __func__);
 		return -ENOMEM;
+	}
 
 	pvma->vm_flags |= VM_IO;
 	pvma->vm_flags |= VM_LOCKED;
@@ -896,12 +900,12 @@ static int hbfb_set_par(struct fb_info *fb)
 		pr_debug("start_flag = %d\n", start_flag);
 		start_flag = 1;
 		//iar_stop();
-		user_set_fb();
+		user_config_display(display_type);
 	}
 
 	return regval;
 }
-
+#if 0
 int user_set_fb(void)
 {
 	void __iomem *hitm1_reg_addr;
@@ -1407,6 +1411,7 @@ int user_set_fb(void)
 
 }
 EXPORT_SYMBOL(user_set_fb);
+#endif
 /*
 static void hbfb_activate_par(void)
 {
@@ -1652,6 +1657,8 @@ static int hbfb_probe(struct platform_device *pdev)
 	frame_buf_t framebuf_user;
 	frame_buf_t framebuf_user1;
 	uint32_t rgba[4] = {8, 16, 24, 0};
+	unsigned int layer_width = 0;
+	unsigned int layer_height = 0;
 
 	pr_info("Hobot fb probe!!!\n");
 
@@ -1681,6 +1688,12 @@ static int hbfb_probe(struct platform_device *pdev)
 	framebuf_user1 = *hobot_iar_get_framebuf_addr(3);
 	pr_debug("framebuf_user.paddr = 0x%llx\n", framebuf_user.paddr);
 	pr_debug("framebuf_uset.vaddr = 0x%p\n", framebuf_user.vaddr);
+	ret = hobot_iar_get_layer_size(&layer_width, &layer_height);
+	if (ret)
+		goto err0;
+	pr_debug("fb layer width is %d\n", layer_width);
+	pr_debug("fb layer height is %d\n", layer_height);
+	frame_size = layer_width * layer_height * 4;
 
 	RGB500_fix_default.smem_start = framebuf_user.paddr;
 	RGB700_fix_default.smem_start = framebuf_user.paddr;
@@ -1715,7 +1728,7 @@ static int hbfb_probe(struct platform_device *pdev)
 
 	hobot_fbi->fb.fbops = &hbfb_ops;
 	hobot_fbi->fb.screen_base = framebuf_user.vaddr;
-	hobot_fbi->fb.screen_size = MAX_FRAME_BUF_SIZE;
+	hobot_fbi->fb.screen_size = frame_size;
 	hobot_fbi->fb.pseudo_palette = &hbfb_pseudo_palette;
 	if (fb_alloc_cmap(&hobot_fbi->fb.cmap, 256, 0)) {
 		pr_err("%s: fb0 error alloc cmap!!\n", __func__);
@@ -1761,7 +1774,7 @@ static int hbfb_probe(struct platform_device *pdev)
 			hobot_fbi->fb1.fix.smem_start + hobot_fbi->fb1.fix.smem_len - 1);
 	}
 #endif
-	pr_info("Hobot fb probe ok!!!\n");
+	pr_debug("Hobot fb probe ok!!!\n");
 	return 0;
 err2:
 	fb_dealloc_cmap(&hobot_fbi->fb1.cmap);

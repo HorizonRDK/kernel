@@ -43,9 +43,21 @@
 #define IAR_MEM_SIZE 0x2000000        //32MB
 #endif
 
+#define FORMAT_ORGANIZATION_VAL 0x9c36
+#define REFRESH_CFG_VAL 0x808
 unsigned int iar_debug_level = 0;
 EXPORT_SYMBOL(iar_debug_level);
 module_param(iar_debug_level, uint, 0644);
+
+unsigned int video_layer_num = 2;
+unsigned int display_out_width = 1920;
+unsigned int display_out_height = 1080;
+unsigned int fb_num = 1;
+EXPORT_SYMBOL(fb_num);
+module_param(video_layer_num, uint, 0644);
+module_param(display_out_width, uint, 0644);
+module_param(display_out_height, uint, 0644);
+module_param(fb_num, uint, 0644);
 
 #define IAR_ENABLE 1
 #define IAR_DISABLE 0
@@ -116,8 +128,6 @@ static int pwm0_request_status = 0;
 static int pwm_no = 0;
 static int pwm_period = 1000;
 static int pwm_duty = 10;
-unsigned int fb_num = 1;
-EXPORT_SYMBOL(fb_num);
 
 struct disp_timing video_1920x1080 = {
 	148, 88, 44, 36, 4, 5, 10
@@ -759,7 +769,7 @@ int32_t iar_channel_base_cfg(channel_base_cfg_t *cfg)
 		pr_err("iar_drvier: error channel priority, exit!!\n");
 		return -1;
 	}
-        if (cfg->width > 1920 || cfg->buf_width > 1920 ||
+	if (cfg->width > 1920 || cfg->buf_width > 1920 ||
 			cfg->xposition > 1920 || cfg->crop_width > 1920) {
 		pr_err("iar_driver: channel width exceed the max limit, exit!!\n");
 		return -1;
@@ -767,6 +777,11 @@ int32_t iar_channel_base_cfg(channel_base_cfg_t *cfg)
 	if (cfg->height > 1920 || cfg->buf_height > 1920 ||
 			cfg->yposition > 1920 || cfg->crop_height > 1920) {
 		pr_err("iar_driver: channel height exceed the max limit, exit!!\n");
+		return -1;
+	}
+	if ((cfg->width * cfg->height) > (display_out_width * display_out_height)) {
+		pr_err("%s:video layer size exceed user config when insmod driver!\n",
+				__func__);
 		return -1;
 	}
 	if (channelid < 2) {
@@ -863,6 +878,7 @@ EXPORT_SYMBOL_GPL(iar_channel_base_cfg);
 int32_t iar_upscaling_cfg(upscaling_cfg_t *cfg)
 {
 	uint32_t value;
+
 	if (NULL == g_iar_dev) {
 		printk(KERN_ERR "IAR dev not inited!");
 		return -1;
@@ -872,9 +888,23 @@ int32_t iar_upscaling_cfg(upscaling_cfg_t *cfg)
 		pr_err("iar_driver: channel width/height exceed limit, exit!!\n");
 		return -1;
 	}
+
 	if (cfg->src_height == 0 || cfg->tgt_height == 0 ||
 			cfg->src_width == 0 || cfg->tgt_width == 0) {
 		pr_err("iar_driver: channel width/height is zero, exit!!\n");
+		return -1;
+	}
+
+	if ((cfg->src_width * cfg->src_height) >
+			(display_out_width * display_out_height)) {
+		pr_err("%s:src video size exceed user config when insmod driver!\n",
+				__func__);
+		return -1;
+	}
+	if ((cfg->tgt_width * cfg->tgt_height) >
+			(display_out_width * display_out_height)) {
+		pr_err("%s:tgt video size exceed user config when insmod driver!\n",
+				__func__);
 		return -1;
 	}
 	value = IAR_REG_SET_FILED(IAR_SRC_HEIGTH, cfg->src_height, 0);
@@ -1364,6 +1394,12 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 		pr_err("%s: panel width/height exceed limit, exit!!\n", __func__);
 		return -1;
 	}
+	if ((cfg->width * cfg->height) > (display_out_width * display_out_height)) {
+		pr_err("%s:video out size exceed user config when insmod driver!\n",
+				__func__);
+		return -1;
+	}
+
 #ifdef CONFIG_HOBOT_XJ3
 	if (cfg->display_addr_type > 38 || cfg->display_addr_type_layer1 > 38) {
 		pr_err("%s: error display vio addr type, exit!!\n", __func__);
@@ -1486,10 +1522,11 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 			return -1;
 		display_type = BT656_TYPE;
 		//disp_set_panel_timing(&video_704x576);
-		if (cfg->height == 576)
+		if (cfg->height == 576) {
 			disp_set_panel_timing(&video_704x576);
-		else if (cfg->height == 480)
+		} else if (cfg->height == 480) {
 			disp_set_panel_timing(&video_720x480);
+		}
 		writel(0x18, g_iar_dev->regaddr + REG_IAR_DE_OUTPUT_SEL);
 		value = readl(g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
 		value = IAR_REG_SET_FILED(IAR_PANEL_COLOR_TYPE, 1, value);
@@ -2151,9 +2188,21 @@ frame_buf_t* hobot_iar_get_framebuf_addr(int channel)
 		printk(KERN_ERR "IAR dev not inited!");
 		return NULL;
 	}
+	if (g_iar_dev->frambuf[channel].vaddr == NULL) {
+		pr_err("%s: channel %d not alloc memory!!\n", __func__, channel);
+		return NULL;
+	}
 	return &g_iar_dev->frambuf[channel];
 }
 EXPORT_SYMBOL_GPL(hobot_iar_get_framebuf_addr);
+int hobot_iar_get_layer_size(unsigned int *width, unsigned int *height) {
+	if (width == NULL || height == NULL)
+		return -1;
+	*width = display_out_width;
+	*height = display_out_height;
+	return 0;
+}
+EXPORT_SYMBOL_GPL(hobot_iar_get_layer_size);
 /////////////iar wb
 
 int iar_wb_stream_on(void)
@@ -2837,6 +2886,11 @@ int disp_set_ppbuf_addr(uint8_t layer_no, void *yaddr, void *caddr)
 		return -1;
 	if (yaddr == NULL)
 		return 0;
+	if (g_iar_dev->pingpong_buf[layer_no].framebuf[0].vaddr == NULL ||
+			g_iar_dev->pingpong_buf[layer_no].framebuf[1].vaddr == NULL) {
+		pr_err("%s: video layer %d is not alloc memory,exit!!\n", __func__, layer_no);
+		return -1;
+	}
 	y_size =
 	g_iar_dev->buf_w_h[layer_no][0] * g_iar_dev->buf_w_h[layer_no][1];
 	video_index = g_iar_dev->cur_framebuf_id[layer_no];
@@ -2875,7 +2929,10 @@ int iar_rotate_video_buffer(phys_addr_t yaddr,
 	int video_index;
 	buf_addr_t display_addr;
 	void __iomem *video_display_vaddr;
-
+#ifdef CONFIG_HOBOT_XJ3
+	pr_err("%s: xj3 platform not support software rotate,exit!!\n", __func__);
+	return -1;
+#endif
 	video_index = g_iar_dev->cur_framebuf_id[IAR_CHANNEL_1];
 	video_display_vaddr =
 	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[!video_index].vaddr;
@@ -3194,6 +3251,19 @@ static int display_color_bar(unsigned int width, unsigned height,
 	int color_bar_height = 0;
 	int left_height = 0;
 
+	if (draw_start_vaddr == NULL) {
+		pr_err("%s: draw address is invalid(null), exit\n", __func__);
+		return -1;
+	}
+	if (width > 1920 || height > 1920) {
+		pr_err("%s: invalid input parameters,exit\n", __func__);
+		return -1;
+	}
+	if ((width * height) > (display_out_width * display_out_height)) {
+		pr_err("%s:video layer size exceed user config when insmod driver!\n",
+				__func__);
+		return -1;
+	}
 	vaddr = draw_start_vaddr;
 	color_bar_height = (height >> 1) / 5;
 	left_height = height - color_bar_height * 5;
@@ -3368,8 +3438,574 @@ static const struct file_operations iar_debug_fops = {
         .release = single_release,
 };
 
-//int xvb_sdb = 0;
+int user_config_display(enum DISPLAY_TYPE d_type)
+{
+	buf_addr_t graphic_display_paddr;
+	buf_addr_t graphic1_display_paddr;
+	channel_base_cfg_t channel_base_cfg[2] = {{0}, {0}};
+	output_cfg_t output_cfg = {0};
 
+	graphic_display_paddr.addr = g_iar_dev->frambuf[2].paddr;
+	graphic1_display_paddr.addr = g_iar_dev->frambuf[3].paddr;
+
+	enable_sif_mclk();
+	iar_pixel_clk_enable();
+	switch (d_type) {
+                case HDMI_TYPE:
+#ifdef CONFIG_HOBOT_XJ2
+			disp_set_panel_timing(&video_1920x1080);
+#else
+			disp_set_panel_timing(&video_1920x1080);
+			channel_base_cfg[0].enable = 1;
+			channel_base_cfg[1].enable = 1;
+			channel_base_cfg[0].channel = IAR_CHANNEL_1;
+			channel_base_cfg[0].pri = 2;
+			channel_base_cfg[0].width = 1920;
+			channel_base_cfg[0].height = 1080;
+			channel_base_cfg[0].buf_width = 1920;
+			channel_base_cfg[0].buf_height = 1080;
+			channel_base_cfg[0].format = FORMAT_YUV420SP_UV;
+			channel_base_cfg[0].alpha_sel = 0;
+			channel_base_cfg[0].ov_mode = 0;
+			channel_base_cfg[0].alpha_en = 1;
+			channel_base_cfg[0].alpha = 255;
+			channel_base_cfg[0].crop_width = 1920;
+			channel_base_cfg[0].crop_height = 1080;
+			channel_base_cfg[1].channel = IAR_CHANNEL_3;
+			channel_base_cfg[1].pri = 0;
+			channel_base_cfg[1].width = 1920;
+			channel_base_cfg[1].height = 1080;
+			channel_base_cfg[1].buf_width = 1920;
+			channel_base_cfg[1].buf_height = 1080;
+			channel_base_cfg[1].format = 4;//ARGB8888
+			channel_base_cfg[1].alpha_sel = 0;
+			channel_base_cfg[1].ov_mode = 0;
+			channel_base_cfg[1].alpha_en = 1;
+			channel_base_cfg[1].alpha = 128;
+			channel_base_cfg[1].crop_width = 1920;
+			channel_base_cfg[1].crop_height = 1080;
+
+			output_cfg.out_sel = 1;
+			output_cfg.width = 1920;
+			output_cfg.height = 1080;
+			output_cfg.bgcolor = 16744328;//white.
+
+			iar_channel_base_cfg(&channel_base_cfg[0]);
+			iar_channel_base_cfg(&channel_base_cfg[1]);
+			iar_output_cfg(&output_cfg);
+
+			writel(0x0472300f, g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
+			//panel color type is yuv444, YCbCr conversion needed
+			writel(8, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
+			//select BT709 color domain
+			writel(FORMAT_ORGANIZATION_VAL,
+					g_iar_dev->regaddr + REG_IAR_FORMAT_ORGANIZATION);
+			iar_switch_buf(0);
+			iar_set_bufaddr(IAR_CHANNEL_3, &graphic_display_paddr);
+			iar_set_bufaddr(IAR_CHANNEL_4, &graphic1_display_paddr);
+			iar_update();
+#endif
+                        break;
+                case LCD_7_TYPE:
+			disp_set_panel_timing(&video_800x480);
+			channel_base_cfg[0].enable = 1;
+			channel_base_cfg[1].enable = 1;
+			channel_base_cfg[0].channel = IAR_CHANNEL_1;
+			channel_base_cfg[0].pri = 2;
+			channel_base_cfg[0].width = 800;
+			channel_base_cfg[0].height = 480;
+			channel_base_cfg[0].buf_width = 800;
+			channel_base_cfg[0].buf_height = 480;
+			channel_base_cfg[0].format = FORMAT_YUV420SP_UV;
+			channel_base_cfg[0].alpha_sel = 0;
+			channel_base_cfg[0].ov_mode = 0;
+			channel_base_cfg[0].alpha_en = 1;
+			channel_base_cfg[0].alpha = 255;
+			channel_base_cfg[0].crop_width = 800;
+			channel_base_cfg[0].crop_height = 480;
+			channel_base_cfg[1].channel = IAR_CHANNEL_3;
+			channel_base_cfg[1].pri = 0;
+			channel_base_cfg[1].width = 800;
+			channel_base_cfg[1].height = 480;
+			channel_base_cfg[1].buf_width = 800;
+			channel_base_cfg[1].buf_height = 480;
+			channel_base_cfg[1].format = 4;//ARGB8888
+			channel_base_cfg[1].alpha_sel = 0;
+			channel_base_cfg[1].ov_mode = 0;
+			channel_base_cfg[1].alpha_en = 1;
+			channel_base_cfg[1].alpha = 128;
+			channel_base_cfg[1].crop_width = 800;
+			channel_base_cfg[1].crop_height = 480;
+
+#ifdef CONFIG_HOBOT_XJ2
+			output_cfg.out_sel = 1;
+#else
+			output_cfg.out_sel = 2;
+#endif
+			output_cfg.width = 800;
+			output_cfg.height = 480;
+			output_cfg.bgcolor = 16744328;//white.
+
+			iar_channel_base_cfg(&channel_base_cfg[0]);
+			iar_channel_base_cfg(&channel_base_cfg[1]);
+			iar_output_cfg(&output_cfg);
+#ifdef CONFIG_HOBOT_XJ2
+			writel(0x041bf00f, g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
+			//panel color type is yuv444, YCbCr conversion needed
+			writel(REFRESH_CFG_VAL, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
+			//select BT709 color domain
+			writel(FORMAT_ORGANIZATION_VAL,
+					g_iar_dev->regaddr + REG_IAR_FORMAT_ORGANIZATION);
+#ifdef CONFIG_LOGO
+#ifndef CONFIG_LOGO_FROM_KERNEL
+			if (logo_vaddr != NULL)
+			if (g_iar_dev->frambuf[2].vaddr != NULL)
+					memcpy(g_iar_dev->frambuf[2].vaddr, logo_vaddr, 800*480*4);
+#endif
+#endif
+#else
+			writel(0x0572300f, g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
+			//panel color type is yuv444, YCbCr conversion needed
+			writel(0, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
+			//select BT709 color domain
+			writel(FORMAT_ORGANIZATION_VAL,
+					g_iar_dev->regaddr + REG_IAR_FORMAT_ORGANIZATION);
+#endif
+			iar_switch_buf(0);
+			iar_set_bufaddr(IAR_CHANNEL_3, &graphic_display_paddr);
+			iar_set_bufaddr(IAR_CHANNEL_4, &graphic1_display_paddr);
+			iar_update();
+                        break;
+		case MIPI_720P:
+			disp_set_panel_timing(&video_720x1280);
+			channel_base_cfg[0].enable = 1;
+			channel_base_cfg[1].enable = 1;
+			channel_base_cfg[0].channel = IAR_CHANNEL_1;
+			channel_base_cfg[0].pri = 2;
+			channel_base_cfg[0].width = 720;
+			channel_base_cfg[0].height = 1280;
+			channel_base_cfg[0].buf_width = 720;
+			channel_base_cfg[0].buf_height = 1280;
+			channel_base_cfg[0].format = FORMAT_YUV420SP_UV;
+			channel_base_cfg[0].alpha_sel = 0;
+			channel_base_cfg[0].ov_mode = 0;
+			channel_base_cfg[0].alpha_en = 1;
+			channel_base_cfg[0].alpha = 255;
+			channel_base_cfg[0].crop_width = 720;
+			channel_base_cfg[0].crop_height = 1280;
+			channel_base_cfg[1].channel = IAR_CHANNEL_3;
+			channel_base_cfg[1].pri = 0;
+			channel_base_cfg[1].width = 720;
+			channel_base_cfg[1].height = 1280;
+			channel_base_cfg[1].buf_width = 720;
+			channel_base_cfg[1].buf_height = 1280;
+			channel_base_cfg[1].format = 4;//ARGB8888
+			channel_base_cfg[1].alpha_sel = 0;
+			channel_base_cfg[1].ov_mode = 0;
+			channel_base_cfg[1].alpha_en = 1;
+			channel_base_cfg[1].alpha = 128;
+			channel_base_cfg[1].crop_width = 720;
+			channel_base_cfg[1].crop_height = 1280;
+
+			output_cfg.out_sel = 1;
+			output_cfg.width = 720;
+			output_cfg.height = 1280;
+			output_cfg.bgcolor = 16744328;//white.
+
+			iar_channel_base_cfg(&channel_base_cfg[0]);
+			iar_channel_base_cfg(&channel_base_cfg[1]);
+			iar_output_cfg(&output_cfg);
+
+			writel(0x041bf00f, g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
+			//panel color type is yuv444, YCbCr conversion needed
+			writel(REFRESH_CFG_VAL, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
+			//select BT709 color domain
+			writel(FORMAT_ORGANIZATION_VAL,
+					g_iar_dev->regaddr + REG_IAR_FORMAT_ORGANIZATION);
+
+			iar_switch_buf(0);
+			iar_set_bufaddr(2, &graphic_display_paddr);
+			iar_update();
+			break;
+		case MIPI_1080P:
+			disp_set_panel_timing(&video_1080x1920);
+			channel_base_cfg[0].enable = 1;
+			channel_base_cfg[1].enable = 1;
+			channel_base_cfg[0].channel = IAR_CHANNEL_1;
+			channel_base_cfg[0].pri = 2;
+			channel_base_cfg[0].width = 1080;
+			channel_base_cfg[0].height = 1920;
+			channel_base_cfg[0].buf_width = 1080;
+			channel_base_cfg[0].buf_height = 1920;
+			channel_base_cfg[0].format = FORMAT_YUV420SP_UV;
+			channel_base_cfg[0].alpha_sel = 0;
+			channel_base_cfg[0].ov_mode = 0;
+			channel_base_cfg[0].alpha_en = 1;
+			channel_base_cfg[0].alpha = 255;
+			channel_base_cfg[0].crop_width = 1080;
+			channel_base_cfg[0].crop_height = 1920;
+			channel_base_cfg[1].channel = IAR_CHANNEL_3;
+			channel_base_cfg[1].pri = 0;
+			channel_base_cfg[1].width = 1080;
+			channel_base_cfg[1].height = 1920;
+			channel_base_cfg[1].buf_width = 1080;
+			channel_base_cfg[1].buf_height = 1920;
+			channel_base_cfg[1].format = 4;//ARGB8888
+			channel_base_cfg[1].alpha_sel = 0;
+			channel_base_cfg[1].ov_mode = 0;
+			channel_base_cfg[1].alpha_en = 1;
+			channel_base_cfg[1].alpha = 128;
+			channel_base_cfg[1].crop_width = 1080;
+			channel_base_cfg[1].crop_height = 1920;
+
+			output_cfg.out_sel = 0;//mipi-dsi
+			output_cfg.width = 1080;
+			output_cfg.height = 1920;
+			output_cfg.bgcolor = 16744328;//white.
+
+			iar_channel_base_cfg(&channel_base_cfg[0]);
+			iar_channel_base_cfg(&channel_base_cfg[1]);
+			iar_output_cfg(&output_cfg);
+
+			writel(0x0572300f, g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
+			writel(0x406, g_iar_dev->regaddr + REG_IAR_FORMAT_ORGANIZATION);
+
+			iar_switch_buf(0);
+			iar_set_bufaddr(IAR_CHANNEL_3, &graphic_display_paddr);
+			iar_update();
+			break;
+		case MIPI_720P_TOUCH:
+			disp_set_panel_timing(&video_720x1280_touch);
+			channel_base_cfg[0].enable = 1;
+			channel_base_cfg[1].enable = 1;
+			channel_base_cfg[0].channel = IAR_CHANNEL_1;
+			channel_base_cfg[0].pri = 2;
+			channel_base_cfg[0].width = 720;
+			channel_base_cfg[0].height = 1280;
+			channel_base_cfg[0].buf_width = 720;
+			channel_base_cfg[0].buf_height = 1280;
+			channel_base_cfg[0].format = FORMAT_YUV420SP_UV;
+			channel_base_cfg[0].alpha_sel = 0;
+			channel_base_cfg[0].ov_mode = 0;
+			channel_base_cfg[0].alpha_en = 1;
+			channel_base_cfg[0].alpha = 255;
+			channel_base_cfg[0].crop_width = 720;
+			channel_base_cfg[0].crop_height = 1280;
+			channel_base_cfg[1].channel = IAR_CHANNEL_3;
+			channel_base_cfg[1].pri = 0;
+			channel_base_cfg[1].width = 720;
+			channel_base_cfg[1].height = 1280;
+			channel_base_cfg[1].buf_width = 720;
+			channel_base_cfg[1].buf_height = 1280;
+			channel_base_cfg[1].format = 4;//ARGB8888
+			channel_base_cfg[1].alpha_sel = 0;
+			channel_base_cfg[1].ov_mode = 0;
+			channel_base_cfg[1].alpha_en = 1;
+			channel_base_cfg[1].alpha = 128;
+			channel_base_cfg[1].crop_width = 720;
+			channel_base_cfg[1].crop_height = 1280;
+
+			output_cfg.out_sel = 0;//mipi-dsi
+			output_cfg.width = 720;
+			output_cfg.height = 1280;
+			output_cfg.bgcolor = 16744328;//white.
+
+			iar_channel_base_cfg(&channel_base_cfg[0]);
+			iar_channel_base_cfg(&channel_base_cfg[1]);
+			iar_output_cfg(&output_cfg);
+
+			writel(0x0572300f, g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
+			writel(0x406, g_iar_dev->regaddr + REG_IAR_FORMAT_ORGANIZATION);
+			iar_switch_buf(0);
+			iar_set_bufaddr(IAR_CHANNEL_3, &graphic_display_paddr);
+			iar_update();
+			break;
+		case BT656_TYPE:
+			disp_set_panel_timing(&video_704x576);
+			channel_base_cfg[0].enable = 1;
+			channel_base_cfg[1].enable = 1;
+			channel_base_cfg[0].channel = IAR_CHANNEL_1;
+			channel_base_cfg[0].pri = 2;
+			channel_base_cfg[0].width = 704;
+			channel_base_cfg[0].height = 576;
+			channel_base_cfg[0].buf_width = 704;
+			channel_base_cfg[0].buf_height = 576;
+			channel_base_cfg[0].format = FORMAT_YUV420SP_UV;
+			channel_base_cfg[0].alpha_sel = 0;
+			channel_base_cfg[0].ov_mode = 0;
+			channel_base_cfg[0].alpha_en = 1;
+			channel_base_cfg[0].alpha = 255;
+			channel_base_cfg[0].crop_width = 704;
+			channel_base_cfg[0].crop_height = 576;
+			channel_base_cfg[1].channel = IAR_CHANNEL_3;
+			channel_base_cfg[1].pri = 0;
+			channel_base_cfg[1].width = 704;
+			channel_base_cfg[1].height = 576;
+			channel_base_cfg[1].buf_width = 704;
+			channel_base_cfg[1].buf_height = 576;
+			channel_base_cfg[1].format = 4;//ARGB8888
+			channel_base_cfg[1].alpha_sel = 0;
+			channel_base_cfg[1].ov_mode = 0;
+			channel_base_cfg[1].alpha_en = 1;
+			channel_base_cfg[1].alpha = 128;
+			channel_base_cfg[1].crop_width = 704;
+			channel_base_cfg[1].crop_height = 576;
+
+			output_cfg.out_sel = 3;//bt656
+			output_cfg.width = 704;
+			output_cfg.height = 576;
+			output_cfg.bgcolor = 16744328;//white.
+
+			iar_channel_base_cfg(&channel_base_cfg[0]);
+			iar_channel_base_cfg(&channel_base_cfg[1]);
+			iar_output_cfg(&output_cfg);
+
+			writel(0x0572300f, g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
+			writel(0x406, g_iar_dev->regaddr + REG_IAR_FORMAT_ORGANIZATION);
+
+			iar_switch_buf(0);
+			iar_set_bufaddr(IAR_CHANNEL_3, &graphic_display_paddr);
+			iar_update();
+			break;
+		case SIF_IPI:
+			disp_set_panel_timing(&video_1920x1080);
+			channel_base_cfg[0].enable = 1;
+			channel_base_cfg[1].enable = 1;
+			channel_base_cfg[0].channel = IAR_CHANNEL_1;
+			channel_base_cfg[0].pri = 2;
+			channel_base_cfg[0].width = 1920;
+			channel_base_cfg[0].height = 1080;
+			channel_base_cfg[0].buf_width = 1920;
+			channel_base_cfg[0].buf_height = 1080;
+			channel_base_cfg[0].format = FORMAT_YUV420SP_UV;
+			channel_base_cfg[0].alpha_sel = 0;
+			channel_base_cfg[0].ov_mode = 0;
+			channel_base_cfg[0].alpha_en = 1;
+			channel_base_cfg[0].alpha = 255;
+			channel_base_cfg[0].crop_width = 1920;
+			channel_base_cfg[0].crop_height = 1080;
+			channel_base_cfg[1].channel = IAR_CHANNEL_3;
+			channel_base_cfg[1].pri = 0;
+			channel_base_cfg[1].width = 1920;
+			channel_base_cfg[1].height = 1080;
+			channel_base_cfg[1].buf_width = 1920;
+			channel_base_cfg[1].buf_height = 1080;
+			channel_base_cfg[1].format = 4;//ARGB8888
+			channel_base_cfg[1].alpha_sel = 0;
+			channel_base_cfg[1].ov_mode = 0;
+			channel_base_cfg[1].alpha_en = 1;
+			channel_base_cfg[1].alpha = 128;
+			channel_base_cfg[1].crop_width = 1920;
+			channel_base_cfg[1].crop_height = 1080;
+
+			output_cfg.out_sel = 4;
+			output_cfg.width = 1920;
+			output_cfg.height = 1080;
+			output_cfg.bgcolor = 16744328;//white.
+
+			iar_channel_base_cfg(&channel_base_cfg[0]);
+			iar_channel_base_cfg(&channel_base_cfg[1]);
+			iar_output_cfg(&output_cfg);
+
+			writel(0x0572300f, g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
+			//panel color type is yuv444, YCbCr conversion needed
+			writel(8, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
+			//select BT709 color domain
+			writel(0x406, g_iar_dev->regaddr + REG_IAR_FORMAT_ORGANIZATION);
+			iar_switch_buf(0);
+			iar_set_bufaddr(IAR_CHANNEL_3, &graphic_display_paddr);
+			iar_set_bufaddr(IAR_CHANNEL_4, &graphic1_display_paddr);
+			iar_update();
+			break;
+		default:
+			break;
+	}
+	iar_pixel_clk_disable();
+	disable_sif_mclk();
+	return 0;
+}
+EXPORT_SYMBOL_GPL(user_config_display);
+
+static int hobot_xj3_iar_memory_alloc(phys_addr_t paddr, void *vaddr,
+		unsigned int video_num, unsigned int fb_num,
+		unsigned int size_nv12, unsigned int size_rgba)
+{
+#ifdef USE_ION_MEM
+	if (fb_num == 0 && video_num == 0) {
+		g_iar_dev->frambuf[IAR_CHANNEL_1].paddr = 0;
+		g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr = NULL;
+		g_iar_dev->frambuf[IAR_CHANNEL_2].paddr = 0;
+		g_iar_dev->frambuf[IAR_CHANNEL_2].vaddr = NULL;
+		g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = 0;
+		g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = NULL;
+		g_iar_dev->frambuf[IAR_CHANNEL_4].paddr = 0;
+		g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr = NULL;
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr = 0;
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr = NULL;
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr = 0;
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr = NULL;
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[0].paddr = 0;
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[0].vaddr = NULL;
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[1].paddr = 0;
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[1].vaddr = NULL;
+	} else if (fb_num > 0 && video_num == 0) {
+		g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = paddr;
+		g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = vaddr;
+		g_iar_dev->frambuf[IAR_CHANNEL_4].paddr = paddr + (fb_num - 1) * size_rgba;
+		g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr = vaddr + (fb_num - 1) * size_rgba;
+	} else if (fb_num == 0 && video_num > 0) {
+		g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = 0;
+		g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = NULL;
+		g_iar_dev->frambuf[IAR_CHANNEL_4].paddr = 0;
+		g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr = NULL;
+		g_iar_dev->frambuf[IAR_CHANNEL_1].paddr = paddr;
+		g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr = vaddr;
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr = paddr + size_nv12;
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr = vaddr + size_nv12;
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr =
+			paddr + size_nv12 * 2;
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr =
+			vaddr + size_nv12 * 2;
+		g_iar_dev->frambuf[IAR_CHANNEL_2].paddr =
+			paddr + (video_num -1) * 3 * size_nv12;
+		g_iar_dev->frambuf[IAR_CHANNEL_2].vaddr =
+			vaddr + (video_num -1) * 3 * size_nv12;
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[0].paddr =
+			g_iar_dev->frambuf[IAR_CHANNEL_2].paddr + size_nv12;
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[0].vaddr =
+			g_iar_dev->frambuf[IAR_CHANNEL_2].vaddr + size_nv12;
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[1].paddr =
+			g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[0].paddr + size_nv12;
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[1].vaddr =
+			g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[0].vaddr + size_nv12;
+	} else if (fb_num > 0 && video_num > 0) {
+		g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = paddr;
+		g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = vaddr;
+		g_iar_dev->frambuf[IAR_CHANNEL_4].paddr = paddr + (fb_num - 1) * size_rgba;
+		g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr = vaddr + (fb_num - 1) * size_rgba;
+		g_iar_dev->frambuf[IAR_CHANNEL_1].paddr =
+			g_iar_dev->frambuf[IAR_CHANNEL_4].paddr + size_rgba;
+		g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr =
+			g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr + size_rgba;
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr =
+			g_iar_dev->frambuf[IAR_CHANNEL_1].paddr + size_nv12;
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr =
+			g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr + size_nv12;
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr =
+			g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr + size_nv12;
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr =
+			g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr + size_nv12;
+		g_iar_dev->frambuf[IAR_CHANNEL_2].paddr =
+			g_iar_dev->frambuf[IAR_CHANNEL_1].paddr + (video_num - 1) * 3 * size_nv12;
+		g_iar_dev->frambuf[IAR_CHANNEL_2].vaddr =
+			g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr + (video_num - 1) * 3 * size_nv12;
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[0].paddr =
+			g_iar_dev->frambuf[IAR_CHANNEL_2].paddr + size_nv12;
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[0].vaddr =
+			g_iar_dev->frambuf[IAR_CHANNEL_2].vaddr + size_nv12;
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[1].paddr =
+			g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[0].paddr + size_nv12;
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[1].vaddr =
+			g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[0].vaddr + size_nv12;
+	}
+	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = 0x%llx\n",
+				g_iar_dev->frambuf[IAR_CHANNEL_3].paddr);
+	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = 0x%p\n",
+				g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
+	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_4].paddr = 0x%llx\n",
+				g_iar_dev->frambuf[IAR_CHANNEL_4].paddr);
+	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr = 0x%p\n",
+				g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr);
+	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_1].paddr = 0x%llx\n",
+				g_iar_dev->frambuf[IAR_CHANNEL_1].paddr);
+	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr = 0x%p\n",
+				g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr);
+	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_2].paddr = 0x%llx\n",
+				g_iar_dev->frambuf[IAR_CHANNEL_2].paddr);
+	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_2].vaddr = 0x%p\n",
+				g_iar_dev->frambuf[IAR_CHANNEL_2].vaddr);
+	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr = 0x%llx\n",
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr);
+	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr = 0x%p\n",
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr);
+	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr = 0x%llx\n",
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr);
+	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr = 0x%p\n",
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr);
+	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[0].paddr = 0x%llx\n",
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[0].paddr);
+	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[0].vaddr = 0x%p\n",
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[0].vaddr);
+	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[1].paddr = 0x%llx\n",
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[1].paddr);
+	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[1].vaddr = 0x%p\n",
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[1].vaddr);
+	return 0;
+#else
+	return -1;
+#endif
+}
+
+static int hobot_xj2_iar_memory_alloc(phys_addr_t logo_paddr, void *logo_vaddr,
+		phys_addr_t mem_paddr, void *vaddr)
+{
+#ifdef USE_ION_MEM
+	g_iar_dev->frambuf[IAR_CHANNEL_1].paddr = logo_paddr;
+	g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr = logo_vaddr;
+	g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = mem_paddr;
+	g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = vaddr;
+
+	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr =
+				mem_paddr + MAX_FRAME_BUF_SIZE;
+	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr =
+				vaddr + MAX_FRAME_BUF_SIZE;
+
+	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr
+		= g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr
+		+ MAX_FRAME_BUF_SIZE;
+
+	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr
+		= g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr
+		+ MAX_FRAME_BUF_SIZE;
+#else
+	g_iar_dev->frambuf[IAR_CHANNEL_1].paddr = mem_paddr;
+	g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr = vaddr;
+	g_iar_dev->frambuf[IAR_CHANNEL_3].paddr =
+				mem_paddr + MAX_FRAME_BUF_SIZE;
+	g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = vaddr + MAX_FRAME_BUF_SIZE;
+
+	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr =
+				mem_paddr + MAX_FRAME_BUF_SIZE * 2;
+	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr =
+				vaddr + MAX_FRAME_BUF_SIZE * 2;
+
+	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr
+		= g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr +
+			MAX_FRAME_BUF_SIZE;
+
+	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr
+		= g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr +
+			MAX_FRAME_BUF_SIZE;
+#endif
+	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_1].paddr = 0x%llx\n",
+				g_iar_dev->frambuf[IAR_CHANNEL_1].paddr);
+	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr = 0x%p\n",
+				g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr);
+	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = 0x%llx\n",
+				g_iar_dev->frambuf[IAR_CHANNEL_3].paddr);
+	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = 0x%p\n",
+				g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
+
+	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr = 0x%llx\n",
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr);
+	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr = 0x%p\n",
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr);
+	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr = 0x%llx\n",
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr);
+	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr = 0x%p\n",
+		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr);
+	return 0;
+}
 static int hobot_iar_probe(struct platform_device *pdev)
 {
 	struct resource *res, *irq, *res_mipi;
@@ -3391,9 +4027,20 @@ static int hobot_iar_probe(struct platform_device *pdev)
 	uint32_t timing[7] = {0};
 	uint32_t pwm[3] = {0};
 	uint32_t need_startup_img = 0;
+	uint32_t size_wh = 0;
+	uint32_t size_nv12 = 0;
+	uint32_t size_rgba = 0;
 
 	pr_info("iar probe begin!!!\n");
+	pr_debug("module input para: video layer number is %d\n", video_layer_num);
+	pr_debug("                   video layer0 width is %d\n", display_out_width);
+	pr_debug("                   video layer0 height is %d\n", display_out_height);
+	pr_debug("                   framebuffer number is %d\n", fb_num);
 
+	if (video_layer_num == 0 && fb_num == 0) {
+		display_out_width = 1920;
+		display_out_height = 1080;
+	}
 	g_iar_dev = devm_kzalloc(&pdev->dev, sizeof(struct iar_dev_s), GFP_KERNEL);
 	if (!g_iar_dev) {
 		dev_err(&pdev->dev, "Unable to alloc IAR DEV\n");
@@ -3732,16 +4379,18 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		}
 	}
 #ifdef USE_ION_MEM
-	if (!hb_ion_dev) {
-		dev_err(&pdev->dev, "NO ION device found!!");
-		goto err1;
-	}
+	if (fb_num != 0 || video_layer_num != 0) {
+		if (!hb_ion_dev) {
+			dev_err(&pdev->dev, "NO ION device found!!");
+			goto err1;
+		}
 
-	g_iar_dev->iar_iclient = ion_client_create(hb_ion_dev, "iar");
-	if (IS_ERR(g_iar_dev->iar_iclient)) {
-		dev_err(&pdev->dev, "Create iar ion client failed!!");
-		ret = -ENOMEM;
-		goto err1;
+		g_iar_dev->iar_iclient = ion_client_create(hb_ion_dev, "iar");
+		if (IS_ERR(g_iar_dev->iar_iclient)) {
+			dev_err(&pdev->dev, "Create iar ion client failed!!");
+			ret = -ENOMEM;
+			goto err1;
+		}
 	}
 
 #ifdef CONFIG_HOBOT_XJ2
@@ -3749,36 +4398,48 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		IAR_MEM_SIZE - MAX_FRAME_BUF_SIZE, 0x20,
 		ION_HEAP_CARVEOUT_MASK, 0);
 #else
-	iar_request_ion_size = MAX_FRAME_BUF_SIZE * fb_num + MAX_YUV_BUF_SIZE * 6;
-	if (logo_vaddr == NULL) {
-		g_iar_dev->iar_ihandle = ion_alloc(g_iar_dev->iar_iclient,
-			iar_request_ion_size, 0x20,
-			ION_HEAP_CARVEOUT_MASK, (IARIONTYPE << 16)|0);
-	} else {
-		g_iar_dev->iar_ihandle = ion_alloc(g_iar_dev->iar_iclient,
-			iar_request_ion_size - MAX_FRAME_BUF_SIZE, 0x20,
-			ION_HEAP_CARVEOUT_MASK, (IARIONTYPE << 16)|0);
-	}
+	if (fb_num != 0 || video_layer_num != 0) {
+		size_wh = display_out_height * display_out_width;
+		size_nv12 = size_wh * 3 / 2;
+		size_rgba = size_wh * 4;
+		if (logo_vaddr == NULL) {
+			iar_request_ion_size = video_layer_num * size_nv12 * 3 + fb_num * size_rgba;
+			g_iar_dev->iar_ihandle = ion_alloc(g_iar_dev->iar_iclient,
+				iar_request_ion_size, 0x20,
+				ION_HEAP_CARVEOUT_MASK, (IARIONTYPE << 16)|0);
+		} else {
+			if (fb_num > 0) {
+				iar_request_ion_size = video_layer_num * size_nv12 * 3
+					+ (fb_num - 1) * size_rgba;
+			} else {
+				iar_request_ion_size = video_layer_num * size_nv12 * 3;
+			}
+			g_iar_dev->iar_ihandle = ion_alloc(g_iar_dev->iar_iclient,
+				iar_request_ion_size, 0x20,
+				ION_HEAP_CARVEOUT_MASK, (IARIONTYPE << 16)|0);
+		}
+		pr_debug("iar request ion size is %ld\n", iar_request_ion_size);
 #endif
-	if (!g_iar_dev->iar_ihandle || IS_ERR(g_iar_dev->iar_ihandle)) {
-		dev_err(&pdev->dev, "Create iar ion client failed!!");
-		goto err1;
-	}
+		if (!g_iar_dev->iar_ihandle || IS_ERR(g_iar_dev->iar_ihandle)) {
+			dev_err(&pdev->dev, "Create iar ion client failed!!");
+			goto err1;
+		}
 
-	ret = ion_phys(g_iar_dev->iar_iclient, g_iar_dev->iar_ihandle->id,
-			&mem_paddr, &mem_size);
-	if (ret) {
-		dev_err(&pdev->dev, "Get buffer paddr failed!!");
-		ion_free(g_iar_dev->iar_iclient, g_iar_dev->iar_ihandle);
-		goto err2;
-	}
-	vaddr = ion_map_kernel(g_iar_dev->iar_iclient,
-			g_iar_dev->iar_ihandle);
+		ret = ion_phys(g_iar_dev->iar_iclient, g_iar_dev->iar_ihandle->id,
+				&mem_paddr, &mem_size);
+		if (ret) {
+			dev_err(&pdev->dev, "Get buffer paddr failed!!");
+			ion_free(g_iar_dev->iar_iclient, g_iar_dev->iar_ihandle);
+			goto err2;
+		}
+		vaddr = ion_map_kernel(g_iar_dev->iar_iclient,
+				g_iar_dev->iar_ihandle);
 
-	if (IS_ERR(vaddr)) {
-		dev_err(&pdev->dev, "Get buffer paddr failed!!");
-		ion_free(g_iar_dev->iar_iclient, g_iar_dev->iar_ihandle);
-		goto err2;
+		if (IS_ERR(vaddr)) {
+			dev_err(&pdev->dev, "Get buffer paddr failed!!");
+			ion_free(g_iar_dev->iar_iclient, g_iar_dev->iar_ihandle);
+			goto err2;
+		}
 	}
 #else
 	#ifdef CONFIG_HOBOT_XJ3
@@ -3807,226 +4468,13 @@ static int hobot_iar_probe(struct platform_device *pdev)
 	#endif
 #endif
 
-#ifdef USE_ION_MEM
 #ifdef CONFIG_HOBOT_XJ3
-	g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = mem_paddr;
-	g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = vaddr;
-	if (fb_num == 2) {
-		g_iar_dev->frambuf[IAR_CHANNEL_4].paddr =
-			mem_paddr + MAX_FRAME_BUF_SIZE;
-		g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr =
-			vaddr + MAX_FRAME_BUF_SIZE;
-	} else {
-		g_iar_dev->frambuf[IAR_CHANNEL_4].paddr = mem_paddr;
-		g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr = vaddr;
-	}
-	if (logo_vaddr == NULL) {
-		g_iar_dev->frambuf[IAR_CHANNEL_1].paddr =
-			g_iar_dev->frambuf[IAR_CHANNEL_4].paddr +
-			MAX_FRAME_BUF_SIZE + MAX_YUV_BUF_SIZE * 5;
-		g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr =
-			g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr +
-			MAX_FRAME_BUF_SIZE + MAX_YUV_BUF_SIZE * 5;
-	} else {
-		g_iar_dev->frambuf[IAR_CHANNEL_1].paddr = logo_paddr;
-		g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr = logo_vaddr;
-	}
-	g_iar_dev->frambuf[IAR_CHANNEL_2].paddr =
-		g_iar_dev->frambuf[IAR_CHANNEL_4].paddr + MAX_FRAME_BUF_SIZE;
-	g_iar_dev->frambuf[IAR_CHANNEL_2].vaddr =
-		g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr + MAX_FRAME_BUF_SIZE;
-
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr =
-			g_iar_dev->frambuf[IAR_CHANNEL_2].paddr + MAX_YUV_BUF_SIZE;
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr =
-			g_iar_dev->frambuf[IAR_CHANNEL_2].vaddr + MAX_YUV_BUF_SIZE;
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr
-			= g_iar_dev->frambuf[IAR_CHANNEL_2].paddr + MAX_YUV_BUF_SIZE * 2;
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr
-			= g_iar_dev->frambuf[IAR_CHANNEL_2].vaddr + MAX_YUV_BUF_SIZE * 2;
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[0].paddr =
-			g_iar_dev->frambuf[IAR_CHANNEL_2].paddr + MAX_YUV_BUF_SIZE * 3;
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[0].vaddr =
-			g_iar_dev->frambuf[IAR_CHANNEL_2].vaddr + MAX_YUV_BUF_SIZE * 3;
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[1].paddr =
-			g_iar_dev->frambuf[IAR_CHANNEL_2].paddr + MAX_YUV_BUF_SIZE * 4;
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[1].vaddr =
-			g_iar_dev->frambuf[IAR_CHANNEL_2].vaddr + MAX_YUV_BUF_SIZE * 4;
-
-	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = 0x%llx\n",
-				g_iar_dev->frambuf[IAR_CHANNEL_3].paddr);
-	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = 0x%p\n",
-				g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
-	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_4].paddr = 0x%llx\n",
-				g_iar_dev->frambuf[IAR_CHANNEL_4].paddr);
-	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr = 0x%p\n",
-				g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr);
-	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_1].paddr = 0x%llx\n",
-				g_iar_dev->frambuf[IAR_CHANNEL_1].paddr);
-	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr = 0x%p\n",
-				g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr);
-	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_2].paddr = 0x%llx\n",
-				g_iar_dev->frambuf[IAR_CHANNEL_2].paddr);
-	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_2].vaddr = 0x%p\n",
-				g_iar_dev->frambuf[IAR_CHANNEL_2].vaddr);
-	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr = 0x%llx\n",
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr);
-	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr = 0x%p\n",
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr);
-	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr = 0x%llx\n",
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr);
-	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr = 0x%p\n",
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr);
-	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[0].paddr = 0x%llx\n",
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[0].paddr);
-	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[0].vaddr = 0x%p\n",
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[0].vaddr);
-	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[1].paddr = 0x%llx\n",
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[1].paddr);
-	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[1].vaddr = 0x%p\n",
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[1].vaddr);
-
+	hobot_xj3_iar_memory_alloc(mem_paddr, vaddr, video_layer_num,
+			fb_num, size_nv12, size_rgba);
 #else
-	g_iar_dev->frambuf[IAR_CHANNEL_1].paddr = logo_paddr;
-	g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr = logo_vaddr;
-	g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = mem_paddr;
-	g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = vaddr;
-
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr =
-				mem_paddr + MAX_FRAME_BUF_SIZE;
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr =
-				vaddr + MAX_FRAME_BUF_SIZE;
-
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr
-		= g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr
-		+ MAX_FRAME_BUF_SIZE;
-
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr
-		= g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr
-		+ MAX_FRAME_BUF_SIZE;
-
-	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_1].paddr = 0x%llx\n",
-				g_iar_dev->frambuf[IAR_CHANNEL_1].paddr);
-	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr = 0x%p\n",
-				g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr);
-	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = 0x%llx\n",
-				g_iar_dev->frambuf[IAR_CHANNEL_3].paddr);
-	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = 0x%p\n",
-				g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
-
-	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr = 0x%llx\n",
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr);
-	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr = 0x%p\n",
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr);
-	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr = 0x%llx\n",
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr);
-	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr = 0x%p\n",
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr);
+	hobot_xj2_iar_memory_alloc(logo_paddr, logo_vaddr, mem_paddr, vaddr);
 #endif
-#else
-#ifdef CONFIG_HOBOT_XJ3
-	g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = mem_paddr;
-	g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = vaddr;
-	g_iar_dev->frambuf[IAR_CHANNEL_4].paddr = mem_paddr;
-	g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr = vaddr;
-	g_iar_dev->frambuf[IAR_CHANNEL_1].paddr =
-		g_iar_dev->frambuf[IAR_CHANNEL_4].paddr + MAX_FRAME_BUF_SIZE;
-	g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr =
-		g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr + MAX_FRAME_BUF_SIZE;
-	g_iar_dev->frambuf[IAR_CHANNEL_2].paddr =
-		g_iar_dev->frambuf[IAR_CHANNEL_1].paddr + MAX_YUV_BUF_SIZE;
-	g_iar_dev->frambuf[IAR_CHANNEL_2].vaddr =
-		g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr + MAX_YUV_BUF_SIZE;
 
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr =
-		g_iar_dev->frambuf[IAR_CHANNEL_1].paddr + MAX_YUV_BUF_SIZE * 2;
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr =
-		g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr + MAX_YUV_BUF_SIZE * 2;
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr =
-		g_iar_dev->frambuf[IAR_CHANNEL_1].paddr + MAX_YUV_BUF_SIZE * 3;
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr =
-		g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr + MAX_YUV_BUF_SIZE * 3;
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[0].paddr =
-		g_iar_dev->frambuf[IAR_CHANNEL_1].paddr + MAX_YUV_BUF_SIZE * 4;
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[0].vaddr =
-		g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr + MAX_YUV_BUF_SIZE * 4;
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[1].paddr =
-		g_iar_dev->frambuf[IAR_CHANNEL_1].paddr + MAX_YUV_BUF_SIZE * 5;
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[1].vaddr =
-		g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr + MAX_YUV_BUF_SIZE * 5;
-
-	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = 0x%llx\n",
-				g_iar_dev->frambuf[IAR_CHANNEL_3].paddr);
-	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = 0x%p\n",
-				g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
-	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_4].paddr = 0x%llx\n",
-				g_iar_dev->frambuf[IAR_CHANNEL_4].paddr);
-	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr = 0x%p\n",
-				g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr);
-	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_1].paddr = 0x%llx\n",
-				g_iar_dev->frambuf[IAR_CHANNEL_1].paddr);
-	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr = 0x%p\n",
-				g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr);
-	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_2].paddr = 0x%llx\n",
-				g_iar_dev->frambuf[IAR_CHANNEL_2].paddr);
-	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_2].vaddr = 0x%p\n",
-				g_iar_dev->frambuf[IAR_CHANNEL_2].vaddr);
-
-	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr = 0x%llx\n",
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr);
-	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr = 0x%p\n",
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr);
-	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr = 0x%llx\n",
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr);
-	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr = 0x%p\n",
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr);
-	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[0].paddr = 0x%llx\n",
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[0].paddr);
-	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[0].vaddr = 0x%p\n",
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[0].vaddr);
-	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[1].paddr = 0x%llx\n",
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[1].paddr);
-	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[1].vaddr = 0x%p\n",
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[1].vaddr);
-#else
-	g_iar_dev->frambuf[IAR_CHANNEL_1].paddr = mem_paddr;
-	g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr = vaddr;
-	g_iar_dev->frambuf[IAR_CHANNEL_3].paddr =
-				mem_paddr + MAX_FRAME_BUF_SIZE;
-	g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = vaddr + MAX_FRAME_BUF_SIZE;
-
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr =
-				mem_paddr + MAX_FRAME_BUF_SIZE * 2;
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr =
-				vaddr + MAX_FRAME_BUF_SIZE * 2;
-
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr
-		= g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr +
-			MAX_FRAME_BUF_SIZE;
-
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr
-		= g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr +
-			MAX_FRAME_BUF_SIZE;
-
-	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_1].paddr = 0x%llx\n",
-				g_iar_dev->frambuf[IAR_CHANNEL_1].paddr);
-	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr = 0x%p\n",
-				g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr);
-	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = 0x%llx\n",
-				g_iar_dev->frambuf[IAR_CHANNEL_3].paddr);
-	pr_debug("g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = 0x%p\n",
-				g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
-
-	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr = 0x%llx\n",
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr);
-	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr = 0x%p\n",
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr);
-	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr = 0x%llx\n",
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].paddr);
-	pr_debug("g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr = 0x%p\n",
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr);
-#endif
-#endif
 	if (display_type == LCD_7_TYPE) {
 		iar_display_cam_no = PIPELINE0;
 		iar_display_addr_type = DISPLAY_CHANNEL1;
