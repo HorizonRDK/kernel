@@ -822,7 +822,6 @@ int isp_fops_mmap(struct file *file, struct vm_area_struct *vma)
 		LOG(LOG_ERR, "mmap size exceed valid range %d.", p_ctx->mem_size);
 		return -ENOMEM;
 	}
-	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
 	vma->vm_flags |= VM_IO;
 	vma->vm_flags |= VM_LOCKED;
 	vma->vm_pgoff = p_ctx->phy_addr >> PAGE_SHIFT;
@@ -868,7 +867,7 @@ int isp_dev_mem_alloc(void)
 	}
 
 	p_ctx->handle = ion_alloc(p_ctx->client,
-			TOTAL_MEM_SIZE, 0, ION_HEAP_CARVEOUT_MASK, 0);
+			TOTAL_MEM_SIZE, 0, ION_HEAP_CARVEOUT_MASK, ION_FLAG_CACHED);
 	if (IS_ERR(p_ctx->handle)) {
 		LOG(LOG_ERR, "ac_isp ion handle create failed.");
 		ret = -ENOMEM;
