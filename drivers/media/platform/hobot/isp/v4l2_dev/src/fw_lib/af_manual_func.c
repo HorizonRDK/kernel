@@ -18,6 +18,7 @@
 */
 
 #include <linux/crc16.h>
+#include <linux/ratelimit.h>
 #include "acamera_types.h"
 #include "acamera_fw.h"
 #include "acamera_metering_stats_mem_config.h"
@@ -166,7 +167,7 @@ void af_read_stats_data( AF_fsm_ptr_t p_fsm )
     p_sbuf_af->frame_num = p_fsm->frame_num;
 
     if ( !zones_horiz || !zones_vert || zones_horiz * zones_vert > AF_ZONES_COUNT_MAX * 2 ) {
-        pr_err("af horiz %d, vert %x error.\n", zones_horiz, zones_vert);
+        printk_ratelimited("af horiz %d, vert %x error.\n", zones_horiz, zones_vert);
         zones_horiz = ISP_DEFAULT_AF_ZONES_HOR;
         zones_vert = ISP_DEFAULT_AF_ZONES_VERT;
     }

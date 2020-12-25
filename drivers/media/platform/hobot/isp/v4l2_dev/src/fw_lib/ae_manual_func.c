@@ -18,6 +18,7 @@
 */
 
 #include <linux/crc16.h>
+#include <linux/ratelimit.h>
 #include "acamera_firmware_api.h"
 #include "acamera_fw.h"
 #include "acamera_math.h"
@@ -53,7 +54,7 @@ void ae_roi_update( AE_fsm_ptr_t p_fsm )
     uint16_t x, y;
 
     if (horz_zones > ISP_METERING_ZONES_MAX_H || vert_zones > ISP_METERING_ZONES_MAX_V) {
-        pr_err("ae horiz %d, vert %x error.\n", horz_zones, vert_zones);
+        printk_ratelimited("ae horiz %d, vert %x error.\n", horz_zones, vert_zones);
         horz_zones = ISP_METERING_ZONES_MAX_H;
         vert_zones = ISP_METERING_ZONES_MAX_V;
     }
@@ -224,6 +225,16 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
 
     p_sbuf_ae->ae_5bin_info.zones_h = (uint16_t)acamera_isp_metering_aexp_nodes_used_horiz_read(p_fsm->cmn.isp_base);
     p_sbuf_ae->ae_5bin_info.zones_v = (uint16_t)acamera_isp_metering_aexp_nodes_used_vert_read(p_fsm->cmn.isp_base);
+
+    if (p_sbuf_ae->ae_5bin_info.zones_h > ISP_METERING_ZONES_AE5_H) {
+        printk_ratelimited("5bin zone h %d invalid.\n", p_sbuf_ae->ae_5bin_info.zones_h);
+        p_sbuf_ae->ae_5bin_info.zones_h = ISP_METERING_ZONES_AE5_H;
+    }
+    if (p_sbuf_ae->ae_5bin_info.zones_v > ISP_METERING_ZONES_AE5_V) {
+        printk_ratelimited("5bin zone v %d invalid.\n", p_sbuf_ae->ae_5bin_info.zones_v);
+        p_sbuf_ae->ae_5bin_info.zones_v = ISP_METERING_ZONES_AE5_V;
+    }
+
     p_sbuf_ae->ae_5bin_info.zones_size = (uint32_t)p_sbuf_ae->ae_5bin_info.zones_v * p_sbuf_ae->ae_5bin_info.zones_h;
     p_sbuf_ae->ae_5bin_info.threshold0_1 = (uint16_t)acamera_isp_metering_aexp_hist_thresh_0_1_read(p_fsm->cmn.isp_base);
     p_sbuf_ae->ae_5bin_info.threshold1_2 = (uint16_t)acamera_isp_metering_aexp_hist_thresh_1_2_read(p_fsm->cmn.isp_base);

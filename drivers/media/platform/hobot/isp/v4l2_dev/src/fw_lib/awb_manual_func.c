@@ -18,6 +18,7 @@
 */
 
 #include <linux/crc16.h>
+#include <linux/ratelimit.h>
 #include "acamera_fw.h"
 #include "acamera_math.h"
 #include "acamera_metering_stats_mem_config.h"
@@ -77,7 +78,7 @@ void awb_roi_update( AWB_fsm_ptr_t p_fsm )
     uint16_t *ptr_awb_zone_whgh_v = _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_AWB_ZONE_WGHT_VER );
 
     if (horz_zones > ISP_METERING_ZONES_MAX_H || vert_zones > ISP_METERING_ZONES_MAX_V) {
-        pr_err("awb horiz %d, vert %x error.\n", horz_zones, vert_zones);
+        printk_ratelimited("awb horiz %d, vert %x error.\n", horz_zones, vert_zones);
         horz_zones = ISP_METERING_ZONES_MAX_H;
         vert_zones = ISP_METERING_ZONES_MAX_V;
     }
@@ -224,7 +225,7 @@ void awb_read_statistics( AWB_fsm_t *p_fsm )
     uint16_t vert_zones = acamera_isp_metering_awb_nodes_used_vert_read( p_fsm->cmn.isp_base );
 
     if (horz_zones > ISP_METERING_ZONES_MAX_H || vert_zones > ISP_METERING_ZONES_MAX_V) {
-        pr_err("awb horiz %d, vert %x error.\n", horz_zones, vert_zones);
+        printk_ratelimited("awb horiz %d, vert %x error.\n", horz_zones, vert_zones);
         horz_zones = ISP_METERING_ZONES_MAX_H;
         vert_zones = ISP_METERING_ZONES_MAX_V;
     }
