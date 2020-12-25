@@ -32,8 +32,13 @@ typedef struct _dwe_param_s {
 
 typedef struct _dwe_context_t {
 	//dis reserver memory
+	// for ctx dump
+	struct ion_client *client;
+	struct ion_handle *handle;
 	void *ptr_mem;
-	uint32_t phy_mem;
+	phys_addr_t phy_mem;
+	size_t mem_size;
+	// reserved mem end
 	uint32_t ldc_irqstatus;
 	uint32_t dis_irqsattus;
 	dis_setting_u dis_setting;

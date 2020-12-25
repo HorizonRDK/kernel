@@ -34,6 +34,7 @@
 #include <linux/delay.h>
 #include <media/v4l2-subdev.h>
 #include <media/v4l2-async.h>
+#include <linux/ion.h>
 #include "acamera_logger.h"
 #include "vio_group_api.h"
 
@@ -47,9 +48,11 @@
 #define CUR_MOD_NAME LOG_MODULE_SOC_DWE
 #endif
 
+
 /* global variable define */
 static dwe_param_t dwe_param[FIRMWARE_CONTEXT_NUMBER];
 static struct dwe_dev_s *dev_ptr;
+static uint32_t dma_addr;
 struct mutex mc_mutex;
 
 typedef void(*rst_func)(void);
@@ -380,34 +383,45 @@ int pg_mode_enable(uint32_t input)
 	return ret;
 }
 
+extern struct ion_device *hb_ion_dev;
 //user by subdev
 int dwe_init_api(dwe_context_t *ctx, struct dwe_dev_s *pdev, dwe_param_t **pparam)
 {
 	int ret = 0;
 	uint32_t tmp = 0;
-	void *ptr = NULL;
+	uint32_t add_t = 0;
 
 	if (pdev != NULL)
 		dev_ptr = pdev;
 
 	*pparam = dwe_param;
-
-	ptr = kzalloc(DIS_STAT_SIZE, GFP_KERNEL);
-	if (ptr == NULL) {
-		LOG(LOG_ERR, "---kzalloc is failed!---");
-		ret = -1;
+	ctx->client = ion_client_create(hb_ion_dev, "ac_dis");
+	if (IS_ERR(ctx->client)) {
+		pr_err("ac_dis ion client create failed.\n");
+		ret = -ENOMEM;
+		goto out1;
 	}
 
-	ctx->ptr_mem = ptr;
-	ctx->phy_mem = (uint32_t)__virt_to_phys(ptr);
-
-#if 0
-	for (tmp = 0; tmp < HADRWARE_CONTEXT_MAX; tmp++) {
-		set_chn_dis_addr(dev_ptr->dis_dev->io_vaddr, &ctx->phy_mem, tmp);
+	ctx->handle = ion_alloc(ctx->client,
+			DIS_STAT_SIZE, 0, ION_HEAP_CARVEOUT_MASK, 0);
+	if (IS_ERR(ctx->handle)) {
+		pr_err("ac_dis ion handle create failed.\n");
+		ret = -ENOMEM;
+		goto out1;
 	}
 
-	dwe_sw_init();
-#endif
+	ret = ion_phys(ctx->client, ctx->handle->id,
+			&ctx->phy_mem, &ctx->mem_size);
+	if (ret) {
+		pr_err("ion_phys get phy address failed.\n");
+		goto out2;
+	}
+	ctx->ptr_mem = ion_map_kernel(ctx->client, ctx->handle);
+	if (IS_ERR(ctx->ptr_mem)) {
+		pr_err("ion_map failed.\n");
+		ret = -ENOMEM;
+		goto out2;
+	}
 
 	ctx->ldc_running = 0;
 	ctx->ldc_dev_num = 0;
@@ -423,6 +437,7 @@ int dwe_init_api(dwe_context_t *ctx, struct dwe_dev_s *pdev, dwe_param_t **ppara
 	ctx->dis_cur_num = 0;
 	ctx->online_enable = 1;
 	ctx->online_port = 0;
+	dma_addr = ctx->phy_mem;
 
 	for (tmp = 0; tmp < FIRMWARE_CONTEXT_NUMBER; tmp++) {
 		//the data is temp, ldc is bypass
@@ -444,9 +459,18 @@ int dwe_init_api(dwe_context_t *ctx, struct dwe_dev_s *pdev, dwe_param_t **ppara
 		dwe_param[tmp].dis_param.crop_x.crop_g = 0x4ff0000;
 		dwe_param[tmp].dis_param.crop_y.crop_g = 0x2cf0000;
 		dwe_param[tmp].pg_param.size.psize_g = 0x2cf04ff;
+		ctx->dframes[tmp].address = ctx->phy_mem;
 	}
 
 	mutex_init(&mc_mutex);
+	return ret;
+out2:
+	ion_free(ctx->client, ctx->handle);
+	ctx->phy_mem = 0;
+	ctx->mem_size = 0;
+	dma_addr = 0;
+	ion_client_destroy(ctx->client);
+out1:
 	return ret;
 }
 
@@ -524,6 +548,16 @@ void dwe_sw_init(void)
 	get_dwe_checktype(dev_ptr->dis_dev->io_vaddr, &tmp);
 	tmp &= 0xfb;
 	set_dwe_checktype(dev_ptr->dis_dev->io_vaddr, &tmp);
+
+	tmp = 0;
+	set_chn_dis_setting(dev_ptr->dis_dev->io_vaddr, &tmp, 0);
+	set_chn_dis_setting(dev_ptr->dis_dev->io_vaddr, &tmp, 1);
+	set_chn_dis_setting(dev_ptr->dis_dev->io_vaddr, &tmp, 2);
+	set_chn_dis_setting(dev_ptr->dis_dev->io_vaddr, &tmp, 3);
+	set_chn_dis_addr(dev_ptr->dis_dev->io_vaddr, &dma_addr, 0);
+	set_chn_dis_addr(dev_ptr->dis_dev->io_vaddr, &dma_addr, 1);
+	set_chn_dis_addr(dev_ptr->dis_dev->io_vaddr, &dma_addr, 2);
+	set_chn_dis_addr(dev_ptr->dis_dev->io_vaddr, &dma_addr, 3);
 }
 
 extern void reset_dwe_ctx(void);
@@ -597,7 +631,17 @@ void dwe_deinit_api(dwe_context_t *ctx)
 	dwe_sw_deinit();
 
 	dev_ptr = NULL;
-	kfree(ctx->ptr_mem);
+	//free ion memory
+	if (IS_ERR(ctx->client) == 0) {
+		if (IS_ERR(ctx->handle) == 0) {
+			ion_unmap_kernel(ctx->client, ctx->handle);
+			ion_free(ctx->client, ctx->handle);
+			ctx->phy_mem = 0;
+			ctx->mem_size = 0;
+			dma_addr = 0;
+		}
+		ion_client_destroy(ctx->client);
+	}
 	LOG(LOG_DEBUG, "dwe_deinit_api is success");
 }
 
@@ -800,13 +844,15 @@ int dis_hwparam_set(dwe_context_t *ctx, uint32_t port)
 			tmp_addr = ctx->dframes[port].address;
 			LOG(LOG_INFO, "port %d, addr is %d !\n", port, ctx->dframes[port].address);
 		}
+		tmp_cur = dwe_param[port].dis_param.path.path_b.rg_dis_enable + (dwe_param[port].dis_param.path.path_b.rg_dis_path_sel << 1);
+		set_chn_dis_setting(dev_ptr->dis_dev->io_vaddr, &tmp_cur, ctx->dis_dev_num);
 	} else {
 		ctx->dframes[port].address = ctx->phy_mem;
 		ctx->dframes[port].virt_addr = ctx->ptr_mem;
-		tmp_cur = dwe_param[port].dis_param.path.path_g | 1;
+		tmp_cur = 0;
 		set_chn_dis_setting(dev_ptr->dis_dev->io_vaddr, &tmp_cur, ctx->dis_dev_num);
 	}
-
+	pr_debug("phy_addr 0x%x \n", ctx->dframes[port].address);
 	set_chn_dis_addr(dev_ptr->dis_dev->io_vaddr,
 		&ctx->dframes[port].address, ctx->dis_dev_num);
 

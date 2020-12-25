@@ -450,7 +450,7 @@ int dwe_hw_init(void)
 	return ret;
 
 irq_err:
-	free_irq(dwe_ctx->dev_ctx->dis_dev->irq_num, x3_ldc_irq);
+	free_irq(dwe_ctx->dev_ctx->dis_dev->irq_num, x3_dis_irq);
 irqdis_err:
 	free_irq(dwe_ctx->dev_ctx->ldc_dev->irq_num, x3_ldc_irq);
 irqldc_err:
