@@ -118,8 +118,6 @@ static u32 x3_pym_poll(struct file *file, struct poll_table_struct *wait)
 	done_list = &framemgr->queued_list[FS_COMPLETE];
 	if (!list_empty(done_list)) {
 		pym->statistic.pollin_comp[pym_ctx->group->instance]++;
-		framemgr_x_barrier_irqr(framemgr, 0, flags);
-		return POLLIN;
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 	if (pym_ctx->event == VIO_FRAME_DONE) {
@@ -1815,6 +1813,7 @@ void pym_frame_done(struct pym_subdev *subdev)
 	int cache_bufindex;
 	struct vio_frame *cache_frame;
 	struct vio_frame_id frmid;
+	unsigned long poll_mask = 0;
 
 	group = subdev->group;
 	pym = subdev->pym_dev;
@@ -1840,6 +1839,7 @@ void pym_frame_done(struct pym_subdev *subdev)
 		event = VIO_FRAME_DONE;
 		trans_frame(framemgr, frame, FS_COMPLETE);
 		frame->poll_mask = subdev->poll_mask;
+		poll_mask = subdev->poll_mask;
 		subdev->poll_mask = 0x00;
 		pym->statistic.fe_normal[group->instance]++;
 
@@ -1885,7 +1885,8 @@ void pym_frame_done(struct pym_subdev *subdev)
 		spin_lock(&subdev->slock);
 		vio_dbg("pym done subdev ctx mask:%lu", subdev->val_ctx_mask);
 		for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
-			if (test_bit(i, &subdev->val_ctx_mask)) {
+			if (test_bit(i, &subdev->val_ctx_mask) &&
+					test_bit(i, &poll_mask)) {
 				pym_ctx = subdev->ctx[i];
 				if (pym_ctx) {
 					pym_ctx->event = event;
