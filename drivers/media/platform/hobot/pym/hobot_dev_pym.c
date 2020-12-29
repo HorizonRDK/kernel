@@ -635,7 +635,8 @@ void pym_update_param_ch(struct pym_subdev *subdev)
 	}
 }
 
-int pym_bind_chain_group(struct pym_video_ctx *pym_ctx, int instance)
+int pym_bind_chain_group(struct pym_video_ctx *pym_ctx, int instance,
+		int *mp_share)
 {
 	int ret = 0;
 	int i = 0;
@@ -686,6 +687,8 @@ int pym_bind_chain_group(struct pym_video_ctx *pym_ctx, int instance)
 	}
 	if (atomic_inc_return(&subdev->refcount) == 1)
 		frame_manager_init_mp(pym_ctx->framemgr);
+	else
+		*mp_share = 0xff;
 
 	group->frame_work = pym_frame_work;
 	group->gtask = &pym->gtask;
@@ -1587,6 +1590,7 @@ static long x3_pym_ioctl(struct file *file, unsigned int cmd,
 	int buffers = 0;
 	int enable = 0;
 	int instance = 0;
+	int mp_share = 0;
 	struct pym_video_ctx *pym_ctx;
 	struct frame_info frameinfo;
 	struct vio_group *group;
@@ -1651,7 +1655,12 @@ static long x3_pym_ioctl(struct file *file, unsigned int cmd,
 		ret = get_user(instance, (u32 __user *) arg);
 		if (ret)
 			return -EFAULT;
-		ret = pym_bind_chain_group(pym_ctx, instance);
+		ret = pym_bind_chain_group(pym_ctx, instance, &mp_share);
+		if (ret)
+			return -EFAULT;
+		ret = put_user(mp_share, (u32 __user *)arg);
+		if (ret)
+			return -EFAULT;
 		break;
 	case PYM_IOC_USER_STATS:
 		ret = copy_from_user((char *) &stats, (u32 __user *) arg,
