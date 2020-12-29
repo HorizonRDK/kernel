@@ -325,6 +325,36 @@ static int cma_get_range(struct cma *cma, void *data)
 	return 0;
 }
 
+static int ion_is_in_range(u32 phy_start, u32 phy_end)
+{
+	struct device_node *node;
+	struct resource ion_res;
+	const char *status;
+
+	node = of_find_node_by_path("/reserved-memory");
+	if (node) {
+		node = of_find_compatible_node(node, NULL, "ion-pool");
+		if (node) {
+			status = of_get_property(node, "status", NULL);
+			if ((!status) || (strcmp(status, "okay") == 0)
+					|| (strcmp(status, "ok") == 0)) {
+				if (!of_address_to_resource(node, 0, &ion_res)) {
+					pr_debug("%s:ION Carveout MEM start 0x%llx, size 0x%lx\n",
+							__func__, ion_res.start, ion_res.end);
+					if((phy_start <= ion_res.start) &&
+						(phy_end >= (ion_res.end))) {
+						pr_debug("ion is in range :%08x - %08x\n",
+								phy_start, phy_end);
+						return 1;
+					}
+				}
+			}
+		}
+	}
+
+	return 0;
+}
+
 /*
  * MPU Protect ranges:
  * range0: bl31 + .text + .rodata, CPU only
@@ -360,12 +390,18 @@ static int ddr_mpu_protect_kernel(void)
 	/* range 1, from kernel .init to CMA start, block BPU,VIO,VPU */
 	writel(phy_start1 >> 12, mpu_prt.secreg + MPU_S_RANGE1);
 	writel(phy_end1 >> 12, mpu_prt.secreg + MPU_E_RANGE1);
-	writel(0xE000F000, mpu_prt.secreg + MPU_RANGE1_WUSER);
+	if (ion_is_in_range(phy_start1, phy_end1))
+		writel(0xE0000000, mpu_prt.secreg + MPU_RANGE1_WUSER);
+	else
+		writel(0xE000F000, mpu_prt.secreg + MPU_RANGE1_WUSER);
 
 	/* range 2, from CMA end to memory end, block BPU,VIO,VPU */
 	writel(phy_start2 >> 12, mpu_prt.secreg + MPU_S_RANGE2);
 	writel(phy_end2 >> 12, mpu_prt.secreg + MPU_E_RANGE2);
-	writel(0xE000F000, mpu_prt.secreg + MPU_RANGE2_WUSER);
+	if (ion_is_in_range(phy_start2, phy_end2))
+		writel(0xE0000000, mpu_prt.secreg + MPU_RANGE2_WUSER);
+	else
+		writel(0xE000F000, mpu_prt.secreg + MPU_RANGE2_WUSER);
 
 	return 0;
 }
