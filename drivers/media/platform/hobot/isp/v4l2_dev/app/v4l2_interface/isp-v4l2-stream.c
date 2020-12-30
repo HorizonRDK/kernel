@@ -525,7 +525,7 @@ int callback_stream_get_frame( uint32_t ctx_id, acamera_stream_type_t type, afra
 int callback_stream_put_frame( uint32_t ctx_id, acamera_stream_type_t type, aframe_t *aframes, uint64_t num_planes, uint8_t flag )
 {
     int rc;
-    int cnt = 0;
+    int cnt = 0, factor = 0;
     isp_v4l2_stream_type_t v4l2_type;
     isp_v4l2_stream_t *pstream;
     isp_v4l2_buffer_t *pbuf = NULL;
@@ -564,7 +564,13 @@ int callback_stream_put_frame( uint32_t ctx_id, acamera_stream_type_t type, afra
 	cnt++;
     pr_debug("stream_buffer_list_busy count %d", cnt);
 // debug end
-    if ( !list_empty( &pstream->stream_buffer_list_busy ) ) {
+
+    if (p_ctx->p_gfw->sif_isp_offline == 1)
+        factor = 0;
+    else
+        factor = 1;
+
+    if (cnt > factor) {
         pbuf = list_entry( pstream->stream_buffer_list_busy.next, isp_v4l2_buffer_t, list );
         list_del( &pbuf->list );
     }
