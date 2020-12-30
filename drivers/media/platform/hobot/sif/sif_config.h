@@ -138,6 +138,13 @@ typedef enum sif_ddr_out_type_s {
 	SIF_DDR_OUT_INVALID
 }sif_ddr_out_type_e;
 
+typedef struct fps_cfg_s {
+	uint32_t skip_frame;  //0:not ctrl; 1: software; 2:hardware
+	uint32_t in_fps;
+	uint32_t out_fps;
+	uint32_t dump_raw;
+} fps_cfg_t;
+
 typedef struct sif_output_ddr {
 	uint32_t		  enable;
 	uint32_t		  mux_index;
@@ -145,6 +152,7 @@ typedef struct sif_output_ddr {
 	uint32_t		  buffer_num;
 	uint32_t		  raw_dump_en;
 	sif_ddr_out_type_e sif_ddr_out_type;
+	fps_cfg_t		  fps_cfg;
 } sif_output_ddr_t;
 
 typedef struct sif_output_isp {
