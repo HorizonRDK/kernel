@@ -17,6 +17,7 @@
 *
 */
 #define pr_fmt(fmt) "[isp_drv]: %s: " fmt, __func__
+#include <linux/ion.h>
 #include "acamera_logger.h"
 #include "system_interrupts.h"
 #include "system_stdlib.h"
@@ -319,6 +320,8 @@ int dma_writer_configure_pipe( dma_pipe *pipe )
     if ( rc ) {
         curr_frame->primary.status = dma_buf_purge;
         curr_frame->secondary.status = dma_buf_purge;
+        pr_err("get buffer from v4l2 failed.\n");
+        return 0;
     } else {
         if ( curr_frame->primary.status == dma_buf_empty )
             curr_frame->primary.status = dma_buf_busy;
@@ -326,9 +329,16 @@ int dma_writer_configure_pipe( dma_pipe *pipe )
             curr_frame->secondary.status = dma_buf_busy;
     }
 
+    rc = ion_check_in_heap_carveout(curr_frame->primary.address, 0);
+    rc |= ion_check_in_heap_carveout(curr_frame->secondary.address, 0);
+
     /* write the current frame in the software config */
-    dma_writer_configure_frame_writer( pipe, &curr_frame->primary, primary_ops );
-    dma_writer_configure_frame_writer( pipe, &curr_frame->secondary, secondary_ops );
+    if (rc == 0) {
+        dma_writer_configure_frame_writer( pipe, &curr_frame->primary, primary_ops );
+        dma_writer_configure_frame_writer( pipe, &curr_frame->secondary, secondary_ops );
+    } else {
+        pr_err("y addr 0x%x or uv addr 0x%x is invalid.\n", curr_frame->primary.address, curr_frame->secondary.address);
+    }
 
     return 0;
 }
