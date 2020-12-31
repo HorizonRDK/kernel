@@ -106,6 +106,26 @@ failed:
 	return -1;
 }
 
+static int lens_i2c_writebuf(const struct i2c_client *client, const char *buf, size_t count)
+{
+	int ret;
+
+	if (count > 10)
+		count = 10;
+	if (!client) {
+		LOG(LOG_ERR, "can not get client");
+		return -ENOMEM;
+	}
+
+	ret = i2c_master_send(client, buf, count);
+
+	if (ret != count) {
+		LOG(LOG_INFO, "write failed !");
+		ret = -1;
+	}
+	return ret;
+}
+
 static int lens_i2c_write(const struct i2c_client *client, uint16_t reg_addr,
 	uint8_t bit_width, const char *buf, size_t count)
 {
@@ -176,6 +196,35 @@ static void data_tranform_to_send(uint32_t input, char *buf, uint32_t len, uint1
 		break;
 		}
 	}
+	LOG(LOG_DEBUG, "buf[0] 0x%x, buf[1] 0x%x, buf[2] 0x%x, buf[3] 0x%x \n", buf[0], buf[1], buf[2], buf[3]);
+}
+
+static void data_tranform_to_send_a(uint32_t base, uint32_t pos, char *buf, uint32_t len, uint16_t conversion)
+{
+	uint32_t temp = 0;
+	temp = base + (pos << conversion);
+
+	switch (len) {
+		case 4:
+			buf[0] = (char)((temp >> 24) & 0xff);
+			buf[1] = (char)((temp >> 16) & 0xff);
+			buf[2] = (char)((temp >> 8) & 0xff);
+			buf[3] = (char)(temp & 0xff);
+		break;
+		case 3:
+			buf[0] = (char)((temp >> 16) & 0xff);
+			buf[1] = (char)((temp >> 8) & 0xff);
+			buf[2] = (char)(temp & 0xff);
+		break;
+		case 2:
+			buf[0] = (char)((temp >> 8) & 0xff);
+			buf[1] = (char)(temp & 0xff);
+		break;
+		case 1:
+			buf[0] = (char)(temp & 0xff);
+		break;
+	}
+	LOG(LOG_DEBUG, "buf[0] 0x%x, buf[1] 0x%x, buf[2] 0x%x, buf[3] 0x%x \n", buf[0], buf[1], buf[2], buf[3]);
 }
 
 //basic_func
@@ -186,7 +235,7 @@ void motor_i2c_init(void *ctx, void *param)
 void motor_i2c_move(void *ctx, void *param, uint32_t pos)
 {
 	int ret = 0;
-	char buf[4] = {0, 0, 0, 0};
+	char buf[10] = {0};
 	struct i2c_client *client = (struct i2c_client *)ctx;
 	struct motor_info *info = (struct motor_info *)param;
 
@@ -198,10 +247,17 @@ void motor_i2c_move(void *ctx, void *param, uint32_t pos)
 	if (i2c_param == NULL)
 		return;
 
-	LOG(LOG_DEBUG, "addr %d, width %d, len %d, pos %d \n", i2c_param->reg_addr,
-		i2c_param->reg_width, i2c_param->reg_len, pos);
-	data_tranform_to_send(pos, buf, i2c_param->reg_len, i2c_param->conversion);
-	ret = lens_i2c_write(client, i2c_param->reg_addr, i2c_param->reg_width, buf, i2c_param->reg_len);
+	if (i2c_param->reserved_2 == 1) {
+		data_tranform_to_send_a(i2c_param->reg_addr, pos, buf, i2c_param->reg_width, i2c_param->conversion);
+		ret = lens_i2c_writebuf(client, buf, i2c_param->reg_width);
+		LOG(LOG_DEBUG, "addr 0x%x, width %d, len %d, pos %d \n", i2c_param->reg_addr,
+			i2c_param->reg_width, i2c_param->reg_len, pos);
+	} else {
+		data_tranform_to_send(pos, buf, i2c_param->reg_len, i2c_param->conversion);
+		ret = lens_i2c_write(client, i2c_param->reg_addr, i2c_param->reg_width, buf, i2c_param->reg_len);
+		LOG(LOG_DEBUG, "addr 0x%x, width %d, len %d, pos %d \n", i2c_param->reg_addr,
+			i2c_param->reg_width, i2c_param->reg_len, pos);
+	}
 }
 
 void motor_i2c_stop(void *ctx, void *param)
@@ -293,7 +349,7 @@ struct i2c_client *lens_i2c_request(uint32_t i2c_chn, uint32_t i2c_addr,
 	snprintf(temp_info.type, I2C_NAME_SIZE, "%s", name);
 	temp_info.addr = i2c_addr;
 
-	LOG(LOG_DEBUG, "name %d, addr 0x%x\n", name, i2c_addr);
+	LOG(LOG_DEBUG, "name %s, chn %d, addr 0x%x\n", name, i2c_chn, i2c_addr);
 
 	client = lens_i2c_open(i2c_chn, &temp_info);
 

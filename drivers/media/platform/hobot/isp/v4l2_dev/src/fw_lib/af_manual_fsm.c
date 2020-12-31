@@ -36,7 +36,7 @@ extern int zoom_update_lens_position(AF_fsm_ptr_t p_fsm);
 void AF_fsm_clear( AF_fsm_t *p_fsm )
 {
     p_fsm->frame_num = 0;
-    p_fsm->mode = AF_MODE_AF;
+    p_fsm->mode = AF_MODE_CAF;
     p_fsm->pos_manual = 0;
     p_fsm->zoom_manual_pos = 10;
     p_fsm->zoom_curr_pos = 10;

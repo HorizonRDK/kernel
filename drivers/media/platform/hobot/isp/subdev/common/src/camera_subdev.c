@@ -33,6 +33,7 @@
 #include <media/v4l2-async.h>
 
 #include "inc/camera_dev.h"
+#include "inc/camera_ctrl.h"
 #include "inc/camera_subdev.h"
 #include "inc/camera_i2c.h"
 #include "inc/camera_sys_api.h"
@@ -114,6 +115,10 @@ static long camera_subdev_ioctl(struct v4l2_subdev *sd,
 	}
 	switch (cmd) {
 	case SENSOR_UPDATE:
+		// ctrl by user
+		set_sensor_aexp_info(ARGS_TO_PTR(arg)->port, ARGS_TO_PTR(arg)->sensor_priv);
+		sensor_ctrl_wakeup(ARGS_TO_PTR(arg)->port);
+		// ctrl by user end
 		cmd_add_to_work(cmd, arg);
 		break;
 	case SENSOR_GET_PARAM:
@@ -279,6 +284,7 @@ int __init camera_subdev_driver_init(void)
 		goto init_err;
 	}
 	camera_cdev_init();
+	camera_ctrldev_init();
 	return ret;
 init_err:
 
@@ -290,6 +296,7 @@ init_err:
 void __exit camera_subdev_driver_exit(void)
 {
 	camera_cdev_exit();
+	camera_ctrldev_exit();
 	platform_driver_unregister(&camera_subdev_driver);
 	platform_device_unregister(camera_subdev);
 	pr_info("[KeyMsg] camera subdevice exit done");
