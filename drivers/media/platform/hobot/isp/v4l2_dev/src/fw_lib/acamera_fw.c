@@ -403,8 +403,8 @@ int32_t acamera_update_calibration_set( acamera_context_ptr_t p_ctx )
         acamera_fsm_mgr_set_param( &p_ctx->fsm_mgr, FSM_PARAM_SET_AE_INIT, NULL, 0 );
 #endif
 
-#if defined( ISP_HAS_IRIDIX_FSM ) || defined( ISP_HAS_IRIDIX_HIST_FSM ) || defined( ISP_HAS_IRIDIX_MANUAL_FSM )
-        acamera_fsm_mgr_set_param( &p_ctx->fsm_mgr, FSM_PARAM_SET_IRIDIX_INIT, NULL, 0 );
+#if defined( ISP_HAS_IRIDIX_FSM ) || defined( ISP_HAS_IRIDIX_HIST_FSM ) || defined( ISP_HAS_IRIDIX_MANUAL_FSM ) || defined( ISP_HAS_IRIDIX8_MANUAL_FSM )
+        acamera_fsm_mgr_set_param( &p_ctx->fsm_mgr, FSM_PARAM_SET_IRIDIX_LUT_RELOAD, NULL, 0 );
 #endif
 
 #if defined( ISP_HAS_COLOR_MATRIX_FSM )

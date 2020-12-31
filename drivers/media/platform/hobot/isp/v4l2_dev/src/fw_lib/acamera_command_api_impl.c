@@ -5000,8 +5000,8 @@ uint8_t acamera_api_calibration( uint32_t ctx_id, uint8_t type, uint8_t id, uint
 #endif
                     break;
                 case CALIBRATION_IRIDIX_ASYMMETRY:
-#if defined( ISP_HAS_IRIDIX_FSM ) || defined( ISP_HAS_IRIDIX_HIST_FSM ) || defined( ISP_HAS_IRIDIX_MANUAL_FSM )
-                    acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_IRIDIX_INIT, NULL, 0 );
+#if defined( ISP_HAS_IRIDIX_FSM ) || defined( ISP_HAS_IRIDIX_HIST_FSM ) || defined( ISP_HAS_IRIDIX_MANUAL_FSM ) || defined(ISP_HAS_IRIDIX8_MANUAL_FSM )
+                    acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_IRIDIX_LUT_RELOAD, NULL, 0 );
 #endif
                     break;
 #ifdef CALIBRATION_DEFECT_PIXELS
@@ -5013,6 +5013,10 @@ uint8_t acamera_api_calibration( uint32_t ctx_id, uint8_t type, uint8_t id, uint
                         result = FAIL;
                 } break;
 #endif
+		case CALIBRATION_RGB2YUV_CONVERSION: {
+			acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_MATRIX_YUV_UPDATE, NULL, 0);
+		break;
+		}
                 default:
                     // do not do anything for this lut
                     result = SUCCESS;

@@ -97,6 +97,9 @@ int iridix_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t in
         rc = iridix_set_tracking_frame_id( p_fsm, *(uint32_t *)input );
 
         break;
+    case FSM_PARAM_SET_IRIDIX_LUT_RELOAD:
+        iridix_lut_reload( p_fsm );
+        break;
 
     default:
         rc = -1;

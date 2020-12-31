@@ -222,6 +222,26 @@ void iridix_initialize( iridix_fsm_t *p_fsm )
     iridix_request_interrupt( p_fsm, p_fsm->mask.repeat_irq_mask );
 }
 
+
+void iridix_lut_reload( iridix_fsm_t *p_fsm )
+{
+    uint16_t i;
+
+    if ( _GET_WIDTH( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_IRIDIX_ASYMMETRY ) == sizeof( int32_t ) ) {
+        // 32 bit tables
+        for ( i = 0; i < _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_IRIDIX_ASYMMETRY ); i++ ) {
+            uint32_t val = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_IRIDIX_ASYMMETRY )[i];
+            acamera_isp_iridix_lut_asymmetry_lut_write( p_fsm->cmn.isp_base, i, val );
+        }
+    } else {
+        // 16 bit tables
+        for ( i = 0; i < _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_IRIDIX_ASYMMETRY ); i++ ) {
+            acamera_isp_iridix_lut_asymmetry_lut_write( p_fsm->cmn.isp_base, i, _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_IRIDIX_ASYMMETRY )[i] );
+        }
+    }
+
+}
+
 int iridix_set_tracking_frame_id( iridix_fsm_ptr_t p_fsm, uint32_t frame_id )
 {
     // check whether previous frame_id_tracking finished.

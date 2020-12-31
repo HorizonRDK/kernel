@@ -347,7 +347,7 @@ void acamera_reload_isp_calibratons( general_fsm_ptr_t p_fsm )
     for ( i = 0; i < _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_NOISE_PROFILE ); i++ ) {
 
         acamera_isp_sinter_noise_profile_lut_weight_lut_write( p_fsm->cmn.isp_base, i, np_lut[i] );
-        acamera_isp_temper_noise_profile_lut_weight_lut_write( p_fsm->cmn.isp_base, i, np_lut[i] );
+        // acamera_isp_temper_noise_profile_lut_weight_lut_write( p_fsm->cmn.isp_base, i, np_lut[i] );
 
         acamera_isp_frame_stitch_np_lut_vs_weight_lut_write( p_fsm->cmn.isp_base, i, np_lut_wdr[i] );
         acamera_isp_frame_stitch_np_lut_s_weight_lut_write( p_fsm->cmn.isp_base, i, np_lut_wdr[i] );
@@ -366,8 +366,8 @@ void acamera_reload_isp_calibratons( general_fsm_ptr_t p_fsm )
     }
 #endif
 
-#if defined( ISP_HAS_IRIDIX_FSM ) || defined( ISP_HAS_IRIDIX8_FSM )
-    acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_IRIDIX_INIT, NULL, 0 );
+#if defined( ISP_HAS_IRIDIX_FSM ) || defined( ISP_HAS_IRIDIX8_FSM ) || defined( ISP_HAS_IRIDIX8_MANUAL_FSM )
+    acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_IRIDIX_LUT_RELOAD, NULL, 0 );
 #endif
 
     // Load purple fringe
@@ -953,6 +953,12 @@ static int general_temper_configure( general_fsm_ptr_t p_fsm )
     if (p_fsm->temper_mode == TEMPER2_MODE || p_fsm->temper_mode == TEMPER3_MODE) {
         // acamera_isp_temper_enable_write(isp_base, 1);
         acamera_isp_top_bypass_temper_write(isp_base, 0);
+    }
+
+    uint32_t i = 0;
+    const uint8_t *np_lut = _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_NOISE_PROFILE );
+    for ( i = 0; i < _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_NOISE_PROFILE ); i++ ) {
+        acamera_isp_temper_noise_profile_lut_weight_lut_write( p_fsm->cmn.isp_base, i, np_lut[i] );
     }
 
     return 0;

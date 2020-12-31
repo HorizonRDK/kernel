@@ -147,6 +147,9 @@ int matrix_yuv_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_
         p_fsm->color_mode = *(uint32_t *)input;
         matrix_yuv_update( p_fsm );
         break;
+    case FSM_PARAM_SET_MATRIX_YUV_UPDATE:
+	matrix_yuv_update( p_fsm );
+	break;
 
     default:
         rc = -1;

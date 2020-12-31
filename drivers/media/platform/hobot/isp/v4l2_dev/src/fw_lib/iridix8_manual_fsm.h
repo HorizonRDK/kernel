@@ -27,6 +27,7 @@ typedef struct _iridix_fsm_t *iridix_fsm_ptr_t;
 typedef const struct _iridix_fsm_t *iridix_fsm_const_ptr_t;
 
 void iridix_initialize( iridix_fsm_ptr_t p_fsm );
+void iridix_lut_reload( iridix_fsm_ptr_t p_fsm );
 void iridix_update( iridix_fsm_ptr_t p_fsm );
 int iridix_set_tracking_frame_id( iridix_fsm_ptr_t p_fsm, uint32_t frame_id );
 
