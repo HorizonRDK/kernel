@@ -312,13 +312,13 @@ static irqreturn_t mpu_protection_isr(int this_irq, void *data)
 static int cma_get_range(struct cma *cma, void *data)
 {
 	struct cma_info *info = (struct cma_info *)data;
-	char *name = cma_get_name(cma);
+	const char *name = cma_get_name(cma);
 
 	if (!strncmp(info->name, name, strlen(name))) {
 		info->cma_start = cma_get_base(cma);
 		info->cma_size = cma_get_size(cma);
 		pr_debug("got cma name:%s, cma_base:0x%08x, size:0x%08x\n",
-			info->name, info->cma_start, info->cma_size);
+			info->name, (u32)info->cma_start, (u32)info->cma_size);
 		return 1;
 	}
 
@@ -339,7 +339,7 @@ static int ion_is_in_range(u32 phy_start, u32 phy_end)
 			if ((!status) || (strcmp(status, "okay") == 0)
 					|| (strcmp(status, "ok") == 0)) {
 				if (!of_address_to_resource(node, 0, &ion_res)) {
-					pr_debug("%s:ION Carveout MEM start 0x%llx, size 0x%lx\n",
+					pr_debug("%s:ION Carveout MEM start 0x%llx, size 0x%llx\n",
 							__func__, ion_res.start, ion_res.end);
 					if((phy_start <= ion_res.start) &&
 						(phy_end >= (ion_res.end))) {
@@ -391,7 +391,11 @@ static int ddr_mpu_protect_kernel(void)
 	writel(phy_start1 >> 12, mpu_prt.secreg + MPU_S_RANGE1);
 	writel(phy_end1 >> 12, mpu_prt.secreg + MPU_E_RANGE1);
 	if (ion_is_in_range(phy_start1, phy_end1))
-		writel(0xE0000000, mpu_prt.secreg + MPU_RANGE1_WUSER);
+		/*
+		 * FIXME: optimize range 1 protection for J3 later
+		 * VIO will use carveout memory  when cma_alloc failed
+		 */
+		writel(0x00000000, mpu_prt.secreg + MPU_RANGE1_WUSER);
 	else
 		writel(0xE000F000, mpu_prt.secreg + MPU_RANGE1_WUSER);
 
@@ -399,7 +403,7 @@ static int ddr_mpu_protect_kernel(void)
 	writel(phy_start2 >> 12, mpu_prt.secreg + MPU_S_RANGE2);
 	writel(phy_end2 >> 12, mpu_prt.secreg + MPU_E_RANGE2);
 	if (ion_is_in_range(phy_start2, phy_end2))
-		writel(0xE0000000, mpu_prt.secreg + MPU_RANGE2_WUSER);
+		writel(0x00000000, mpu_prt.secreg + MPU_RANGE2_WUSER);
 	else
 		writel(0xE000F000, mpu_prt.secreg + MPU_RANGE2_WUSER);
 
