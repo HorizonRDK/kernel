@@ -48,8 +48,10 @@ static void matrix_vector_multiply( int16_t *m, int16_t *v )
     int16_t result[3];
     for ( i = 0; i < dim1; ++i ) {
         int32_t temp = 0;
-        for ( j = 0; j < dim2; ++j )
-            temp += ( ( (int32_t)m[i * dim2 + j] * v[j] ) >> 8 );
+        for ( j = 0; j < dim2; ++j ) {
+            temp += ((int32_t)m[i * dim2 + j] * v[j]);
+	}
+        temp = ((temp) >> 8);
         result[i] = (uint16_t)temp;
     }
     for ( i = 0; i < dim1; ++i )
@@ -68,8 +70,10 @@ static void matrix_matrix_multiply( int16_t *a1, int16_t *a2 )
     for ( i = 0; i < dim1; ++i ) {
         for ( j = 0; j < dim3; ++j ) {
             int32_t temp = 0;
-            for ( k = 0; k < dim2; ++k )
-                temp += ( ( (int32_t)a1[i * dim2 + k] * a2[k * dim3 + j] ) >> 8 );
+            for ( k = 0; k < dim2; ++k ) {
+                temp += ((int32_t)a1[i * dim2 + k] * a2[k * dim3 + j]);
+	    }
+	    temp = (temp) >> 8;
             result[i * dim3 + j] = (int16_t)temp;
         }
     }
@@ -330,8 +334,15 @@ static void matrix_compute_hue_saturation( uint16_t value, int16_t *p_matrix )
         1423, 1139, 854, 570, 285, 0,
     };
     int16_t hue_coeff[] = {
-        4899, 11485, 2748, 9617, -9617, 5395, 1868, -1868, -8144, 4899, -4899, -5376, 9617, 6767, 581, 1868, -1868, 4795,
-        4899, -4899, 20473, 9617, -9617, -17143, 1868, 14516, -3329,
+	4899 + 1, 11485, 2748,
+	9617 + 1, -9617, 5395,
+	1868, -1868, -8144,
+	4899 + 1, -4899, -5376,
+	9617 + 1, 6767, 581,
+	1868, -1868, 4795,
+	4899 + 1, -4899, 20473,
+	9617 + 1, -9617, -17143,
+	1868, 14516, -3329,
     };
     int16_t theta = (int16_t)value;
     int16_t cosine = 0;
