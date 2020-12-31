@@ -156,7 +156,6 @@ void sif_read_frame_work(struct vio_group *group)
 	struct vio_frame *frame;
 	struct frame_info *frameinfo;
 	struct sif_subdev * subdev;
-	struct mutex *ldc_acess_mutex = NULL;
 
 	instance = group->instance;
 
@@ -171,10 +170,8 @@ void sif_read_frame_work(struct vio_group *group)
 	}
 
 	sif = subdev->sif_dev;
-	ldc_acess_mutex = vio_get_ldc_access_mutex();
-	mutex_lock(ldc_acess_mutex);
+	vio_ldc_access_mutex_lock();
 	vio_get_ldc_rst_flag(&ldc_rst_flag);
-
 	atomic_set(&sif->instance, instance);
 
 	framemgr = &subdev->framemgr;
@@ -210,9 +207,8 @@ void sif_read_frame_work(struct vio_group *group)
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 	vio_dbg("[S%d]%s:done", group->instance, __func__);
-	mutex_unlock(ldc_acess_mutex);
+	vio_ldc_access_mutex_unlock();
 }
-
 
 void sif_write_frame_work(struct vio_group *group)
 {
@@ -377,6 +373,7 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 	if (!(sif_ctx->state & BIT(VIO_VIDEO_STOP))) {
 		sif_video_streamoff(sif_ctx);
 	}
+
 	mutex_lock(&sif->shared_mutex);
 	if ((subdev) && atomic_dec_return(&subdev->refcount) == 0) {
 		subdev->state = 0;
@@ -2369,7 +2366,7 @@ static int x3_sif_probe(struct platform_device *pdev)
 	atomic_set(&sif->isp_init_cnt, 0);
 	atomic_set(&sif->open_cnt, 0);
 	vio_init_ldc_access_mutex();
-
+	vio_rst_mutex_init();
 	mutex_init(&sif->shared_mutex);
 
 	x3_sif_device_node_init(sif);

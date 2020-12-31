@@ -261,7 +261,9 @@ void frame_work_function_mp(struct kthread_work *work)
 		goto p_err_ignore;
 	}
 
+
 	group = leader;
+	vio_rst_mutex_lock();
 	while (group->next) {
 		group = group->next;
 		vio_dbg("[S%d][G%d]%s #1\n", leader->instance, leader->id, __func__);
@@ -269,6 +271,7 @@ void frame_work_function_mp(struct kthread_work *work)
 			group->frame_work(group);
 	}
 	vio_dbg("[S%d][G%d]%s #2\n", leader->instance, leader->id, __func__);
+	vio_rst_mutex_unlock();
 
 	leader->frame_work(leader);
 	clear_bit(VIO_GTASK_SHOT, &gtask->state);

@@ -65,7 +65,6 @@ extern void vio_dwe_clk_disable(void);
 static int dwe_fop_open(struct inode *pinode, struct file *pfile)
 {
 	int ret = 0;
-	u32 ldc_rst_flag = 0;
 	uint32_t tmp = 0;
 	dwe_charmod_s *dwe_cdev = NULL;
 	//int minor = iminor(pinode);
@@ -96,7 +95,9 @@ static int dwe_fop_open(struct inode *pinode, struct file *pfile)
 
 	mutex_lock(&g_lock);
 	if (pipe_count == 0) {
-		vio_set_ldc_rst_flag(ldc_rst_flag);
+		vio_ldc_access_mutex_lock();
+		vio_set_ldc_rst_flag(0);
+		vio_ldc_access_mutex_unlock();
 		vio_dwe_clk_enable();
 		dwe_sw_init();
 	}

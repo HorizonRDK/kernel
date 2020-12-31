@@ -280,7 +280,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	u32 cnt;
 	int ret = 0;
 	u32 ctx_index;
-	u32 id;
+	u32 id, i;
 	unsigned long flags;
 
 	ipu_ctx = file->private_data;
@@ -313,6 +313,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 
 	//vio_dbg("from ipu index %d, cnt %d, subdev id:%d", index, cnt, subdev->id);
 	//frame_manager_flush_mp(ipu_ctx->framemgr, index, cnt, ipu_ctx->ctx_index);
+	vio_rst_mutex_lock();
 	mutex_lock(&ipu_mutex);
 	vio_dbg("[S%d][V%d] in close,begin clean", ipu_ctx->belong_pipe, ipu_ctx->id);
 	if ((group) &&(atomic_dec_return(&subdev->refcount) == 0)) {
@@ -327,6 +328,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 			clear_bit(VIO_GROUP_LEADER, &group->state);
 			clear_bit(VIO_GROUP_INIT, &group->state);
 			clear_bit(VIO_GROUP_IPU_DS2_DMA_OUTPUT, &group->state);
+			group->frame_work = NULL;
 		}
 		subdev->info_cfg.info_update = 0;
 		subdev->cur_enable_flag = 0;
@@ -369,6 +371,12 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 			else
 				vio_info("ipu group already NULL\n");
 		}
+
+		vio_reset_module(group->id);
+		for (i = 0; i < 4; i++) {
+			ipu_disable_all_channels(ipu->base_reg, i);
+			printk("[S%d] ipu last process close disable channels\n", i);
+		}
 		ips_set_clk_ctrl(IPU0_CLOCK_GATE, false);
 		ipu->frame_drop_count = 0;
 		ipu->reuse_shadow0_count = 0;
@@ -391,6 +399,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	subdev->ctx[ctx_index] = NULL;
 	spin_unlock_irqrestore(&subdev->slock, flags);
 	kfree(ipu_ctx);
+	vio_rst_mutex_unlock();
 
 	vio_info("[S%d]IPU close node V%d proc %d\n", group->instance,
 		id, ctx_index);
@@ -672,6 +681,7 @@ void ipu_frame_work(struct vio_group *group)
 	uint64_t src_timestamps = 0;
 	struct timeval src_tv = {0, 0};
 
+
 	instance = group->instance;
 	subdev = group->sub_ctx[0];
 	if (!subdev) {
@@ -951,6 +961,7 @@ end_req_to_pro:
 	if (!test_bit(IPU_HW_CONFIG, &ipu->state)) {
 		set_bit(IPU_HW_CONFIG, &ipu->state);
 	}
+
 	vio_dbg("[S%d]%s done; rdy = %d\n", instance, __func__, rdy);
 }
 

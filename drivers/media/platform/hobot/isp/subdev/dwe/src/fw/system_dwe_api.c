@@ -567,8 +567,6 @@ void dwe_sw_deinit(void)
 	uint32_t tmp = 0;
 	uint32_t tmp_dis = 0;
 	uint32_t count = 0;
-	u32 ldc_rst_flag = 1;
-	struct mutex *ldc_acess_mutex = NULL;
 
 	while (count < 5) {
 		get_ldc_int_status(dev_ptr->ldc_dev->io_vaddr, &tmp);
@@ -618,11 +616,10 @@ void dwe_sw_deinit(void)
 	tmp = 0x03;
 	set_ldc_soft_reset(dev_ptr->ldc_dev->io_vaddr, &tmp);
 #endif
-	ldc_acess_mutex = vio_get_ldc_access_mutex();
-	mutex_lock(ldc_acess_mutex);
+	vio_ldc_access_mutex_lock();
 	// gdc_rst_func();
-	vio_set_ldc_rst_flag(ldc_rst_flag);
-	mutex_unlock(ldc_acess_mutex);
+	vio_set_ldc_rst_flag(1);
+	vio_ldc_access_mutex_unlock();
 	reset_dwe_ctx();
 }
 
