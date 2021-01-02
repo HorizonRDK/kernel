@@ -280,7 +280,7 @@ static uint16_t _calibration_awb_scene_presets[][2]
 };
 
 // 1.enable_ML 2.low_Lux_th, 3.high_Lux_th, 4.contrast_th, 5.bg_th, 6.bg_weight, 7.rg_high_lux_max, 8.rg_high_lux_min
-static uint16_t _awb_mixed_light_parameters[]
+static uint32_t _awb_mixed_light_parameters[]
  = {0,600,2500,40000,500,0,300,256};
 
 // AWB COLOUR PREFERENCE
