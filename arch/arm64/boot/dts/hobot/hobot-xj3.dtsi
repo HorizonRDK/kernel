@@ -1295,6 +1295,11 @@
 				opp-microvolt = <800000>;
 				clock-latency-ns = <500000>;
 			};
+			opp03 {
+				opp-hz = /bits/ 64 <600000000>;
+				opp-microvolt = <820000>;
+				clock-latency-ns = <500000>;
+			};
 		};
 
 		cr5_service: cr5_service {
