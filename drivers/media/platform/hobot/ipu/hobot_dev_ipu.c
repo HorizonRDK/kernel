@@ -442,6 +442,8 @@ static u32 x3_ipu_poll(struct file *file, struct poll_table_struct *wait)
 	if (!list_empty(done_list)) {
 		ipu->statistic.pollin_comp[ipu_ctx->group->instance]\
 			[ipu_ctx->id]++;
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
+		return POLLIN;
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 	if(ipu_ctx->event == VIO_FRAME_DONE) {
@@ -3189,7 +3191,6 @@ void ipu_frame_done(struct ipu_subdev *subdev)
 	u32 event = 0;
 	int cache_bufindex;
 	struct vio_frame *cache_frame;
-	unsigned long poll_mask = 0;
 
 	group = subdev->group;
 	ipu = subdev->ipu_dev;
@@ -3214,7 +3215,6 @@ void ipu_frame_done(struct ipu_subdev *subdev)
 		event = VIO_FRAME_DONE;
 		trans_frame(framemgr, frame, FS_COMPLETE);
 		frame->poll_mask = subdev->poll_mask;
-		poll_mask = subdev->poll_mask;
 		subdev->poll_mask = 0x00;
 		ipu->statistic.fe_normal[group->instance][subdev->id]++;
 
@@ -3253,8 +3253,7 @@ void ipu_frame_done(struct ipu_subdev *subdev)
 
 	spin_lock_irqsave(&subdev->slock, flags);
 	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
-		if (test_bit(i, &subdev->val_ctx_mask) &&
-				test_bit(i, &poll_mask)) {
+		if (test_bit(i, &subdev->val_ctx_mask)) {
 			ipu_ctx = subdev->ctx[i];
 			if (ipu_ctx) {
 				ipu_ctx->event = event;
