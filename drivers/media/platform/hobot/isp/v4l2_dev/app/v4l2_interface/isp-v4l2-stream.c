@@ -67,6 +67,7 @@
 extern void *acamera_get_ctx_ptr( uint32_t ctx_id );
 extern int dma_writer_configure_pipe( dma_pipe *pipe );
 extern metadata_t *dma_writer_return_metadata(void *handle, dma_type type);
+extern void acamera_dma_wr_check(void);
 
 typedef struct _isp_v4l2_fmt {
     const char *name;
@@ -580,6 +581,7 @@ int callback_stream_put_frame( uint32_t ctx_id, acamera_stream_type_t type, afra
         p_ctx->sts.busy_to_done_failed_cnt++;
         LOG( LOG_ERR, "[Stream#%d] ctx_id %d no buffer",
              pstream->stream_id, ctx_id );
+        acamera_dma_wr_check();
         return -1;
     }
 

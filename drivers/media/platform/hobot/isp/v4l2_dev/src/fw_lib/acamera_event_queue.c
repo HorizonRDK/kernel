@@ -194,7 +194,7 @@ int32_t acamera_event_queue_has_mask_event( acamera_event_queue_ptr_t p_queue )
 
 		event = p_buf->p_data_buf[pos];
 		event_id = (event_id_t)(event);
-        if (event_id == event_id_frame_done) {
+        if (event_id == event_id_frame_done || event_id == event_id_frame_error) {
             check_pass = 1;
         }
 

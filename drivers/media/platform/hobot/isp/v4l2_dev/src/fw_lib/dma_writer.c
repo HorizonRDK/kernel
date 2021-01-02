@@ -40,6 +40,7 @@
 
 
 extern uint32_t acamera_get_api_context( void );
+extern void acamera_dma_wr_check(void);
 
 #define TAG "DMA_WRITER"
 
@@ -249,52 +250,6 @@ static int dma_writer_configure_frame_writer( dma_pipe *pipe,
 
     return 0;
 }
-#else
-static int dma_writer_configure_frame_writer( dma_pipe *pipe,
-                                              aframe_t *aframe,
-                                              dma_writer_reg_ops_t *reg_ops )
-{
-    uint32_t addr;
-    uint32_t line_offset;
-
-    if ( aframe->status != dma_buf_purge ) {
-        /*
-         * For now we don't change the settings, so we take them from the hardware
-         * The reason is that they are configured through a different API
-         */
-        aframe->type = reg_ops->format_read( pipe->settings.isp_base );
-        aframe->width = reg_ops->active_width_read( pipe->settings.isp_base );
-        aframe->height = reg_ops->active_height_read( pipe->settings.isp_base );
-
-        aframe->line_offset = acamera_line_offset( aframe->width, _get_pixel_width( aframe->type ) );
-        aframe->size = aframe->line_offset * aframe->height * 3 / 2;
-
-        addr = aframe->address;
-        line_offset = aframe->line_offset;
-
-        if ( pipe->settings.vflip ) {
-            addr += aframe->size - aframe->line_offset;
-            line_offset = -aframe->line_offset;
-        }
-
-        reg_ops->format_write( pipe->settings.isp_base, aframe->type );
-        reg_ops->active_width_write( pipe->settings.isp_base, aframe->width );
-        reg_ops->active_height_write( pipe->settings.isp_base, aframe->height );
-        reg_ops->line_offset_write( pipe->settings.isp_base, line_offset );
-        reg_ops->bank0_base_write( pipe->settings.isp_base, addr );
-        reg_ops->write_on_write( pipe->settings.isp_base, 1 );
-        LOG( LOG_INFO, "enable dma write, frame%d, %dx%d, stride=%d, phy_addr=0x%x, size=%d, type=%d",
-            aframe->frame_id, aframe->width, aframe->height, aframe->line_offset,
-            aframe->address, aframe->size, aframe->type);
-    } else {
-        reg_ops->write_on_write( pipe->settings.isp_base, 0 );
-        LOG( LOG_INFO, "disable dma write, frame%d, %dx%d, stride=%d, phy_addr=0x%x, size=%d, type=%d",
-            aframe->frame_id, aframe->width, aframe->height, aframe->line_offset,
-            aframe->address, aframe->size, aframe->type);
-    }
-
-    return 0;
-}
 #endif
 
 #if HOBOT_DMA_WRITER_FRAME
@@ -321,6 +276,7 @@ int dma_writer_configure_pipe( dma_pipe *pipe )
         curr_frame->primary.status = dma_buf_purge;
         curr_frame->secondary.status = dma_buf_purge;
         pr_err("get buffer from v4l2 failed.\n");
+        acamera_dma_wr_check();
         return 0;
     } else {
         if ( curr_frame->primary.status == dma_buf_empty )
@@ -343,11 +299,10 @@ int dma_writer_configure_pipe( dma_pipe *pipe )
     return 0;
 }
 
-void dma_writer_disable_write(dma_pipe *pipe)
+void dma_writer_fr_y_disable(dma_pipe *pipe)
 {
     uintptr_t base;
     dma_writer_reg_ops_t *primary_ops = &pipe->primary;
-    dma_writer_reg_ops_t *secondary_ops = &pipe->secondary;
 
     if ( acamera_isp_isp_global_ping_pong_config_select_read( 0 ) == ISP_CONFIG_PING ) {
 	    base = 0;
@@ -358,16 +313,34 @@ void dma_writer_disable_write(dma_pipe *pipe)
     }
 
     primary_ops->write_on_write( pipe->settings.isp_base, 0 );
-    secondary_ops->write_on_write( pipe->settings.isp_base, 0 );
     primary_ops->bank0_base_write( pipe->settings.isp_base, 0 );
-    secondary_ops->bank0_base_write( pipe->settings.isp_base, 0 );
 
     primary_ops->write_on_write_hw( base, 0 );
-    secondary_ops->write_on_write_hw( base, 0 );
     primary_ops->bank0_base_write_hw( base, 0 );
+
+    pr_debug("disable fr y dma write\n");
+}
+
+void dma_writer_fr_uv_disable(dma_pipe *pipe)
+{
+    uintptr_t base;
+    dma_writer_reg_ops_t *secondary_ops = &pipe->secondary;
+
+    if ( acamera_isp_isp_global_ping_pong_config_select_read( 0 ) == ISP_CONFIG_PING ) {
+	    base = 0;
+        pr_debug("ping, ");
+    } else {
+	    base = ISP_CONFIG_PING_SIZE;
+        pr_debug("pong, ");
+    }
+
+    secondary_ops->write_on_write( pipe->settings.isp_base, 0 );
+    secondary_ops->bank0_base_write( pipe->settings.isp_base, 0 );
+
+    secondary_ops->write_on_write_hw( base, 0 );
     secondary_ops->bank0_base_write_hw( base, 0 );
 
-    pr_debug("disable dma write\n");
+    pr_debug("disable fr uv dma write\n");
 }
 
 static int dma_writer_done_process( dma_pipe *pipe )
@@ -406,55 +379,6 @@ static int dma_writer_error_process( dma_pipe *pipe )
 
     /* release frame to free list */
     // dma_writer_stream_release_frame( pipe, curr_frame );
-
-    return 0;
-}
-#else
-static int dma_writer_configure_pipe( dma_pipe *pipe )
-{
-    struct _acamera_context_t *p_ctx = pipe->settings.p_ctx;
-    metadata_t *meta = &pipe->settings.curr_metadata;
-    tframe_t *curr_frame = &pipe->settings.curr_frame;
-    tframe_t *done_frame = &pipe->settings.done_frame;
-    tframe_t *delay_frame = &pipe->settings.delay_frame;
-    dma_writer_reg_ops_t *primary_ops = &pipe->primary;
-    dma_writer_reg_ops_t *secondary_ops = &pipe->secondary;
-    int rc;
-    LOG(LOG_INFO,"+: curr_frame_id = %d",curr_frame->primary.frame_id);
-    if ( !p_ctx ) {
-        LOG( LOG_ERR, "No context available." );
-        return -1;
-    }
-
-    curr_frame->primary.frame_id = meta->frame_id;
-    curr_frame->secondary.frame_id = meta->frame_id;
-
-    /* put back the done frame to the application (V4L2 for example) */
-    if ( done_frame->primary.status == dma_buf_busy ||
-         done_frame->secondary.status == dma_buf_busy )
-        dma_writer_stream_put_frame( pipe, done_frame );
-
-    /* done_frame is the last delayed frame */
-    *done_frame = *delay_frame;
-
-    /* delay_frame is the last current frame written in the software config */
-    *delay_frame = *curr_frame;
-
-    /* try to get a new buffer from application (V4l2 for example) */
-    rc = dma_writer_stream_get_frame( pipe, curr_frame );
-    if ( rc ) {
-        curr_frame->primary.status = dma_buf_purge;
-        curr_frame->secondary.status = dma_buf_purge;
-    } else {
-        if ( curr_frame->primary.status == dma_buf_empty )
-            curr_frame->primary.status = dma_buf_busy;
-        if ( curr_frame->secondary.status == dma_buf_empty )
-            curr_frame->secondary.status = dma_buf_busy;
-    }
-
-    /* write the current frame in the software config */
-    dma_writer_configure_frame_writer( pipe, &curr_frame->primary, primary_ops );
-    dma_writer_configure_frame_writer( pipe, &curr_frame->secondary, secondary_ops );
 
     return 0;
 }

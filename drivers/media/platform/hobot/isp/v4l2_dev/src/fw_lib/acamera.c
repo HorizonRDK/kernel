@@ -976,7 +976,8 @@ extern int dis_set_ioctl(uint32_t port, uint32_t online);
 extern void isp_input_port_size_config(sensor_fsm_ptr_t p_fsm);
 extern int ips_get_isp_frameid(void);
 extern int dma_writer_configure_pipe( dma_pipe *pipe );
-extern void dma_writer_disable_write(dma_pipe *pipe);
+extern void dma_writer_fr_y_disable(dma_pipe *pipe);
+extern void dma_writer_fr_uv_disable(dma_pipe *pipe);
 int sif_isp_ctx_sync_func(int ctx_id)
 {
     int ret = 0;
@@ -1030,6 +1031,7 @@ int sif_isp_ctx_sync_func(int ctx_id)
 		do_gettimeofday(&(p_ctx->process_start.time[index % 2]));
 		p_ctx->process_start.index ++;
 	}
+
 	if (acamera_event_queue_empty(&p_ctx->fsm_mgr.event_queue)
         || acamera_event_queue_has_mask_event(&p_ctx->fsm_mgr.event_queue)) {
 
@@ -1104,6 +1106,8 @@ out:
 
 static int ip_sts_dbg;
 module_param(ip_sts_dbg, int, 0644);
+static int dma_sts_dbg;
+module_param(dma_sts_dbg, int, 0644);
 // single context handler
 
 int isp_error_sts = 0;
@@ -1168,6 +1172,25 @@ int isp_status_check(void)
     return isp_error_sts;   // || temper_drop_cnt;
 }
 EXPORT_SYMBOL(isp_status_check);
+
+void acamera_dma_wr_check(void)
+{
+    if (dma_sts_dbg) {
+        if (acamera_isp_isp_global_ping_pong_config_select_read( 0 ) == ISP_CONFIG_PING) {
+            uint32_t y = acamera_isp_fr_dma_writer_bank0_base_read_hw(0);
+            uint32_t uv = acamera_isp_fr_uv_dma_writer_bank0_base_read_hw(0);
+            uint32_t y_en = acamera_isp_fr_dma_writer_frame_write_on_read_hw(0);
+            uint32_t uv_en = acamera_isp_fr_uv_dma_writer_frame_write_on_read_hw(0);
+            pr_debug("current is ping, y_en %d, uv_en %d, y addr 0x%x, uv addr 0x%x\n", y_en, uv_en, y, uv);
+        } else {
+            uint32_t y = acamera_isp_fr_dma_writer_bank0_base_read_hw(ISP_CONFIG_PING_SIZE);
+            uint32_t uv = acamera_isp_fr_uv_dma_writer_bank0_base_read_hw(ISP_CONFIG_PING_SIZE);
+            uint32_t y_en = acamera_isp_fr_dma_writer_frame_write_on_read_hw(ISP_CONFIG_PING_SIZE);
+            uint32_t uv_en = acamera_isp_fr_uv_dma_writer_frame_write_on_read_hw(ISP_CONFIG_PING_SIZE);
+            pr_debug("current is pong, y_en %d, uv_en %d, y addr 0x%x, uv addr 0x%x\n", y_en, uv_en, y, uv);
+        }
+    }
+}
 
 int32_t acamera_interrupt_handler()
 {
@@ -1260,17 +1283,15 @@ int32_t acamera_interrupt_handler()
             int32_t irq_is_1 = ( irq_mask & ( 1 << irq_bit ) );
             irq_mask &= ~( 1 << irq_bit );
             if ( irq_is_1 ) {
-                if (irq_bit == ISP_INTERRUPT_EVENT_ISP_START_FRAME_START) {
+                dma_handle *dh = NULL;
+                dh = ((dma_writer_fsm_const_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_DMA_WRITER]->p_fsm))->handle;
 
-                    //fs|------|fe #isp 5~6ms
-                    //fs|--|fe     #ipu 2ms
-                    // if (temper_drop_cnt > 0)
-                    //     temper_drop_cnt--;
+                if (irq_bit == ISP_INTERRUPT_EVENT_ISP_START_FRAME_START) {
 
                     //clear error status
                     isp_error_sts = 0;
-		    // frame_start
-		    isp_irq_completion(cur_ctx_id, 0);
+                    // frame_start
+                    isp_irq_completion(cur_ctx_id, 0);
 
                     p_ctx->sts.fs_irq_cnt++;
 
@@ -1288,14 +1309,25 @@ int32_t acamera_interrupt_handler()
                         LOG( LOG_INFO, "[KeyMsg]: FS interrupt: %d", fs_cnt++ );
                     }
 
-#if ISP_DMA_RAW_CAPTURE
-                    dma_raw_capture_interrupt( &g_firmware, ACAMERA_IRQ_FRAME_END );
-#endif
-
                     if ( g_firmware.dma_flag_isp_metering_completed == 0 || g_firmware.dma_flag_isp_config_completed == 0 ) {
                         p_ctx->sts.ispctx_dma_error++;
                         pr_err("DMA is not finished, cfg: %d, meter: %d.\n", g_firmware.dma_flag_isp_config_completed, g_firmware.dma_flag_isp_metering_completed );
-                        // return -2;
+
+                        //isp m2m ipu
+                        if (p_ctx->fsm_mgr.reserved) {
+                            if ( acamera_isp_isp_global_ping_pong_config_select_read( 0 ) == ISP_CONFIG_PONG ) {
+                                // use ping for the next frame
+                                acamera_isp_isp_global_mcu_ping_pong_config_select_write( 0, ISP_CONFIG_PING );
+                            } else {
+                                // use pong for the next frame
+                                acamera_isp_isp_global_mcu_ping_pong_config_select_write( 0, ISP_CONFIG_PONG );
+                            }
+
+                            //get buffer for next frame
+                            acamera_fw_raise_event(p_ctx, event_id_frame_config);
+                        }
+
+                        return 0;
                     }
 
                     // we must finish all previous processing before scheduling new dma
@@ -1308,30 +1340,12 @@ int32_t acamera_interrupt_handler()
                         g_firmware.dma_flag_isp_metering_completed = 0;
 
                         if ( acamera_isp_isp_global_ping_pong_config_select_read( 0 ) == ISP_CONFIG_PONG ) {
-                            LOG( LOG_INFO, "Current config is pong" );
-                            //            |^^^^^^^^^|
-                            // next --->  |  PING   |
-                            //            |_________|
-
                             // use ping for the next frame
                             acamera_isp_isp_global_mcu_ping_pong_config_select_write( 0, ISP_CONFIG_PING );
-                            //
-                            //            |^^^^^^^^^|
-                            // conf --->  |  PONG   |
-                            //            |_________|
                             isp_ctx_transfer(0, 0, ISP_CONFIG_PING);
                         } else {
-                            LOG( LOG_INFO, "Current config is ping" );
-                            //            |^^^^^^^^^|
-                            // next --->  |  PONG   |
-                            //            |_________|
-
                             // use pong for the next frame
                             acamera_isp_isp_global_mcu_ping_pong_config_select_write( 0, ISP_CONFIG_PONG );
-
-                            //            |^^^^^^^^^|
-                            // conf --->  |  PING   |
-                            //            |_________|
                             isp_ctx_transfer(0, 0, ISP_CONFIG_PONG);
                         }
                     } else {
@@ -1340,7 +1354,23 @@ int32_t acamera_interrupt_handler()
                             ((struct semaphore *)p_ctx->sem_evt_avail)->count,
                             p_ctx->fsm_mgr.event_queue.buf.head,
                             p_ctx->fsm_mgr.event_queue.buf.tail);
-                        pr_err("->prevous frame event is not processing done, skip this frame\n");
+                        pr_err("->previous frame events are not process done\n");
+
+                        //isp m2m ipu
+                        if (p_ctx->fsm_mgr.reserved) {
+                            acamera_dma_wr_check();
+
+                            if ( acamera_isp_isp_global_ping_pong_config_select_read( 0 ) == ISP_CONFIG_PONG ) {
+                                // use ping for the next frame
+                                acamera_isp_isp_global_mcu_ping_pong_config_select_write( 0, ISP_CONFIG_PING );
+                            } else {
+                                // use pong for the next frame
+                                acamera_isp_isp_global_mcu_ping_pong_config_select_write( 0, ISP_CONFIG_PONG );
+                            }
+
+                            //get buffer for next frame
+                            acamera_fw_raise_event(p_ctx, event_id_frame_config);
+                        }
                     } //if ( acamera_event_queue_empty( &p_ctx->fsm_mgr.event_queue ) )
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_ISP_END_FRAME_END ) {
                     pr_debug("frame done, ctx id %d\n", cur_ctx_id);
@@ -1356,14 +1386,13 @@ int32_t acamera_interrupt_handler()
                             wake_up(&wq_frame_end);
                         }
                     }
-		    // frame_done
-		    isp_irq_completion(cur_ctx_id, 1);
+
+                    // frame_done
+                    isp_irq_completion(cur_ctx_id, 1);
+
                     vio_set_stat_info(cur_ctx_id, ISP_FE,
                             p_ctx->isp_frame_counter);
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_FR_Y_WRITE_DONE ) {
-                    dma_handle *dh = NULL;
-                    dh = ((dma_writer_fsm_const_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_DMA_WRITER]->p_fsm))->handle;
-
                     pr_debug("frame write to ddr done\n");
                     acamera_dma_alarms_error_occur();
                     p_ctx->sts.frame_write_done_irq_cnt++;
@@ -1377,7 +1406,7 @@ int32_t acamera_interrupt_handler()
                         wake_up(&wq_dma_done);
                     }
 
-                    dma_writer_disable_write(&dh->pipe[dma_fr]);
+                    dma_writer_fr_y_disable(&dh->pipe[dma_fr]);
 
                     if (isp_error_sts == 0) {
 					    acamera_fw_raise_event( p_ctx, event_id_frame_done );
@@ -1385,6 +1414,7 @@ int32_t acamera_interrupt_handler()
                         acamera_fw_raise_event( p_ctx, event_id_frame_error );
                     }
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_FR_UV_WRITE_DONE ) {
+                    dma_writer_fr_uv_disable(&dh->pipe[dma_fr]);
 					//do nothing
 				} else {
                     // unhandled irq
