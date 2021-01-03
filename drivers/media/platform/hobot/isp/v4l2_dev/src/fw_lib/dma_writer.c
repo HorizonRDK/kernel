@@ -161,7 +161,51 @@ static int dma_writer_stream_release_frame( dma_pipe *pipe, tframe_t *tframe )
 }
 #endif
 
-#if HOBOT_DMA_WRITER_FRAME
+void dma_writer_fr_dma_disable(dma_pipe *pipe, int plane, int flip)
+{
+    uintptr_t base;
+    dma_writer_reg_ops_t *primary_ops = &pipe->primary;
+    dma_writer_reg_ops_t *secondary_ops = &pipe->secondary;
+
+    if ( acamera_isp_isp_global_ping_pong_config_select_read( 0 ) == ISP_CONFIG_PING ) {
+        if (flip) {
+            base = ISP_CONFIG_PING_SIZE;
+            pr_debug("disable next pong");
+        } else {
+            base = 0;
+            pr_debug("disable cur ping\n");
+        }
+    } else {
+        if (flip) {
+            base = 0;
+            pr_debug("disable next ping\n");
+        } else {
+            base = ISP_CONFIG_PING_SIZE;
+            pr_debug("disable cur pong\n");
+        }
+    }
+
+    if (plane == 0) {
+        primary_ops->write_on_write( pipe->settings.isp_base, 0 );
+        primary_ops->bank0_base_write( pipe->settings.isp_base, 0 );
+
+        primary_ops->write_on_write_hw( base, 0 );
+        primary_ops->bank0_base_write_hw( base, 0 );
+
+        pr_debug("disable fr y dma write\n");
+    } else if (plane == 1) {
+        secondary_ops->write_on_write( pipe->settings.isp_base, 0 );
+        secondary_ops->bank0_base_write( pipe->settings.isp_base, 0 );
+
+        secondary_ops->write_on_write_hw( base, 0 );
+        secondary_ops->bank0_base_write_hw( base, 0 );
+
+        pr_debug("disable fr uv dma write\n");
+    } else {
+        pr_err("unknown plane no %d\n", plane);
+    }
+}
+
 extern acamera_firmware_t *acamera_get_firmware_ptr(void);
 extern void dma_writer_config_done(void);
 extern int isp_stream_onoff_check(void);
@@ -240,8 +284,10 @@ static int dma_writer_configure_frame_writer( dma_pipe *pipe,
         }
     } else {
         reg_ops->write_on_write( pipe->settings.isp_base, 0 );
+        reg_ops->bank0_base_write( pipe->settings.isp_base, 0 );
         if (p_ctx->p_gfw->sif_isp_offline == 0) {
             reg_ops->write_on_write_hw( base, 0 );
+            reg_ops->bank0_base_write_hw( base, 0 );
         }
         pr_debug("[s%d] disable dma write, frame%d, %dx%d, stride=%d, phy_addr=0x%x, size=%d, type=%d",
             p_ctx->context_id, aframe->frame_id, aframe->width, aframe->height, aframe->line_offset,
@@ -250,9 +296,7 @@ static int dma_writer_configure_frame_writer( dma_pipe *pipe,
 
     return 0;
 }
-#endif
 
-#if HOBOT_DMA_WRITER_FRAME
 int dma_writer_configure_pipe( dma_pipe *pipe )
 {
     struct _acamera_context_t *p_ctx = pipe->settings.p_ctx;
@@ -275,6 +319,8 @@ int dma_writer_configure_pipe( dma_pipe *pipe )
     if ( rc ) {
         curr_frame->primary.status = dma_buf_purge;
         curr_frame->secondary.status = dma_buf_purge;
+        dma_writer_fr_dma_disable(pipe, PLANE_Y, 1);
+        dma_writer_fr_dma_disable(pipe, PLANE_UV, 1);
         pr_err("get buffer from v4l2 failed.\n");
         acamera_dma_wr_check();
         return 0;
@@ -297,50 +343,6 @@ int dma_writer_configure_pipe( dma_pipe *pipe )
     }
 
     return 0;
-}
-
-void dma_writer_fr_y_disable(dma_pipe *pipe)
-{
-    uintptr_t base;
-    dma_writer_reg_ops_t *primary_ops = &pipe->primary;
-
-    if ( acamera_isp_isp_global_ping_pong_config_select_read( 0 ) == ISP_CONFIG_PING ) {
-	    base = 0;
-        pr_debug("ping, ");
-    } else {
-	    base = ISP_CONFIG_PING_SIZE;
-        pr_debug("pong, ");
-    }
-
-    primary_ops->write_on_write( pipe->settings.isp_base, 0 );
-    primary_ops->bank0_base_write( pipe->settings.isp_base, 0 );
-
-    primary_ops->write_on_write_hw( base, 0 );
-    primary_ops->bank0_base_write_hw( base, 0 );
-
-    pr_debug("disable fr y dma write\n");
-}
-
-void dma_writer_fr_uv_disable(dma_pipe *pipe)
-{
-    uintptr_t base;
-    dma_writer_reg_ops_t *secondary_ops = &pipe->secondary;
-
-    if ( acamera_isp_isp_global_ping_pong_config_select_read( 0 ) == ISP_CONFIG_PING ) {
-	    base = 0;
-        pr_debug("ping, ");
-    } else {
-	    base = ISP_CONFIG_PING_SIZE;
-        pr_debug("pong, ");
-    }
-
-    secondary_ops->write_on_write( pipe->settings.isp_base, 0 );
-    secondary_ops->bank0_base_write( pipe->settings.isp_base, 0 );
-
-    secondary_ops->write_on_write_hw( base, 0 );
-    secondary_ops->bank0_base_write_hw( base, 0 );
-
-    pr_debug("disable fr uv dma write\n");
 }
 
 static int dma_writer_done_process( dma_pipe *pipe )
@@ -382,7 +384,6 @@ static int dma_writer_error_process( dma_pipe *pipe )
 
     return 0;
 }
-#endif
 
 extern void *acamera_get_ctx_ptr(uint32_t ctx_id);
 void dma_writer_clear(uint32_t ctx_id)

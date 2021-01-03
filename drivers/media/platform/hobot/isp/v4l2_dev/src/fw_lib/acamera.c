@@ -1000,8 +1000,7 @@ extern int dis_set_ioctl(uint32_t port, uint32_t online);
 extern void isp_input_port_size_config(sensor_fsm_ptr_t p_fsm);
 extern int ips_get_isp_frameid(void);
 extern int dma_writer_configure_pipe( dma_pipe *pipe );
-extern void dma_writer_fr_y_disable(dma_pipe *pipe);
-extern void dma_writer_fr_uv_disable(dma_pipe *pipe);
+extern void dma_writer_fr_dma_disable(dma_pipe *pipe, int plane, int flip);
 int sif_isp_ctx_sync_func(int ctx_id)
 {
     int ret = 0;
@@ -1105,6 +1104,16 @@ int sif_isp_ctx_sync_func(int ctx_id)
         pr_err("[s%d] =>previous frame events are not process done\n", ctx_id);
 
         if (instance->reserved) {   //dma writer on
+            dma_handle *dh = NULL;
+            dh = ((dma_writer_fsm_const_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_DMA_WRITER]->p_fsm))->handle;
+
+            //from frame start to frame done(y/uv/frame all done) ping or pong space is locked,
+            //any setting operation will be rejected during this period.
+            //y done and uv done do disable operation also, but it will be failure while frame done is not comming.
+            //do disable again here, that will be ok.
+            dma_writer_fr_dma_disable(&dh->pipe[dma_fr], PLANE_Y, 0);
+            dma_writer_fr_dma_disable(&dh->pipe[dma_fr], PLANE_UV, 0);
+
             acamera_dma_wr_check();
         }
         // pr_info("sem cnt %d, ev_q head %d tail %d\n",
@@ -1198,6 +1207,21 @@ int isp_status_check(void)
     return isp_error_sts;   // || temper_drop_cnt;
 }
 EXPORT_SYMBOL(isp_status_check);
+
+volatile int y_done = 0;
+volatile int uv_done = 0;
+void inline acamera_buffer_done(acamera_context_ptr_t p_ctx)
+{
+    if (y_done && uv_done) {
+        if (isp_error_sts == 0) {
+            pr_debug("raise whole frame to user\n");
+            acamera_fw_raise_event( p_ctx, event_id_frame_done );
+        } else {
+            pr_debug("raise broken frame to user\n");
+            acamera_fw_raise_event( p_ctx, event_id_frame_error );
+        }
+    }
+}
 
 int32_t acamera_interrupt_handler()
 {
@@ -1295,6 +1319,8 @@ int32_t acamera_interrupt_handler()
 
                 if (irq_bit == ISP_INTERRUPT_EVENT_ISP_START_FRAME_START) {
 
+                    y_done = 0;
+                    uv_done = 0;
                     //clear error status
                     isp_error_sts = 0;
                     // frame_start
@@ -1413,21 +1439,22 @@ int32_t acamera_interrupt_handler()
                         wake_up(&wq_dma_done);
                     }
 
-                    dma_writer_fr_y_disable(&dh->pipe[dma_fr]);
+                    dma_writer_fr_dma_disable(&dh->pipe[dma_fr], PLANE_Y, 0);
 
-                    if (isp_error_sts == 0) {
-					    acamera_fw_raise_event( p_ctx, event_id_frame_done );
-                    } else {
-                        acamera_fw_raise_event( p_ctx, event_id_frame_error );
-                    }
+                    y_done = 1;
+                    acamera_buffer_done(p_ctx);
+
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_FR_UV_WRITE_DONE ) {
                     //isp m2m ipu
                     if (p_ctx->p_gfw->sif_isp_offline) {
                         atomic_set(&g_firmware.uv_dma_done, 1);
                         wake_up(&wq_dma_done);
                     }
-                    dma_writer_fr_uv_disable(&dh->pipe[dma_fr]);
-					//do nothing
+
+                    dma_writer_fr_dma_disable(&dh->pipe[dma_fr], PLANE_UV, 0);
+
+                    uv_done = 1;
+                    acamera_buffer_done(p_ctx);
 				} else {
                     // unhandled irq
                     LOG( LOG_INFO, "Unhandled interrupt bit %d", irq_bit );

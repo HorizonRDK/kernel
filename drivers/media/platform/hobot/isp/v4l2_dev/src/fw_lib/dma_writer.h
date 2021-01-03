@@ -23,6 +23,10 @@
 #include "acamera_types.h"
 #include "dma_writer_api.h"
 
+typedef enum {
+    PLANE_Y = 0,
+    PLANE_UV,
+} buf_plane_e;
 
 typedef struct _dma_pipe_state {
     uint8_t initialized;
