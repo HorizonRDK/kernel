@@ -1297,7 +1297,7 @@
 			};
 			opp03 {
 				opp-hz = /bits/ 64 <600000000>;
-				opp-microvolt = <820000>;
+				opp-microvolt = <800000>;
 				clock-latency-ns = <500000>;
 			};
 		};
