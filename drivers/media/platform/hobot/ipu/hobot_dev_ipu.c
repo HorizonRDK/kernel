@@ -96,6 +96,7 @@ static int x3_ipu_open(struct inode *inode, struct file *file)
 	}
 	if (atomic_inc_return(&ipu->open_cnt) == 1) {
 		pm_qos_add_request(&ipu_pm_qos_req, PM_QOS_DEVFREQ, 10000);
+		msleep(100);
 		atomic_set(&ipu->backup_fcount, 0);
 		atomic_set(&ipu->sensor_fcount, 0);
 		atomic_set(&ipu->enable_cnt, 0);

@@ -70,6 +70,7 @@ static int x3_pym_open(struct inode *inode, struct file *file)
 	}
 	if (atomic_read(&pym->open_cnt) == 0) {
 		pm_qos_add_request(&pym_pm_qos_req, PM_QOS_DEVFREQ, 10000);
+		msleep(100);
 		atomic_set(&pym->backup_fcount, 0);
 		atomic_set(&pym->sensor_fcount, 0);
 		atomic_set(&pym->enable_cnt, 0);
