@@ -153,6 +153,7 @@ typedef struct sif_output_ddr {
 	uint32_t		  raw_dump_en;
 	sif_ddr_out_type_e sif_ddr_out_type;
 	fps_cfg_t		  fps_cfg;
+	int 			  timeout;
 } sif_output_ddr_t;
 
 typedef struct sif_output_isp {
