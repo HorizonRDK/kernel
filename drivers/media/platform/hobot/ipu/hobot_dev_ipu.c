@@ -3469,7 +3469,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	if (status & (1 << INTR_IPU_FRAME_DONE)) {
 		group->abnormal_fs = 0;
 		prev_fs_has_no_fe = 0;
-		if (!group->leader) {
+		if (!group->leader && (test_bit(IPU_OTF_INPUT, &ipu->state))) {
 			vio_dbg("[S%d]ipu not leader", instance);
 			vio_group_done(group);
 		}
