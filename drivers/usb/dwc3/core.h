@@ -546,6 +546,7 @@ struct dwc3_event_buffer {
  * @saved_state: ep state saved during hibernation
  * @flags: endpoint flags (wedged, stalled, ...)
  * @number: endpoint number (1 - 15)
+ * @phy_epnum: physical endpoint number (0 - 8 in our platform)
  * @type: set to bmAttributes & USB_ENDPOINT_XFERTYPE_MASK
  * @resource_index: Resource transfer index
  * @interval: the interval on which the ISOC transfer is started
@@ -596,6 +597,7 @@ struct dwc3_ep {
 	u8			trb_dequeue;
 
 	u8			number;
+	u8			phy_epnum;
 	u8			type;
 	u8			resource_index;
 	u32			allocated_requests;
@@ -833,6 +835,8 @@ struct dwc3_scratchpad_array {
  * @num_eps: number of endpoints
  * @num_in_eps: number of IN endpoints
  * @num_out_eps: number of OUT endpoints
+ * @config_in_eps: number of IN endpoints by user config
+ * @config_out_eps: number of OUT endpoints by user config
  * @ep0_next_event: hold the next expected event
  * @ep0state: state of endpoint zero
  * @link_state: link state
@@ -915,6 +919,7 @@ struct dwc3 {
 
 	struct dwc3_event_buffer *ev_buf;
 	struct dwc3_ep		*eps[DWC3_ENDPOINTS_NUM];
+	u8			mapping_ep[DWC3_ENDPOINTS_NUM];
 
 	struct usb_gadget	gadget;
 	struct usb_gadget_driver *gadget_driver;
@@ -1007,6 +1012,8 @@ struct dwc3 {
 	u8			num_eps;
 	u8			num_in_eps;
 	u8			num_out_eps;
+	u8			config_in_eps;
+	u8			config_out_eps;
 
 	struct dwc3_hwparams	hwparams;
 	struct dentry		*root;

@@ -2108,11 +2108,26 @@ static const struct usb_gadget_ops dwc3_gadget_ops = {
 };
 
 /* -------------------------------------------------------------------------- */
+int dwc3_gadget_physical_to_mapping_endpoint(struct dwc3 *dwc, u8 phy_epnum)
+{
+	if (!dwc || !dwc->mapping_ep)
+		return -1;
+
+	if (phy_epnum >= dwc->num_eps) {
+		dev_err(dwc->dev, "phyical epnum(%u) exceed total num_eps(%u)\n",
+				phy_epnum, dwc->num_eps);
+		return -1;
+	}
+
+	return dwc->mapping_ep[phy_epnum];
+}
 
 static int dwc3_gadget_init_hw_endpoints(struct dwc3 *dwc,
 		u8 num, u32 direction)
 {
 	struct dwc3_ep		*dep;
+	u8			epnum, phy_epnum;
+	u8			base;
 	u8			i;
 
 	if (direction && num > dwc->num_in_eps) {
@@ -2121,8 +2136,20 @@ static int dwc3_gadget_init_hw_endpoints(struct dwc3 *dwc,
 		return -EINVAL;
 	}
 
+	/* Flexible Endpoints Mapping, 1 example like below:
+	 * ep0out->ep0in->ep1out->ep2out->ep3out->ep1in->ep2in->ep3in->ep4in
+	 *
+	 * mapping table as below:
+	 * 4 out eps: physical [ 0, 2, 3, 4 ] >>> logic [ 0, 2, 4, 6 ]
+	 * 5 in eps: physical [ 1, 5, 6, 7, 8 ] >>> logic [ 1, 3, 5, 7, 9 ]
+	 */
+	base = direction ? dwc->config_out_eps : 1;
 	for (i = 0; i < num; i++) {
-		u8 epnum = (i << 1) | (direction ? 1 : 0);
+		epnum = (i << 1) | (direction ? 1 : 0);
+		if (i == 0)
+			phy_epnum = epnum;
+		else
+			phy_epnum = base + i;
 
 		dep = kzalloc(sizeof(*dep), GFP_KERNEL);
 		if (!dep)
@@ -2130,16 +2157,20 @@ static int dwc3_gadget_init_hw_endpoints(struct dwc3 *dwc,
 
 		dep->dwc = dwc;
 		dep->number = epnum;
+		dep->phy_epnum = phy_epnum;
 		dep->direction = direction;
-		dep->regs = dwc->regs + DWC3_DEP_BASE(epnum);
+		dep->regs = dwc->regs + DWC3_DEP_BASE(phy_epnum);
 		dwc->eps[epnum] = dep;
+		dwc->mapping_ep[phy_epnum] = epnum;
 
 		snprintf(dep->name, sizeof(dep->name), "ep%u%s", epnum >> 1,
 				direction ? "in" : "out");
 
 		dep->endpoint.name = dep->name;
-		dev_dbg(dwc->dev, "initializing epnum(%d), %s", epnum,
-				dep->name);
+		dev_info(dwc->dev, "initializing [%s] epnum(%d) phy_epnum(%d), "
+				"offset(0x%x)",
+				dep->name, epnum, phy_epnum,
+				DWC3_DEP_BASE(phy_epnum));
 
 		if (!(dep->number > 1)) {
 			dep->endpoint.desc = &dwc3_gadget_ep0_desc;
@@ -2234,6 +2265,8 @@ static int dwc3_gadget_init_endpoints(struct dwc3 *dwc)
 	 * totally 9 eps, 6 IN eps at most.
 	 * init endpoint with 5 IN + 4 OUT configuration.
 	 */
+	dwc->config_in_eps = 5;
+	dwc->config_out_eps = 4;
 	ret = dwc3_gadget_init_hw_endpoints(dwc, 4, 0);
 	if (ret < 0) {
 		dev_err(dwc->dev, "failed to allocate OUT endpoints");
@@ -2523,8 +2556,12 @@ static void dwc3_endpoint_interrupt(struct dwc3 *dwc,
 		const struct dwc3_event_depevt *event)
 {
 	struct dwc3_ep		*dep;
-	u8			epnum = event->endpoint_number;
+	u8			epnum;
 	u8			cmd;
+
+	epnum = dwc3_gadget_physical_to_mapping_endpoint(dwc, event->endpoint_number);
+	if (epnum < 0)
+		return;
 
 	dep = dwc->eps[epnum];
 
