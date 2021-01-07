@@ -3253,13 +3253,17 @@ void ipu_frame_done(struct ipu_subdev *subdev)
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
 	spin_lock_irqsave(&subdev->slock, flags);
+	/*
+	 * bit 1 represent main process
+	 * always set event and wakeup main process
+	 */
+	poll_mask |= 0x01;
 	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
 		/*
-		 * wake up process when already poll except ipu src
+		 * wake up sub process when already poll
 		 */
 		if (test_bit(i, &subdev->val_ctx_mask) &&
-				(test_bit(i, &poll_mask) ||
-				subdev->id == GROUP_ID_SRC)) {
+				test_bit(i, &poll_mask)) {
 			ipu_ctx = subdev->ctx[i];
 			if (ipu_ctx) {
 				ipu_ctx->event = event;
