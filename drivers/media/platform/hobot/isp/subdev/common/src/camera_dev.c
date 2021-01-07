@@ -95,6 +95,7 @@ static long camera_fop_ioctl(struct file *pfile, unsigned int cmd,
 	int ret = 0;
 	camera_charmod_s *camera_cdev = pfile->private_data;
 	sensor_turning_data_t turning_data;
+	sensor_turning_data_ex_t turning_param_ex;
 	int mst_flg = 0;
 
 	//pr_info("---[%s-%d]---\n", __func__, __LINE__);
@@ -134,6 +135,19 @@ static long camera_fop_ioctl(struct file *pfile, unsigned int cmd,
 			}
 			ret = camera_sys_turining_set(camera_cdev->port, &turning_data);
 		}
+			break;
+		case SENSOR_TURNING_PARAM_EX: {
+			if (arg == 0) {
+				pr_err("arg is null !\n");
+				return -EINVAL;
+			}
+			if (copy_from_user((void *)&turning_param_ex, (void __user *)arg,
+				sizeof(sensor_turning_data_ex_t))) {
+				pr_err("SENSOR_TURNING_PARAM_EX copy is err !\n");
+				return -EINVAL;
+			}
+			ret = camera_turning_param_config(camera_cdev->port, &turning_param_ex);
+			}
 			break;
 		case SENSOR_OPEN_CNT:
 			if (copy_to_user((void __user *)arg,

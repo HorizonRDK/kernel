@@ -33,6 +33,7 @@
 #define SENSOR_USER_LOCK      _IOW(CAMERA_IOC_MAGIC, 4, int)
 #define SENSOR_USER_UNLOCK    _IOW(CAMERA_IOC_MAGIC, 5, int)
 #define SENSOR_AE_SHARE	      _IOW(CAMERA_IOC_MAGIC, 6, int)
+#define SENSOR_TURNING_PARAM_EX   _IOW(CAMERA_IOC_MAGIC, 7, sensor_turning_data_ex_t)
 
 typedef enum _mipi_pre_state_t {
 	SENSOR_PRE_STATE_LOCK = 0,
@@ -62,6 +63,7 @@ typedef struct _camera_charmod_s {
 	struct spi_device *spidev;
 	struct spi_board_info spi_board;
     sensor_turning_data_t camera_param;
+    sensor_turning_data_ex_t camera_param_ex;
 	struct file *mst_file;
 	struct mutex user_mutex;
 	uint32_t start_num;

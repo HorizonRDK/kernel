@@ -188,6 +188,13 @@ typedef struct sensor_turning_data {
 	sensor_data_t sensor_data;
 }sensor_turning_data_t;
 
+typedef struct sensor_turning_data_ex {
+	uint32_t  ratio_en;
+	uint32_t  ratio_value;
+	uint32_t  l_line;
+	uint32_t  l_line_length;
+}sensor_turning_data_ex_t;
+
 enum camera_IOCTL {
     SENSOR_UPDATE = 0,
     SENSOR_WRITE,

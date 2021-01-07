@@ -481,6 +481,7 @@ void camera_sys_sensor_line_turning_data(uint32_t port,
 	sensor_priv_t *priv_param, uint32_t *a_line)
 {
 	uint32_t i = 0;
+	uint32_t ratio;
 
 	//data calculation
 	switch (camera_mod[port]->camera_param.mode) {
@@ -511,11 +512,16 @@ void camera_sys_sensor_line_turning_data(uint32_t port,
 			priv_param->line_buf[0]);
 	break;
 	case PWL_M :
+		ratio = camera_mod[port]->camera_param_ex.ratio_value;
 		a_line[0] = sensor_line_calculation(
 			camera_mod[port]->camera_param.pwl.line_p.ratio,
 			camera_mod[port]->camera_param.pwl.line_p.offset,
 			camera_mod[port]->camera_param.pwl.line_p.max,
 			priv_param->line_buf[0]);
+		if(camera_mod[port]->camera_param_ex.ratio_en) {
+			a_line[1] = a_line[0]/ratio;
+		}
+
 	break;
 	default:
 		pr_debug("sensor_mode is err!\n");
@@ -1014,13 +1020,27 @@ static int camera_sys_set_pwl_line(uint32_t port, uint32_t line_num,
 	int ret = 0;
 	char line_data[3] = {0};
 	uint32_t reg_width, line_addr, line_length;
+	uint32_t l_line_addr, l_line_length;
+	uint32_t ratio_en;
 
 	reg_width = camera_mod[port]->camera_param.reg_width;
 	line_addr = camera_mod[port]->camera_param.pwl.line;
 	line_length = camera_mod[port]->camera_param.pwl.line_length;
+	ratio_en = camera_mod[port]->camera_param_ex.ratio_en;
+	if(ratio_en) {
+		l_line_addr = camera_mod[port]->camera_param_ex.l_line;
+		l_line_length = camera_mod[port]->camera_param_ex.l_line_length;
+	}
 
 	switch (line_num) {
 		case 1:
+			if(ratio_en) {
+				camera_trans_value(&input_line[1], line_data);
+				pr_debug("line_data[0] 0x%x line_data[1] 0x%x\n",
+					line_data[0], line_data[1]);
+				ret = camera_sys_write(port, l_line_addr, reg_width,
+						line_data, l_line_length);
+			}
 			camera_trans_value(&input_line[0], line_data);
 			pr_debug("input_line[0] 0x%x input_line[1] 0x%x\n",
 					line_data[0], line_data[1]);
@@ -1268,6 +1288,33 @@ static uint32_t *camera_sys_lut_fill(uint32_t gain_num, uint32_t *turning_pram)
 	}
 
 	return gain_ptr;
+}
+
+void camera_print_param_config(uint32_t port,
+			sensor_turning_data_ex_t *turning_param_ex)
+{
+	pr_info("port %d ratio_en %d \n", turning_param_ex->ratio_en,
+			turning_param_ex->ratio_value);
+	pr_info("l_line 0x%x\n", turning_param_ex->l_line);
+	pr_info("l_line_length %d\n", turning_param_ex->l_line_length);
+	return;
+}
+
+int camera_turning_param_config(uint32_t port,
+			sensor_turning_data_ex_t *turning_param_ex)
+{
+	int ret = 0;
+
+	if (port > CAMERA_TOTAL_NUMBER) {
+		return -1;
+	} else {
+		if (turning_param_ex) {
+			memcpy(&camera_mod[port]->camera_param_ex, turning_param_ex,
+						sizeof(sensor_turning_data_ex_t));
+		}
+	}
+	camera_print_param_config(port, &camera_mod[port]->camera_param_ex);
+	return ret;
 }
 
 int camera_sys_turining_set(uint32_t port, sensor_turning_data_t *turning_pram)

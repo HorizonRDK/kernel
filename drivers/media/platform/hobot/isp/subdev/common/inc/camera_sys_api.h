@@ -35,6 +35,7 @@ int camera_sys_sensor_write(uint32_t port, uint32_t address, uint32_t w_data);
 int camera_sys_sensor_read(uint32_t port, uint32_t address, uint32_t *r_data);
 int camera_sys_stream_on(uint32_t port);
 int camera_sys_stream_off(uint32_t port);
+int camera_turning_param_config(uint32_t port, sensor_turning_data_ex_t *turning_param_ex);
 
 
 #endif // DRIVERS_MEDIA_PLATFORM_HOBOT_ISP_SUBDEV_COMMON_INC_CAMERA_SYS_API_H_
