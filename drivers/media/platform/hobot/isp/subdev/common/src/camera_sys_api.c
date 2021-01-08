@@ -481,7 +481,7 @@ void camera_sys_sensor_line_turning_data(uint32_t port,
 	sensor_priv_t *priv_param, uint32_t *a_line)
 {
 	uint32_t i = 0;
-	uint32_t ratio;
+	uint32_t ratio, lexposure_time_min;
 
 	//data calculation
 	switch (camera_mod[port]->camera_param.mode) {
@@ -513,6 +513,7 @@ void camera_sys_sensor_line_turning_data(uint32_t port,
 	break;
 	case PWL_M :
 		ratio = camera_mod[port]->camera_param_ex.ratio_value;
+		lexposure_time_min = camera_mod[port]->camera_param_ex.lexposure_time_min;
 		a_line[0] = sensor_line_calculation(
 			camera_mod[port]->camera_param.pwl.line_p.ratio,
 			camera_mod[port]->camera_param.pwl.line_p.offset,
@@ -520,6 +521,8 @@ void camera_sys_sensor_line_turning_data(uint32_t port,
 			priv_param->line_buf[0]);
 		if(camera_mod[port]->camera_param_ex.ratio_en) {
 			a_line[1] = a_line[0]/ratio;
+			if(a_line[1] < lexposure_time_min)
+				a_line[1] = lexposure_time_min;
 		}
 
 	break;
@@ -552,6 +555,9 @@ void camera_sys_sensor_line_turning_data(uint32_t port,
 		break;
 		case PWL_M:
 			DOFFSET(&a_line[0], camera_mod[port]->camera_param.pwl.line_length);
+			if(camera_mod[port]->camera_param_ex.ratio_en) {
+				DOFFSET(&a_line[1], camera_mod[port]->camera_param_ex.l_line_length);
+			}
 		break;
 		default:
 			pr_debug("sensor_mode is err!\n");

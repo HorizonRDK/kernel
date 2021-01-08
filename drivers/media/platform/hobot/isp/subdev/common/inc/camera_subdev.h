@@ -193,6 +193,7 @@ typedef struct sensor_turning_data_ex {
 	uint32_t  ratio_value;
 	uint32_t  l_line;
 	uint32_t  l_line_length;
+	uint32_t lexposure_time_min;
 }sensor_turning_data_ex_t;
 
 enum camera_IOCTL {
