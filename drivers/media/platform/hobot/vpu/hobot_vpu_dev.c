@@ -32,6 +32,9 @@ int vpu_debug_info = 0;
 int vpu_pf_bw_debug = 0;
 unsigned long vpu_clk_freq = MAX_VPU_FREQ;
 
+#define MAX_VENC_CHN 64
+static int g_venc_fps[MAX_VENC_CHN] = {0, };
+
 #ifdef VPU_SUPPORT_RESERVED_VIDEO_MEMORY
 #define VPU_INIT_VIDEO_MEMORY_SIZE_IN_BYTE (62*1024*1024)
 #define VPU_DRAM_PHYSICAL_BASE 0x60000000	// 0x86C00000
@@ -4006,6 +4009,36 @@ static const struct file_operations vpu_vdec_fops = {
 	.release = single_release,
 };
 
+static ssize_t venc_fps_store(struct device *dev,
+					struct device_attribute *attr,
+					const char *buf, size_t len)
+{
+	int chn = buf[0];
+	int fps = buf[1];
+	if (chn < MAX_VENC_CHN) {
+		g_venc_fps[chn] = fps;
+	}
+	return len;
+}
+
+static ssize_t venc_fps_show(struct device *dev,
+				struct device_attribute *attr, char* buf)
+{
+	u32 offset = 0;
+	int i, len;
+
+	for (i = 0; i < MAX_VENC_CHN; i++) {
+		if (g_venc_fps[i] == 0) continue;
+		len = snprintf(&buf[offset], PAGE_SIZE - offset,
+				"venc chn %d: output fps %d\n", i, g_venc_fps[i]);
+		offset += len;
+		g_venc_fps[i] = 0;
+	}
+	return offset;
+}
+
+static DEVICE_ATTR(fps, S_IRUGO|S_IWUSR, venc_fps_show, venc_fps_store);
+
 static int vpu_probe(struct platform_device *pdev)
 {
 	hb_vpu_dev_t *dev = NULL;
@@ -4252,6 +4285,11 @@ static int vpu_probe(struct platform_device *pdev)
 			path, "vdec");
 	}
 
+	err = device_create_file(&pdev->dev, &dev_attr_fps);
+	if (err < 0) {
+		pr_err("create fps failed (%d)\n", err);
+	}
+
 	return 0;
 
 ERR_ALLOC_FIFO:
@@ -4302,6 +4340,7 @@ static int vpu_remove(struct platform_device *pdev)
 	debugfs_remove_recursive(dev->debug_file_venc);
 	debugfs_remove_recursive(dev->debug_file_vdec);
 	debugfs_remove_recursive(dev->debug_root);
+	device_remove_file(&pdev->dev, &dev_attr_fps);
 
 	if (dev->instance_pool.base) {
 #ifdef USE_VMALLOC_FOR_INSTANCE_POOL_MEMORY

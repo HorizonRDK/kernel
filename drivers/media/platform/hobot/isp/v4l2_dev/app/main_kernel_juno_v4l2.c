@@ -46,7 +46,7 @@
 #include "v4l2_interface/isp-v4l2.h"
 
 extern void system_interrupts_set_irq( int irq_num, int flags );
-
+extern int isp_print_fps(s8* buf, u32 size);
 //map and unmap fpga memory
 extern int32_t init_hw_io( resource_size_t addr, resource_size_t size );
 extern int32_t close_hw_io( void );
@@ -259,6 +259,17 @@ static ssize_t isp_status_show(struct device *dev,
 
 static DEVICE_ATTR(isp_status, S_IRUGO, isp_status_show, NULL);
 
+static ssize_t isp_fps_show(struct device *dev,
+				struct device_attribute *attr, char* buf)
+{
+    u32 offset = 0;
+	offset = isp_print_fps(buf, PAGE_SIZE);
+
+	return offset;
+}
+
+static DEVICE_ATTR(fps, S_IRUGO, isp_fps_show, NULL);
+
 static int32_t isp_platform_probe( struct platform_device *pdev )
 {
     int32_t rc = 0;
@@ -356,6 +367,11 @@ static int32_t isp_platform_probe( struct platform_device *pdev )
 		pr_err("create isp_status failed, rc = %d\n", rc);
 		goto free_res;
 	}
+    rc = device_create_file(dev, &dev_attr_fps);
+	if (rc < 0) {
+		pr_err("create fps failed, rc = %d\n", rc);
+		goto free_res;
+	}
 
 #else
     // no subdevice is used
@@ -382,6 +398,7 @@ static int isp_platform_remove( struct platform_device *pdev )
     LOG( LOG_NOTICE, "ISP Driver removed\n" );
     of_reserved_mem_device_release( &pdev->dev );
     device_remove_file(&pdev->dev, &dev_attr_isp_status);
+    device_remove_file(&pdev->dev, &dev_attr_fps);
 
     return 0;
 }
