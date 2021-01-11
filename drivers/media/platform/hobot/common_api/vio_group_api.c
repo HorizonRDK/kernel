@@ -560,6 +560,7 @@ void vio_group_done(struct vio_group *group)
 {
 	struct vio_group_task *group_task;
 	struct vio_group *group_leader;
+	unsigned long flags;
 	u32 sema_flag;
 
 	group_leader = group->head;
@@ -570,6 +571,7 @@ void vio_group_done(struct vio_group *group)
 		return;
 	}
 
+	spin_lock_irqsave(&group_leader->slock, flags);
 	if (group->next && group->head != group &&
 		test_bit(VIO_GROUP_DMA_OUTPUT, &group->state)) {
 		group_leader->sema_flag |= 1 << 2;
@@ -598,6 +600,7 @@ void vio_group_done(struct vio_group *group)
 			group->id, group_leader->id, sema_flag,
 			group_leader->target_sema);
 	}
+	spin_unlock_irqrestore(&group_leader->slock, flags);
 }
 EXPORT_SYMBOL(vio_group_done);
 
