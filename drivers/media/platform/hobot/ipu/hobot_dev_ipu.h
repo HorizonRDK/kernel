@@ -21,7 +21,8 @@
 
 #define X3_IPU_NAME  "x3-ipu"
 
-#define MAX_DEVICE  7
+#define MAX_DEVICE  8
+#define DONE_NODE_ID (MAX_DEVICE - 1)
 #define IPU_IOC_MAGIC 'v'
 
 #define IPU_IOC_INIT             _IOW(IPU_IOC_MAGIC, 0, int)
@@ -256,6 +257,8 @@ struct x3_ipu_dev {
 	struct vio_work vwork[VIO_MAX_STREAM][VIO_MP_MAX_FRAMES];
 
 	struct ion_client *ion_client;
+
+	u64		pipe_done_count[VIO_MAX_STREAM];
 };
 
 #endif

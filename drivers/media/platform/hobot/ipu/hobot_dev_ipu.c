@@ -43,7 +43,7 @@ static u32 color[MAX_OSD_COLOR_NUM] = {
 
 extern struct vio_frame_id	ipu_frame_info[VIO_MAX_STREAM];
 
-char ipu_node_name[MAX_DEVICE][8] =
+char ipu_node_name[MAX_DEVICE-1][8] =
 	{"src", "us", "ds0", "ds1", "ds2", "ds3", "ds4"};
 
 void ipu_hw_set_cfg(struct ipu_subdev *subdev);
@@ -88,6 +88,9 @@ static int x3_ipu_open(struct inode *inode, struct file *file)
 	ipu_ctx->ipu_dev = ipu;
 	file->private_data = ipu_ctx;
 	ipu_ctx->state = BIT(VIO_VIDEO_OPEN);
+
+	if (ipu_ctx->id == DONE_NODE_ID)
+		goto p_err;
 
 	ret = mutex_lock_interruptible(&ipu_mutex);
 	if (ret) {
@@ -287,6 +290,22 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	ipu_ctx = file->private_data;
 	ipu = ipu_ctx->ipu_dev;
 
+	if (ipu_ctx->id == DONE_NODE_ID) {
+		subdev = ipu_ctx->subdev;
+		if (ipu_ctx->state & BIT(VIO_VIDEO_S_INPUT))
+			atomic_dec(&subdev->refcount);
+		spin_lock_irqsave(&subdev->slock, flags);
+		clear_bit(ipu_ctx->ctx_index, &subdev->val_ctx_mask);
+		ctx_index = ipu_ctx->ctx_index;
+		id = ipu_ctx->id;
+		subdev->ctx[ctx_index] = NULL;
+		spin_unlock_irqrestore(&subdev->slock, flags);
+		ipu_ctx->state = BIT(VIO_VIDEO_CLOSE);
+
+		kfree(ipu_ctx);
+		return 0;
+	}
+
 	if (ipu_ctx->state & BIT(VIO_VIDEO_OPEN)) {
 		vio_info("[S%d][V%d] %s: only open.\n", ipu_ctx->belong_pipe,
 					ipu_ctx->id, __func__);
@@ -432,6 +451,19 @@ static u32 x3_ipu_poll(struct file *file, struct poll_table_struct *wait)
 	ipu_ctx = file->private_data;
 	framemgr = ipu_ctx->framemgr;
 	ipu = ipu_ctx->ipu_dev;
+
+	if (ipu_ctx->id == DONE_NODE_ID) {
+		poll_wait(file, &ipu_ctx->done_wq, wait);
+		framemgr_e_barrier_irqs(framemgr, 0, flags);
+		if (ipu->pipe_done_count[ipu_ctx->belong_pipe] > 0) {
+			ipu->pipe_done_count[ipu_ctx->belong_pipe] -= 1;
+			ret = POLLIN;
+		} else {
+			ret = 0;
+		}
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
+		return ret;
+	}
 
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	ipu_ctx->subdev->poll_mask |= (1 << ipu_ctx->ctx_index);
@@ -676,7 +708,7 @@ void ipu_frame_work(struct vio_group *group)
 	bool dma_enable = 0;
 	bool all_subdev_skip = 1;
 	int all_this_frame_skip = 1;
-	int subdev_skip_enabled[MAX_DEVICE] = {-1};
+	int subdev_skip_enabled[MAX_DEVICE-1] = {-1};
 
 	u32 src_frame_id = 0;
 	uint64_t src_timestamps = 0;
@@ -730,7 +762,7 @@ void ipu_frame_work(struct vio_group *group)
 	atomic_set(&ipu->instance, instance);
 
 	/*whether the current frame is skip in all channels*/
-	for (i = 1; i <= (MAX_DEVICE - 1); i++) {
+	for (i = 1; i <= (MAX_DEVICE - 2); i++) {
 		subdev = group->sub_ctx[i];
 		if (!subdev)
 			continue;
@@ -740,7 +772,7 @@ void ipu_frame_work(struct vio_group *group)
 		}
 	}
 
-	for (i = MAX_DEVICE - 1; i >= 0; i--) {
+	for (i = MAX_DEVICE - 2; i >= 0; i--) {
 		subdev = group->sub_ctx[i];
 		if (!subdev)
 			continue;
@@ -836,7 +868,7 @@ void ipu_frame_work(struct vio_group *group)
 				ipu_hw_set_cfg(subdev);
 				trans_frame(framemgr, frame, FS_PROCESS);
 				subdev_inc_enable_frame_count(subdev);
-				if ((i >= GROUP_ID_US) && (i <= (MAX_DEVICE - 1)))
+				if ((i >= GROUP_ID_US) && (i <= (MAX_DEVICE - 2)))
 					all_subdev_skip = 0;
 			} else {
 				/* if we do not trigger frame again,
@@ -900,7 +932,7 @@ end_req_to_pro:
 	// ddr->ipu scenario
 	// if all channel jump, skip this src frame
 	if (test_bit(IPU_DMA_INPUT, &ipu->state)) {
-		for (i = 1; i <= (MAX_DEVICE - 1); i++) {
+		for (i = 1; i <= (MAX_DEVICE - 2); i++) {
 			if (subdev_skip_enabled[i] == 1) {
 				vio_dbg("fake frame ndone when ddr->ipu jump, subdev %d\n", i);
 				subdev = group->sub_ctx[i];
@@ -933,7 +965,7 @@ end_req_to_pro:
 		// sif->ddr->isp->otf->ipu skip frame
 		if (!group->leader && test_bit(IPU_OTF_INPUT, &ipu->state)) {
 			vio_dbg("ddr->isp->otf->ipu skip frame check\n");
-			for (i = 1; i <= (MAX_DEVICE - 1); i++) {
+			for (i = 1; i <= (MAX_DEVICE - 2); i++) {
 				if (subdev_skip_enabled[i] == 1) {
 					vio_dbg("fake frame ndone when ddr->ipu jump, subdev %d\n", i);
 					subdev = group->sub_ctx[i];
@@ -1825,7 +1857,7 @@ void ipu_update_hw_param(struct ipu_subdev *subdev)
 	}
 	ipu_cfg = &subdev_src->ipu_cfg;
 
-	for (i = 0; i < MAX_DEVICE; i++) {
+	for (i = 0; i < (MAX_DEVICE - 1); i++) {
 		subdev = group->sub_ctx[i];
 		if (subdev) {
 			switch (i) {
@@ -2010,8 +2042,13 @@ int ipu_bind_chain_group(struct ipu_video_ctx *ipu_ctx, int instance)
 	if (atomic_read(&subdev->refcount) > 0)
 		ret = IOCTL_FLAG_MULTI_PROCESS_SHARED;
 
-	if (atomic_inc_return(&subdev->refcount) == 1)
+	if (atomic_inc_return(&subdev->refcount) == 1) {
 		frame_manager_init_mp(ipu_ctx->framemgr);
+		if (ipu_ctx->id == DONE_NODE_ID) {
+			ipu_ctx->belong_pipe = instance;
+			ipu->pipe_done_count[instance] = 0;
+		}
+	}
 
 	group->frame_work = ipu_frame_work;
 	group->gtask = &ipu->gtask;
@@ -2936,6 +2973,10 @@ static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 	if (_IOC_TYPE(cmd) != IPU_IOC_MAGIC)
 		return -ENOTTY;
 
+	if ((ipu_ctx->id == (MAX_DEVICE-1)) && (cmd != IPU_IOC_BIND_GROUP)) {
+		return -EPERM;
+	}
+
 	switch (cmd) {
 	case IPU_IOC_INIT:
 		ret = ipu_video_init(ipu_ctx, arg);
@@ -3270,6 +3311,38 @@ void ipu_frame_done(struct ipu_subdev *subdev)
 	spin_unlock_irqrestore(&subdev->slock, flags);
 }
 
+void ipu_increase_done_count(struct ipu_subdev *subdev)
+{
+	struct vio_framemgr *framemgr;
+	struct vio_group *group;
+	struct ipu_video_ctx *ipu_ctx;
+	struct x3_ipu_dev *ipu;
+	unsigned long flags;
+	u32 i;
+	u32 event = 0;
+
+	group = subdev->group;
+	ipu = subdev->ipu_dev;
+	framemgr = &subdev->framemgr;
+	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	ipu->pipe_done_count[group->instance] += 1;
+	event = VIO_FRAME_DONE;
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
+
+	spin_lock_irqsave(&subdev->slock, flags);
+	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
+		if (test_bit(i, &subdev->val_ctx_mask)) {
+			ipu_ctx = subdev->ctx[i];
+			if (ipu_ctx) {
+				ipu_ctx->event = event;
+				wake_up(&ipu_ctx->done_wq);
+			}
+		}
+	}
+	spin_unlock_irqrestore(&subdev->slock, flags);
+}
+
+
 void ipu_frame_ndone(struct ipu_subdev *subdev)
 {
 	struct ipu_video_ctx *ipu_ctx = NULL;
@@ -3565,6 +3638,13 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		}
 	}
 
+	if (status & (1 << INTR_IPU_FRAME_DONE)) {
+		subdev = group->sub_ctx[DONE_NODE_ID];
+		if (subdev) {
+			ipu_increase_done_count(subdev);
+		}
+	}
+
 	if (status & (1 << INTR_IPU_FRAME_START)) {
 		/*
 		 * check prev frame have not enable out
@@ -3732,7 +3812,7 @@ int x3_ipu_subdev_init(struct x3_ipu_dev *ipu)
 	struct ipu_subdev *subdev;
 
 	for (i = 0; i < VIO_MAX_STREAM; i++) {
-		for (j = 0; j < MAX_DEVICE; j++) {
+		for (j = 0; j < (MAX_DEVICE - 1); j++) {
 			subdev = &ipu->subdev[i][j];
 			ret = ipu_subdev_init(subdev);
 		}
@@ -3788,7 +3868,7 @@ int x3_ipu_device_node_init(struct x3_ipu_dev *ipu)
 		vio_err("ipu device create fail\n");
 		goto err;
 	}
-	for (i = 0; i < (MAX_DEVICE-2); i++) {
+	for (i = 0; i < (MAX_DEVICE-3); i++) {
 		snprintf(name, 32, "ipu_ds%d", i);
 		dev = device_create(ipu->class, NULL, MKDEV(MAJOR(ipu->devno), i + 2),
 			      NULL, name);
@@ -3798,6 +3878,15 @@ int x3_ipu_device_node_init(struct x3_ipu_dev *ipu)
 			goto err;
 		}
 	}
+
+	dev = device_create(ipu->class, NULL, MKDEV(MAJOR(ipu->devno), DONE_NODE_ID),
+				NULL, "ipu_done");
+	if (IS_ERR(dev)) {
+		ret = -EINVAL;
+		vio_err("ipu device done node create fail\n");
+		goto err;
+	}
+
 
 	return ret;
 err:
@@ -3935,7 +4024,7 @@ static ssize_t ipu_stat_show(struct device *dev,
 			"*******S%d info:******\n",
 			instance);
 		offset += len;
-		for (i = 0; i < MAX_DEVICE; i++) {
+		for (i = 0; i < (MAX_DEVICE-1); i++) {
 			stats = &ipu->statistic.user_stats[instance][i];
 			len = snprintf(&buf[offset], PAGE_SIZE - offset,
 				"ch%d(%s) USER: normal %d, sel tout %d, drop %d, "
@@ -4090,7 +4179,7 @@ static ssize_t get_pipeline_info(int pipeid, struct device *dev,
 		len = snprintf(buf+offset, PAGE_SIZE - offset, "pipeline %d is disabled\n", pipeid);
 		offset += len;
 	} else {
-	   for (j = 0; j < MAX_DEVICE; j++) {
+	   for (j = 0; j < (MAX_DEVICE-1); j++) {
 		   framemgr = &ipu->subdev[pipeid][j].framemgr;
 		   if (framemgr->num_frames) {
 			   framemgr_e_barrier_irqs(framemgr, 0, flags);
