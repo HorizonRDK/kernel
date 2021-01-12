@@ -3294,13 +3294,17 @@ void ipu_frame_done(struct ipu_subdev *subdev)
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
 	spin_lock_irqsave(&subdev->slock, flags);
+	/*
+	 * bit 1 represent main process
+	 * always set event and wakeup main process
+	 */
+	poll_mask |= 0x01;
 	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
 		/*
-		 * wake up process when already poll except ipu src
+		 * wake up sub process when already poll
 		 */
 		if (test_bit(i, &subdev->val_ctx_mask) &&
-				(test_bit(i, &poll_mask) ||
-				subdev->id == GROUP_ID_SRC)) {
+				test_bit(i, &poll_mask)) {
 			ipu_ctx = subdev->ctx[i];
 			if (ipu_ctx) {
 				ipu_ctx->event = event;
@@ -3542,7 +3546,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	if (status & (1 << INTR_IPU_FRAME_DONE)) {
 		group->abnormal_fs = 0;
 		prev_fs_has_no_fe = 0;
-		if (!group->leader) {
+		if (!group->leader && (test_bit(IPU_OTF_INPUT, &ipu->state))) {
 			vio_dbg("[S%d]ipu not leader", instance);
 			vio_group_done(group);
 		}

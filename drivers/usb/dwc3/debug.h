@@ -461,13 +461,30 @@ static inline const char *dwc3_decode_ctrl(char *str, __u8 bRequestType,
  * @event: then event code
  */
 static inline const char *
-dwc3_ep_event_string(char *str, const struct dwc3_event_depevt *event,
-		     u32 ep0state)
+dwc3_ep_event_string(struct dwc3 *dwc, char *str,
+			const struct dwc3_event_depevt *event,
+			u32 ep0state)
 {
-	u8 epnum = event->endpoint_number;
+	int epnum;
 	size_t len;
 	int status;
 	int ret;
+
+#if 0
+	/* 1. We don't use 1:1 endpoint mappint, so couldn't just use
+	 * event->endpoint_number(physical ep num) as logic ep number.
+	 *
+	 * 2. TODO:// dwc3_gadget_physical_to_mapping_endpoint function is implemented
+	 * in gadget.c, if invoked in debug.h, compiler error happen.
+	 */
+	// epnum = event->endpoint_number;
+	epnum = dwc3_gadget_physical_to_mapping_endpoint(dwc,
+			event->endpoint_number);
+#else
+	epnum = dwc->mapping_ep[event->endpoint_number];
+	if (epnum < 0)
+		return "UNKNOWN";
+#endif
 
 	ret = sprintf(str, "ep%d%s: ", epnum >> 1,
 			(epnum & 1) ? "in" : "out");
@@ -565,14 +582,15 @@ static inline const char *dwc3_gadget_event_type_string(u8 event)
 	}
 }
 
-static inline const char *dwc3_decode_event(char *str, u32 event, u32 ep0state)
+static inline const char *dwc3_decode_event(struct dwc3 *dwc, char *str,
+		u32 event, u32 ep0state)
 {
 	const union dwc3_event evt = (union dwc3_event) event;
 
 	if (evt.type.is_devspec)
 		return dwc3_gadget_event_string(str, &evt.devt);
 	else
-		return dwc3_ep_event_string(str, &evt.depevt, ep0state);
+		return dwc3_ep_event_string(dwc, str, &evt.depevt, ep0state);
 }
 
 static inline const char *dwc3_ep_cmd_status_string(int status)

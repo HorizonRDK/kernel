@@ -1893,8 +1893,16 @@ void pym_frame_done(struct pym_subdev *subdev)
 	 */
 	if (frame) {
 		spin_lock(&subdev->slock);
+		/*
+		 * bit 1 represent main process
+		 * always set event and wakeup main process
+		 */
+		poll_mask |= 0x01;
 		vio_dbg("pym done subdev ctx mask:%lu", subdev->val_ctx_mask);
 		for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
+			/*
+			 * wake up sub process when already poll
+			 */
 			if (test_bit(i, &subdev->val_ctx_mask) &&
 					test_bit(i, &poll_mask)) {
 				pym_ctx = subdev->ctx[i];

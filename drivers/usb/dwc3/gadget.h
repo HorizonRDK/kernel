@@ -115,4 +115,14 @@ static inline u32 dwc3_gadget_ep_get_transfer_index(struct dwc3_ep *dep)
 	return DWC3_DEPCMD_GET_RSC_IDX(res_id);
 }
 
+/**
+ * dwc3_gadget_physical_to_mapping_endpoint - Get mapping endpoint number
+ *					according to physical epnum
+ * @dwc: dwc3 structure
+ * @phy_epnum: physical endpoint number
+ *
+ * Get mapping endpoint number according to physical epnum
+ */
+int dwc3_gadget_physical_to_mapping_endpoint(struct dwc3 *dwc, u8 phy_epnum);
+
 #endif /* __DRIVERS_USB_DWC3_GADGET_H */
