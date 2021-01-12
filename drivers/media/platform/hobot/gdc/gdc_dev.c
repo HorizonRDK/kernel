@@ -28,10 +28,10 @@
 #include "gdc_hw_api.h"
 
 #define MODULE_NAME "X3 GDC"
-
-static int g_gdc_fps[VIO_MAX_STREAM] = {0, };
-static int g_gdc_idx[VIO_MAX_STREAM] = {0, };
-static int g_gdc_fps_lasttime[VIO_MAX_STREAM] = {0, };
+#define GDC_MAX_NUM 2
+static int g_gdc_fps[GDC_MAX_NUM][VIO_MAX_STREAM] = {0, };
+static int g_gdc_idx[GDC_MAX_NUM][VIO_MAX_STREAM] = {0, };
+static int g_gdc_fps_lasttime[GDC_MAX_NUM][VIO_MAX_STREAM] = {0, };
 
 extern void write_gdc_mask(uint32_t model, uint32_t *enable);
 extern void write_gdc_status(uint32_t model, uint32_t *enable);
@@ -460,12 +460,14 @@ int gdc_video_process(struct gdc_video_ctx *gdc_ctx, unsigned long arg)
 	vio_set_stat_info(gdc_ctx->group->instance, GDC_FE, 0);
 
 	do_gettimeofday(&tmp_tv);
-	g_gdc_idx[gdc_ctx->group->instance]++;
-	if (tmp_tv.tv_sec > g_gdc_fps_lasttime[gdc_ctx->group->instance]) {
-		g_gdc_fps[gdc_ctx->group->instance] =
-								g_gdc_idx[gdc_ctx->group->instance];
-		g_gdc_fps_lasttime[gdc_ctx->group->instance] = tmp_tv.tv_sec;
-		g_gdc_idx[gdc_ctx->group->instance] = 0;
+	g_gdc_idx[gdc_dev->hw_id][gdc_ctx->group->instance]++;
+	if (tmp_tv.tv_sec >
+		g_gdc_fps_lasttime[gdc_dev->hw_id][gdc_ctx->group->instance]) {
+		g_gdc_fps[gdc_dev->hw_id][gdc_ctx->group->instance] =
+				g_gdc_idx[gdc_dev->hw_id][gdc_ctx->group->instance];
+		g_gdc_fps_lasttime[gdc_dev->hw_id][gdc_ctx->group->instance] =
+				tmp_tv.tv_sec;
+		g_gdc_idx[gdc_dev->hw_id][gdc_ctx->group->instance] = 0;
 	}
 
 	vio_dbg("%s done: ret(%d), timeout %d\n", __func__, ret, timeout);
@@ -664,14 +666,16 @@ static ssize_t gdc_fps_show(struct device *dev,
 				struct device_attribute *attr, char* buf)
 {
 	u32 offset = 0;
-	int i, len;
-
-	for (i = 0; i < VIO_MAX_STREAM; i++) {
-		if (g_gdc_fps[i] == 0) continue;
-		len = snprintf(&buf[offset], PAGE_SIZE - offset,
-				"gdc pipe %d: output fps %d\n", i, g_gdc_fps[i]);
-		offset += len;
-		g_gdc_fps[i] = 0;
+	int i, j, len;
+	for (j = 0; j < GDC_MAX_NUM; j++) {
+		for (i = 0; i < VIO_MAX_STREAM; i++) {
+			if (g_gdc_fps[j][i] > 0) {
+				len = snprintf(&buf[offset], PAGE_SIZE - offset,
+					"gdc%d pipe %d: output fps %d\n", j, i, g_gdc_fps[j][i]);
+				offset += len;
+				g_gdc_fps[j][i] = 0;
+			}
+		}
 	}
 	return offset;
 }
