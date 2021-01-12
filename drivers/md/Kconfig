@@ -37,9 +37,9 @@ config MD_AUTODETECT
 	default y
 	---help---
 	  If you say Y here, then the kernel will try to autodetect raid
-	  arrays as part of its boot process. 
+	  arrays as part of its boot process.
 
-	  If you don't use raid and say Y, this autodetection can cause 
+	  If you don't use raid and say Y, this autodetection can cause
 	  a several-second delay in the boot time due to various
 	  synchronisation steps that are part of this step.
 
@@ -563,6 +563,14 @@ config DM_VERITY_AVB
 	  behavior. In particular, it will modify the vbmeta partition
 	  specified on the kernel command-line when non-transient error
 	  occurs (followed by a panic).
+
+	  If unsure, say N.
+
+config DM_VERITY_AVB_SYSFS
+	bool "Support DM-Verity-AVB sysfs node for configuration"
+	depends on DM_VERITY_AVB
+	---help---
+	  Enables sysfs node for tuning if invalidate vbmeta on error.
 
 	  If unsure, say N.
 

@@ -5,16 +5,51 @@
  *
  * Based on drivers/md/dm-verity-chromeos.c
  */
-
+#include <linux/cdev.h>
 #include <linux/device-mapper.h>
+#include <linux/fs.h>
+#include<linux/kobject.h>
 #include <linux/module.h>
 #include <linux/mount.h>
+#include<linux/sysfs.h>
 
 #define DM_MSG_PREFIX "verity-avb"
 
 /* Set via module parameters. */
 static char avb_vbmeta_device[64];
 static char avb_invalidate_on_error[4];
+
+volatile bool avb_inval_on_err;
+#ifdef CONFIG_DM_VERITY_AVB_SYSFS
+#define BUFLEN 32
+struct kobject *kobj_ref;
+
+static ssize_t sys_inval_on_err_show(struct kobject *kobj,
+                struct kobj_attribute *attr, char *buf)
+{
+	int ret = 0;
+	ret = snprintf(buf, BUFLEN, "Invalidate on error: %s\n",
+							avb_inval_on_err ? "True" : "False");
+	return ret;
+}
+
+static ssize_t sys_inval_on_err_store(struct kobject *kobj,
+                struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int scan_in = 0;
+	sscanf(buf, "%d", &scan_in);
+	if (scan_in == 0)
+		avb_inval_on_err = false;
+	else if (scan_in == 1)
+		avb_inval_on_err = true;
+	else
+		pr_err("Supports only 0/1, setting preserved!\n");
+	return count;
+}
+
+struct kobj_attribute avb_inval_attr = __ATTR(invalidate_on_error, 0660,
+				sys_inval_on_err_show, sys_inval_on_err_store);
+#endif
 
 static void invalidate_vbmeta_endio(struct bio *bio)
 {
@@ -180,7 +215,7 @@ void dm_verity_avb_error_handler(void)
 
 	DMINFO("AVB error handler called for %s", avb_vbmeta_device);
 
-	if (strcmp(avb_invalidate_on_error, "yes") != 0) {
+	if (strcmp(avb_invalidate_on_error, "yes") != 0 || !avb_inval_on_err) {
 		DMINFO("Not configured to invalidate");
 		return;
 	}
@@ -207,11 +242,25 @@ static int __init dm_verity_avb_init(void)
 {
 	DMINFO("AVB error handler initialized with vbmeta device: %s",
 	       avb_vbmeta_device);
+
+	avb_inval_on_err = true;
+#ifdef CONFIG_DM_VERITY_AVB_SYSFS
+	/*Creating a directory in /sys/kernel/ */
+	kobj_ref = kobject_create_and_add("dm-verity-avb", kernel_kobj);
+
+	/*Creating sysfs file for avb_inval*/
+	if(sysfs_create_file(kobj_ref, &avb_inval_attr.attr))
+			pr_info("Cannot create sysfs file......\n");
+#endif
 	return 0;
 }
 
 static void __exit dm_verity_avb_exit(void)
 {
+#ifdef CONFIG_DM_VERITY_AVB_SYSFS
+	kobject_put(kobj_ref);
+	sysfs_remove_file(kernel_kobj, &avb_inval_attr.attr);
+#endif
 }
 
 module_init(dm_verity_avb_init);
