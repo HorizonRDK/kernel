@@ -501,6 +501,31 @@ static uint32_t _calibration_zoom_af_lms[][21] = {
 
 static int16_t _calibration_bypass_control[] = {0, 0, 1*256, 5*256};
 
+// CALIBRATION_iridix_bright_pr (7x2 2 bytes)
+static uint16_t _calibration_iridix_bright_pr[][2]
+ =  {
+  { 0, 170 },
+  { 256, 170 },
+  { 512, 170 },
+  { 768, 1800 },
+  { 1024, 1911 },
+  { 1280, 2200 },
+  { 1536, 2400 }
+};
+
+// CALIBRATION_iridix_svariance (7x2 2 bytes)
+static uint16_t _calibration_iridix_svariance[][2]
+ =  {
+  { 0, 170 },
+  { 256, 170 },
+  { 512, 170 },
+  { 768, 1800 },
+  { 1024, 1911 },
+  { 1280, 2200 },
+  { 1536, 2400 }
+};
+
+
 static LookupTable calibration_scaler_h_filter = { .ptr = _calibration_scaler_h_filter, .rows = 1, .cols = sizeof(_calibration_scaler_h_filter) / sizeof(_calibration_scaler_h_filter[0]), .width = sizeof(_calibration_scaler_h_filter[0] ) };
 static LookupTable calibration_awb_zone_wght_ver = { .ptr = _calibration_awb_zone_wght_ver, .rows = 1, .cols = sizeof(_calibration_awb_zone_wght_ver) / sizeof(_calibration_awb_zone_wght_ver[0]), .width = sizeof(_calibration_awb_zone_wght_ver[0] ) };
 static LookupTable calibration_awb_bg_max_gain = { .ptr = _calibration_awb_bg_max_gain, .cols = 2, .rows = sizeof(_calibration_awb_bg_max_gain) / sizeof(_calibration_awb_bg_max_gain[0]), .width = sizeof(_calibration_awb_bg_max_gain[0][0] ) };
@@ -572,6 +597,9 @@ static LookupTable calibration_gamma_threshold = {.ptr = _calibration_gamma_thre
 
 static LookupTable calibration_bypass_control = {.ptr = _calibration_bypass_control, .rows = 1, .cols = sizeof(_calibration_bypass_control) / sizeof(_calibration_bypass_control[0]), .width = sizeof(_calibration_bypass_control[0])};
 static LookupTable calibration_sinter_strength4 = {.ptr = _calibration_sinter_strength4, .cols = 2, .rows = sizeof(_calibration_sinter_strength4) / sizeof(_calibration_sinter_strength4[0]), .width = sizeof(_calibration_sinter_strength4[0][0] ) };
+
+static LookupTable calibration_iridix_bright_pr = { .ptr = _calibration_iridix_bright_pr, .cols = 2, .rows = sizeof(_calibration_iridix_bright_pr) / sizeof(_calibration_iridix_bright_pr[0]), .width = sizeof(_calibration_iridix_bright_pr[0][0] ) };
+static LookupTable calibration_iridix_svariance = { .ptr = _calibration_iridix_svariance, .cols = 2, .rows = sizeof(_calibration_iridix_svariance) / sizeof(_calibration_iridix_svariance[0]), .width = sizeof(_calibration_iridix_svariance[0][0] ) };
 
 uint32_t get_calibrations_dynamic_linear_dummy( ACameraCalibrations *c ) {
 //uint32_t get_dynamic_calibrations( ApicalCalibrations * c ) {
@@ -645,6 +673,8 @@ uint32_t get_calibrations_dynamic_linear_dummy( ACameraCalibrations *c ) {
 	c->calibrations[CALIBRATION_GAMMA_THRESHOLD] = &calibration_gamma_threshold;
 	c->calibrations[CALIBRATION_BYPASS_CONTROL] = &calibration_bypass_control;
 	c->calibrations[CALIBRATION_SINTER_STRENGTH4] = &calibration_sinter_strength4;
+	c->calibrations[CALIBRATION_IRIDIX_BRIGHT_PR] = &calibration_iridix_bright_pr;
+	c->calibrations[CALIBRATION_IRIDIX_SVARIANCE] = &calibration_iridix_svariance;
     } else {
         result = -1;
     }

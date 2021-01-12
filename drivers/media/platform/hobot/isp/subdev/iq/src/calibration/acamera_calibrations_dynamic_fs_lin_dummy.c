@@ -574,6 +574,30 @@ static uint32_t _calibration_zoom_af_lms[][21] = {
 {11520/4, 11520/4, 11520/4, 12800/4, 12800/4, 12800/4, 22400/4, 22400/4, 22400/4, 24320/4, 24320/4, 24320/4,11,6,2,30,131072,131072,262144,65536, 0}
 };
 
+// CALIBRATION_iridix_bright_pr (7x2 2 bytes)
+static uint16_t _calibration_iridix_bright_pr[][2]
+ =  {
+  { 0, 170 },
+  { 256, 170 },
+  { 512, 170 },
+  { 768, 1800 },
+  { 1024, 1911 },
+  { 1280, 2200 },
+  { 1536, 2400 }
+};
+
+// CALIBRATION_iridix_svariance (7x2 2 bytes)
+static uint16_t _calibration_iridix_svariance[][2]
+ =  {
+  { 0, 170 },
+  { 256, 170 },
+  { 512, 170 },
+  { 768, 1800 },
+  { 1024, 1911 },
+  { 1280, 2200 },
+  { 1536, 2400 }
+};
+
 static int16_t _calibration_bypass_control[] = {0, 0, 1*256, 2*256};
 
 static LookupTable calibration_fs_mc_off = {.ptr = _calibration_fs_mc_off, .rows = 1, .cols = sizeof( _calibration_fs_mc_off ) / sizeof( _calibration_fs_mc_off[0] ), .width = sizeof( _calibration_fs_mc_off[0] )};
@@ -646,6 +670,10 @@ static LookupTable calibration_gamma_threshold = {.ptr = _calibration_gamma_thre
 
 static LookupTable calibration_bypass_control = {.ptr = _calibration_bypass_control, .rows = 1, .cols = sizeof(_calibration_bypass_control) / sizeof(_calibration_bypass_control[0]), .width = sizeof( _calibration_bypass_control[0])};
 static LookupTable calibration_sinter_strength4 = {.ptr = _calibration_sinter_strength4, .rows = sizeof(_calibration_sinter_strength4) / sizeof(_calibration_sinter_strength4[0]), .cols = 2, .width = sizeof(_calibration_sinter_strength4[0][0])};
+
+ static LookupTable calibration_iridix_bright_pr = { .ptr = _calibration_iridix_bright_pr, .cols = 2, .rows = sizeof(_calibration_iridix_bright_pr) / sizeof(_calibration_iridix_bright_pr[0]), .width = sizeof(_calibration_iridix_bright_pr[0][0] ) };
+ static LookupTable calibration_iridix_svariance = { .ptr = _calibration_iridix_svariance, .cols = 2, .rows = sizeof(_calibration_iridix_svariance) / sizeof(_calibration_iridix_svariance[0]), .width = sizeof(_calibration_iridix_svariance[0][0] ) };
+
 
 
 uint32_t get_calibrations_dynamic_fs_lin_dummy( ACameraCalibrations *c )
@@ -720,6 +748,8 @@ uint32_t get_calibrations_dynamic_fs_lin_dummy( ACameraCalibrations *c )
 	c->calibrations[CALIBRATION_GAMMA_THRESHOLD] = &calibration_gamma_threshold;
 	c->calibrations[CALIBRATION_BYPASS_CONTROL] = &calibration_bypass_control;
 	c->calibrations[CALIBRATION_SINTER_STRENGTH4] = &calibration_sinter_strength4;
+	c->calibrations[CALIBRATION_IRIDIX_BRIGHT_PR] = &calibration_iridix_bright_pr;
+	c->calibrations[CALIBRATION_IRIDIX_SVARIANCE] = &calibration_iridix_svariance;
     } else {
         result = -1;
     }

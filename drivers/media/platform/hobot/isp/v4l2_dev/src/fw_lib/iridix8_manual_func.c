@@ -157,6 +157,33 @@ void iridix_fsm_process_interrupt( iridix_fsm_const_ptr_t p_fsm, uint8_t irq_eve
             }
         }
 
+	// add new func to change svariance/bright_pr
+            if ( ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_manual_iridix == 0 ) {
+		int32_t total_gain;
+
+		acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_CMOS_TOTAL_GAIN, NULL, 0, &total_gain, sizeof( total_gain ) );
+
+		uint16_t log2_gain = total_gain >> ( LOG2_GAIN_SHIFT - 8 );
+
+		uint32_t bright_pr = 0;
+		uint32_t svariance = 0;
+		uint32_t iridxi_bright_pr_table_idx = CALIBRATION_IRIDIX_BRIGHT_PR;
+		uint32_t iridxi_svariance_table_idx = CALIBRATION_IRIDIX_SVARIANCE;
+
+		modulation_entry_t *bright_pr_table = _GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), iridxi_bright_pr_table_idx );
+		uint32_t bright_pr_table_len = _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), iridxi_bright_pr_table_idx );
+		modulation_entry_t *svariance_table = _GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), iridxi_svariance_table_idx );
+		uint32_t svariance_table_len = _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), iridxi_svariance_table_idx );
+		if (bright_pr_table && svariance_table) {
+			bright_pr = acamera_calc_modulation_u16( log2_gain, bright_pr_table, bright_pr_table_len );
+			svariance = acamera_calc_modulation_u16( log2_gain, svariance_table, svariance_table_len );
+
+			acamera_isp_iridix_bright_pr_write( p_fsm->cmn.isp_base, bright_pr );
+			acamera_isp_iridix_svariance_write( p_fsm->cmn.isp_base, svariance );
+		}
+	}
+	// -----end
+
         if ( ( p_fsm->frame_id_tracking != p_fsm->pre_frame_id_tracking ) && p_fsm->is_output_ready ) {
             fsm_param_mon_alg_flow_t iridix_flow;
 
