@@ -2581,7 +2581,8 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 					sizeof(struct frame_info));
 			}
 
-			ipu_ctx->event = 0;
+			if (list_empty(done_list))
+				ipu_ctx->event = 0;
 			ipu_ctx->frm_num_usr++;
 			vio_dbg("[S%d][V%d] %s (p%d b%d f%d) from FS_COMPLETE.(%d %d %d %d %d)",
 				ipu_ctx->group->instance, ipu_ctx->id, __func__,

@@ -1269,7 +1269,8 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 				memcpy(&subdev->frameinfo, &frame->frameinfo,
 					sizeof(struct frame_info));
 			}
-			pym_ctx->event = 0;
+			if (list_empty(done_list))
+				pym_ctx->event = 0;
 			pym_ctx->frm_num_usr++;
 			framemgr_x_barrier_irqr(framemgr, 0, flags);
 			vio_dbg("[S%d] %s proc%d index%d frame%d from COMP,(%d %d %d %d %d)\n",
