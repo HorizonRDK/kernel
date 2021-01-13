@@ -414,26 +414,18 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 
 		frame_manager_close(sif_ctx->framemgr);
 	}
-	isp_enable = subdev->sif_cfg.output.isp.enable;
-	if(isp_enable) {
-		atomic_dec_return(&sif->isp_init_cnt);
-			vio_dbg("[S%d][V%d]%s isp_init_cnt %d \n", sif_ctx->group->instance,
-		sif_ctx->id, __func__, atomic_read(&sif->isp_init_cnt));
-	}
+
 	if (atomic_dec_return(&sif->open_cnt) == 0) {
 		clear_bit(SIF_DMA_IN_ENABLE, &sif->state);
 		clear_bit(SIF_OTF_OUTPUT, &sif->state);
-		atomic_set(&sif->isp_init_cnt, 0);
-		sif_hw_disable(sif->base_reg);
-		clear_bit(SIF_HW_RUN, &sif->state);
-		atomic_set(&sif->rsccount, 0);
+		sif_hw_disable_ex(sif->base_reg);
 		//it should disable after ipu stream off because it maybe contain ipu/sif clk
 		//vio_clk_disable("sif_mclk");
 		ips_set_module_reset(SIF_RST);
 		ips_set_clk_ctrl(SIF_CLOCK_GATE, false);
 		pm_qos_remove_request(&sif_pm_qos_req);
-		vio_dbg("[S%d][V%d]%s sif last process exit \n", sif_ctx->group->instance,
-		sif_ctx->id, __func__);
+		vio_info("[S%d][V%d]%s SIF last process close \n",
+				sif_ctx->group->instance, sif_ctx->id, __func__);
 	}
 	mutex_unlock(&sif->shared_mutex);
 	sif_ctx->state = BIT(VIO_VIDEO_CLOSE);
@@ -874,6 +866,7 @@ int sif_video_streamoff(struct sif_video_ctx *sif_ctx)
 	struct x3_sif_dev *sif_dev;
 	struct vio_framemgr *framemgr;
 	struct sif_subdev *subdev;
+	u32 isp_enable;
 
 	if (!(sif_ctx->state & BIT(VIO_VIDEO_START))) {
 		vio_err("[%s][V%02d] invalid STREAM OFF is requested(%lX)",
@@ -898,8 +891,24 @@ int sif_video_streamoff(struct sif_video_ctx *sif_ctx)
 		for (i = 0; i < subdev->ipi_channels; i++)
 			sif_disable_ipi(sif_dev->base_reg, subdev->ipi_index + i);
 	}
-	atomic_dec_return(&sif_dev->rsccount);
+	isp_enable = subdev->sif_cfg.output.isp.enable;
+	if (isp_enable && (atomic_dec_return(&sif_dev->isp_init_cnt) == 0)) {
+		sif_disable_isp_out_config(sif_dev->base_reg);
+		atomic_set(&sif_dev->isp_init_cnt, 0);
+	}
+	if (atomic_dec_return(&sif_dev->rsccount) > 0) {
+		mutex_unlock(&sif_dev->shared_mutex);
+		goto p_dec;
+	}
+	msleep(100);
+	sif_hw_disable(sif_dev->base_reg);
+	clear_bit(SIF_HW_RUN, &sif_dev->state);
+	atomic_set(&sif_dev->rsccount, 0);
+	vio_info("[S%d][V%d]%s SIF last process stream off \n",
+		sif_ctx->group->instance,
+		sif_ctx->id, __func__);
 	mutex_unlock(&sif_dev->shared_mutex);
+p_dec:
 
 	if (framemgr->frames != NULL)
 		frame_manager_flush(framemgr);

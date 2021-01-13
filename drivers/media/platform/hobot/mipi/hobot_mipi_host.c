@@ -2198,10 +2198,7 @@ static int hobot_mipi_host_open(struct inode *inode, struct file *file)
 	mipi_host_param_t *param = &hdev->host.param;
 	struct device *dev = hdev->dev;
 
-	if (mutex_lock_interruptible(&user->open_mutex)) {
-		mipierr("open_mutex lock error");
-		return -EACCES;
-	}
+	mutex_lock(&user->open_mutex);
 	mipidbg("open as %d", user->open_cnt);
 	if (user->open_cnt == 0) {
 		mutex_init(&user->mutex);
@@ -2228,10 +2225,7 @@ static int hobot_mipi_host_close(struct inode *inode, struct file *file)
 	mipi_host_param_t *param = &host->param;
 	struct device *dev = hdev->dev;
 
-	if (mutex_lock_interruptible(&user->open_mutex)) {
-		mipierr("open_mutex lock error");
-		return -EACCES;
-	}
+	mutex_lock(&user->open_mutex);
 	if (user->open_cnt > 0)
 		user->open_cnt--;
 	mipidbg("close as %d", user->open_cnt);

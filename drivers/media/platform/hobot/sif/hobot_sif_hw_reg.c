@@ -1324,6 +1324,7 @@ static void sif_disable_input_and_output(u32 __iomem *base_reg)
 			&sif_fields[SW_DVP_IN_ENABLE], 0);
 
 	sif_stop_pattern_gen(base_reg);
+	#if 0
 	// Clear: YUV Transform
 	vio_hw_set_reg(base_reg, &sif_regs[SIF_YUV422_TRANS], 0);
 
@@ -1331,9 +1332,9 @@ static void sif_disable_input_and_output(u32 __iomem *base_reg)
 
 	for (i = 0; i < 12; i++)
 		sif_disable_ipi(base_reg, i);
-	// Shadow Update: IPI + DVP
+	 Shadow Update: IPI + DVP
 	vio_hw_set_reg(base_reg, &sif_regs[SIF_SHD_UP_RDY], 0xFFFFFFFF);
-
+    #endif
 	vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_CTRL],
 			&sif_fields[SW_SIF_ISP0_FLYBY_ENABLE], 0);
 	vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_CTRL],
@@ -1355,6 +1356,15 @@ static void sif_disable_input_and_output(u32 __iomem *base_reg)
 	} while(0);
 }
 
+void sif_disable_isp_out_config(u32 __iomem *base_reg)
+{
+	vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_EN_INT],
+				&sif_fields[SIF_ISP0_OUT_FE_INT_EN], 0);
+	vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_EN_INT],
+			&sif_fields[SIF_ISP0_OUT_FS_INT_EN], 0);
+	vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_CTRL],
+			&sif_fields[SW_SIF_ISP0_FLYBY_ENABLE], 0);
+}
 
 void sif_hw_disable(u32 __iomem *base_reg)
 {
@@ -1362,6 +1372,48 @@ void sif_hw_disable(u32 __iomem *base_reg)
 	sif_disable_input_and_output(base_reg);
 
 	/* Disable & Clear all interrupts */
+
+	vio_hw_set_reg(base_reg, &sif_regs[SIF_OUT_EN_INT], 0);
+	//vio_hw_set_reg(base_reg, &sif_regs[SIF_FRM_EN_INT], 0);
+	vio_hw_set_reg(base_reg, &sif_regs[SIF_OUT_INT], 0xFFFFFFFF);
+	//vio_hw_set_reg(base_reg, &sif_regs[SIF_FRM_INT], 0xFFFFFFFF);
+
+	/* SIF Enable */
+	//remove it for test only
+	vio_hw_set_field(base_reg, &sif_regs[SIF_SETTING],
+			&sif_fields[SW_SIF_ENABLE], 0);
+
+	/* SIF SW Reset */
+	vio_hw_set_reg(base_reg, &sif_regs[SIF_SW_RESET],
+					0x00000001); //remove it for test only
+	vio_hw_set_reg(base_reg, &sif_regs[SIF_SW_RESET],
+					0x00000000); //remove it for test only
+
+	sif_set_isp_performance(base_reg, 0);
+	ips_disable_md();
+
+#ifdef SIF_MEMORY_DEBUG
+	// For Debug: Memory Violation
+	vio_hw_set_reg(base_reg, &sif_regs[SIF_AXI_FRM_W_LIMIT_SET], 1);
+	vio_hw_set_reg(base_reg, &sif_regs[SIF_AXI_FRM_W_LIMIT_UP], 0x70000000);
+	vio_hw_set_field(base_reg, &sif_regs[SIF_AXI_FRM_W_LIMIT_BOT], 0x40000000);
+#endif
+}
+
+void sif_hw_disable_ex(u32 __iomem *base_reg)
+{
+	int i;
+
+	/* Disable all inputs and wait until drained */
+	sif_disable_input_and_output(base_reg);
+
+	/* Disable & Clear all interrupts */
+	for (i = 0; i < 12; i++)
+		sif_disable_ipi(base_reg, i);
+//	vio_hw_set_reg(base_reg, &sif_regs[SIF_SHD_UP_RDY], 0xFFFFFFFF);
+	vio_hw_set_reg(base_reg, &sif_regs[SIF_YUV422_TRANS], 0);
+
+	vio_hw_set_reg(base_reg, &sif_regs[SIF_MOT_DET_MODE], 0);
 
 	vio_hw_set_reg(base_reg, &sif_regs[SIF_OUT_EN_INT], 0);
 	vio_hw_set_reg(base_reg, &sif_regs[SIF_FRM_EN_INT], 0);
@@ -1372,7 +1424,6 @@ void sif_hw_disable(u32 __iomem *base_reg)
 	//remove it for test only
 	vio_hw_set_field(base_reg, &sif_regs[SIF_SETTING],
 			&sif_fields[SW_SIF_ENABLE], 0);
-
 
 	/* SIF SW Reset */
 	vio_hw_set_reg(base_reg, &sif_regs[SIF_SW_RESET], 0x00000001); //remove it for test only
