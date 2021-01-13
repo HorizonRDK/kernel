@@ -14,6 +14,10 @@
 #include <linux/kdev_t.h>
 #include <linux/string.h>
 #include <linux/delay.h>
+#include <linux/cdev.h>
+#include <linux/ioctl.h>
+#include <linux/errno.h>
+#include <linux/uaccess.h>
 #include <soc/hobot/hobot_efuse.h>
 
 #define X3_EFUSE_NAME "hobot_efuse"
@@ -25,9 +29,11 @@ static void __iomem *normal_efuse_base;
 static void __iomem *sec_efuse_base;
 static void __iomem *fw_base_addr;
 static void __iomem *sysctrl_base_addr;
+static DEFINE_MUTEX(hobot_efuse_mutex);
+static struct hobot_efuse_dev efuse_dev = {0};
 
 static unsigned int _hw_efuse_store(enum EFS_TPE type, unsigned int bnk_num,
-		unsigned int data)
+		unsigned int data, bool lock)
 {
 	void __iomem *efs_bank_base;
 	unsigned int sta;
@@ -107,12 +113,13 @@ static unsigned int _hw_efuse_store(enum EFS_TPE type, unsigned int bnk_num,
 	sta = mmio_read_32(efs_bank_base + HW_EFS_READ_DATA);
 
     // verify writed data
-    if (sta != data) {
+    if ((sta & data) != data) {
         pr_err("[ERR] bank %d write fail.\n", bnk_num);
 		return HW_EFUSE_WRITE_FAIL;
     }
-
-    //// efuse lock bank
+	if (lock == 0)
+		return HW_EFUSE_READ_OK;
+	//// efuse lock bank
 	// set program bank addr to bnk31
 	mmio_write_32(efs_bank_base + HW_EFS_BANK_ADDR, HW_EFUSE_LOCK_BNK);
 
@@ -151,7 +158,7 @@ static unsigned int _hw_efuse_load(enum EFS_TPE type, unsigned int bnk_num,
 
 	// enable efuse
 	mmio_write_32(efs_bank_base + HW_EFS_CFG, HW_EFS_CFG_EFS_EN);
-
+#if 0
 	// set bank addr to bnk31
 	mmio_write_32(efs_bank_base + HW_EFS_BANK_ADDR, HW_EFUSE_LOCK_BNK);
 
@@ -180,6 +187,7 @@ static unsigned int _hw_efuse_load(enum EFS_TPE type, unsigned int bnk_num,
 		*ret = 0;
 		return HW_EFUSE_READ_UNLOCK;
 	}
+#endif
 	// Set bank address to what we want
 	mmio_write_32(efs_bank_base + HW_EFS_BANK_ADDR, bnk_num);
 
@@ -273,9 +281,9 @@ int read_sw_efuse_bnk(enum EFS_TPE type, unsigned int bnk_num)
 }
 
 int write_hw_efuse_bnk(enum EFS_TPE type, unsigned int bnk_num,
-		unsigned int val)
+		unsigned int val, bool lock)
 {
-	return _hw_efuse_store(type, bnk_num, val);
+	return _hw_efuse_store(type, bnk_num, val, lock);
 }
 
 int write_sw_efuse_bnk(enum EFS_TPE type, unsigned int bnk_num,
@@ -310,12 +318,14 @@ void scomp_sec_lock_down(void)
 //****************************************
 // Efuse API
 //****************************************
-int efuse_write_data(enum EFS_TPE type, unsigned int bnk_num, unsigned int val)
+int efuse_write_data(enum EFS_TPE type,
+		     unsigned int bnk_num,
+		     unsigned int val, bool lock)
 {
     int nRet = SW_EFUSE_OK;
 
     /// 1st step write hw efuse
-    nRet = write_hw_efuse_bnk(type, bnk_num, val);
+    nRet = write_hw_efuse_bnk(type, bnk_num, val, lock);
     if (HW_EFUSE_READ_OK != nRet) {
         pr_err("[ERR] %s write hw efuse error:%d.\n", __FUNCTION__, nRet);
         return RET_API_EFUSE_FAIL;
@@ -337,7 +347,10 @@ static ssize_t secure_show(struct device_driver *drv, char *buf)
 	unsigned int i, val, bank = 0;
 	char temp[50];
 
-	for (i = 0; i < 32; i++, bank++) {
+	/* secure bank only read bank0,
+	 * reserve "for" to get more secure bank
+	 */
+	for (i = 0; i < 1; i++, bank++) {
 		if (!(i % 4)) {
 			sprintf(temp, "\nsecure_bank 0x%.8x:", bank);
 			strcat(buf, temp);
@@ -410,12 +423,180 @@ static const struct attribute_group *efuse_attr_group[] = {
 	NULL,
 };
 
+static int hobot_efuse_open(struct inode *inode, struct file *filp)
+{
+	return 0;
+}
+
+static int hobot_efuse_release(struct inode *inode, struct file *filp)
+{
+	return 0;
+}
+
+
+static int32_t check_and_efuse_bank(uint32_t bank,
+				    uint32_t value,
+				    uint32_t lock)
+{
+	uint32_t efuse_value = 0;
+	uint32_t efuse_condition = 0;
+	int32_t ret = 0;
+	uint32_t lock_bank;
+	uint32_t type = EFS_NS;
+
+	lock_bank = read_sw_efuse_bnk(type, HW_EFUSE_LOCK_BNK);
+	if ((((lock_bank >> bank) & 0x01) == 0)) {
+		efuse_value = read_sw_efuse_bnk(type, bank);
+		if ((!(efuse_value & value) && (value != 0)) ||
+		     (value == 0 && lock == 1)) {
+			/*efuse condition
+			 *1, value==0 and lock==1
+			 *2, value!=0 and (efuse_value & value)==0
+			 */
+			efuse_condition = 1;
+		} else {
+			pr_info("efuse type:%d bank[%d] mismatch, bypass this bank\n", type, bank);
+			efuse_condition = 0;
+			return 0;
+		}
+		if (efuse_condition) {
+			ret = efuse_write_data(type, bank, value, lock);
+			if (ret != RET_API_EFUSE_OK) {
+				pr_info("burn efuse type: %d secure bank:0x%x failed\n", type, bank);
+				return -1;
+			}
+			if (efuse_value != 0 || lock == 1) {
+				ret = _sw_efuse_set_register(type);
+				if (ret != RET_API_EFUSE_OK)
+					return -1;
+			}
+			pr_info("burn efuse type:%d bank:0x%x, value:0x%x, read:0x%x\n",
+				type,
+				bank, value,
+				read_sw_efuse_bnk(type, bank));
+		}
+	} else {
+		pr_err("[%s,%d],bank[%d] has locked\n", __FILE__, __LINE__, bank);
+	}
+	return 0;
+}
+static long hobot_efuse_ioctl(struct file *file,
+			      unsigned int cmd,
+			      unsigned long arg)
+{
+	struct  io_efuse_data data;
+	int32_t ret = 0;
+
+	if (_IOC_TYPE(cmd) != EFUSE_IOCTL_MAGIC) {
+		pr_err("ioctl command magic number does not match.\n");
+		return -EINVAL;
+	}
+
+	if (_IOC_SIZE(cmd) > sizeof(data))
+		return -EINVAL;
+	if (copy_from_user(&data, (void __user *)arg, _IOC_SIZE(cmd))) {
+		pr_err("%s: copy data failed from userspace\n", __func__);
+		return -EFAULT;
+	}
+	if (data.bank > 30) {
+		return -1;
+	}
+	mutex_lock(&hobot_efuse_mutex);
+	switch (cmd) {
+		case EFUSE_IOC_SET_BANK:
+			pr_debug("bank:%d,value:0x%x, lock:%d\n",
+				  data.bank, data.bank_value, data.lock);
+			ret = check_and_efuse_bank(data.bank,
+						   data.bank_value,
+						   data.lock);
+			break;
+		case EFUSE_IOC_GET_BANK:
+			data.bank_value = read_sw_efuse_bnk(EFS_NS, data.bank);
+			data.lock = (read_sw_efuse_bnk(EFS_NS, HW_EFUSE_LOCK_BNK) >>
+				     data.bank) & 0x1;
+			break;
+		default:
+			break;
+	}
+	mutex_unlock(&hobot_efuse_mutex);
+
+        if (_IOC_DIR(cmd) == _IOC_READ) {
+                if (copy_to_user((void __user *)arg, &data, _IOC_SIZE(cmd))) {
+                        pr_err("%s: copy data to userspace failed\n", __func__);
+                        return -EFAULT;
+                }
+        }
+
+	return ret;
+}
+
+static const struct file_operations hb_efuse_fops = {
+	.owner		= THIS_MODULE,
+	.open		= hobot_efuse_open,
+	.release	= hobot_efuse_release,
+	.unlocked_ioctl = hobot_efuse_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl	= hobot_efuse_ioctl,
+#endif
+};
+
 /* Match table for of_platform binding */
 static const struct of_device_id x3_efuse_of_match[] = {
 	{ .compatible = "hobot,x3-efuse", },
 	{}
 };
 MODULE_DEVICE_TABLE(of, x3_efuse_of_match);
+
+static int hobot_efuse_init_chrdev(struct hobot_efuse_dev *dev)
+{
+	int32_t rc;
+
+	// Allocate a major and minor number region for the character device
+	rc = alloc_chrdev_region(&dev->dev_num, 0, 1, "efuse");
+	if (rc < 0) {
+		pr_err("Unable to allocate character device region.\n");
+		goto ret;
+	}
+
+	// Create a device class for our device
+	dev->dev_class = class_create(THIS_MODULE, "efuse");
+	if (IS_ERR(dev->dev_class)) {
+		pr_err("Unable to create a device class.\n");
+		rc = PTR_ERR(dev->dev_class);
+		goto free_chrdev_region;
+	}
+
+	/* Create a device for our module. This will create a file on the
+	 * filesystem, under "/dev/dev->chrdev_name".
+	 */
+	device_create(dev->dev_class, dev->dev, dev->dev_num, NULL,
+		"efuse");
+
+	// Register our character device with the kernel
+	cdev_init(&dev->i_cdev, &hb_efuse_fops);
+	rc = cdev_add(&dev->i_cdev, dev->dev_num, 1);
+	if (rc < 0) {
+		pr_err("Unable to add a character device.\n");
+		goto device_cleanup;
+	}
+
+	return 0;
+
+device_cleanup:
+	device_destroy(dev->dev_class, dev->dev_num);
+free_chrdev_region:
+	unregister_chrdev_region(dev->dev_num, 1);
+ret:
+	return rc;
+}
+
+static void efuse_dev_remove(struct hobot_efuse_dev *dev)
+{
+	cdev_del(&dev->i_cdev);
+	device_destroy(dev->dev_class, dev->dev_num);
+	class_destroy(dev->dev_class);
+	unregister_chrdev_region(dev->dev_num, 1);
+}
 
 /**
  * x3_efuse_probe - Platform driver probe
@@ -463,7 +644,11 @@ static int x3_efuse_probe(struct platform_device *pdev)
 	sysctrl_base_addr = ioremap(SYSCTL_REG_BASE, SYSCTL_REG_LEN);
 	if (!sysctrl_base_addr)
 		return -ENOMEM;
-
+	rc = hobot_efuse_init_chrdev(&efuse_dev);
+	if (rc) {
+		dev_err(&pdev->dev, "failed to create char dev for efuse\n");
+		goto err_out;
+	}
 	pr_info("hobot_efuse probe success\n");
 	return 0;
 err_out:
@@ -476,6 +661,7 @@ static int x3_efuse_remove(struct platform_device *pdev)
 	iounmap(sec_efuse_base);
 	iounmap(fw_base_addr);
 	iounmap(sysctrl_base_addr);
+	efuse_dev_remove(&efuse_dev);
 	return 0;
 }
 

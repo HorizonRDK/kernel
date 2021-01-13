@@ -44,6 +44,14 @@ unsigned int uvc_gadget_trace_param;
 #define UVC_STRING_CONTROL_IDX			0
 #define UVC_STRING_STREAMING_IDX		1
 
+/* terminal link >>
+ * UVC_CT_ID -> UVC_PU_ID -> UVC_EU_ID -> UVC_OT_ID
+ */
+#define UVC_CT_ID		1	/* Camera Terminal */
+#define UVC_PU_ID		2	/* Process Unit (common isp control) */
+#define UVC_OT_ID		3	/* Output Terminal */
+#define UVC_EU_ID		4	/* Extension Unit (customer use)*/
+
 static struct usb_string uvc_en_us_strings[] = {
 	[UVC_STRING_CONTROL_IDX].s = "UVC Camera",
 	[UVC_STRING_STREAMING_IDX].s = "Video Streaming",
@@ -1022,8 +1030,16 @@ static struct usb_function_instance *uvc_alloc_inst(void)
 	struct uvc_camera_terminal_descriptor *cd;
 	struct uvc_processing_unit_descriptor *pd;
 	struct uvc_output_terminal_descriptor *od;
+	struct UVC_EXTENSION_UNIT_DESCRIPTOR(1, 2) *ed;
 	struct uvc_color_matching_descriptor *md;
 	struct uvc_descriptor_header **ctl_cls;
+	/* d399afe9-8c1c-42a9-8bf3-d781e34b7114
+	 * gen from https://www.guidgenerator.com/online-guid-generator.aspx
+	 * Need to use customer's guid */
+	static char extension_guid[] = {0xd3, 0x99, 0xaf, 0xe9, 0x8c,
+					0x1c, 0x42, 0xa9, 0x8b, 0xf3,
+					0xd7, 0x81, 0xe3, 0x4b, 0x71,
+					0x14};
 
 	opts = kzalloc(sizeof(*opts), GFP_KERNEL);
 	if (!opts)
@@ -1035,7 +1051,7 @@ static struct usb_function_instance *uvc_alloc_inst(void)
 	cd->bLength			= UVC_DT_CAMERA_TERMINAL_SIZE(3);
 	cd->bDescriptorType		= USB_DT_CS_INTERFACE;
 	cd->bDescriptorSubType		= UVC_VC_INPUT_TERMINAL;
-	cd->bTerminalID			= 1;
+	cd->bTerminalID			= UVC_CT_ID;
 	cd->wTerminalType		= cpu_to_le16(0x0201);
 	cd->bAssocTerminal		= 0;
 	cd->iTerminal			= 0;
@@ -1051,8 +1067,8 @@ static struct usb_function_instance *uvc_alloc_inst(void)
 	pd->bLength			= UVC_DT_PROCESSING_UNIT_SIZE(2);
 	pd->bDescriptorType		= USB_DT_CS_INTERFACE;
 	pd->bDescriptorSubType		= UVC_VC_PROCESSING_UNIT;
-	pd->bUnitID			= 2;
-	pd->bSourceID			= 1;
+	pd->bUnitID			= UVC_PU_ID;
+	pd->bSourceID			= UVC_CT_ID;
 	pd->wMaxMultiplier		= cpu_to_le16(16*1024);
 	pd->bControlSize		= 2;
 	pd->bmControls[0]		= 1;
@@ -1063,11 +1079,25 @@ static struct usb_function_instance *uvc_alloc_inst(void)
 	od->bLength			= UVC_DT_OUTPUT_TERMINAL_SIZE;
 	od->bDescriptorType		= USB_DT_CS_INTERFACE;
 	od->bDescriptorSubType		= UVC_VC_OUTPUT_TERMINAL;
-	od->bTerminalID			= 3;
+	od->bTerminalID			= UVC_OT_ID;
 	od->wTerminalType		= cpu_to_le16(0x0101);
 	od->bAssocTerminal		= 0;
-	od->bSourceID			= 2;
+	od->bSourceID			= UVC_EU_ID;
 	od->iTerminal			= 0;
+
+	ed = &opts->uvc_extension;
+	ed->bLength			= UVC_DT_EXTENSION_UNIT_SIZE(1, 2);
+	ed->bDescriptorType		= USB_DT_CS_INTERFACE;
+	ed->bDescriptorSubType		= UVC_VC_EXTENSION_UNIT;
+	ed->bUnitID			= UVC_EU_ID;
+	memcpy(ed->guidExtensionCode, extension_guid, sizeof(extension_guid));
+	ed->bNumControls		= 15;	/* totally 15 controls - reserved for customer */
+	ed->bNrInPins			= 1;	/* 1 Input pin (PU) */
+	ed->baSourceID[0]		= UVC_PU_ID;
+	ed->bControlSize		= 2;	/* 2 bmControls */
+	ed->bmControls[0]		= 1;	/* bitmap for supported control */
+	ed->bmControls[1]		= 0;
+	ed->iExtension			= 0;	/* index of string descriptor */
 
 	md = &opts->uvc_color_matching;
 	md->bLength			= UVC_DT_COLOR_MATCHING_SIZE;
@@ -1083,7 +1113,8 @@ static struct usb_function_instance *uvc_alloc_inst(void)
 	ctl_cls[1] = (struct uvc_descriptor_header *)cd;
 	ctl_cls[2] = (struct uvc_descriptor_header *)pd;
 	ctl_cls[3] = (struct uvc_descriptor_header *)od;
-	ctl_cls[4] = NULL;	/* NULL-terminate */
+	ctl_cls[4] = (struct uvc_descriptor_header *)ed;
+	ctl_cls[5] = NULL;	/* NULL-terminate */
 	opts->fs_control =
 		(const struct uvc_descriptor_header * const *)ctl_cls;
 
@@ -1093,7 +1124,8 @@ static struct usb_function_instance *uvc_alloc_inst(void)
 	ctl_cls[1] = (struct uvc_descriptor_header *)cd;
 	ctl_cls[2] = (struct uvc_descriptor_header *)pd;
 	ctl_cls[3] = (struct uvc_descriptor_header *)od;
-	ctl_cls[4] = NULL;	/* NULL-terminate */
+	ctl_cls[4] = (struct uvc_descriptor_header *)ed;
+	ctl_cls[5] = NULL;	/* NULL-terminate */
 	opts->ss_control =
 		(const struct uvc_descriptor_header * const *)ctl_cls;
 

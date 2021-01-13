@@ -28,6 +28,10 @@
 #include "gdc_hw_api.h"
 
 #define MODULE_NAME "X3 GDC"
+#define GDC_MAX_NUM 2
+static int g_gdc_fps[GDC_MAX_NUM][VIO_MAX_STREAM] = {0, };
+static int g_gdc_idx[GDC_MAX_NUM][VIO_MAX_STREAM] = {0, };
+static int g_gdc_fps_lasttime[GDC_MAX_NUM][VIO_MAX_STREAM] = {0, };
 
 extern void write_gdc_mask(uint32_t model, uint32_t *enable);
 extern void write_gdc_status(uint32_t model, uint32_t *enable);
@@ -224,9 +228,9 @@ int gdc_check_phyaddr(u32 addr)
 
 int gdc_check(gdc_settings_t *gdc_settings)
 {
-	int ret;
+	int ret = 0;
 
-	u32 lineoffset, height;	//, size;
+	// u32 lineoffset, height;	//, size;
 	u32 num_input = 0;
 	u32 *input_addr;
 	u32 *output_addr;
@@ -401,6 +405,7 @@ int gdc_video_process(struct gdc_video_ctx *gdc_ctx, unsigned long arg)
 	gdc_settings_t gdc_settings;
 	struct x3_gdc_dev *gdc_dev;
 	int enbale = 1;
+	struct timeval tmp_tv;
 
 	ret = copy_from_user(&gdc_settings, (gdc_settings_t *) arg,
 			   sizeof(gdc_settings_t));
@@ -453,6 +458,17 @@ int gdc_video_process(struct gdc_video_ctx *gdc_ctx, unsigned long arg)
 		ret = -VIO_FRAME_NDONE;
 	}
 	vio_set_stat_info(gdc_ctx->group->instance, GDC_FE, 0);
+
+	do_gettimeofday(&tmp_tv);
+	g_gdc_idx[gdc_dev->hw_id][gdc_ctx->group->instance]++;
+	if (tmp_tv.tv_sec >
+		g_gdc_fps_lasttime[gdc_dev->hw_id][gdc_ctx->group->instance]) {
+		g_gdc_fps[gdc_dev->hw_id][gdc_ctx->group->instance] =
+				g_gdc_idx[gdc_dev->hw_id][gdc_ctx->group->instance];
+		g_gdc_fps_lasttime[gdc_dev->hw_id][gdc_ctx->group->instance] =
+				tmp_tv.tv_sec;
+		g_gdc_idx[gdc_dev->hw_id][gdc_ctx->group->instance] = 0;
+	}
 
 	vio_dbg("%s done: ret(%d), timeout %d\n", __func__, ret, timeout);
 p_err_ignore:
@@ -646,6 +662,26 @@ static ssize_t gdc_reg_dump(struct device *dev,struct device_attribute *attr, ch
 
 static DEVICE_ATTR(regdump, 0444, gdc_reg_dump, NULL);
 
+static ssize_t gdc_fps_show(struct device *dev,
+				struct device_attribute *attr, char* buf)
+{
+	u32 offset = 0;
+	int i, j, len;
+	for (j = 0; j < GDC_MAX_NUM; j++) {
+		for (i = 0; i < VIO_MAX_STREAM; i++) {
+			if (g_gdc_fps[j][i] > 0) {
+				len = snprintf(&buf[offset], PAGE_SIZE - offset,
+					"gdc%d pipe %d: output fps %d\n", j, i, g_gdc_fps[j][i]);
+				offset += len;
+				g_gdc_fps[j][i] = 0;
+			}
+		}
+	}
+	return offset;
+}
+
+static DEVICE_ATTR(fps, S_IRUGO, gdc_fps_show, NULL);
+
 static int x3_gdc_probe(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -712,6 +748,12 @@ static int x3_gdc_probe(struct platform_device *pdev)
 		goto p_err;
 	}
 
+	ret = device_create_file(dev, &dev_attr_fps);
+	if(ret < 0) {
+		vio_err("create fps failed (%d)\n", ret);
+		goto p_err;
+	}
+
 	platform_set_drvdata(pdev, gdc);
 
 	sema_init(&gdc->smp_gdc_enable, 1);
@@ -746,6 +788,7 @@ static int x3_gdc_remove(struct platform_device *pdev)
 	gdc = platform_get_drvdata(pdev);
 
 	device_remove_file(&pdev->dev, &dev_attr_regdump);
+	device_remove_file(&pdev->dev, &dev_attr_fps);
 
 	free_irq(gdc->irq, gdc);
 

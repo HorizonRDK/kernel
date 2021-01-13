@@ -674,8 +674,13 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 			p_ctx->isp_lumvar_stats_on = 1;
 
 		cn = isp_ctx_get(ctx.ctx_id, ctx.type, ctx.time_out);
-		if (cn && copy_to_user((void __user *)arg, (void *)&cn->ctx, sizeof(ctx)))
+		if (cn) {
+			if (copy_to_user((void __user *)arg, (void *)&cn->ctx, sizeof(ctx))) {
+				ret = -EFAULT;
+			}
+		} else {
 			ret = -EFAULT;
+		}
 	}
 		break;
 

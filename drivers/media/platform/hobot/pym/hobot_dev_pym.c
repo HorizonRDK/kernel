@@ -32,6 +32,10 @@
 
 #define MODULE_NAME "X3 PYM"
 
+static int g_pym_fps[VIO_MAX_STREAM] = {0, };
+static int g_pym_idx[VIO_MAX_STREAM] = {0, };
+static int g_pym_fps_lasttime[VIO_MAX_STREAM] = {0, };
+
 void pym_update_param(struct pym_subdev *subdev);
 void pym_update_param_ch(struct pym_subdev *subdev);
 int pym_video_streamoff(struct pym_video_ctx *pym_ctx);
@@ -1824,6 +1828,7 @@ void pym_frame_done(struct pym_subdev *subdev)
 	struct vio_frame *cache_frame;
 	struct vio_frame_id frmid;
 	unsigned long poll_mask = 0;
+	struct timeval tmp_tv;
 
 	group = subdev->group;
 	pym = subdev->pym_dev;
@@ -1844,6 +1849,13 @@ void pym_frame_done(struct pym_subdev *subdev)
 			frame->frameinfo.frame_id,
 			frame->frameinfo.timestamps);
 		vio_set_stat_info(group->instance, PYM_FE, group->frameid.frame_id);
+		do_gettimeofday(&tmp_tv);
+		g_pym_idx[group->instance]++;
+		if (tmp_tv.tv_sec > g_pym_fps_lasttime[group->instance]) {
+			g_pym_fps[group->instance] = g_pym_idx[group->instance];
+			g_pym_fps_lasttime[group->instance] = tmp_tv.tv_sec;
+			g_pym_idx[group->instance] = 0;
+		}
 
 		pym_set_iar_output(subdev, frame);
 		event = VIO_FRAME_DONE;
@@ -2297,6 +2309,22 @@ static ssize_t pym_stat_store(struct device *dev,
 }
 static DEVICE_ATTR(err_status, S_IRUGO|S_IWUSR, pym_stat_show, pym_stat_store);
 
+static ssize_t pym_fps_show(struct device *dev,
+				struct device_attribute *attr, char* buf)
+{
+	u32 offset = 0;
+	int i, len;
+
+	for (i = 0; i < VIO_MAX_STREAM; i++) {
+		if (g_pym_fps[i] == 0) continue;
+		len = snprintf(&buf[offset], PAGE_SIZE - offset,
+				"pym pipe %d: output fps %d\n", i, g_pym_fps[i]);
+		offset += len;
+		g_pym_fps[i] = 0;
+	}
+	return offset;
+}
+static DEVICE_ATTR(fps, S_IRUGO, pym_fps_show, NULL);
 
 static ssize_t enabled_pipeline_show(struct device *dev,
 					struct device_attribute *attr, char* buf)
@@ -2540,6 +2568,13 @@ static int x3_pym_probe(struct platform_device *pdev)
 		vio_err("create err_status failed (%d)\n", ret);
 		goto p_err;
 	}
+
+	ret = device_create_file(dev, &dev_attr_fps);
+	if (ret < 0) {
+		vio_err("create fps failed (%d)\n", ret);
+		goto p_err;
+	}
+
 	platform_set_drvdata(pdev, pym);
 
 	// create sysfs node for pym info
@@ -2585,6 +2620,7 @@ static int x3_pym_remove(struct platform_device *pdev)
 
 	device_remove_file(&pdev->dev, &dev_attr_regdump);
 	device_remove_file(&pdev->dev, &dev_attr_err_status);
+	device_remove_file(&pdev->dev, &dev_attr_fps);
 	sysfs_remove_group(&pdev->dev.kobj, &pym_info_group);
 	ion_client_destroy(pym->ion_client);
 

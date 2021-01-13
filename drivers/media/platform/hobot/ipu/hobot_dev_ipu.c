@@ -64,6 +64,10 @@ static int prev_fs_has_no_fe = 0;
 static int prev_frame_disable_out = 0;
 static int next_frame_disable_out = 0;
 
+static int g_ipu_fps[VIO_MAX_STREAM][7] = {0, };
+static int g_ipu_idx[VIO_MAX_STREAM][7] = {0, };
+static int g_ipu_fps_lasttime[VIO_MAX_STREAM][7] = {0, };
+
 static int x3_ipu_open(struct inode *inode, struct file *file)
 {
 	struct ipu_video_ctx *ipu_ctx;
@@ -3243,6 +3247,17 @@ void ipu_frame_done(struct ipu_subdev *subdev)
 		frame->frameinfo.timestamps = group->frameid.timestamps;
 		frame->frameinfo.tv = group->frameid.tv;
 		if (subdev->id != 0) {
+			struct timeval tmp_tv;
+			do_gettimeofday(&tmp_tv);
+			g_ipu_idx[group->instance][subdev->id]++;
+			if (tmp_tv.tv_sec >
+						g_ipu_fps_lasttime[group->instance][subdev->id]) {
+				g_ipu_fps[group->instance][subdev->id] =
+						g_ipu_idx[group->instance][subdev->id];
+				g_ipu_fps_lasttime[group->instance][subdev->id] =
+						tmp_tv.tv_sec;
+				g_ipu_idx[group->instance][subdev->id] = 0;
+			}
 			vio_set_stat_info(group->instance, IPU_FS + subdev->id,
 				group->frameid.frame_id);
 		}
@@ -4138,6 +4153,30 @@ static DEVICE_ATTR(err_status45, S_IRUGO|S_IWUSR, ipu_stat_show,
 static DEVICE_ATTR(err_status67, S_IRUGO|S_IWUSR, ipu_stat_show,
 	ipu_stat_store);
 
+static ssize_t ipu_fps_show(struct device *dev,
+				struct device_attribute *attr, char* buf)
+{
+	u32 offset = 0;
+	int i, j, len;
+	char *ipuchn[6] =
+		{"ipuus ", "ipuds0", "ipuds1", "ipuds2", "ipuds3", "ipuds4"};
+
+	for (i = 0; i < VIO_MAX_STREAM; i++) {
+		for (j = 0; j < 6; j++) {
+			if (g_ipu_fps[i][j+1] > 0) {
+				len = snprintf(&buf[offset], PAGE_SIZE - offset,
+					"ipu pipe %d:  %s output fps %d\n",
+					i, ipuchn[j], g_ipu_fps[i][j+1]);
+				offset += len;
+				g_ipu_fps[i][j+1] = 0;
+			}
+		}
+	}
+	return offset;
+}
+
+static DEVICE_ATTR(fps, S_IRUGO, ipu_fps_show, NULL);
+
 static ssize_t enabled_pipeline_show(struct device *dev,
 					struct device_attribute *attr, char* buf)
 {
@@ -4412,6 +4451,11 @@ static int x3_ipu_probe(struct platform_device *pdev)
 		vio_err("create wr_fifo_thred1 failed (%d)\n", ret);
 		goto p_err;
 	}
+	ret = device_create_file(dev, &dev_attr_fps);
+	if (ret < 0) {
+		vio_err("create fps failed (%d)\n", ret);
+		goto p_err;
+	}
 
 	// create sysfs node for ipu info
 	ret = sysfs_create_group(&dev->kobj, &ipu_info_group);
@@ -4469,6 +4513,7 @@ static int x3_ipu_remove(struct platform_device *pdev)
 	device_remove_file(&pdev->dev, &dev_attr_err_status67);
 	device_remove_file(&pdev->dev, &dev_attr_wr_fifo_thred0);
 	device_remove_file(&pdev->dev, &dev_attr_wr_fifo_thred1);
+	device_remove_file(&pdev->dev, &dev_attr_fps);
 	sysfs_remove_group(&pdev->dev.kobj, &ipu_info_group);
 
 

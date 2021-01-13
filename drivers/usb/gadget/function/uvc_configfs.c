@@ -281,6 +281,110 @@ static struct config_item_type uvcg_processing_grp_type = {
 	.ct_owner = THIS_MODULE,
 };
 
+/* control/extension/default */
+static struct uvcg_default_extension {
+	struct config_group	group;
+} uvcg_default_extension;
+
+static inline struct uvcg_default_extension
+*to_uvcg_default_extension(struct config_item *item)
+{
+	return container_of(to_config_group(item),
+			    struct uvcg_default_extension, group);
+}
+
+#define UVCG_DEFAULT_EXTENSION_ATTR(cname, aname, conv)		\
+static ssize_t uvcg_default_extension_##cname##_show(			\
+	struct config_item *item, char *page)				\
+{									\
+	struct uvcg_default_extension *dp = to_uvcg_default_extension(item); \
+	struct f_uvc_opts *opts;					\
+	struct config_item *opts_item;					\
+	struct mutex *su_mutex = &dp->group.cg_subsys->su_mutex;	\
+	struct UVC_EXTENSION_UNIT_DESCRIPTOR(1, 2) *ed;			\
+	int result;							\
+									\
+	mutex_lock(su_mutex); /* for navigating configfs hierarchy */	\
+									\
+	opts_item = dp->group.cg_item.ci_parent->ci_parent->ci_parent;	\
+	opts = to_f_uvc_opts(opts_item);				\
+	ed = &opts->uvc_extension;					\
+									\
+	mutex_lock(&opts->lock);					\
+	result = sprintf(page, "%d\n", conv(ed->aname));		\
+	mutex_unlock(&opts->lock);					\
+									\
+	mutex_unlock(su_mutex);						\
+	return result;							\
+}									\
+									\
+UVC_ATTR_RO(uvcg_default_extension_, cname, aname)
+
+#define identity_conv(x) (x)
+
+UVCG_DEFAULT_EXTENSION_ATTR(b_unit_id, bUnitID, identity_conv);
+UVCG_DEFAULT_EXTENSION_ATTR(b_num_input_pins, bNrInPins, identity_conv);
+UVCG_DEFAULT_EXTENSION_ATTR(i_extension, iExtension, identity_conv);
+
+#undef identity_conv
+
+#undef UVCG_DEFAULT_EXTENSION_ATTR
+
+static ssize_t uvcg_default_extension_bm_controls_show(
+	struct config_item *item, char *page)
+{
+	struct uvcg_default_extension *dp = to_uvcg_default_extension(item);
+	struct f_uvc_opts *opts;
+	struct config_item *opts_item;
+	struct mutex *su_mutex = &dp->group.cg_subsys->su_mutex;
+	struct UVC_EXTENSION_UNIT_DESCRIPTOR(1, 2) *ed;
+	int result, i;
+	char *pg = page;
+
+	mutex_lock(su_mutex); /* for navigating configfs hierarchy */
+
+	opts_item = dp->group.cg_item.ci_parent->ci_parent->ci_parent;
+	opts = to_f_uvc_opts(opts_item);
+	ed = &opts->uvc_extension;
+
+	mutex_lock(&opts->lock);
+	for (result = 0, i = 0; i < ed->bControlSize; ++i) {
+		result += sprintf(pg, "%d\n", ed->bmControls[i]);
+		pg = page + result;
+	}
+	mutex_unlock(&opts->lock);
+
+	mutex_unlock(su_mutex);
+
+	return result;
+}
+
+UVC_ATTR_RO(uvcg_default_extension_, bm_controls, bmControls);
+
+static struct configfs_attribute *uvcg_default_extension_attrs[] = {
+	&uvcg_default_extension_attr_b_unit_id,
+	&uvcg_default_extension_attr_b_num_input_pins,
+	&uvcg_default_extension_attr_bm_controls,
+	&uvcg_default_extension_attr_i_extension,
+	NULL,
+};
+
+static struct config_item_type uvcg_default_extension_type = {
+	.ct_attrs	= uvcg_default_extension_attrs,
+	.ct_owner	= THIS_MODULE,
+};
+
+/* struct uvcg_extension {}; */
+
+/* control/extension */
+static struct uvcg_extension_grp {
+	struct config_group	group;
+} uvcg_extension_grp;
+
+static struct config_item_type uvcg_extension_grp_type = {
+	.ct_owner = THIS_MODULE,
+};
+
 /* control/terminal/camera/default */
 static struct uvcg_default_camera {
 	struct config_group	group;
@@ -2637,6 +2741,13 @@ int uvcg_attach_configfs(struct f_uvc_opts *opts)
 	configfs_add_default_group(&uvcg_default_processing.group,
 			&uvcg_processing_grp.group);
 
+	config_group_init_type_name(&uvcg_default_extension.group,
+			"default", &uvcg_default_extension_type);
+	config_group_init_type_name(&uvcg_extension_grp.group,
+			"extension", &uvcg_extension_grp_type);
+	configfs_add_default_group(&uvcg_default_extension.group,
+			&uvcg_extension_grp.group);
+
 	config_group_init_type_name(&uvcg_default_camera.group,
 			"default", &uvcg_default_camera_type);
 	config_group_init_type_name(&uvcg_camera_grp.group,
@@ -2676,6 +2787,8 @@ int uvcg_attach_configfs(struct f_uvc_opts *opts)
 	configfs_add_default_group(&uvcg_control_header_grp.group,
 			&uvcg_control_grp.group);
 	configfs_add_default_group(&uvcg_processing_grp.group,
+			&uvcg_control_grp.group);
+	configfs_add_default_group(&uvcg_extension_grp.group,
 			&uvcg_control_grp.group);
 	configfs_add_default_group(&uvcg_terminal_grp.group,
 			&uvcg_control_grp.group);

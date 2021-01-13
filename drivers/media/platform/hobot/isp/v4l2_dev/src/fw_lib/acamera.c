@@ -90,6 +90,10 @@ static int cur_chn_id;
 static int last_chn_id;
 static int swap_ctx_id;
 
+static int g_isp_fps[VIO_MAX_STREAM] = {0, };
+static int g_isp_idx[VIO_MAX_STREAM] = {0, };
+static int g_isp_fps_lasttime[VIO_MAX_STREAM] = {0, };
+
 int event_debug = 0;
 int threshold = 10;
 int isp_debug_mask = 0;
@@ -105,6 +109,22 @@ extern void system_interrupts_disable( void );
 extern void frame_buffer_fr_finished(dma_writer_fsm_ptr_t p_fsm);
 
 static void isp_ctxsv_work(struct work_struct *w);
+
+int isp_print_fps(s8* buf, u32 size)
+{
+	u32 offset = 0;
+	int i, len;
+
+	for (i = 0; i < VIO_MAX_STREAM; i++) {
+		if (g_isp_fps[i] == 0) continue;
+		len = snprintf(&buf[offset], size - offset,
+				"isp pipe %d: output fps %d\n", i, g_isp_fps[i]);
+		offset += len;
+		g_isp_fps[i] = 0;
+	}
+	return offset;
+}
+EXPORT_SYMBOL(isp_print_fps);
 
 int32_t acamera_set_api_context( uint32_t ctx_num )
 {
@@ -1406,6 +1426,7 @@ int32_t acamera_interrupt_handler()
                         }
                     } //if ( acamera_event_queue_empty( &p_ctx->fsm_mgr.event_queue ) )
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_ISP_END_FRAME_END ) {
+                    struct timeval tmp_tv;
                     pr_debug("frame done, ctx id %d\n", cur_ctx_id);
                     acamera_dma_alarms_error_occur();
                     p_ctx->sts.fe_irq_cnt++;
@@ -1425,6 +1446,13 @@ int32_t acamera_interrupt_handler()
 
                     vio_set_stat_info(cur_ctx_id, ISP_FE,
                             p_ctx->isp_frame_counter);
+                    do_gettimeofday(&tmp_tv);
+                    g_isp_idx[cur_ctx_id]++;
+                    if (tmp_tv.tv_sec > g_isp_fps_lasttime[cur_ctx_id]) {
+                        g_isp_fps[cur_ctx_id] = g_isp_idx[cur_ctx_id];
+                        g_isp_fps_lasttime[cur_ctx_id] = tmp_tv.tv_sec;
+                        g_isp_idx[cur_ctx_id] = 0;
+                    }
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_FR_Y_WRITE_DONE ) {
                     pr_debug("frame write to ddr done\n");
                     acamera_dma_alarms_error_occur();

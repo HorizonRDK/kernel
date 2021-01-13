@@ -10,8 +10,8 @@
  * (at your option) any later version.
  */
 
-#ifndef __HOBOT_EFUSE_H__
-#define __HOBOT_EFUSE_H__
+#ifndef INCLUDE_SOC_HOBOT_HOBOT_EFUSE_H_
+#define INCLUDE_SOC_HOBOT_HOBOT_EFUSE_H_
 
 enum EFS_TPE {
 	EFS_NS,
@@ -769,4 +769,20 @@ typedef struct {
     unsigned int sefs_mask;
 } efuse_data;
 
-#endif  //  __HOBOT_EFUSE_H__
+#define EFUSE_IOCTL_MAGIC 'E'
+struct io_efuse_data {
+	uint32_t bank;
+	uint32_t bank_value;
+	bool     lock;
+};
+struct hobot_efuse_dev {
+	dev_t dev_num;
+	struct class *dev_class;
+	struct device *dev;
+	struct cdev i_cdev;
+};
+#define EFUSE_IOC_GET_BANK	(_IOR(EFUSE_IOCTL_MAGIC, \
+					0, struct io_efuse_data))
+#define EFUSE_IOC_SET_BANK	(_IOW(EFUSE_IOCTL_MAGIC, \
+					1, struct io_efuse_data))
+#endif  //  INCLUDE_SOC_HOBOT_HOBOT_EFUSE_H_
