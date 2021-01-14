@@ -7,7 +7,7 @@
 #include <linux/usb/composite.h>
 
 #define HBUSB_MINOR_BASE   0
-#define HBUSB_MINOR_COUNT  1
+#define HBUSB_MINOR_MAX_COUNT   16
 #define HBUSB_DEVICE_NAME  "hbusb"
 
 #define HBUSB_DMA_BUF_MAX_SIZE 0x400000
@@ -216,7 +216,9 @@ struct hbusb_tx_chan {
 /*------------------hbusb dev struct info-------------------*/
 struct hbusb_channel {
 	struct device			*dev;
+	unsigned char			rx_config_en;
 	struct hbusb_rx_chan		rx;
+	unsigned char			tx_config_en;
 	struct hbusb_tx_chan		tx;
 
 	/*read/write control*/
@@ -240,7 +242,10 @@ struct hbusb_dev {
 	struct usb_gadget	*gadget;
 
 	/*per channel map one minor device*/
-	struct hbusb_channel chan[HBUSB_MINOR_COUNT];
+	struct hbusb_channel chan[HBUSB_MINOR_MAX_COUNT];
+	unsigned int		dev_chan_num;
+	unsigned int		epin_num;
+	unsigned int		epout_num;
 
 	/*hbusb dev plugin*/
 	atomic_t			usb_plugin;
@@ -254,8 +259,8 @@ struct hbusb {
 	struct hbusb_dev			*ioport;
 
 	/* endpoints handle super speeds */
-	struct usb_ep			*bulkin[HBUSB_MINOR_COUNT];
-	struct usb_ep			*bulkout[HBUSB_MINOR_COUNT];
+	struct usb_ep			*bulkin[HBUSB_MINOR_MAX_COUNT];
+	struct usb_ep			*bulkout[HBUSB_MINOR_MAX_COUNT];
 };
 
 struct f_hbusb_opts {
@@ -274,7 +279,8 @@ struct f_hbusb_opts {
 };
 
 int hbusb_register_cdev(struct device *dev);
-struct device *hbusb_setup_default(void);
+struct device *hbusb_setup_default(unsigned int epin_num,
+						unsigned int epout_num);
 void hbusb_release_default(struct device *dev);
 void hbusb_cleanup(struct device *dev);
 void hbusb_set_gadget(struct device *dev, struct usb_gadget *g);

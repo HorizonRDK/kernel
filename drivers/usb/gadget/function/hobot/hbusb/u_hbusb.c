@@ -539,11 +539,15 @@ static void hbusb_release_work_func(struct work_struct *work)
 	struct hbusb_rx_chan *rx = &chan->rx;
 	struct hbusb_tx_chan *tx = &chan->tx;
 
-	/*stop rx channel req*/
-	release_usb_request(chan, &rx->ep_lock, &rx->ep, &rx->req);
+	if (chan->rx_config_en) {
+		/*stop rx channel req*/
+		release_usb_request(chan, &rx->ep_lock, &rx->ep, &rx->req);
+	}
 
-	/*stop tx channel req*/
-	release_usb_request(chan, &tx->ep_lock, &tx->ep, &tx->req);
+	if (chan->tx_config_en) {
+		/*stop tx channel req*/
+		release_usb_request(chan, &tx->ep_lock, &tx->ep, &tx->req);
+	}
 
 	atomic_set(&chan->chan_running, HBUSB_CHANNEL_NOT_RUNNING);
 	atomic_set(&chan->chan_opened, HBUSB_CHANNEL_CLOSED);
@@ -554,15 +558,19 @@ void hbusb_chan_open_init(struct hbusb_channel *chan)
 	struct hbusb_rx_chan *rx = &chan->rx;
 	struct hbusb_tx_chan *tx = &chan->tx;
 
-	/*init rx channel*/
-	rx->cond = FLAG_USER_RX_NOT_WAIT;
-	init_waitqueue_head(&rx->wait);
-	mutex_init(&chan->read_lock);
+	if (chan->rx_config_en) {
+		/*init rx channel*/
+		rx->cond = FLAG_USER_RX_NOT_WAIT;
+		init_waitqueue_head(&rx->wait);
+		mutex_init(&chan->read_lock);
+	}
 
-	/*init tx channel*/
-	tx->cond = FLAG_USER_TX_NOT_WAIT;
-	init_waitqueue_head(&tx->wait);
-	mutex_init(&chan->write_lock);
+	if (chan->tx_config_en) {
+		/*init tx channel*/
+		tx->cond = FLAG_USER_TX_NOT_WAIT;
+		init_waitqueue_head(&tx->wait);
+		mutex_init(&chan->write_lock);
+	}
 }
 
 int hbusb_chan_start_transfer(struct hbusb_channel *chan)
@@ -570,13 +578,17 @@ int hbusb_chan_start_transfer(struct hbusb_channel *chan)
 	struct hbusb_rx_chan *rx = &chan->rx;
 	struct hbusb_tx_chan *tx = &chan->tx;
 
-	/*init and submit rx channel*/
-	rx_frame_ctrl_var_init(rx);
-	rx_frame_info_var_init(rx);
+	if (chan->rx_config_en) {
+		/*init and submit rx channel*/
+		rx_frame_ctrl_var_init(rx);
+		rx_frame_info_var_init(rx);
+	}
 
-	/*init tx channel*/
-	tx_frame_ctrl_var_init(tx);
-	tx_frame_info_var_init(tx);
+	if (chan->tx_config_en) {
+		/*init tx channel*/
+		tx_frame_ctrl_var_init(tx);
+		tx_frame_info_var_init(tx);
+	}
 
 	return 0;
 }
@@ -957,6 +969,11 @@ static long hbusb_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 	switch (cmd) {
 	case HBUSB_SYNC_RX_VALID_FRAMEBUF:
+		if (!chan->rx_config_en) {
+			dev_err(chan->dev, "usb channel not support read\n");
+			return -EPERM;
+		}
+
 		if (mutex_lock_interruptible(&chan->read_lock)) {
 			dev_info(chan->dev, "write lock signal interrupted\n");
 			return -EINTR;
@@ -966,6 +983,11 @@ static long hbusb_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		mutex_unlock(&chan->read_lock);
 		break;
 	case HBUSB_SYNC_TX_VALID_FRAMEBUF:
+		if (!chan->tx_config_en) {
+			dev_err(chan->dev, "usb channel not support write\n");
+			return -EPERM;
+		}
+
 		if (mutex_lock_interruptible(&chan->write_lock)) {
 			dev_info(chan->dev, "write lock signal interrupted\n");
 			return -EINTR;
@@ -1141,18 +1163,24 @@ static int hbusb_channels_init(struct hbusb_dev	*hbusb_dev)
 	int i = 0;
 	int status;
 
-	for (i = 0; i < HBUSB_MINOR_COUNT; i++) {
+	for (i = 0; i < hbusb_dev->dev_chan_num; i++) {
 		/*rx channel init*/
-		mutex_init(&hbusb_dev->chan[i].read_lock);
-		status = hbusb_rx_chan_init(&hbusb_dev->chan[i]);
-		if (status)
-			goto fail;
+		if (i < hbusb_dev->epout_num) {
+			mutex_init(&hbusb_dev->chan[i].read_lock);
+			status = hbusb_rx_chan_init(&hbusb_dev->chan[i]);
+			if (status)
+				goto fail;
+			hbusb_dev->chan[i].rx_config_en = 1;
+		}
 
 		/*tx channel init*/
-		mutex_init(&hbusb_dev->chan[i].write_lock);
-		status = hbusb_tx_chan_init(&hbusb_dev->chan[i]);
-		if (status)
-			goto fail;
+		if (i < hbusb_dev->epin_num) {
+			mutex_init(&hbusb_dev->chan[i].write_lock);
+			status = hbusb_tx_chan_init(&hbusb_dev->chan[i]);
+			if (status)
+				goto fail;
+			hbusb_dev->chan[i].tx_config_en = 1;
+		}
 
 		/*create device node*/
 		hbusb_dev->chan[i].dev = device_create(hbusb_dev->dev_class, NULL,
@@ -1176,14 +1204,21 @@ static void hbusb_channels_deinit(struct hbusb_dev	*hbusb_dev)
 	int major;
 
 	major = hbusb_dev->cdev_major;
-	for (i = 0; i < HBUSB_MINOR_COUNT; i++) {
+	for (i = 0; i < hbusb_dev->dev_chan_num; i++) {
 		if (hbusb_dev->chan[i].dev == NULL)
 			continue;
 		cancel_delayed_work_sync(&hbusb_dev->chan[i].close_work);
 		device_destroy(hbusb_dev->dev_class, MKDEV(major, i));
 		hbusb_dev->chan[i].dev = NULL;
-		hbusb_tx_chan_deinit(&hbusb_dev->chan[i]);
-		hbusb_rx_chan_deinit(&hbusb_dev->chan[i]);
+		if (hbusb_dev->chan[i].tx_config_en) {
+			hbusb_tx_chan_deinit(&hbusb_dev->chan[i]);
+			hbusb_dev->chan[i].tx_config_en = 0;
+		}
+
+		if (hbusb_dev->chan[i].rx_config_en) {
+			hbusb_rx_chan_deinit(&hbusb_dev->chan[i]);
+			hbusb_dev->chan[i].rx_config_en = 0;
+		}
 		hbusb_dev->chan[i].chan_minor = -1;
 	}
 }
@@ -1235,7 +1270,8 @@ int hbusb_register_cdev(struct device *dev)
 }
 EXPORT_SYMBOL_GPL(hbusb_register_cdev);
 
-struct device *hbusb_setup_default(void)
+struct device *hbusb_setup_default(unsigned int epin_num,
+						unsigned int epout_num)
 {
 	int			  status;
 	struct hbusb_dev		*pdev;
@@ -1246,7 +1282,10 @@ struct device *hbusb_setup_default(void)
 
 	global_hbusb_dev = pdev;
 
-	status = __register_chrdev(0, 0, HBUSB_MINOR_COUNT,
+	pdev->epin_num = epin_num;
+	pdev->epout_num = epout_num;
+	pdev->dev_chan_num = max_t(unsigned int, pdev->epin_num, pdev->epout_num);
+	status = __register_chrdev(0, 0, pdev->dev_chan_num,
 						HBUSB_DEVICE_NAME, &f_hbusb_fops);
 	if (status < 0)
 		goto fail0;
@@ -1271,7 +1310,7 @@ void hbusb_release_default(struct device *dev)
 		return;
 
 	__unregister_chrdev(pdev->cdev_major, 0,
-					HBUSB_MINOR_COUNT, HBUSB_DEVICE_NAME);
+					pdev->dev_chan_num, HBUSB_DEVICE_NAME);
 	global_hbusb_dev = NULL;
 	kfree(pdev);
 }
@@ -1320,32 +1359,36 @@ int hbusb_connect(struct    hbusb *link)
 		return -EINVAL;
 
 	atomic_set(&dev->usb_plugin, HBUSB_DEV_PLUGIN);
-	for (i = 0; i < HBUSB_MINOR_COUNT; i++) {
+	for (i = 0; i < dev->dev_chan_num; i++) {
 		chan = &dev->chan[i];
-		rx = &chan->rx;
-		tx = &chan->tx;
 
-		link->bulkout[i]->driver_data = rx;
-		result = usb_ep_enable(link->bulkout[i]);
-		if (result != 0) {
-			DBG(dev, "enable %s --> %d\n",
-				link->bulkout[i]->name, result);
-			goto fail;
+		if (chan->rx_config_en) {
+			rx = &chan->rx;
+			link->bulkout[i]->driver_data = rx;
+			result = usb_ep_enable(link->bulkout[i]);
+			if (result != 0) {
+				DBG(dev, "enable %s --> %d\n",
+					link->bulkout[i]->name, result);
+				goto fail;
+			}
+			spin_lock_irqsave(&rx->ep_lock, flags);
+			rx->ep = link->bulkout[i];
+			spin_unlock_irqrestore(&rx->ep_lock, flags);
 		}
-		spin_lock_irqsave(&rx->ep_lock, flags);
-		rx->ep = link->bulkout[i];
-		spin_unlock_irqrestore(&rx->ep_lock, flags);
 
-		link->bulkin[i]->driver_data = tx;
-		result = usb_ep_enable(link->bulkin[i]);
-		if (result != 0) {
-			DBG(dev, "enable %s --> %d\n",
-				link->bulkin[i]->name, result);
-			goto fail;
+		if (chan->tx_config_en) {
+			tx = &chan->tx;
+			link->bulkin[i]->driver_data = tx;
+			result = usb_ep_enable(link->bulkin[i]);
+			if (result != 0) {
+				DBG(dev, "enable %s --> %d\n",
+					link->bulkin[i]->name, result);
+				goto fail;
+			}
+			spin_lock_irqsave(&tx->ep_lock, flags);
+			tx->ep = link->bulkin[i];
+			spin_unlock_irqrestore(&tx->ep_lock, flags);
 		}
-		spin_lock_irqsave(&tx->ep_lock, flags);
-		tx->ep = link->bulkin[i];
-		spin_unlock_irqrestore(&tx->ep_lock, flags);
 
 		if (atomic_read(&chan->chan_opened) == HBUSB_CHANNEL_OPENED) {
 			atomic_set(&chan->chan_running, HBUSB_CHANNEL_RUNNING);
@@ -1359,23 +1402,31 @@ int hbusb_connect(struct    hbusb *link)
 
 	return 0;
 fail:
-	for (i = 0; i < HBUSB_MINOR_COUNT; i++) {
-		if (rx->ep != NULL)
-			(void) usb_ep_disable(link->bulkout[i]);
+	for (i = 0; i < dev->dev_chan_num; i++) {
+		chan = &dev->chan[i];
+		if (chan->rx_config_en) {
+			rx = &chan->rx;
+			if (rx->ep != NULL)
+				(void) usb_ep_disable(link->bulkout[i]);
+			spin_lock_irqsave(&rx->ep_lock, flags);
+			rx->ep = NULL;
+			spin_unlock_irqrestore(&rx->ep_lock, flags);
+		}
 
-		if (tx->ep != NULL)
-			(void) usb_ep_disable(link->bulkin[i]);
-
-		if ((rx->ep != NULL) && (tx->ep != NULL)) {
-			atomic_set(&chan->chan_running,
-					HBUSB_CHANNEL_NOT_RUNNING);
-			atomic_set(&dev->usb_plugin, HBUSB_DEV_PLUGOUT);
-
+		if (chan->tx_config_en) {
+			tx = &chan->tx;
+			if (tx->ep != NULL)
+				(void) usb_ep_disable(link->bulkin[i]);
 			spin_lock_irqsave(&tx->ep_lock, flags);
 			tx->ep = NULL;
 			spin_unlock_irqrestore(&tx->ep_lock, flags);
 		}
+
+		atomic_set(&chan->chan_running,
+					HBUSB_CHANNEL_NOT_RUNNING);
+		atomic_set(&dev->usb_plugin, HBUSB_DEV_PLUGOUT);
 	}
+
 	return result;
 }
 EXPORT_SYMBOL_GPL(hbusb_connect);
@@ -1399,40 +1450,44 @@ void hbusb_disconnect(struct      hbusb *link)
 	 * of all pending i/o.  then free the request objects
 	 * and forget about the endpoints.
 	 */
-	for (i = 0; i < HBUSB_MINOR_COUNT; i++) {
+	for (i = 0; i < dev->dev_chan_num; i++) {
 		chan = &dev->chan[i];
 		atomic_set(&chan->chan_running, HBUSB_CHANNEL_NOT_RUNNING);
 	}
 	atomic_set(&dev->usb_plugin, HBUSB_DEV_PLUGOUT);
 
-	for (i = 0; i < HBUSB_MINOR_COUNT; i++) {
-		rx = &chan->rx;
-		rx->req = NULL;
-		usb_ep_disable(link->bulkout[i]);
-		spin_lock_irqsave(&rx->ep_lock, flags);
-		rx->ep = NULL;
-		spin_unlock_irqrestore(&rx->ep_lock, flags);
-		if (rx->cond == FLAG_USER_RX_WAIT) {
-			rx->cond = FLAG_USER_RX_FORCE_QUIT;
-			wake_up_interruptible(&rx->wait);
+	for (i = 0; i < dev->dev_chan_num; i++) {
+		chan = &dev->chan[i];
+
+		if (chan->rx_config_en) {
+			rx = &chan->rx;
+			rx->req = NULL;
+			usb_ep_disable(link->bulkout[i]);
+			spin_lock_irqsave(&rx->ep_lock, flags);
+			rx->ep = NULL;
+			spin_unlock_irqrestore(&rx->ep_lock, flags);
+			if (rx->cond == FLAG_USER_RX_WAIT) {
+				rx->cond = FLAG_USER_RX_FORCE_QUIT;
+				wake_up_interruptible(&rx->wait);
+			}
+			link->bulkout[i]->driver_data = NULL;
+			link->bulkout[i]->desc = NULL;
 		}
 
-		tx = &chan->tx;
-		tx->req = NULL;
-		usb_ep_disable(link->bulkin[i]);
-		spin_lock_irqsave(&tx->ep_lock, flags);
-		tx->ep = NULL;
-		spin_unlock_irqrestore(&tx->ep_lock, flags);
-		if (tx->cond == FLAG_USER_TX_WAIT) {
-			tx->cond = FLAG_USER_TX_FORCE_QUIT;
-			wake_up_interruptible(&tx->wait);
+		if (chan->tx_config_en) {
+			tx = &chan->tx;
+			tx->req = NULL;
+			usb_ep_disable(link->bulkin[i]);
+			spin_lock_irqsave(&tx->ep_lock, flags);
+			tx->ep = NULL;
+			spin_unlock_irqrestore(&tx->ep_lock, flags);
+			if (tx->cond == FLAG_USER_TX_WAIT) {
+				tx->cond = FLAG_USER_TX_FORCE_QUIT;
+				wake_up_interruptible(&tx->wait);
+			}
+			link->bulkin[i]->driver_data = NULL;
+			link->bulkin[i]->desc = NULL;
 		}
-
-		link->bulkout[i]->driver_data = NULL;
-		link->bulkout[i]->desc = NULL;
-
-		link->bulkin[i]->driver_data = NULL;
-		link->bulkin[i]->desc = NULL;
 	}
 }
 EXPORT_SYMBOL_GPL(hbusb_disconnect);

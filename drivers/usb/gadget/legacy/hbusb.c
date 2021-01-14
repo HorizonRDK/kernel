@@ -12,12 +12,23 @@
 
 USB_GADGET_COMPOSITE_OPTIONS();
 
+extern void hbusb_set_epnum_param(unsigned int epin_num,
+									unsigned int epout_num);
+
+
 static ushort vendor_id = 0x1011;
 static ushort product_id = 0x1;
 module_param(vendor_id, ushort, 0);
 module_param(product_id, ushort, 0);
 MODULE_PARM_DESC(vendor_id, "specified usb device vendor id");
 MODULE_PARM_DESC(product_id, "specified usb device product id");
+
+static uint epin_num = 1;
+static uint epout_num = 1;
+module_param(epin_num, uint, 0);
+module_param(epout_num, uint, 0);
+MODULE_PARM_DESC(epin_num, "specified usb device epin num");
+MODULE_PARM_DESC(epout_num, "specified usb device epout num");
 
 unsigned short devno_base = 0;
 
@@ -143,6 +154,7 @@ static struct usb_composite_driver hbusb_driver = {
 
 static int __init init(void)
 {
+	hbusb_set_epnum_param(epin_num, epout_num);
 	return usb_composite_probe(&hbusb_driver);
 }
 

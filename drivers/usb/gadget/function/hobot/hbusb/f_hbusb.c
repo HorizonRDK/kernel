@@ -9,12 +9,18 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/device.h>
+#include <linux/of_device.h>
+#include <linux/types.h>
 
 #include <linux/atomic.h>
 
 #include "u_hbusb.h"//NOLINT
 
-#define HBUSB_ENDPOINT_NUM (2*HBUSB_MINOR_COUNT)
+#define HBUSB_EPIN_MAX_NUM 16
+#define HBUSB_EPOUT_MAX_NUM 16
+
+static uint request_epin_num = 0;
+static uint request_epout_num = 0;
 
 struct f_hbusb {
 	struct hbusb			port;
@@ -32,30 +38,30 @@ static struct usb_interface_descriptor hbusb_data_intf = {
 	.bDescriptorType =	USB_DT_INTERFACE,
 
 	/* .bInterfaceNumber = DYNAMIC */
-	.bNumEndpoints =		HBUSB_ENDPOINT_NUM,
+	.bNumEndpoints =		0,
 	.bInterfaceClass =		USB_CLASS_COMM,
 	.bInterfaceSubClass =	0,
 	.bInterfaceProtocol =	0,
 	/* .iInterface = DYNAMIC */
 };
 
-static struct usb_endpoint_descriptor ss_in_desc[] = {
+static struct usb_endpoint_descriptor ss_in_desc[HBUSB_EPIN_MAX_NUM] = {
 	{
 		.bLength =		USB_DT_ENDPOINT_SIZE,
 		.bDescriptorType =	USB_DT_ENDPOINT,
 
-		.bEndpointAddress =	USB_DIR_IN | 0x1,
+		.bEndpointAddress =	USB_DIR_IN,
 		.bmAttributes =		USB_ENDPOINT_XFER_BULK,
 		.wMaxPacketSize =	cpu_to_le16(1024),
 	},
 };
 
-static struct usb_endpoint_descriptor ss_out_desc[] = {
+static struct usb_endpoint_descriptor ss_out_desc[HBUSB_EPOUT_MAX_NUM] = {
 	{
 		.bLength =		USB_DT_ENDPOINT_SIZE,
 		.bDescriptorType =	USB_DT_ENDPOINT,
 
-		.bEndpointAddress =	USB_DIR_OUT | 0x1,
+		.bEndpointAddress =	USB_DIR_OUT,
 		.bmAttributes =		USB_ENDPOINT_XFER_BULK,
 		.wMaxPacketSize =	cpu_to_le16(1024),
 	},
@@ -69,12 +75,9 @@ static struct usb_ss_ep_comp_descriptor ss_bulk_comp_desc = {
 	.bmAttributes =	0,
 };
 
-static struct usb_descriptor_header *hbusb_ss_function[] = {
+static struct usb_descriptor_header *
+		hbusb_ss_function[2*HBUSB_EPOUT_MAX_NUM + 1] = {
 	(struct usb_descriptor_header *) &hbusb_data_intf,
-	(struct usb_descriptor_header *) &ss_in_desc[0],
-	(struct usb_descriptor_header *) &ss_bulk_comp_desc,
-	(struct usb_descriptor_header *) &ss_out_desc[0],
-	(struct usb_descriptor_header *) &ss_bulk_comp_desc,
 	NULL,
 };
 
@@ -94,6 +97,15 @@ static struct usb_gadget_strings *hbusb_strings[] = {
 	NULL,
 };
 /*-------------------------------------------------------------------------*/
+
+
+void hbusb_set_epnum_param(unsigned int epin_num,
+									unsigned int epout_num)
+{
+	request_epin_num = epin_num;
+	request_epout_num = epout_num;
+}
+EXPORT_SYMBOL_GPL(hbusb_set_epnum_param);
 
 
 /*-------------------------------------------------------------------------*/
@@ -121,7 +133,7 @@ static struct usb_function_instance *hbusb_alloc_inst(void)
 
 	mutex_init(&opts->lock);
 	opts->func_inst.free_func_inst = hbusb_free_inst;
-	opts->dev = hbusb_setup_default();
+	opts->dev = hbusb_setup_default(request_epin_num, request_epout_num);
 	if (IS_ERR(opts->dev)) {
 		opts->dev = NULL;
 		kfree(opts);
@@ -136,13 +148,15 @@ static struct usb_function_instance *hbusb_alloc_inst(void)
 /*-------------------------------------------------------------------------*/
 static int func_hbusb_bind(struct usb_configuration *c, struct usb_function *f)
 {
-	int i = 0;
+	int i = 0, j = 0;
 	struct usb_composite_dev *cdev = c->cdev;
 	struct f_hbusb		*hbusb = func_to_hbusb(f);
 	struct usb_string	*us;
 	int					status;
 	struct usb_ep		*ep;
+	struct usb_ep		*endpoint;
 	struct f_hbusb_opts       *opts;
+	unsigned int		gadget_epin_num = 0, gadget_epout_num = 0;
 
 	opts = container_of(f->fi, struct f_hbusb_opts, func_inst);
 
@@ -178,28 +192,77 @@ static int func_hbusb_bind(struct usb_configuration *c, struct usb_function *f)
 	hbusb_data_intf.bInterfaceNumber = status;
 
 	status = -ENODEV;
+	/*check epin_num and epout_num valid */
+	if ((request_epin_num == 0) && (request_epout_num == 0)) {
+		goto fail;
+	} else {
+		list_for_each_entry(endpoint, &cdev->gadget->ep_list, ep_list) {
+			if (endpoint->caps.dir_in) {
+				gadget_epin_num++;
+			} else {
+				gadget_epout_num++;
+			}
+		}
+		INFO(cdev, "gadget ep[in:%d, out:%d] request ep[in:%d out:%d]\n",
+				gadget_epin_num, gadget_epout_num,
+				request_epin_num, request_epout_num);
+		if ((request_epin_num > gadget_epin_num)
+			|| (request_epout_num > gadget_epin_num)) {
+			ERROR(cdev,
+		"gadget request num is wrong, request[in:%d, out:%d], gadget [in:%d, out%d]",
+			request_epin_num, request_epout_num, gadget_epin_num, gadget_epout_num);
+			goto fail;
+		}
+	}
 
 	/* allocate instance-specific endpoints */
-	for (i = 0; i < HBUSB_MINOR_COUNT; i++) {
+	for (i = 0; i < request_epin_num; i++) {
+		ss_in_desc[i].bLength = USB_DT_ENDPOINT_SIZE;
+		ss_in_desc[i].bDescriptorType = USB_DT_ENDPOINT;
+		ss_in_desc[i].bEndpointAddress = USB_DIR_IN | (i + 1);
+		ss_in_desc[i].bmAttributes = USB_ENDPOINT_XFER_BULK;
+		ss_in_desc[i].wMaxPacketSize = cpu_to_le16(1024);
 		ep = usb_ep_autoconfig_ss(cdev->gadget,
 					&ss_in_desc[i], &ss_bulk_comp_desc);
 		if (!ep)
 			goto fail;
 		hbusb->port.bulkin[i] = ep;
+		DBG(cdev, "hbusb: %s speed IN/%s\n",
+			gadget_is_superspeed(c->cdev->gadget) ? "super" :
+			gadget_is_dualspeed(c->cdev->gadget) ? "dual" : "full",
+			hbusb->port.bulkin[i]->name);
+	}
 
+	for (i = 0; i < request_epout_num; i++) {
+		ss_out_desc[i].bLength = USB_DT_ENDPOINT_SIZE;
+		ss_out_desc[i].bDescriptorType = USB_DT_ENDPOINT;
+		ss_out_desc[i].bEndpointAddress = USB_DIR_OUT | (i + 1);
+		ss_out_desc[i].bmAttributes = USB_ENDPOINT_XFER_BULK;
+		ss_out_desc[i].wMaxPacketSize = cpu_to_le16(1024);
 		ep = usb_ep_autoconfig_ss(cdev->gadget,
 					&ss_out_desc[i], &ss_bulk_comp_desc);
 		if (!ep)
 			goto fail;
 		hbusb->port.bulkout[i] = ep;
-
-		DBG(cdev, "hbusb: %s speed IN/%s OUT/%s\n",
+		DBG(cdev, "hbusb: %s speed OUT/%s\n",
 			gadget_is_superspeed(c->cdev->gadget) ? "super" :
 			gadget_is_dualspeed(c->cdev->gadget) ? "dual" : "full",
-			hbusb->port.bulkin[i]->name, hbusb->port.bulkout[i]->name);
+			hbusb->port.bulkout[i]->name);
 	}
 
 	status = -ENOMEM;
+	/*first config hbusb_data_intf interface class and endpoint num*/
+	hbusb_data_intf.bNumEndpoints = request_epin_num + request_epout_num;
+	for (i = 0, j = 1; i < request_epin_num; i++, j += 2) {
+		hbusb_ss_function[j] = (struct usb_descriptor_header *)&ss_in_desc[i];
+		hbusb_ss_function[j + 1] = (struct usb_descriptor_header *)&ss_bulk_comp_desc;
+	}
+
+	for (i = 0; i < request_epout_num; i++,  j += 2) {
+		hbusb_ss_function[j] = (struct usb_descriptor_header *)&ss_out_desc[i];
+		hbusb_ss_function[j + 1] = (struct usb_descriptor_header *)&ss_bulk_comp_desc;
+	}
+	hbusb_ss_function[j] = NULL;
 
 	status = usb_assign_descriptors(f, NULL, NULL, hbusb_ss_function, NULL);
 	if (status)
@@ -226,21 +289,24 @@ static int func_hbusb_set_alt(struct usb_function *f,
 	struct usb_composite_dev *cdev = f->config->cdev;
 
 	if (intf == hbusb->data_id) {
-		for (i = 0; i < HBUSB_MINOR_COUNT; i++) {
-			if (hbusb->port.bulkin[i]->enabled) {
-				DBG(cdev, "reset hbusb\n");
-				hbusb_disconnect(&hbusb->port);
-			}
+		if (hbusb->port.bulkin[0]->enabled
+			||hbusb->port.bulkout[0]->enabled) {
+			DBG(cdev, "reset hbusb\n");
+			hbusb_disconnect(&hbusb->port);
+		}
 
-			if (!hbusb->port.bulkin[i]->desc
-			|| !hbusb->port.bulkout[i]->desc) {
-				DBG(cdev, "init hbusb\n");
-				if (config_ep_by_speed(cdev->gadget, f,
-					       hbusb->port.bulkin[i]) ||
-					config_ep_by_speed(cdev->gadget, f,
-					       hbusb->port.bulkout[i])
-				) {
+		for (i = 0; i < request_epin_num; i++) {
+			if (!hbusb->port.bulkin[i]->desc) {
+				if (config_ep_by_speed(cdev->gadget, f, hbusb->port.bulkin[i])) {
 					hbusb->port.bulkin[i]->desc = NULL;
+					return -EINVAL;
+				}
+			}
+		}
+
+		for (i = 0; i < request_epout_num; i++) {
+			if (!hbusb->port.bulkout[i]->desc) {
+				if (config_ep_by_speed(cdev->gadget, f, hbusb->port.bulkout[i])) {
 					hbusb->port.bulkout[i]->desc = NULL;
 					return -EINVAL;
 				}
