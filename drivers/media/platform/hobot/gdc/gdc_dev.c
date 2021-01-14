@@ -431,6 +431,7 @@ int gdc_video_process(struct gdc_video_ctx *gdc_ctx, unsigned long arg)
 
 	spin_lock_irqsave(&gdc_dev->shared_slock, flag);
 	gdc_dev->state = GDC_DEV_PROCESS;
+	gdc_dev->isr_err = 0;
 	gdc_ctx->event = 0;
 	atomic_set(&gdc_dev->instance, gdc_ctx->group->instance);
 
@@ -455,7 +456,7 @@ int gdc_video_process(struct gdc_video_ctx *gdc_ctx, unsigned long arg)
 		gdc_set_iar_output(gdc_dev, &gdc_settings);
 	} else {
 		vio_err("GDC process failed\n");
-		ret = -VIO_FRAME_NDONE;
+		ret = -gdc_dev->isr_err;
 	}
 	vio_set_stat_info(gdc_ctx->group->instance, GDC_FE, 0);
 
@@ -524,23 +525,35 @@ static irqreturn_t gdc_isr(int irq, void *data)
 	if (status & 1 << INTR_GDC_BUSY) {
 		vio_info("GDC current frame is processing\n");
 	} else if (status & 1 << INTR_GDC_ERROR) {
-		if (status & 1 << INTR_GDC_CONF_ERROR)
+		if (status & 1 << INTR_GDC_CONF_ERROR) {
 			vio_err("GDC configuration error\n");
+			gdc->isr_err = INTR_GDC_CONF_ERROR;
+		}
 
-		if (status & 1 << INTR_GDC_USER_ABORT)
+		if (status & 1 << INTR_GDC_USER_ABORT) {
 			vio_err("GDC user abort(stop/reset command)\n");
+			gdc->isr_err = INTR_GDC_USER_ABORT;
+		}
 
-		if (status & 1 << INTR_GDC_AXI_READER_ERROR)
+		if (status & 1 << INTR_GDC_AXI_READER_ERROR) {
 			vio_err("GDC AXI reader error\n");
+			gdc->isr_err = INTR_GDC_AXI_READER_ERROR;
+		}
 
-		if (status & 1 << INTR_GDC_AXI_WRITER_ERROR)
+		if (status & 1 << INTR_GDC_AXI_WRITER_ERROR) {
 			vio_err("GDC AXI writer error\n");
+			gdc->isr_err = INTR_GDC_AXI_WRITER_ERROR;
+		}
 
-		if (status & 1 << INTR_GDC_UNALIGNED_ACCESS)
+		if (status & 1 << INTR_GDC_UNALIGNED_ACCESS) {
 			vio_err("GDC address pionter is not aligned\n");
+			gdc->isr_err = INTR_GDC_UNALIGNED_ACCESS;
+		}
 
-		if (status & 1 << INTR_GDC_INCOMPATIBLE_CONF)
+		if (status & 1 << INTR_GDC_INCOMPATIBLE_CONF) {
 			vio_err("GDC incopatible configuration\n");
+			gdc->isr_err = INTR_GDC_INCOMPATIBLE_CONF;
+		}
 
 		gdc_ctx->event = VIO_FRAME_NDONE;
 	}

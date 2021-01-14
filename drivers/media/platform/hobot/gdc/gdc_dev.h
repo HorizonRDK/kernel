@@ -113,6 +113,8 @@ struct x3_gdc_dev {
 	atomic_t			instance;
 	u32 hw_id;
 
+	u32 isr_err;
+
 	struct gdc_group group[VIO_MAX_STREAM];
 	struct semaphore smp_gdc_enable;
 };
