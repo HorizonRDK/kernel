@@ -1204,6 +1204,16 @@
 			status = "disabled";
 		};
 
+		apb_timeout: ddr_monitor@0xA7000000 {
+			compatible = "hobot,apb_timeout";
+			reg = <0 0xA7000000 0 0x32>; /* For APB timeout */
+			interrupt-parent = <&gic>;
+			interrupts = <0 65 4>;
+			clocks = <&sys_div_pclk>;
+			clock-names = "sys_pclk";
+			status = "disabled";
+		};
+
 		dmc_opp_table: dmc_opp_table {
 			compatible = "operating-points-v2";
 
