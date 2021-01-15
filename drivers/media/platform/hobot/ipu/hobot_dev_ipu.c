@@ -32,8 +32,8 @@
 #include "ipu_hw_api.h"
 
 #define MODULE_NAME "X3 IPU"
-#define MR_FIFO_THRED0 0x30323020
-#define MR_FIFO_THRED1 0x00003220
+#define MR_FIFO_THRED0 0
+#define MR_FIFO_THRED1 0
 
 static u32 color[MAX_OSD_COLOR_NUM] = {
 	0xff8080, 0x008080, 0x968080, 0x8DC01B, 0x952B15, 0xE10094, 0x545BA7,
