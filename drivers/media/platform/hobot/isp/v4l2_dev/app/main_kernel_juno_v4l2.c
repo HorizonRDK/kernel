@@ -270,6 +270,32 @@ static ssize_t isp_fps_show(struct device *dev,
 
 static DEVICE_ATTR(fps, S_IRUGO, isp_fps_show, NULL);
 
+static char arm3a_version[100];
+static ssize_t isp_v3a_store(struct device *dev,
+                                        struct device_attribute *attr,
+                                        const char *buf, size_t len)
+{
+	uint32_t size = len;
+	if (len > 100) {
+		size = 100;
+	}
+	memcpy(arm3a_version, buf, size);
+
+        return len;
+}
+
+static ssize_t isp_v3a_show(struct device *dev,
+                                struct device_attribute *attr, char* buf)
+{
+	uint32_t len = 0;
+
+        len = snprintf(&buf[0], 100, "%s\n", arm3a_version);
+
+	return len;
+}
+
+static DEVICE_ATTR(v3a, S_IRUGO|S_IWUSR, isp_v3a_show, isp_v3a_store);
+
 static int32_t isp_platform_probe( struct platform_device *pdev )
 {
     int32_t rc = 0;
@@ -373,6 +399,12 @@ static int32_t isp_platform_probe( struct platform_device *pdev )
 		goto free_res;
 	}
 
+    rc = device_create_file(dev, &dev_attr_v3a);
+	if (rc < 0) {
+		pr_err("create v3a failed, rc = %d\n", rc);
+		goto free_res;
+	}
+
 #else
     // no subdevice is used
     rc = isp_v4l2_create_instance( &v4l2_dev, (uint32_t)isp_res->start );
@@ -399,6 +431,7 @@ static int isp_platform_remove( struct platform_device *pdev )
     of_reserved_mem_device_release( &pdev->dev );
     device_remove_file(&pdev->dev, &dev_attr_isp_status);
     device_remove_file(&pdev->dev, &dev_attr_fps);
+    device_remove_file(&pdev->dev, &dev_attr_v3a);
 
     return 0;
 }
