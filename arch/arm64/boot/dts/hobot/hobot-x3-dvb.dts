@@ -42,6 +42,78 @@
 		regulator-boot-on;
 		enable-active-high;
 	};
+
+    cnn_opp_table_dc: cnn_opp_table_dc {
+        compatible = "operating-points-v2";
+        opp-shared;
+        opp00 {
+            opp-hz = /bits/ 64 <1000000000>;
+            opp-microvolt = <800000>;
+            clock-latency-ns = <500000>;
+        };
+        opp01 {
+            opp-hz = /bits/ 64 <800000000>;
+            opp-microvolt = <800000>;
+            clock-latency-ns = <500000>;
+        };
+        opp02 {
+            opp-hz = /bits/ 64 <400000000>;
+            opp-microvolt = <800000>;
+            clock-latency-ns = <500000>;
+        };
+        opp03 {
+            opp-hz = /bits/ 64 <600000000>;
+            opp-microvolt = <800000>;
+            clock-latency-ns = <500000>;
+        };
+    };
+
+    cpu_pd_reg_dc: cpu_pd_reg_dc {
+        status = "disabled";
+		compatible = "regulator-gpio";
+        regulator-name = "VCC_CPU";
+        regulator-min-microvolt = <800000>;
+        regulator-max-microvolt = <800000>;
+		states = <800000 0>;
+		regulator-always-on;
+    };
+
+    /*TODO: cpu opp table for DC-DC X3 som */
+	cpu_opp_table_dc: cpu_opp_table_dc {
+		compatible = "operating-points-v2";
+		opp-shared;
+		opp00 {
+			opp-hz = /bits/ 64 <1200000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <500000>;
+		};
+		opp01 {
+			opp-hz = /bits/ 64 <1000000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <500000>;
+		};
+		opp02 {
+			opp-hz = /bits/ 64 <800000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <500000>;
+		};
+		opp03 {
+			opp-hz = /bits/ 64 <500000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <500000>;
+		};
+		opp04 {
+			opp-hz = /bits/ 64 <240000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <500000>;
+		};
+		opp05 {
+			opp-hz = /bits/ 64 <1500000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <500000>;
+			turbo-mode;
+		};
+	};
 };
 
 &i2c0 {
@@ -117,29 +189,39 @@
 
 &cpu0 {
 	cpu-supply = <&cpu_pd_reg>;
+    cpu-supply-dc = <&cpu_pd_reg_dc>;
+    operating-points-v2-dc = <&cpu_opp_table_dc>;
 };
 
 &cpu1 {
 	cpu-supply = <&cpu_pd_reg>;
+    cpu-supply-dc = <&cpu_pd_reg_dc>;
+    operating-points-v2-dc = <&cpu_opp_table_dc>;
 };
 
 &cpu2 {
 	cpu-supply = <&cpu_pd_reg>;
+    cpu-supply-dc = <&cpu_pd_reg_dc>;
+    operating-points-v2-dc = <&cpu_opp_table_dc>;
 };
 
 &cpu3 {
 	cpu-supply = <&cpu_pd_reg>;
+    cpu-supply-dc = <&cpu_pd_reg_dc>;
+    operating-points-v2-dc = <&cpu_opp_table_dc>;
 };
 
 &cnn0 {
 	cnn-supply = <&cnn0_pd_reg>;
     cnn-supply-dc = <&cnn0_pd_reg_dc>;
+    operating-points-v2-dc = <&cnn_opp_table_dc>;
 	governor = "userspace";
 };
 
 &cnn1 {
 	cnn-supply = <&cnn1_pd_reg>;
     cnn-supply-dc = <&cnn1_pd_reg_dc>;
+    operating-points-v2-dc = <&cnn_opp_table_dc>;
 	governor = "userspace";
 };
 
