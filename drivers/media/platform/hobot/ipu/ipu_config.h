@@ -109,6 +109,7 @@ typedef struct ipu_src_ctrl_s {
 	uint16_t ddr_in_buf_num;
 	int timeout;
 	int dq_select_timeout;
+	uint32_t capture_all_chn;
 } ipu_src_ctrl_t;
 
 typedef struct ipu_cfg_s {
