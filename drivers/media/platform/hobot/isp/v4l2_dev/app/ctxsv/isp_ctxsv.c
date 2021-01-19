@@ -110,6 +110,7 @@ isp_ctx_node_t *isp_ctx_get_node_timeout(int ctx_id, isp_info_type_e it,
 	struct list_head *node;
 	isp_ctx_node_t *cn = NULL;
 	int ret = 0;
+	int ret1 = 0;
 	int is_empty;
 
 	spin_lock(&lock);
@@ -120,6 +121,8 @@ isp_ctx_node_t *isp_ctx_get_node_timeout(int ctx_id, isp_info_type_e it,
 		ret = down_timeout(&ctx_queue[ctx_id][it].sem,
 						msecs_to_jiffies(timeout));
 		system_chardev_lock();
+	} else {
+		ret1 = down_trylock(&ctx_queue[ctx_id][it].sem);
 	}
 
 	if (ret >= 0) {
@@ -142,8 +145,9 @@ void isp_ctx_put_node(int ctx_id, isp_ctx_node_t *cn, isp_info_type_e it, isp_ct
 	spin_unlock(&lock);
 
 	isp_ctx_queue_state("put");
-	if(qt == DONEQ)
+	if(qt == DONEQ) {
 		up(&ctx_queue[ctx_id][it].sem);
+	}
 }
 
 isp_ctx_node_t * isp_ctx_get(int ctx_id, isp_info_type_e it, int32_t timeout)
@@ -249,9 +253,9 @@ void isp_ctx_queue_state(char *tags)
 			list_for_each_safe(this, next, &ctx_queue[i][j].ctx_node_head[DONEQ])
 				k2++;
 			spin_unlock(&lock);
+			pr_debug("ctx[%d] type[%d] free queue count %d\n", i, j, k1);
+			pr_debug("ctx[%d] type[%d] done queue count %d\n", i, j, k2);
 		}
-		pr_debug("ctx[%d] type[%d] free queue count %d\n", i, j, k1);
-		pr_debug("ctx[%d] type[%d] done queue count %d\n", i, j, k2);
 	}
 
 }

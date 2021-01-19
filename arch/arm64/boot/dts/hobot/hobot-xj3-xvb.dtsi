@@ -481,6 +481,10 @@
 	status = "okay";
 };
 
+&apb_timeout {
+	status = "okay";
+};
+
 &power {
 	status = "okay";
 };

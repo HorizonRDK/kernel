@@ -127,6 +127,12 @@ config HOBOT_DDR_MON
 	help
 	  say yes to enable hobot ddr monitor
 
+config HOBOT_APB_TIMEOUT
+	bool "Enable APB timeout detection module"
+	default n
+	help
+	  say yes to enable hobot APB timeout detection module
+
 config HOBOT_PM
 	bool "Enable HOBOT suspend"
 	default n

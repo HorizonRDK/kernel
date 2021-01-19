@@ -27,7 +27,7 @@
 
 &ion_reserved {
 	compatible = "ion-pool";
-	reg = <0x0 0x30000000 0x0 0x10000000>;
+	reg = <0x0 0x4000000 0x0 0x10000000>;
 	status = "okay";
 };
 

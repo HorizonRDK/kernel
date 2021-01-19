@@ -3,7 +3,7 @@
  *             Copyright 2019 Horizon Robotics, Inc.
  *                     All rights reserved.
  ***************************************************************************/
-
+#define pr_fmt(fmt) "[ipu_drv]: %s: " fmt, __func__
 #include <linux/module.h>
 #include <linux/delay.h>
 #include <linux/kernel.h>
@@ -32,8 +32,8 @@
 #include "ipu_hw_api.h"
 
 #define MODULE_NAME "X3 IPU"
-#define MR_FIFO_THRED0 0x30323020
-#define MR_FIFO_THRED1 0x00003220
+#define MR_FIFO_THRED0 0
+#define MR_FIFO_THRED1 0
 
 static u32 color[MAX_OSD_COLOR_NUM] = {
 	0xff8080, 0x008080, 0x968080, 0x8DC01B, 0x952B15, 0xE10094, 0x545BA7,
@@ -75,6 +75,7 @@ static int x3_ipu_open(struct inode *inode, struct file *file)
 	int ret = 0;
 	int minor;
 
+	vio_rst_mutex_lock();
 	minor = MINOR(inode->i_rdev);
 
 	ret = 0;
@@ -110,12 +111,18 @@ static int x3_ipu_open(struct inode *inode, struct file *file)
 		if (sif_mclk_freq)
 			vio_set_clk_rate("sif_mclk", sif_mclk_freq);
 		ips_set_clk_ctrl(IPU0_CLOCK_GATE, true);
-		vio_reset_module(GROUP_ID_IPU);
+		ips_set_module_reset(IPU0_RST);
 	}
-	mutex_unlock(&ipu_mutex);
 
+	vio_info("IPU open node V%d proc %d, open_cnt %d\n",
+		ipu_ctx->id, ipu_ctx->ctx_index,
+		atomic_read(&ipu->open_cnt));
+
+	mutex_unlock(&ipu_mutex);
 	//atomic_inc(&ipu->open_cnt);
 p_err:
+	vio_rst_mutex_unlock();
+
 	return ret;
 }
 
@@ -288,9 +295,10 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	u32 cnt;
 	int ret = 0;
 	u32 ctx_index;
-	u32 id, i;
+	u32 id;
 	unsigned long flags;
 
+	vio_rst_mutex_lock();
 	ipu_ctx = file->private_data;
 	ipu = ipu_ctx->ipu_dev;
 
@@ -315,6 +323,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 					ipu_ctx->id, __func__);
 		atomic_dec(&ipu->open_cnt);
 		kfree(ipu_ctx);
+		vio_rst_mutex_unlock();
 		return 0;
 	}
 
@@ -337,7 +346,6 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 
 	//vio_dbg("from ipu index %d, cnt %d, subdev id:%d", index, cnt, subdev->id);
 	//frame_manager_flush_mp(ipu_ctx->framemgr, index, cnt, ipu_ctx->ctx_index);
-	vio_rst_mutex_lock();
 	mutex_lock(&ipu_mutex);
 	vio_dbg("[S%d][V%d] in close,begin clean", ipu_ctx->belong_pipe, ipu_ctx->id);
 	if ((group) &&(atomic_dec_return(&subdev->refcount) == 0)) {
@@ -374,8 +382,6 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 
 	if (atomic_dec_return(&ipu->open_cnt) == 0) {
 		vio_dbg("[S%d] ipu last process close\n", instance);
-		clear_bit(IPU_OTF_INPUT, &ipu->state);
-		clear_bit(IPU_DMA_INPUT, &ipu->state);
 		clear_bit(IPU_DS2_DMA_OUTPUT, &ipu->state);
 		clear_bit(IPU_HW_CONFIG, &ipu->state);
 		clear_bit(IPU_REUSE_SHADOW0, &ipu->state);
@@ -396,12 +402,13 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 				vio_info("ipu group already NULL\n");
 		}
 
-		vio_reset_module(group->id);
-		for (i = 0; i < 4; i++) {
-			ipu_disable_all_channels(ipu->base_reg, i);
-			printk("[S%d] ipu last process close disable channels\n", i);
+		if (test_bit(IPU_OTF_INPUT, &ipu->state)) {
+			vio_reset_module(IPU0_RST);
+		} else {
+			ips_set_module_reset(IPU0_RST);
+			ips_set_clk_ctrl(IPU0_CLOCK_GATE, false);
+			pm_qos_remove_request(&ipu_pm_qos_req);
 		}
-		ips_set_clk_ctrl(IPU0_CLOCK_GATE, false);
 		ipu->frame_drop_count = 0;
 		ipu->reuse_shadow0_count = 0;
 		sema_init(&ipu->gtask.hw_resource, 0);
@@ -410,7 +417,8 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 		next_frame_disable_out = 0;
 		prev_fs_has_no_fe = 0;
 		group->abnormal_fs = 0;
-		pm_qos_remove_request(&ipu_pm_qos_req);
+		clear_bit(IPU_OTF_INPUT, &ipu->state);
+		clear_bit(IPU_DMA_INPUT, &ipu->state);
 	}
 	mutex_unlock(&ipu_mutex);
 
@@ -424,9 +432,8 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	spin_unlock_irqrestore(&subdev->slock, flags);
 	kfree(ipu_ctx);
 	vio_rst_mutex_unlock();
-
-	vio_info("[S%d]IPU close node V%d proc %d\n", group->instance,
-		id, ctx_index);
+	vio_info("[S%d]IPU close node V%d proc %d, open_cnt %d\n", group->instance,
+		id, ctx_index, atomic_read(&ipu->open_cnt));
 
 	return ret;
 }
@@ -1728,6 +1735,26 @@ int ipu_update_us_param(struct ipu_subdev *subdev, ipu_us_info_t *us_config)
 	return ret;
 }
 
+void ipu_reset(void)
+{
+	pr_debug("+");
+	ips_set_module_reset(IPU0_RST);
+	pr_debug("-");
+}
+
+void ipu_clk_disable(void)
+{
+	pr_debug("+");
+	ips_set_clk_ctrl(IPU0_CLOCK_GATE, false);
+	pm_qos_remove_request(&ipu_pm_qos_req);
+	pr_debug("-");
+}
+
+vio_module_down_t ipu_down = {
+	.rst_cb = ipu_reset,
+	.clk_cb = ipu_clk_disable,
+};
+
 int ipu_set_path_attr(struct ipu_subdev *subdev, ipu_cfg_t *ipu_cfg)
 {
 	struct vio_group *group;
@@ -1745,6 +1772,9 @@ int ipu_set_path_attr(struct ipu_subdev *subdev, ipu_cfg_t *ipu_cfg)
 		}else{
 			set_bit(IPU_OTF_INPUT, &ipu->state);
 			set_bit(VIO_GROUP_OTF_INPUT, &group->state);
+			vio_rst_mutex_lock();
+			vio_down_func_register(IPU0_RST, &ipu_down);
+			vio_rst_mutex_unlock();
 		}
 	} else {
 		if (test_bit(VIO_GROUP_LEADER, &group->state)) {
@@ -2238,8 +2268,6 @@ int ipu_video_streamoff(struct ipu_video_ctx *ipu_ctx)
 		&& !test_bit(IPU_HW_FORCE_STOP, &ipu_dev->state))
 		goto p_dec;
 
-	// vio_reset_module(group->id);
-
 	clear_bit(IPU_HW_RUN, &ipu_dev->state);
 p_dec:
 	if (ipu_ctx->framemgr->frames_mp[ipu_ctx->frm_fst_ind] != NULL) {
@@ -2618,7 +2646,8 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 					sizeof(struct frame_info));
 			}
 
-			ipu_ctx->event = 0;
+			if (list_empty(done_list))
+				ipu_ctx->event = 0;
 			ipu_ctx->frm_num_usr++;
 			vio_dbg("[S%d][V%d] %s (p%d b%d f%d) from FS_COMPLETE.(%d %d %d %d %d)",
 				ipu_ctx->group->instance, ipu_ctx->id, __func__,
