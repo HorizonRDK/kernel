@@ -16,5 +16,7 @@
 #define BOOT_CHARGING		(REBOOT_FLAG + 11)
 /* enter usb mass storage mode */
 #define BOOT_UMS		(REBOOT_FLAG + 12)
+/* enter usb fimrware upgrade mode */
+#define BOOT_UFU		(REBOOT_FLAG + 13)
 
 #endif /* __HBOOT_BOOT_MODE_H */
