@@ -75,7 +75,7 @@ void rx_ctrl_head_event(struct hbusb_rx_chan *rx)
 	}
 
 	frame_ctrl->recv_slice_phys = frame_info->sg_info[0].slice_addr[0];
-	frame_ctrl->recv_slice_size = frame_info->sg_info[0].slice_size[0];
+	frame_ctrl->recv_req_size = frame_info->sg_info[0].slice_size[0];
 	frame_ctrl->curr_sg_index_per_frame_info = 0;
 	frame_ctrl->curr_slice_index_per_sg = 0;
 	frame_ctrl->hbusb_recv_event = EVENT_HBUSB_RX_USER_DATA;
@@ -119,7 +119,6 @@ void rx_user_data_event(struct hbusb_rx_chan *rx)
 	slice_index = frame_ctrl->curr_slice_index_per_sg;
 	sg_info = &frame_info->sg_info[sg_index];
 	sg_info->slice_actual_size[slice_index] = frame_ctrl->recv_slice_size;
-
 	if (frame_ctrl->recv_slice_size < HBUSB_DMA_BUF_MAX_SIZE) {
 		if ((frame_ctrl->recv_slice_size == 0)
 			&& (frame_ctrl->curr_slice_index_per_sg == 0)) {
@@ -146,6 +145,7 @@ next_slice_of_sg:
 	slice_index = frame_ctrl->curr_slice_index_per_sg;
 	sg_info = &frame_info->sg_info[sg_index];
 	frame_ctrl->recv_slice_phys = sg_info->slice_addr[slice_index];
+	frame_ctrl->recv_req_size = sg_info->slice_size[slice_index];
 	return;
 next_sg:
 	frame_info->sg_actual_num++;
@@ -160,6 +160,7 @@ next_sg:
 	slice_index = frame_ctrl->curr_slice_index_per_sg;
 	sg_info = &frame_info->sg_info[sg_index];
 	frame_ctrl->recv_slice_phys = sg_info->slice_addr[slice_index];
+	frame_ctrl->recv_req_size = sg_info->slice_size[slice_index];
 	return;
 recv_finished:
 	frame_ctrl->hbusb_recv_event = EVENT_HBUSB_RX_FINISHED;
@@ -244,7 +245,7 @@ void hbusb_prepare_rx_req_buf(struct hbusb_rx_chan *rx)
 		break;
 	case EVENT_HBUSB_RX_USER_DATA:
 		req->dma = frame_ctrl->recv_slice_phys;
-		req->length = frame_ctrl->recv_slice_size;
+		req->length = frame_ctrl->recv_req_size;
 		req->complete = lowlevel_rx_complete;
 		req->context = rx;
 		req->hb_direct_dma = 1;
@@ -703,7 +704,7 @@ void prepare_to_rx_head_info(struct hbusb_rx_chan *rx)
 		== EVENT_HBUSB_RX_HEAD_IN_DATABUF) {
 		rx_ctrl_head_event(rx);
 	} else {
-		frame_ctrl->recv_slice_size = HBUSB_DMA_BUF_MAX_SIZE;
+		frame_ctrl->recv_req_size = HBUSB_DMA_BUF_MAX_SIZE;
 		frame_ctrl->hbusb_recv_event = EVENT_HBUSB_RX_CTRL_HEAD;
 	}
 }
@@ -1032,6 +1033,7 @@ static void rx_frame_ctrl_var_init(struct hbusb_rx_chan *rx)
 	frame_ctrl->curr_slice_index_per_sg = 0;
 	frame_ctrl->recv_slice_phys = 0;
 	frame_ctrl->recv_slice_size = 0;
+	frame_ctrl->recv_req_size = 0;
 	frame_ctrl->seq_num = 0;
 	frame_ctrl->rx_ctrl_head_actual_size = 0;
 	frame_ctrl->hbusb_recv_event = EVENT_HBUSB_TX_CTRL_HEAD;

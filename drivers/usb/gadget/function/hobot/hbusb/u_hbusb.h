@@ -151,7 +151,10 @@ struct frame_rx_ctrl {
 
 	/*one time temp libusb recv param*/
 	unsigned long recv_slice_phys;
+	/*recv_slice_size save usb last actual recv length*/
 	int 		recv_slice_size;
+	/*recv_req_size save next time need recv length*/
+	int 		recv_req_size;
 
 	unsigned int		seq_num;
 
