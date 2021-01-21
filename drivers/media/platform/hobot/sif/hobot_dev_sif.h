@@ -214,7 +214,10 @@ struct sif_subdev {
 	struct x3_sif_dev 	*sif_dev;
 
 	sif_cfg_t sif_cfg;
+	uint32_t format;
 	u32 mux_index;
+	u32 mux_index1;
+	u32 mux_index2;
 	u32 ddr_mux_index;
 	u32 dol_num;
 	u32 rx_index;
@@ -222,6 +225,7 @@ struct sif_subdev {
 	u32 ipi_index;
 	u32 ipi_channels;
 	u32 mux_nums;
+	u32 overflow;
 	sif_data_desc_t ddrin_fmt;
 	sif_data_desc_t fmt;
 	struct frame_id 		info;

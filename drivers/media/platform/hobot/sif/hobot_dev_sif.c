@@ -391,7 +391,6 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 	struct vio_group *group;
 	struct x3_sif_dev *sif;
 	struct sif_subdev *subdev;
-	u32 isp_enable;
 
 	vio_rst_mutex_lock();
 	sif_ctx = file->private_data;
@@ -428,8 +427,12 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 				clear_bit(subdev->mux_index + 2, &sif->mux_mask);
 				clear_bit(subdev->ddr_mux_index + 2, &sif->mux_mask);
 			}
+			if (subdev->mux_nums > 3) {
+				clear_bit(subdev->mux_index + 3, &sif->mux_mask);
+				clear_bit(subdev->ddr_mux_index + 3, &sif->mux_mask);
+			}
 
-			if (subdev->fmt.width > LINE_BUFFER_SIZE) {
+			if (subdev->fmt.width >= LINE_BUFFER_SIZE) {
 				clear_bit(subdev->mux_index + 2, &sif->mux_mask);
 				clear_bit(subdev->ddr_mux_index + 2, &sif->mux_mask);
 			}
@@ -511,10 +514,13 @@ int get_free_mux(struct x3_sif_dev *sif, u32 index, int format, u32 dol_num,
 		step = 2;
 		mux_nums = 2;
 	}
-
+	if (format == HW_FORMAT_YUV422 && width >= LINE_BUFFER_SIZE) {
+		step = 4;
+		mux_nums = 4;
+	}
 	*mux_numbers = mux_nums;
 
-	if (width > LINE_BUFFER_SIZE && step == 1 && format != SIF_FORMAT_YUV_RAW8) {
+	if (width >= LINE_BUFFER_SIZE && step == 1 && format != SIF_FORMAT_YUV_RAW8) {
 		if (index == 4)
 			start_index = 2;
 
@@ -531,6 +537,22 @@ int get_free_mux(struct x3_sif_dev *sif, u32 index, int format, u32 dol_num,
 		}
 		if (i >= 4) {
 			vio_err("can't get free mux for 4k\n");
+			ret = -EINVAL;
+		}
+	} else if (width >= LINE_BUFFER_SIZE && step == 4) {
+		for (i = start_index; i < 4; i++) {
+		if (!test_bit(mux_for_4k[i], &sif->mux_mask)) {
+			if (test_bit(mux_for_4k[i] + 2, &sif->mux_mask))
+				continue;
+
+			set_bit(mux_for_4k[i], &sif->mux_mask);
+			set_bit(mux_for_4k[i] + 2, &sif->mux_mask);
+			ret = mux_for_4k[i];
+			break;
+		}
+	}
+	if (i >= 4) {
+		vio_err("can't get free mux for 4k yuv\n");
 			ret = -EINVAL;
 		}
 	} else {
@@ -599,12 +621,21 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 			return mux_index;
 	}
 
-	vio_dbg("S[%d] mux_index %d", group->instance, mux_index);
+	vio_dbg("S[%d] mux_index %d mux_nums %d",
+		group->instance, mux_index, mux_nums);
 	subdev->mux_nums = mux_nums;
 	sif_config->input.mipi.func.set_mux_out_index = mux_index;
 	subdev->mux_index = mux_index;
 	ddr_mux_index = mux_index;
-
+	subdev->format = format;
+	if (format == HW_FORMAT_YUV422)
+		subdev->mux_index1 = mux_index + 1;
+	if (dol_exp_num > 1)
+		subdev->mux_index1 = mux_index + 1;
+	if(dol_exp_num > 2) {
+		subdev->mux_index1 = mux_index + 1;
+		subdev->mux_index2 = mux_index + 2;
+	}
 	if (isp_flyby && ddr_enable) {
 		vio_info("ddr output enable in online mode\n");
 		ddr_mux_index = get_free_mux(sif, 4, format, dol_exp_num,
@@ -1069,9 +1100,11 @@ int sif_video_dqbuf(struct sif_video_ctx *sif_ctx,
 	struct vio_frame *frame;
 	unsigned long flags;
 	struct x3_sif_dev *sif;
+	struct sif_subdev *subdev;
 
 	framemgr = sif_ctx->framemgr;
 	sif = sif_ctx->sif_dev;
+	subdev = sif_ctx->subdev;
 
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_COMPLETE);
@@ -1267,7 +1300,7 @@ static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 	case SIF_IOC_DQBUF:
 		ret = sif_video_dqbuf(sif_ctx, &frameinfo);
 		if (ret)
-			return -EFAULT;
+			return ret;
 		ret = copy_to_user((void __user *) arg,
 				(char *) &frameinfo, sizeof(struct frame_info));
 		if (ret)
@@ -1454,6 +1487,52 @@ void sif_frame_done(struct sif_subdev *subdev)
 	vio_dbg("%s: mux_index = %d\n", __func__, subdev->ddr_mux_index);
 }
 
+void sif_frame_ndone(struct sif_subdev *subdev)
+{
+	struct vio_framemgr *framemgr;
+	struct vio_frame *frame;
+	struct vio_group *group;
+	struct sif_video_ctx *sif_ctx;
+	struct x3_sif_dev *sif;
+	unsigned long flags;
+	int i = 0;
+
+	BUG_ON(!subdev);
+
+	group = subdev->group;
+	sif = subdev->sif_dev;
+	framemgr = &subdev->framemgr;
+	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	frame = peek_frame(framemgr, FS_PROCESS);
+	if (frame) {
+        vio_dbg("ndone bidx%d fid%d, proc->req.",
+               frame->frameinfo.bufferindex,
+               frame->frameinfo.frame_id);
+		trans_frame(framemgr, frame, FS_REQUEST);
+		vio_group_start_trigger_mp(group, frame);
+	} else {
+		vio_err("[S%d][V%d] NDONE [FRM](%d %d %d %d %d)\n",
+			group->instance,
+			subdev->id,
+			framemgr->queued_count[FS_FREE],
+			framemgr->queued_count[FS_REQUEST],
+			framemgr->queued_count[FS_PROCESS],
+			framemgr->queued_count[FS_COMPLETE],
+			framemgr->queued_count[FS_USED]);
+	}
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
+
+	spin_lock_irqsave(&subdev->slock, flags);
+	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
+		if (test_bit(i, &subdev->val_ctx_mask)) {
+			sif_ctx = subdev->ctx[i];
+			sif_ctx->event = VIO_FRAME_DONE;
+			wake_up(&sif_ctx->done_wq);
+		}
+	}
+	spin_unlock_irqrestore(&subdev->slock, flags);
+}
+
 static void sif_diag_report(uint8_t errsta, unsigned int status)
 {
 	unsigned int sta;
@@ -1477,6 +1556,47 @@ static void sif_diag_report(uint8_t errsta, unsigned int status)
 	}
 }
 
+struct sif_subdev *sif_find_overflow_subdev(struct x3_sif_dev *sif, u32 mux)
+{
+	u32 i = 0;
+
+	for(i = 0; i < VIO_MAX_STREAM; i++) {
+		if (sif->sif_mux_subdev[i].mux_index == mux) {
+			vio_dbg("%s mux %d\n", __func__, mux);
+			return &sif->sif_mux_subdev[i];
+		}
+		if (sif->sif_mux_subdev[i].format == HW_FORMAT_YUV422) {
+			if(sif->sif_mux_subdev[i].mux_index1 == mux)  {
+				vio_dbg("%s yuv mux %d\n", __func__, mux);
+				if (sif->sif_mux_subdev[i].overflow == 1)
+					return NULL;
+				else
+					return &sif->sif_mux_subdev[i];
+			}
+		} else if (sif->sif_mux_subdev[i].dol_num > 1) {
+			if(sif->sif_mux_subdev[i].mux_index1 == mux)  {
+				vio_dbg("%s dol_num %d mux %d\n", __func__,
+					sif->sif_mux_subdev[i].dol_num, mux);
+				if (sif->sif_mux_subdev[i].overflow == 1)
+					return NULL;
+				else
+					return &sif->sif_mux_subdev[i];
+			}
+		} else if (sif->sif_mux_subdev[i].dol_num > 2) {
+			if (sif->sif_mux_subdev[i].mux_index2 == mux) {
+				vio_dbg("%s dol_num %d mux %d\n", __func__,
+					sif->sif_mux_subdev[i].dol_num, mux);
+				if (sif->sif_mux_subdev[i].overflow == 1)
+					return NULL;
+				else
+					return &sif->sif_mux_subdev[i];
+			}
+		}
+	}
+
+	return NULL;
+}
+
 static irqreturn_t sif_isr(int irq, void *data)
 {
 	int ret = 0;
@@ -1490,6 +1610,8 @@ static irqreturn_t sif_isr(int irq, void *data)
 	struct vio_group *group;
 	struct vio_group_task *gtask;
 	struct sif_subdev *subdev;
+	u32 mux = 0, i;
+	u8 temp;
 
 	sif = (struct x3_sif_dev *) data;
 	memset(&irq_src, 0x0, sizeof(struct sif_irq_src));
@@ -1598,6 +1720,23 @@ static irqreturn_t sif_isr(int irq, void *data)
 		err_occured = 1;
 		instance = atomic_read(&sif->instance);
 		sif->statistic.hard_overflow[instance]++;
+
+		temp = irq_src.sif_in_buf_overflow;
+		while(temp > 0) {
+			subdev = NULL;
+			if (temp & 0x01) {
+				subdev = sif_find_overflow_subdev(sif, mux);
+			}
+			mux += 1;
+			temp >>= 1;
+			if (subdev) {
+				subdev->overflow = 1;
+				sif_frame_ndone(subdev);
+			}
+		}
+		for(i = 0; i < VIO_MAX_STREAM; i++) {
+			sif->sif_mux_subdev[i].overflow = 0;
+		}
 	}
 
 	if (irq_src.sif_frm_int & 1 << INTR_SIF_OUT_BUF_ERROR) {
