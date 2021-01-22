@@ -1907,6 +1907,9 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 		{
 			hb_vpu_drv_intr_t info;
 #ifdef SUPPORT_MULTI_INST_INTR
+#ifdef SUPPORT_TIMEOUT_RESOLUTION
+			ktime_t kt;
+#endif
 			u32 intr_inst_index;
 			u32 intr_reason_in_q;
 			u32 interrupt_flag_in_q;
@@ -1941,7 +1944,6 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 #endif
 #ifdef SUPPORT_MULTI_INST_INTR
 #ifdef SUPPORT_TIMEOUT_RESOLUTION
-			ktime_t kt;
 			kt = ktime_set(0, info.timeout * 1000 * 1000);
 			ret =
 			    wait_event_interruptible_hrtimeout
@@ -2659,7 +2661,6 @@ static int vpu_release(struct inode *inode, struct file *filp)
 		vpu_free_instances(filp);
 		dev->open_count--;
 		open_count = dev->open_count;
-		spin_unlock(&dev->vpu_spinlock);
 		if (open_count == 0) {
 #ifdef SUPPORT_MULTI_INST_INTR
 			for (i = 0; i < MAX_NUM_VPU_INSTANCE; i++) {
@@ -2692,6 +2693,7 @@ static int vpu_release(struct inode *inode, struct file *filp)
 #endif
 			pm_qos_remove_request(&dev->vpu_pm_qos_req);
 		}
+		spin_unlock(&dev->vpu_spinlock);
 	}
 	kfree(priv);
 	up(&dev->vpu_sem);

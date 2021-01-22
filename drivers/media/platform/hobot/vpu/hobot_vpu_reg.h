@@ -23,8 +23,8 @@
 #define VPU_REG_SIZE				(0x4000*MAX_NUM_VPU_CORE)
 
 #ifdef USE_VPU_CLOSE_INSTANCE_ONCE_ABNORMAL_RELEASE
-#define VPU_BUSY_CHECK_TIMEOUT          10000
-#define VPU_DEC_TIMEOUT                 60000
+#define VPU_BUSY_CHECK_TIMEOUT          (5*HZ)
+#define VPU_DEC_TIMEOUT                 (10*HZ)
 
 // BIT_RUN command
 enum {

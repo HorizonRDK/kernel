@@ -1007,7 +1007,6 @@ static int jpu_release(struct inode *inode, struct file *filp)
 		jpu_debug(5, "open_count: %d\n", dev->open_count);
 		dev->open_count--;
 		open_count = dev->open_count;
-		spin_unlock(&dev->jpu_spinlock);
 		if (open_count == 0) {
 			if (dev->instance_pool.base) {
 				jpu_debug(5, "free instance pool\n");
@@ -1018,6 +1017,7 @@ static int jpu_release(struct inode *inode, struct file *filp)
 				test_and_clear_bit(i, jpu_inst_bitmap);
 			pm_qos_remove_request(&dev->jpu_pm_qos_req);
 		}
+		spin_unlock(&dev->jpu_spinlock);
 	}
 	kfree(priv);
 	up(&dev->jpu_sem);
