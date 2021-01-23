@@ -1074,6 +1074,33 @@ int ipu_update_scale_info(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 	return ret;
 }
 
+int ipu_update_src_info(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
+{
+	int ret = 0;
+	struct ipu_subdev *subdev;
+	struct vio_framemgr *framemgr;
+	struct ipu_src_cfg src_info;
+	unsigned long flags;
+
+	subdev = ipu_ctx->subdev;
+	framemgr = ipu_ctx->framemgr;
+
+	ret = copy_from_user((void *) &src_info, (u32 __user *) arg,
+		sizeof(struct ipu_src_cfg));
+	if (ret)
+		return -EFAULT;
+
+	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	memcpy(&subdev->src_cfg, &src_info,
+			sizeof(struct ipu_src_cfg));
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
+
+	vio_dbg("[S%d][V%d] %s\n", ipu_ctx->group->instance, ipu_ctx->id,
+		 __func__);
+
+	return ret;
+}
+
 int ipu_update_osd_color_map(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 {
 	int ret = 0;
@@ -1441,6 +1468,40 @@ void ipu_hw_set_info_cfg(struct ipu_subdev *subdev, u32 shadow_index)
 	}
 }
 
+void ipu_hw_set_src_cfg(struct ipu_subdev *subdev, u32 shadow_index)
+{
+	u32 __iomem *base_reg;
+	u32 id = 0;
+	struct ipu_src_cfg *src_cfg;
+
+	id = subdev->id;
+	if (id != GROUP_ID_SRC)
+		return;
+
+	base_reg = subdev->ipu_dev->base_reg;
+
+	src_cfg = &subdev->src_cfg;
+
+	if (src_cfg->info_update) {
+		ipu_set_input_img_size(base_reg, shadow_index,
+				src_cfg->src_info.src_width,
+				src_cfg->src_info.src_height);
+
+		ipu_set_rdma_stride(base_reg, shadow_index,
+				src_cfg->src_info.src_stride_y,
+				src_cfg->src_info.src_stride_uv);
+		src_cfg->info_update = 0;
+		vio_dbg("[s%d] %s src w%d h%d stride y%d uv%d\n",
+				subdev->group->instance, __func__,
+				src_cfg->src_info.src_width,
+				src_cfg->src_info.src_height,
+				src_cfg->src_info.src_stride_y,
+				src_cfg->src_info.src_stride_uv);
+	}
+
+	return;
+}
+
 void ipu_hw_set_cfg(struct ipu_subdev *subdev)
 {
 	u32 __iomem *base_reg;
@@ -1459,6 +1520,7 @@ void ipu_hw_set_cfg(struct ipu_subdev *subdev)
 
 	ipu_hw_set_osd_cfg(subdev, shadow_index);
 	ipu_hw_set_info_cfg(subdev, shadow_index);
+	ipu_hw_set_src_cfg(subdev, shadow_index);
 }
 
 int ipu_update_osd_sta_roi(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
@@ -3080,6 +3142,9 @@ static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 		break;
 	case IPU_IOC_SCALE_INFO:
 		ret = ipu_update_scale_info(ipu_ctx, arg);
+		break;
+	case IPU_IOC_SRC_INFO:
+		ret = ipu_update_src_info(ipu_ctx, arg);
 		break;
 	case IPU_IOC_BIND_GROUP:
 		ret = get_user(instance, (u32 __user *) arg);

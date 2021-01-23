@@ -40,6 +40,7 @@
 #define IPU_IOC_GET_INDEX      	 _IOR(IPU_IOC_MAGIC, 12, int)
 #define IPU_IOC_OSD_COLOR_MAP    _IOW(IPU_IOC_MAGIC, 13, int)
 #define IPU_IOC_SCALE_INFO    	 _IOW(IPU_IOC_MAGIC, 14, int)
+#define IPU_IOC_SRC_INFO    	 _IOW(IPU_IOC_MAGIC, 15, int)
 #define IPU_IOC_USER_STATS       _IOR(IPU_IOC_MAGIC, 16, struct user_statistic)
 #define IPU_IOC_KERNEL_ION       _IOWR(IPU_IOC_MAGIC, 17, kernel_ion_t)
 #define IPU_IOC_SET_FRAME_SKIP_PARAM    _IOWR(IPU_IOC_MAGIC, 18, int)
@@ -64,6 +65,11 @@ struct ipu_osd_cfg{
 
 struct ipu_info_cfg {
 	ipu_ds_info_t sc_info;
+	u32 info_update;
+};
+
+struct ipu_src_cfg {
+	ipu_src_ctrl_t src_info;
 	u32 info_update;
 };
 
@@ -208,6 +214,7 @@ struct ipu_subdev {
 
 	struct ipu_osd_cfg osd_cfg;
 	struct ipu_info_cfg info_cfg;
+	struct ipu_src_cfg src_cfg;
 	ipu_cfg_t ipu_cfg;
 	ipu_ds_info_t scale_cfg;
 	atomic_t pre_enable_flag;
