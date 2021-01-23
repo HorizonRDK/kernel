@@ -52,8 +52,14 @@
 #define ISPIOC_FILL_CTX _IOWR('P', 6, isp_ctx_w_t)
 #define ISPIOC_REG_MEM_RW _IOWR('P', 7, struct regs_mem_t)
 #define ISPIOC_IRQ_WAIT _IOWR('P', 8, isp_irq_wait_s)
+#define ISPIOC_STA_CTRL _IOWR('P', 9, isp_sta_ctrl_t)
 
 #define CHECK_CODE	0xeeff
+
+typedef struct {
+	isp_ctx_r_t isp_ctx;
+	int flag;
+} isp_sta_ctrl_t;
 
 struct metadata_t {
         void *ptr;
@@ -461,6 +467,7 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 	case ISPIOC_FILL_CTX:
 	case ISPIOC_REG_MEM_RW:
 	case ISPIOC_IRQ_WAIT:
+	case ISPIOC_STA_CTRL:
 		break;
 	default:
 		pr_err("command %d not support.\n", cmd);
@@ -804,6 +811,38 @@ buf_free:
 			ret = -EINVAL;
 		}
 		ret = isp_irq_wait_for_completion(isp_wait_info.ctx_id, isp_wait_info.irq_type, isp_wait_info.time_out);
+	}
+	break;
+	case ISPIOC_STA_CTRL:
+	{
+		isp_sta_ctrl_t ctx_ctrl;
+		isp_ctx_node_t *cn = NULL;
+		acamera_context_t *p_ctx;
+
+		if (copy_from_user(&ctx_ctrl, (void __user *)arg, sizeof(ctx_ctrl))) {
+			ret = -EFAULT;
+			break;
+		}
+
+		// isp context save on
+		p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(ctx_ctrl.isp_ctx.ctx_id);
+		if (p_ctx->initialized == 0) {
+			pr_err("%d ctx is not inited.\n", ctx_ctrl.isp_ctx.ctx_id);
+			ret = -EFAULT;
+			break;
+		}
+		if (ctx_ctrl.isp_ctx.type == ISP_CTX)
+			p_ctx->isp_ctxsv_on = ctx_ctrl.flag;
+		else if (ctx_ctrl.isp_ctx.type == ISP_AE)
+			p_ctx->isp_ae_stats_on = ctx_ctrl.flag;
+		else if (ctx_ctrl.isp_ctx.type == ISP_AWB)
+			p_ctx->isp_awb_stats_on = ctx_ctrl.flag;
+		else if (ctx_ctrl.isp_ctx.type == ISP_AF)
+			p_ctx->isp_af_stats_on = ctx_ctrl.flag;
+		else if (ctx_ctrl.isp_ctx.type == ISP_AE_5BIN)
+			p_ctx->isp_ae_5bin_stats_on = ctx_ctrl.flag;
+		else if (ctx_ctrl.isp_ctx.type == ISP_LUMVAR)
+			p_ctx->isp_lumvar_stats_on = ctx_ctrl.flag;
 	}
 	break;
 	default:

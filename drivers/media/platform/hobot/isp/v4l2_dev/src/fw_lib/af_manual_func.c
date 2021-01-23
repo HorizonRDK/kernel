@@ -200,6 +200,7 @@ void af_read_stats_data( AF_fsm_ptr_t p_fsm )
 		cn = isp_ctx_get_node(fw_id, ISP_AF, FREEQ);
 		if (cn) {
 			cn->ctx.frame_id = p_ctx->isp_frame_counter;
+            cn->ctx.timestamps = p_ctx->timestamps;
 			memcpy(cn->base, p_sbuf_af->stats_data, sizeof(p_sbuf_af->stats_data));
 			cn->ctx.crc16 = crc16(~0, cn->base, sizeof(p_sbuf_af->stats_data));
 			isp_ctx_put_node(fw_id, cn, ISP_AF, DONEQ);

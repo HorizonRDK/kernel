@@ -664,6 +664,7 @@ static void isp_ctxsv_work(struct work_struct *w)
 		cn = isp_ctx_get_node(ctx_id, ISP_CTX, FREEQ);
 		if (cn) {
 			cn->ctx.frame_id = p_ctx->isp_frame_counter;
+            cn->ctx.timestamps = p_ctx->timestamps;
 			offset = p_ctx->sw_reg_map.isp_sw_config_map + ACAMERA_DECOMPANDER0_MEM_BASE_ADDR;
 			memcpy_fromio(cn->base, offset, CTX_SIZE);
 			cn->ctx.crc16 = crc16(~0, cn->base, CTX_SIZE);

@@ -207,6 +207,7 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
 	    cn = isp_ctx_get_node(fw_id, ISP_AE, FREEQ);
 	    if (cn) {
 		    cn->ctx.frame_id = p_ctx->isp_frame_counter;
+            cn->ctx.timestamps = p_ctx->timestamps;
 		    memcpy(cn->base, p_fsm->fullhist, sizeof(p_sbuf_ae->stats_data));
 		    cn->ctx.crc16 = crc16(~0, cn->base, sizeof(p_sbuf_ae->stats_data));
 		    isp_ctx_put_node(fw_id, cn, ISP_AE, DONEQ);
@@ -264,6 +265,7 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
 		cn = isp_ctx_get_node(fw_id, ISP_AE_5BIN, FREEQ);
 		if (cn) {
 			cn->ctx.frame_id = p_ctx->isp_frame_counter;
+            cn->ctx.timestamps = p_ctx->timestamps;
 			memcpy(cn->base, p_sbuf_ae->hist4, sizeof(p_sbuf_ae->hist4));
 			cn->ctx.crc16 = crc16(~0, cn->base, sizeof(p_sbuf_ae->hist4));
 			isp_ctx_put_node(fw_id, cn, ISP_AE_5BIN, DONEQ);
@@ -285,6 +287,7 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
 		cn = isp_ctx_get_node(fw_id, ISP_LUMVAR, FREEQ);
 		if (cn) {
 			cn->ctx.frame_id = p_ctx->isp_frame_counter;
+            cn->ctx.timestamps = p_ctx->timestamps;
 			memcpy(cn->base, lumvar, sizeof(lumvar));
 			cn->ctx.crc16 = crc16(~0, cn->base, sizeof(lumvar));
 			isp_ctx_put_node(fw_id, cn, ISP_LUMVAR, DONEQ);

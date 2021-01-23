@@ -294,6 +294,7 @@ void awb_read_statistics( AWB_fsm_t *p_fsm )
 	    cn = isp_ctx_get_node(fw_id, ISP_AWB, FREEQ);
 	    if (cn) {
 		    cn->ctx.frame_id = p_ctx->isp_frame_counter;
+            cn->ctx.timestamps = p_ctx->timestamps;
 		    //memcpy(cn->base, p_sbuf_awb_stats->stats_data, sizeof(p_sbuf_awb_stats->stats_data));
 		    memcpy(cn->base, p_fsm->awb_stats, sizeof(p_sbuf_awb_stats->stats_data));
 		    cn->ctx.crc16 = crc16(~0, cn->base, sizeof(p_sbuf_awb_stats->stats_data));
