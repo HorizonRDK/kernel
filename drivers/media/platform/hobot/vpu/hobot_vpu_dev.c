@@ -4111,7 +4111,7 @@ static int vpu_probe(struct platform_device *pdev)
 	dev->irq = res->start;
 	// TODO Add top half irq and bottom half irq?
 	err = request_threaded_irq(dev->irq, vpu_irq_handler, NULL,
-				   IRQF_ONESHOT, pdev->name, dev);
+				   IRQF_TRIGGER_HIGH, pdev->name, dev);
 	if (err) {
 		dev_err(&pdev->dev,
 			"failed to install register interrupt handler\n");

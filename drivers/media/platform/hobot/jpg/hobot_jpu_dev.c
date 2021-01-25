@@ -1518,7 +1518,7 @@ static int jpu_probe(struct platform_device *pdev)
 	dev->irq = res->start;
 	// TODO Add top half irq and bottom half irq?
 	err = request_threaded_irq(dev->irq, jpu_irq_handler, NULL,
-				   IRQF_TRIGGER_RISING|IRQF_ONESHOT, pdev->name, dev);
+				   IRQF_TRIGGER_RISING, pdev->name, dev);
 	if (err) {
 		dev_err(&pdev->dev,
 			"failed to install register interrupt handler\n");
