@@ -33,13 +33,22 @@
 #define MPU_VIOLT_USR_RESERVED  0xffffffff
 #define MPU_VIOLT_ADDR_RESERVED 0xffffffff
 
-struct cma_info {
+struct ion_cma_info {
 	char *name;
-	phys_addr_t cma_start;
-	unsigned long cma_size;
+	phys_addr_t start;
+	phys_addr_t end;
+};
+
+enum layout_type {
+	ION_LAYOUT_INVAL,
+	ION_LAYOUT_POOL_ONLY, /* one ion-cma */
+	ION_LAYOUT_CMA_ONLY,  /* one ion-pool */
+	ION_LAYOUT_POOL_CMA,  /* ion-pool and ion-cma */
+	ION_LAYOUT_END,
 };
 
 static struct mpu_protection mpu_prt;
+static enum layout_type ion_layout = ION_LAYOUT_INVAL;
 
 extern u32 read_axibus_reg(void);
 
@@ -51,6 +60,10 @@ module_param(print_stack, int, 0644);
 
 static int print_axicfg = 1;
 module_param(print_axicfg, int, 0644);
+
+/* add hobot_ddr_mpu.dis_vio_prot=1 in cmdline to disable MPU protection */
+static int dis_vio_prot = 0;
+module_param(dis_vio_prot, int, 0644);
 
 char *fw_user_id_tbl[FW_USR_ID_FW_USR_ID_MAX] = {
     "CA53",                     //0
@@ -306,26 +319,30 @@ static irqreturn_t mpu_protection_isr(int this_irq, void *data)
 }
 
 /*
- * This is cma_for_each_area iterator, get cma_start address and size
+ * This is cma_for_each_area iterator, get start address and size
  * for matched cma name.
  */
 static int cma_get_range(struct cma *cma, void *data)
 {
-	struct cma_info *info = (struct cma_info *)data;
+	struct ion_cma_info *info = (struct ion_cma_info *)data;
 	const char *name = cma_get_name(cma);
 
 	if (!strncmp(info->name, name, strlen(name))) {
-		info->cma_start = cma_get_base(cma);
-		info->cma_size = cma_get_size(cma);
-		pr_debug("got cma name:%s, cma_base:0x%08x, size:0x%08x\n",
-			info->name, (u32)info->cma_start, (u32)info->cma_size);
+		info->start = cma_get_base(cma);
+		info->end = info->start + cma_get_size(cma);
+		pr_debug("got cma name:%s, cma_start:0x%08x, end:0x%08x\n",
+			info->name, (u32)info->start, (u32)info->end);
 		return 1;
 	}
 
 	return 0;
 }
 
-static int ion_is_in_range(u32 phy_start, u32 phy_end)
+/*
+ * This is cma_for_each_area iterator, get start address and size
+ * for matched cma name.
+ */
+static int ion_get_range(struct ion_cma_info *info)
 {
 	struct device_node *node;
 	struct resource ion_res;
@@ -333,7 +350,7 @@ static int ion_is_in_range(u32 phy_start, u32 phy_end)
 
 	node = of_find_node_by_path("/reserved-memory");
 	if (node) {
-		node = of_find_compatible_node(node, NULL, "ion-pool");
+		node = of_find_compatible_node(node, NULL, info->name);
 		if (node) {
 			status = of_get_property(node, "status", NULL);
 			if ((!status) || (strcmp(status, "okay") == 0)
@@ -341,71 +358,142 @@ static int ion_is_in_range(u32 phy_start, u32 phy_end)
 				if (!of_address_to_resource(node, 0, &ion_res)) {
 					pr_debug("%s:ION Carveout MEM start 0x%llx, size 0x%llx\n",
 							__func__, ion_res.start, ion_res.end);
-					if((phy_start <= ion_res.start) &&
-						(phy_end >= (ion_res.end))) {
-						pr_debug("ion is in range :%08x - %08x\n",
-								phy_start, phy_end);
-						return 1;
-					}
+					info->start = ion_res.start;
+					info->end = ion_res.end + 1;
+					return 1;
 				}
 			}
 		}
 	}
 
+	pr_debug("%s: failed to get range for %s\n", __func__, info->name);
+
 	return 0;
 }
 
 /*
- * MPU Protect ranges:
- * range0: bl31 + .text + .rodata, CPU only
- * range1: from .init to cma start, block BPU,VIO,VPU
- * range2: from ion_cma end to reserved cma start, block BPU,VIO,VPU
+ * MPU Protects non-ion/cma area from being written by BPU、VIO、VPU
+ * range0 is CPU only, range1/2/3 block BPU,VIO,VPU writing
+ * Support 2 kinds of memory layout
+ *
+ * 1.only ion-pool or only ion-cma:
+ *
+ * |    range0     |   range1   |                     |   range2    |
+ * ---------------------------------------------------------------------------------
+ * | BL31 - Kernel | kernel/user|    ion-pool/ion-cma | kernel/user | cma-reserved |
+ * ^---------------^------------^---------------------^-------------^--------------^
+ * 0x0           0xDC5000      0x4000000           0x2E000000     0x3F000000   0x4000000
+ *
+ * 2.one ion-pool and one ion-cma area:
+ * |   range0      |   range1   |           |  range2    |               |   range3    |
+ * ---------------------------------------------------------------------------------------------------
+ * | BL31 - Kernel | kernel/user| ion-pool  | kernel/user|     ion-cma   | kernel/user | cma-reserved|
+ * ^---------------^------------^-----------^------------^---------------^-------------^-------------^
+ * 0x0          0xDC5000     0x4000000   0x14000000    0x40000000    0x6000000     0x7f000000     0x8000000
+ *
  */
+
 static int ddr_mpu_protect_kernel(void)
 {
-	u32 phy_start0 = 0;
+	u32 phy_start0 = 0x0;
 	u32 phy_end0   = virt_to_phys(__end_rodata);
 	u32 phy_start1 = virt_to_phys(_sinittext);
-	u32 phy_end1   = 0; /* cma start */
-	u32 phy_start2 = 0; /* cma end   */
-	u32 phy_end2   = 0; /* end of memory */
-	struct cma_info ion_cma = {"ion_cma", 0, 0};
-	struct cma_info reserved_cma = {"reserved", 0, 0};
+	u32 phy_end1   = 0;
+	u32 phy_start2 = 0;
+	u32 phy_end2   = 0;
+	u32 phy_start3 = 0;
+	u32 phy_end3   = 0;
+	struct ion_cma_info ion_cma = {"ion_cma", 0, 0};
+	struct ion_cma_info ion_pool = {"ion-pool", 0, 0};
+	struct ion_cma_info reserved_cma = {"reserved", 0, 0};
+	int ret;
 
-	cma_for_each_area(cma_get_range, &ion_cma);
-	cma_for_each_area(cma_get_range, &reserved_cma);
+	ret = cma_for_each_area(cma_get_range, &reserved_cma);
+	if (ret == 0) {
+		pr_err("reserved_cma not found, skip mpu protection\n");
+		return -EINVAL;
+	}
 
-	phy_end1 = (u32)ion_cma.cma_start;
-	phy_start2 = (u32)ion_cma.cma_start + (u32)ion_cma.cma_size;
-	phy_end2 = reserved_cma.cma_start;
+	/*
+	 * only protect two types of layout, skip if not matched
+	 * 1. one ion_cma or ion_pool area
+	 * 2. one ion_pool and one ion_cma
+	 */
+	ret = cma_for_each_area(cma_get_range, &ion_cma);
+	if (ret == 0) {
+		/* check ion_pool if ion_cma not enabled */
+		ret = ion_get_range(&ion_pool);
+		if (ret) {
+			ion_layout = ION_LAYOUT_POOL_ONLY;
+		} else {
+			pr_err("failed to get ion_cma and ion_pool, skip mpu protection\n");
+			return -EINVAL;
+		}
+	} else {
+		/* check ion_pool when ion_cma enabled */
+		ret = ion_get_range(&ion_pool);
+		if (ret) {
+			ion_layout = ION_LAYOUT_POOL_CMA;
+		} else {
+			ion_layout = ION_LAYOUT_CMA_ONLY;
+		}
+	}
+
+	pr_debug("%s: ion_layout: %d\n", __func__, ion_layout);
+	pr_debug("%s: name:%s, start:0x%08llx, end:0x%08llx\n",
+			__func__, ion_cma.name, ion_cma.start, ion_cma.end);
+	pr_debug("%s: name:%s, start:0x%08llx, end:0x%08llx\n",
+			__func__, ion_pool.name, ion_pool.start, ion_pool.end);
+	pr_debug("%s: name:%s, start:0x%08llx, end:0x%08llx\n",
+			__func__, reserved_cma.name, reserved_cma.start, reserved_cma.end);
+
+
+	if (ion_layout == ION_LAYOUT_POOL_ONLY) {
+		phy_end1   = (u32)ion_pool.start;
+		phy_start2 = (u32)ion_pool.end;
+		phy_end2   = (u32)reserved_cma.start;
+	} else if (ion_layout == ION_LAYOUT_CMA_ONLY) {
+		phy_end1   = (u32)ion_cma.start;
+		phy_start2 = (u32)ion_cma.end;
+		phy_end2   = (u32)reserved_cma.start;
+	} else if (ion_layout == ION_LAYOUT_POOL_CMA) {
+		if (ion_pool.end > ion_cma.start) {
+			pr_err("%s: ion_pool isn't in front of ion_cma area\n", __func__);
+			return -EINVAL;
+		}
+		phy_end1   = (u32)ion_pool.start;
+		phy_start2 = (u32)ion_pool.end + 1;
+		phy_end2   = (u32)ion_cma.start;
+		phy_start3 = (u32)ion_cma.end;
+		phy_end3   = (u32)reserved_cma.start;
+	}
 
 	pr_debug("Protect range0 [0x%08x - 0x%08x]\n", phy_start0, phy_end0);
 	pr_debug("Protect range1 [0x%08x - 0x%08x]\n", phy_start1, phy_end1);
 	pr_debug("Protect range2 [0x%08x - 0x%08x]\n", phy_start2, phy_end2);
+	pr_debug("Protect range3 [0x%08x - 0x%08x]\n", phy_start3, phy_end3);
 
 	/* range 0: protect BL31, kernel .text and .rodata; CPU only */
-	writel(phy_end0 >> 12, mpu_prt.secreg + MPU_E_RANGE0);
-	writel(0xF1FFFFFE, mpu_prt.secreg + MPU_RANGE0_WUSER);
+	writel(phy_start0 >> 12, mpu_prt.secreg + MPU_S_RANGE0);
+	writel(phy_end0   >> 12, mpu_prt.secreg + MPU_E_RANGE0);
+	writel(0xFFFFFFFE, mpu_prt.secreg + MPU_RANGE0_WUSER);
 
-	/* range 1, from kernel .init to CMA start, block BPU,VIO,VPU */
+	/* range 1, block BPU,VIO,VPU */
 	writel(phy_start1 >> 12, mpu_prt.secreg + MPU_S_RANGE1);
-	writel(phy_end1 >> 12, mpu_prt.secreg + MPU_E_RANGE1);
-	if (ion_is_in_range(phy_start1, phy_end1))
-		/*
-		 * FIXME: optimize range 1 protection for J3 later
-		 * VIO will use carveout memory  when cma_alloc failed
-		 */
-		writel(0x00000000, mpu_prt.secreg + MPU_RANGE1_WUSER);
-	else
-		writel(0xE000F000, mpu_prt.secreg + MPU_RANGE1_WUSER);
+	writel(phy_end1   >> 12, mpu_prt.secreg + MPU_E_RANGE1);
+	writel(0xE000F000, mpu_prt.secreg + MPU_RANGE1_WUSER);
 
-	/* range 2, from CMA end to memory end, block BPU,VIO,VPU */
+	/* range 2, block BPU,VIO,VPU */
 	writel(phy_start2 >> 12, mpu_prt.secreg + MPU_S_RANGE2);
-	writel(phy_end2 >> 12, mpu_prt.secreg + MPU_E_RANGE2);
-	if (ion_is_in_range(phy_start2, phy_end2))
-		writel(0x00000000, mpu_prt.secreg + MPU_RANGE2_WUSER);
-	else
-		writel(0xE000F000, mpu_prt.secreg + MPU_RANGE2_WUSER);
+	writel(phy_end2   >> 12, mpu_prt.secreg + MPU_E_RANGE2);
+	writel(0xE000F000, mpu_prt.secreg + MPU_RANGE2_WUSER);
+
+	if (phy_start3 > 0 && phy_end3 > phy_start2) {
+		/* range 3, block BPU,VIO,VPU */
+		writel(phy_start3 >> 12, mpu_prt.secreg + MPU_S_RANGE3);
+		writel(phy_end3   >> 12, mpu_prt.secreg + MPU_E_RANGE3);
+		writel(0xE000F000, mpu_prt.secreg + MPU_RANGE3_WUSER);
+	}
 
 	return 0;
 }
@@ -466,7 +554,8 @@ int ddr_mpu_init(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
-	ddr_mpu_protect_kernel();
+	if (!dis_vio_prot)
+		ddr_mpu_protect_kernel();
 
 	return 0;
 }
