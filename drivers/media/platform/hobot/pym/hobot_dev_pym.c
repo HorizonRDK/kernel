@@ -44,8 +44,6 @@ void pym_hw_enable(struct x3_pym_dev *pym, bool enable);
 extern struct ion_device *hb_ion_dev;
 static struct pm_qos_request pym_pm_qos_req;
 static struct mutex pym_mutex;
-extern int ipu_front_online(void);
-static int join_vio_reset = 0;
 
 static int x3_pym_open(struct inode *inode, struct file *file)
 {
@@ -54,6 +52,7 @@ static int x3_pym_open(struct inode *inode, struct file *file)
 	int ret = 0;
 	int minor;
 
+	vio_rst_mutex_lock();
 	minor = MINOR(inode->i_rdev);
 
 	pym = container_of(inode->i_cdev, struct x3_pym_dev, cdev);
@@ -90,6 +89,7 @@ static int x3_pym_open(struct inode *inode, struct file *file)
 	mutex_unlock(&pym_mutex);
 
 p_err:
+	vio_rst_mutex_unlock();
 
 	return ret;
 }
@@ -246,12 +246,14 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 	int instance = 0;
 	unsigned long flags;
 
+	vio_rst_mutex_lock();
 	pym_ctx = file->private_data;
 	pym = pym_ctx->pym_dev;
 	if (pym_ctx->state & BIT(VIO_VIDEO_OPEN)) {
 		vio_info("[Sx][V%d] %s: only open.\n", pym_ctx->id, __func__);
 		atomic_dec(&pym->open_cnt);
 		kfree(pym_ctx);
+		vio_rst_mutex_unlock();
 		return 0;
 	}
 
@@ -304,8 +306,7 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 				vio_info("pym group already NULL\n");
 		}
 		pym_hw_enable(pym, false);
-		if (join_vio_reset &&
-			ipu_front_online() && test_bit(PYM_OTF_INPUT, &pym->state)) {
+		if (test_bit(PYM_OTF_INPUT, &pym->state)) {
 			vio_reset_module(PYM_RST);
 		} else {
 			ips_set_module_reset(PYM_RST);
@@ -328,6 +329,7 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 	subdev->ctx[pym_ctx->ctx_index] = NULL;
 	spin_unlock_irqrestore(&subdev->slock, flags);
 	kfree(pym_ctx);
+	vio_rst_mutex_unlock();
 
 	vio_info("[S%d] PYM close node\n", group->instance);
 	return 0;
@@ -786,6 +788,9 @@ int pym_video_init(struct pym_video_ctx *pym_ctx, unsigned long arg)
 		}else{
 			set_bit(PYM_OTF_INPUT, &pym_dev->state);
 			set_bit(VIO_GROUP_OTF_INPUT, &group->state);
+			vio_rst_mutex_lock();
+			vio_down_func_register(PYM_RST, &pym_down);
+			vio_rst_mutex_unlock();
 		}
 	}else{
 		if (test_bit(PYM_OTF_INPUT, &pym_dev->state)) {
@@ -856,12 +861,6 @@ int pym_video_streamon(struct pym_video_ctx *pym_ctx)
 
 	set_bit(PYM_HW_RUN, &pym_dev->state);
 
-	if (join_vio_reset &&
-		ipu_front_online() && test_bit(PYM_OTF_INPUT, &pym_dev->state)) {
-		vio_rst_mutex_lock();
-		vio_down_func_register(PYM_RST, &pym_down);
-		vio_rst_mutex_unlock();
-	}
 p_inc:
 	atomic_inc(&pym_dev->rsccount);
 	pym_ctx->state = BIT(VIO_VIDEO_START);

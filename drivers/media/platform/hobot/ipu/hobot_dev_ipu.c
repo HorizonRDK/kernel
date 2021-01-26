@@ -55,6 +55,7 @@ int ipu_hw_enable_channel(struct ipu_subdev *subdev, bool enable);
 void ipu_frame_ndone(struct ipu_subdev *subdev);
 void ipu_frame_done(struct ipu_subdev *subdev);
 
+
 extern struct ion_device *hb_ion_dev;
 static struct pm_qos_request ipu_pm_qos_req;
 
@@ -66,13 +67,6 @@ static int next_frame_disable_out = 0;
 static int g_ipu_fps[VIO_MAX_STREAM][7] = {0, };
 static int g_ipu_idx[VIO_MAX_STREAM][7] = {0, };
 static int g_ipu_fps_lasttime[VIO_MAX_STREAM][7] = {0, };
-static int isp_ipu_online;
-
-int ipu_front_online(void)
-{
-	return isp_ipu_online;
-}
-EXPORT_SYMBOL(ipu_front_online);
 
 static int x3_ipu_open(struct inode *inode, struct file *file)
 {
@@ -106,8 +100,7 @@ static int x3_ipu_open(struct inode *inode, struct file *file)
 		goto p_err;
 	}
 	if (atomic_inc_return(&ipu->open_cnt) == 1) {
-		if (!pm_qos_request_active(&ipu_pm_qos_req))
-			pm_qos_add_request(&ipu_pm_qos_req, PM_QOS_DEVFREQ, 10000);
+		pm_qos_add_request(&ipu_pm_qos_req, PM_QOS_DEVFREQ, 10000);
 		msleep(100);
 		atomic_set(&ipu->backup_fcount, 0);
 		atomic_set(&ipu->sensor_fcount, 0);
@@ -1747,7 +1740,6 @@ int ipu_set_path_attr(struct ipu_subdev *subdev, ipu_cfg_t *ipu_cfg)
 		}else{
 			set_bit(IPU_OTF_INPUT, &ipu->state);
 			set_bit(VIO_GROUP_OTF_INPUT, &group->state);
-			isp_ipu_online = 1;
 			vio_rst_mutex_lock();
 			vio_down_func_register(IPU0_RST, &ipu_down);
 			vio_rst_mutex_unlock();
@@ -1763,7 +1755,6 @@ int ipu_set_path_attr(struct ipu_subdev *subdev, ipu_cfg_t *ipu_cfg)
 		} else {
 			set_bit(IPU_DMA_INPUT, &ipu->state);
 			set_bit(VIO_GROUP_DMA_INPUT, &group->state);
-			isp_ipu_online = 0;
 		}
 	}
 
@@ -2233,9 +2224,8 @@ int ipu_video_streamoff(struct ipu_video_ctx *ipu_ctx)
 	subdev = ipu_ctx->subdev;
 
 	/* last process of this sub_mp */
-	if (atomic_read(&subdev->refcount) == 1) {
+	if (atomic_read(&subdev->refcount) == 1)
 		ipu_channel_wdma_enable(subdev, false);
-	}
 
 	if (atomic_dec_return(&ipu_dev->rsccount) > 0
 		&& !test_bit(IPU_HW_FORCE_STOP, &ipu_dev->state))
