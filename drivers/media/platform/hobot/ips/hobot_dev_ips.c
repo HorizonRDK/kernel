@@ -10,7 +10,6 @@
  * (at your option) any later version.
  */
 
-#define pr_fmt(fmt) "[ips_drv]: %s: " fmt, __func__
 #include <linux/delay.h>
 #include <linux/slab.h>
 #include <linux/clk.h>

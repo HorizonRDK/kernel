@@ -509,39 +509,12 @@ int dwe_reset_api(dwe_context_t *ctx)
 	return ret;
 }
 
-void ldc_reset(void)
-{
-	uint32_t reg;
-	pr_debug("+");
-
-	reg = 0x03;
-	set_ldc_soft_reset(dev_ptr->ldc_dev->io_vaddr, &reg);
-	reg = 0x02;
-	set_ldc_soft_reset(dev_ptr->ldc_dev->io_vaddr, &reg);
-
-	ips_set_module_reset(DWE0_RST);
-	pr_debug("-");
-}
-
-void ldc_clk_disable(void)
-{
-	pr_debug("+");
-	ips_set_clk_ctrl(LDC0_CLOCK_GATE, false);
-	ips_set_clk_ctrl(DWE0_CLOCK_GATE, false);
-	pr_debug("-");
-}
-
-vio_module_down_t ldc_down = {
-	.rst_cb = ldc_reset,
-	.clk_cb = ldc_clk_disable,
-};
-
 void dwe_sw_init(void)
 {
 	uint32_t tmp = 0;
 
 	gdc_rst_func();
-	ips_set_module_reset(DWE0_RST);
+
 	//init ldc
 	tmp = 0x03;
 	set_ldc_soft_reset(dev_ptr->ldc_dev->io_vaddr, &tmp);
@@ -585,15 +558,12 @@ void dwe_sw_init(void)
 	set_chn_dis_addr(dev_ptr->dis_dev->io_vaddr, &dma_addr, 1);
 	set_chn_dis_addr(dev_ptr->dis_dev->io_vaddr, &dma_addr, 2);
 	set_chn_dis_addr(dev_ptr->dis_dev->io_vaddr, &dma_addr, 3);
-
-	vio_down_func_register(LDC_RST, &ldc_down);
 }
 
 extern void reset_dwe_ctx(void);
 
 void dwe_sw_deinit(void)
 {
-#if 0
 	uint32_t tmp = 0;
 	uint32_t tmp_dis = 0;
 	uint32_t count = 0;
@@ -608,7 +578,7 @@ void dwe_sw_deinit(void)
 		}
 		count++;
 	}
-
+#if 0
 	//init ldc
 	tmp = 0x03;
 	set_ldc_soft_reset(dev_ptr->ldc_dev->io_vaddr, &tmp);
@@ -646,10 +616,8 @@ void dwe_sw_deinit(void)
 	tmp = 0x03;
 	set_ldc_soft_reset(dev_ptr->ldc_dev->io_vaddr, &tmp);
 #endif
-
-	ldc_reset();
-	vio_reset_module(LDC_RST);
 	vio_ldc_access_mutex_lock();
+	// gdc_rst_func();
 	vio_set_ldc_rst_flag(1);
 	vio_ldc_access_mutex_unlock();
 	reset_dwe_ctx();
@@ -945,7 +913,7 @@ int ldc_hwpath_set(dwe_context_t *ctx, uint32_t port)
 		set_ldc_int_mask(dev_ptr->ldc_dev->io_vaddr, &set_tmp);
 	}
 
-	pr_debug("ldc_hwpath_set success!");
+	LOG(LOG_DEBUG, "ldc_hwpath_set success!");
 	return ret;
 }
 

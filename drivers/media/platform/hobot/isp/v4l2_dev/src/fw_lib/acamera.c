@@ -1032,7 +1032,7 @@ int sif_isp_ctx_sync_func(int ctx_id)
 	mutex_lock(&g_firmware.ctx_chg_lock);
 	p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[ctx_id];
 	if (p_ctx->initialized == 0) {
-		pr_err("ctx %d closed.\n", ctx_id);
+		pr_err("pipe[%d] has closed!!!\n", ctx_id);
 		mutex_unlock(&g_firmware.ctx_chg_lock);
 		return -1;
 	}
@@ -1270,11 +1270,6 @@ int32_t acamera_interrupt_handler()
     // clear irq vector
     acamera_isp_isp_global_interrupt_clear_write( 0, 0 );
     acamera_isp_isp_global_interrupt_clear_write( 0, 1 );
-
-	if (p_ctx->initialized == 0) {
-        pr_debug("ctx %d closed.\n", cur_ctx_id);
-		return 0;
-	}
 
     if ( irq_mask > 0 ) {
         //check for errors in the interrupt
