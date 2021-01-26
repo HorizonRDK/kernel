@@ -508,8 +508,10 @@ static int isp_v4l2_streamon( struct file *file, void *priv, enum v4l2_buf_type 
     mutex_lock(&init_lock);
     if (isp_stream_onoff_check() == 0) {
             rc = acamera_fw_isp_start(dev->ctx_id);
-            if (rc != 0)
+            if (rc != 0) {
+                mutex_unlock(&init_lock);
                 return rc;
+            }
     }
     mutex_unlock(&init_lock);
 
