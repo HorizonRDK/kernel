@@ -751,7 +751,8 @@ int sif_bind_chain_group(struct sif_video_ctx *sif_ctx, int instance)
 		subdev->id = sif_ctx->id;
 	}
 	if (atomic_read(&subdev->refcount) >= 1) {
-		vio_err("%s more than one pipeline bind\n", __func__);
+		vio_err("%s instance %d more than one pipeline bind\n",
+			__func__, instance);
 		return -EFAULT;
 	}
 
@@ -832,6 +833,21 @@ int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 
 	isp_enable = subdev->sif_cfg.output.isp.enable;
 	mutex_lock(&sif_dev->shared_mutex);
+	if (sif_ctx->id == 0) {
+		vio_info("[S%d][V%d]%s mux_index %d \n",
+			sif_ctx->group->instance, sif_ctx->id, __func__,
+			subdev->mux_index);
+		sif_enable_frame_intr(sif_dev->base_reg, subdev->mux_index, true);
+		if(subdev->ddr_mux_index != subdev->mux_index) {
+			sif_enable_frame_intr(sif_dev->base_reg, subdev->ddr_mux_index, true);
+		}
+		if(subdev->dol_num > 1) {
+			sif_enable_frame_intr(sif_dev->base_reg, subdev->mux_index + 1, true);
+		}
+		if(subdev->dol_num > 2) {
+			sif_enable_frame_intr(sif_dev->base_reg, subdev->mux_index + 2, true);
+		}
+	}
 	if (isp_enable && atomic_read(&sif_dev->isp_init_cnt) == 0) {
 		sif_raw_isp_output_config(sif_dev->base_reg, &subdev->sif_cfg.output);
 	}
