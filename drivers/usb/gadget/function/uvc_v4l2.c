@@ -329,12 +329,20 @@ uvc_v4l2_release(struct file *file)
 	struct uvc_file_handle *handle = to_uvc_file_handle(file->private_data);
 	struct uvc_video *video = handle->device;
 
-	uvc_function_disconnect(uvc);
-
 	mutex_lock(&video->mutex);
 	uvcg_video_enable(video, 0);
 	uvcg_free_buffers(&video->queue);
 	mutex_unlock(&video->mutex);
+
+	/*
+	 * keep disconnect behind uvcg_video_enable,
+	 * to avoid dwc3_gadget_run_stop timeout issue in some case.
+	 * eg. host media app close, gadget will have 4 queued urb blocked in
+	 * usb controller. Then usb controller couldn't stop in this situation.
+	 * Therefore, move uvcg_video_enable(video, 0) in front, which will
+	 * do usb_ep_dequeue for every blocked urb.
+	 */
+	uvc_function_disconnect(uvc);
 
 	file->private_data = NULL;
 	v4l2_fh_del(&handle->vfh);
