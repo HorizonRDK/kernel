@@ -333,7 +333,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 			clear_bit(VIO_GROUP_LEADER, &group->state);
 			clear_bit(VIO_GROUP_INIT, &group->state);
 			clear_bit(VIO_GROUP_IPU_DS2_DMA_OUTPUT, &group->state);
-			group->frame_work = NULL;
+			// group->frame_work = NULL;
 		}
 		subdev->info_cfg.info_update = 0;
 		subdev->cur_enable_flag = 0;
@@ -693,6 +693,13 @@ void ipu_frame_work(struct vio_group *group)
 		vio_err("%s group%d sub mp 0 err.\n", __func__, instance);
 		return;
 	}
+
+	ipu = subdev->ipu_dev;
+	vio_rst_mutex_lock();
+	if (atomic_read(&ipu->open_cnt) == 0) {
+		vio_rst_mutex_unlock();
+		return;
+	}
 	src_subdev = group->sub_ctx[GROUP_ID_SRC];
 	if (src_subdev->ipu_cfg.ctrl_info.source_sel == IPU_FROM_DDR_YUV420) {
 		framemgr = &subdev->framemgr;
@@ -711,7 +718,6 @@ void ipu_frame_work(struct vio_group *group)
 		}
 		framemgr_x_barrier_irqr(framemgr, 0, flags);
 	}
-	ipu = subdev->ipu_dev;
 	if (instance < MAX_SHADOW_NUM)
 		shadow_index = instance;
 	vio_dbg("[S%d]%s start\n", instance, __func__);
@@ -966,6 +972,7 @@ end_req_to_pro:
 	if (!test_bit(IPU_HW_CONFIG, &ipu->state)) {
 		set_bit(IPU_HW_CONFIG, &ipu->state);
 	}
+	vio_rst_mutex_unlock();
 
 	vio_dbg("[S%d]%s done; rdy = %d\n", instance, __func__, rdy);
 }
