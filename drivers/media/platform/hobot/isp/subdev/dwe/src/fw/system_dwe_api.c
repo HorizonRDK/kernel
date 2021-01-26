@@ -514,6 +514,7 @@ void dwe_sw_init(void)
 	uint32_t tmp = 0;
 
 	gdc_rst_func();
+	ips_set_module_reset(DWE0_RST);
 
 	//init ldc
 	tmp = 0x03;
@@ -616,6 +617,7 @@ void dwe_sw_deinit(void)
 	tmp = 0x03;
 	set_ldc_soft_reset(dev_ptr->ldc_dev->io_vaddr, &tmp);
 #endif
+	ips_set_module_reset(DWE0_RST);
 	vio_ldc_access_mutex_lock();
 	// gdc_rst_func();
 	vio_set_ldc_rst_flag(1);
