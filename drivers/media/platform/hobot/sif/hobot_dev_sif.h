@@ -203,6 +203,15 @@ enum sif_subdev_state {
 	SIF_SUBDEV_STREAM_OFF,
 };
 
+typedef struct fps_ctrl_s {
+	unsigned int skip_frame;
+	unsigned int curr_cnt;
+	unsigned int in_fps;
+	unsigned int out_fps;
+	atomic_t lost_next_frame;
+	atomic_t lost_this_frame;
+}fps_ctrl_t;
+
 struct sif_subdev {
 	spinlock_t 		slock;
 	unsigned long 	val_ctx_mask;
@@ -233,6 +242,8 @@ struct sif_subdev {
 	u32 md_refresh_count;
 	u64 bufcount;
 	u32 id;
+
+	fps_ctrl_t fps_ctrl;
 };
 
 

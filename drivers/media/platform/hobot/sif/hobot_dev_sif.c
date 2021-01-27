@@ -244,20 +244,30 @@ void sif_write_frame_work(struct vio_group *group)
 		yuv_format = (frame->frameinfo.format == HW_FORMAT_YUV422);
 		sif_set_wdma_buf_addr(sif->base_reg, mux_index, buf_index,
 				      frame->frameinfo.addr[0]);
-		sif_transfer_ddr_owner(sif->base_reg, mux_index, buf_index);
+		if (subdev->fps_ctrl.skip_frame) {
+			frame->hw_idx = buf_index;
+		} else {
+			sif_transfer_ddr_owner(sif->base_reg, mux_index, buf_index);
+		}
 
 		if (yuv_format || subdev->dol_num > 1) {
 			sif_set_wdma_buf_addr(sif->base_reg, mux_index + 1,
 					      buf_index, frame->frameinfo.addr[1]);
-			sif_transfer_ddr_owner(sif->base_reg, mux_index + 1,
-					       buf_index);
+			if (subdev->fps_ctrl.skip_frame) {
+				frame->hw_idx = buf_index;
+			} else {
+				sif_transfer_ddr_owner(sif->base_reg, mux_index+1, buf_index);
+			}
 		}
 
 		if (subdev->dol_num > 2) {
 			sif_set_wdma_buf_addr(sif->base_reg, mux_index + 2,
 					      buf_index, frame->frameinfo.addr[2]);
-			sif_transfer_ddr_owner(sif->base_reg, mux_index + 2,
-					       buf_index);
+			if (subdev->fps_ctrl.skip_frame) {
+				frame->hw_idx = buf_index;
+			} else {
+				sif_transfer_ddr_owner(sif->base_reg, mux_index+2, buf_index);
+			}
 		}
 		trans_frame(framemgr, frame, FS_PROCESS);
 		subdev->bufcount++;
@@ -384,7 +394,7 @@ static u32 x3_sif_poll(struct file *file, struct poll_table_struct *wait)
 
 	return ret;
 }
-
+void sif_fps_ctrl_deinit(struct sif_subdev *subdev);
 static int x3_sif_close(struct inode *inode, struct file *file)
 {
 	struct sif_video_ctx *sif_ctx;
@@ -436,6 +446,7 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 				clear_bit(subdev->mux_index + 2, &sif->mux_mask);
 				clear_bit(subdev->ddr_mux_index + 2, &sif->mux_mask);
 			}
+			sif_fps_ctrl_deinit(subdev);
 		}
 
 		group = subdev->group;
@@ -720,6 +731,39 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 
 	return ret;
 }
+/* sif->ddr scenario, Initialize sif skip frame param */
+void sif_fps_ctrl_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
+{
+	fps_ctrl_t *fps_ctrl = &subdev->fps_ctrl;
+
+	fps_ctrl->skip_frame = sif_config->output.ddr.fps_cfg.hw_skip_frame;
+	fps_ctrl->in_fps = sif_config->output.ddr.fps_cfg.in_fps;
+	fps_ctrl->out_fps = sif_config->output.ddr.fps_cfg.out_fps;
+	fps_ctrl->curr_cnt = 0;
+
+	/* need fps ctrl */
+	if (fps_ctrl->skip_frame) {
+		/* must lost first frame */
+		atomic_set(&fps_ctrl->lost_this_frame, 1);
+	} else {
+		atomic_set(&fps_ctrl->lost_this_frame, 0);
+	}
+	vio_dbg("skip_frame=%d,in_fps:%d, out_fps=%d\n",
+			fps_ctrl->skip_frame, fps_ctrl->in_fps, fps_ctrl->out_fps);
+	return;
+}
+void sif_fps_ctrl_deinit(struct sif_subdev *subdev)
+{
+	fps_ctrl_t *fps_ctrl = &subdev->fps_ctrl;
+	fps_ctrl->skip_frame = 0;
+	fps_ctrl->in_fps = 0;
+	fps_ctrl->out_fps = 0;
+	fps_ctrl->curr_cnt = 0;
+	atomic_set(&fps_ctrl->lost_next_frame, 0);
+	atomic_set(&fps_ctrl->lost_this_frame, 0);
+
+	return;
+}
 
 int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 {
@@ -756,6 +800,7 @@ int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 	mutex_lock(&sif->shared_mutex);
 	if (sif_ctx->id == 0) {
 		ret = sif_mux_init(subdev, sif_config);
+		sif_fps_ctrl_init(subdev, sif_config);
 	} else if (sif_ctx->id == 1) {
 		subdev->dol_num = sif_config->output.isp.dol_exp_num;
 		memcpy(&subdev->ddrin_fmt, &sif_config->input.ddr.data,
@@ -1596,6 +1641,50 @@ struct sif_subdev *sif_find_overflow_subdev(struct x3_sif_dev *sif, u32 mux)
 
 	return NULL;
 }
+static void subdev_balance_lost_next_frame(struct sif_subdev *subdev)
+{
+	int lost_flag;
+	fps_ctrl_t *fps_ctrl = &subdev->fps_ctrl;
+
+	if ((fps_ctrl->in_fps) && (fps_ctrl->out_fps)) {
+		lost_flag = atomic_read(&fps_ctrl->lost_next_frame);
+		atomic_set(&fps_ctrl->lost_this_frame, lost_flag);
+		fps_ctrl->curr_cnt += fps_ctrl->out_fps;
+		if (fps_ctrl->curr_cnt < fps_ctrl->in_fps) {
+			atomic_set(&fps_ctrl->lost_next_frame, 1);
+		} else {
+			fps_ctrl->curr_cnt -= fps_ctrl->in_fps;
+			atomic_set(&fps_ctrl->lost_next_frame, 0);
+		}
+		vio_dbg("[S%d][V%d]%s lost_this = 0x%x, lost_next = 0x%x,",
+				subdev->group->instance, subdev->id, __func__,
+				atomic_read(&fps_ctrl->lost_this_frame),
+				atomic_read(&fps_ctrl->lost_next_frame));
+	}
+
+	return;
+}
+static void subdev_set_frm_owner(struct sif_subdev *subdev,
+									struct x3_sif_dev *sif, u32 mux_index)
+{
+	struct vio_framemgr *framemgr;
+	struct vio_frame *frame;
+	u32 yuv_format = 0;
+
+	framemgr = &subdev->framemgr;
+	frame = peek_frame(framemgr, FS_PROCESS);
+	if (frame) {
+		sif_transfer_ddr_owner(sif->base_reg, mux_index, frame->hw_idx);
+		yuv_format = (frame->frameinfo.format == HW_FORMAT_YUV422);
+		if (yuv_format || subdev->dol_num > 1) {
+			sif_transfer_ddr_owner(sif->base_reg, mux_index+1, frame->hw_idx);
+		}
+		if (subdev->dol_num > 2) {
+			sif_transfer_ddr_owner(sif->base_reg, mux_index+2, frame->hw_idx);
+		}
+	}
+	return;
+}
 
 static irqreturn_t sif_isr(int irq, void *data)
 {
@@ -1631,6 +1720,11 @@ static irqreturn_t sif_isr(int irq, void *data)
 				group = sif->sif_mux[mux_index];
 				subdev = group->sub_ctx[0];
 				sif_frame_done(subdev);
+				/* fps_ctrl:FDone:if not lost next frame,transfer owner to HW */
+				if ((subdev->fps_ctrl.skip_frame)&&
+						(!atomic_read(&subdev->fps_ctrl.lost_this_frame))) {
+					subdev_set_frm_owner(subdev, sif, mux_index);
+				}
 			}
 			//Frame start processing
 			if ((status & 1 << mux_index)) {
@@ -1671,8 +1765,20 @@ static irqreturn_t sif_isr(int irq, void *data)
 							atomic_read(&group->rcount));
 						sif->statistic.fs_lack_task[group->instance]++;
 					} else {
-						up(&gtask->hw_resource);
+						if ((subdev->fps_ctrl.skip_frame)
+							&&(atomic_read(&subdev->fps_ctrl.lost_this_frame))) {
+							vio_dbg("fps_ctrl:FS:lost_this_frame\n");
+						} else {
+							up(&gtask->hw_resource);
+						}
 					}
+				}
+				/* fps_ctrl:FS:if not lost next frame,transfer owner to HW */
+				if (subdev->fps_ctrl.skip_frame) {
+					if (!atomic_read(&subdev->fps_ctrl.lost_next_frame)) {
+						subdev_set_frm_owner(subdev, sif, mux_index);
+					}
+					subdev_balance_lost_next_frame(subdev);
 				}
 			}
 		}

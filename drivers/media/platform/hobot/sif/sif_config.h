@@ -139,7 +139,8 @@ typedef enum sif_ddr_out_type_s {
 }sif_ddr_out_type_e;
 
 typedef struct fps_cfg_s {
-	uint32_t skip_frame;  //0:not ctrl; 1: software; 2:hardware
+	uint32_t hw_skip_frame; //0:not ctrl; 1: hardware;
+	uint32_t skip_frame;  //0:not ctrl; 1: software;
 	uint32_t in_fps;
 	uint32_t out_fps;
 	uint32_t dump_raw;

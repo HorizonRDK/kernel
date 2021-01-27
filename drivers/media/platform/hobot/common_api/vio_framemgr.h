@@ -152,6 +152,8 @@ struct vio_frame {
 
 	u8			poll_mask;
 	u16			dispatch_mask;
+
+	u8			hw_idx;
 };
 
 /*
