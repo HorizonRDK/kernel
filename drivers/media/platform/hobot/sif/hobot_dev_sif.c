@@ -362,7 +362,6 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 	struct vio_group *group;
 	struct x3_sif_dev *sif;
 	struct sif_subdev *subdev;
-	u32 isp_enable;
 
 	sif_ctx = file->private_data;
 	sif = sif_ctx->sif_dev;
@@ -811,7 +810,8 @@ int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 	int ret = 0;
 	struct x3_sif_dev *sif_dev;
 	struct sif_subdev *subdev;
-	u32 isp_enable;
+	u32 isp_enable, ipi_mode;
+	sif_input_mipi_t *p_mipi = NULL;
 
 	if (!(sif_ctx->state & (BIT(VIO_VIDEO_STOP)
 			| BIT(VIO_VIDEO_REBUFS)
@@ -831,6 +831,9 @@ int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 	sif_dev = sif_ctx->sif_dev;
 	sif_start_pattern_gen(sif_dev->base_reg, 0);
 
+	p_mipi = &subdev->sif_cfg.input.mipi;
+	ipi_mode = p_mipi->ipi_mode;
+
 	isp_enable = subdev->sif_cfg.output.isp.enable;
 	mutex_lock(&sif_dev->shared_mutex);
 	if (sif_ctx->id == 0) {
@@ -841,10 +844,10 @@ int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 		if(subdev->ddr_mux_index != subdev->mux_index) {
 			sif_enable_frame_intr(sif_dev->base_reg, subdev->ddr_mux_index, true);
 		}
-		if(subdev->dol_num > 1) {
+		if(subdev->dol_num > 1 || ipi_mode > 1) {
 			sif_enable_frame_intr(sif_dev->base_reg, subdev->mux_index + 1, true);
 		}
-		if(subdev->dol_num > 2) {
+		if(subdev->dol_num > 2 || ipi_mode > 2) {
 			sif_enable_frame_intr(sif_dev->base_reg, subdev->mux_index + 2, true);
 		}
 	}

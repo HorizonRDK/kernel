@@ -1303,7 +1303,7 @@ void sif_disable_ipi(u32 __iomem *base_reg, u8 ipi_channel)
 static void sif_disable_input_and_output(u32 __iomem *base_reg)
 {
 	uint32_t t = 0, value = 0;
-	int i = 0;
+
 	// Disable Bypass && all TX IPIs
 	// NOTICE: SW_MIPI_RX_OUT_TX_LINE_INS_ENABLE's default value = 1
 	// To disable that will not attach the last blanking hsync at frame end.
