@@ -13,6 +13,8 @@
 #include <linux/interrupt.h>
 #include <linux/err.h>
 #include <linux/cdev.h>
+#include <linux/reset.h>
+#include <linux/clk.h>
 
 #include <linux/of_address.h>
 #include <linux/of_device.h>
@@ -120,11 +122,15 @@ typedef struct cr5_dev_info {
 	struct device *dev;
 	struct class *class;
 	struct cdev cdev;
+	struct clk *cr5_aclk;
+	struct reset_control *rst;
 
 	struct mutex io_mutex;
 	struct mutex service_mutex;
 }cr5_dev_info_t;
 cr5_dev_info_t *global_cr5_device;
+
+static void cr5_start(void);
 
 unsigned int find_firstzero_bit(unsigned int* bitmask)
 {
@@ -276,23 +282,7 @@ static int cr5_load_start_image(cr5_dev_info_t *cr5_dev, cr5_image_info_t *info)
 	memcpy(cr5_dev->mem.image_vaddr, image_data, image_size);
 	msleep(50);
 
-	/*start cr5
-	 *0.enable cr5 clock
-	 *1.keep cr5 reset state
-	 *2.set cr5 start addr
-	 *3.let cr5 run
-	 */
-	val = readl(cr5_dev->sys_ctrl.reg_base + 0x104);
-	val |= (0x1 << 14);
-	writel(val, cr5_dev->sys_ctrl.reg_base + 0x104);
-	msleep(10);
-	writel(0x2800, cr5_dev->sys_ctrl.reg_base + 0x400);
-	msleep(10);
-	writel(cr5_dev->mem.image_phy_addr, cr5_dev->sys_ctrl.reg_base + 0x600);
-	msleep(10);
-	writel(0x800, cr5_dev->sys_ctrl.reg_base + 0x400);
-	msleep(10);
-
+	cr5_start();
 	filp_close(fp, NULL);
 	return 0;
 
@@ -303,7 +293,7 @@ err1:
 
 typedef void *(*CR5_GET_INFO_HANDLE_T)(void);
 extern void register_cr5_get_msginfo_base(CR5_GET_INFO_HANDLE_T func);
-void __iomem *cr5_get_msginfo_base(void)
+static void __iomem *cr5_get_msginfo_base(void)
 {
 	return global_cr5_device->mem.msg_vaddr;
 }
@@ -313,6 +303,51 @@ extern void register_cr5_send_ipi_func(CR5_SEND_IPI_HANDLE_T func);
 void send_cr5_ipi(void)
 {
 	mbox_ca53_transmit(global_cr5_device, 0);
+}
+extern void register_cr5_start_func(CR5_SEND_IPI_HANDLE_T func);
+extern void register_cr5_stop_func(CR5_SEND_IPI_HANDLE_T func);
+static void cr5_start(void)
+{
+#if 0
+	/*start cr5
+	 *0.enable cr5 clock
+	 *1.keep cr5 reset state
+	 *2.set cr5 start addr
+	 *3.let cr5 run
+	 */
+	int val;
+	val = readl(global_cr5_device->sys_ctrl.reg_base + 0x104);
+	val |= (0x1 << 14);
+	writel(val, global_cr5_device->sys_ctrl.reg_base + 0x104);
+	writel(0x2800, global_cr5_device->sys_ctrl.reg_base + 0x400);
+	writel(global_cr5_device->mem.image_phy_addr, global_cr5_device->sys_ctrl.reg_base + 0x600);
+	writel(0x800, global_cr5_device->sys_ctrl.reg_base + 0x400);
+#else
+	int ret;
+	ret = clk_enable(global_cr5_device->cr5_aclk);
+	if (ret < 0) {
+		dev_err(global_cr5_device->dev, "failed to enable cr5_aclk %d\n", ret);
+		return;
+	}
+	reset_control_assert(global_cr5_device->rst);
+	writel(global_cr5_device->mem.image_phy_addr, global_cr5_device->sys_ctrl.reg_base + 0x600);
+	reset_control_deassert(global_cr5_device->rst);
+#endif
+	return ;
+}
+
+static void cr5_stop(void)
+{
+#if 0
+	int val;
+	writel(0x2800, global_cr5_device->sys_ctrl.reg_base + 0x400);
+	val = (0x1 << 14);
+	writel(val, global_cr5_device->sys_ctrl.reg_base + 0x108);
+#else
+	reset_control_assert(global_cr5_device->rst);
+	clk_disable(global_cr5_device->cr5_aclk);
+#endif
+	return;
 }
 
 static long cr5_service_dev_ioctl(struct file *file,
@@ -331,9 +366,6 @@ static long cr5_service_dev_ioctl(struct file *file,
 			} else {
 				ret = -ENOTTY;
 			}
-
-			register_cr5_get_msginfo_base(cr5_get_msginfo_base);
-			register_cr5_send_ipi_func(send_cr5_ipi);
 			break;
 		case CR5_SERVICE_REQ:
 			if (mutex_lock_interruptible(&cr5_dev->service_mutex)) {
@@ -364,10 +396,6 @@ static long cr5_service_dev_ioctl(struct file *file,
 static int cr5_service_dev_open(struct inode *inode, struct file *file)
 {
 	file->private_data = global_cr5_device;
-
-	mutex_init(&global_cr5_device->io_mutex);
-	mutex_init(&global_cr5_device->service_mutex);
-
 	return 0;
 }
 
@@ -682,6 +710,30 @@ static int cr5_service_probe(struct platform_device *pdev)
 		dev_err(dev, "Cound not alloc cr5 service cdev\n");
 		goto err3;
 	}
+
+	global_cr5_device->cr5_aclk = devm_clk_get(&pdev->dev, NULL);
+	if (IS_ERR(global_cr5_device->cr5_aclk)) {
+		ret = PTR_ERR(global_cr5_device->cr5_aclk);
+		dev_err(&pdev->dev, "failed to get cr5_aclk: %d\n", ret);
+		goto err3;
+	}
+
+	ret = clk_prepare(global_cr5_device->cr5_aclk);
+	if (ret < 0) {
+		dev_err(global_cr5_device->dev, "failed to enable cr5_aclk %d\n", ret);
+		return;
+	}
+	global_cr5_device->rst = devm_reset_control_get(&pdev->dev, NULL);
+	if (IS_ERR(global_cr5_device->rst)) {
+		ret = PTR_ERR(global_cr5_device->rst);
+		dev_err(&pdev->dev, "missing cr5 reset\n");
+		goto err3;
+	}
+
+	register_cr5_get_msginfo_base(cr5_get_msginfo_base);
+	register_cr5_send_ipi_func(send_cr5_ipi);
+	register_cr5_start_func(cr5_start);
+	register_cr5_stop_func(cr5_stop);
 
 	return 0;
 err3:

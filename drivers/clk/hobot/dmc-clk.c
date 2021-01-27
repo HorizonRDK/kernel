@@ -35,6 +35,17 @@
 
 #include "common.h"
 
+#define DDR_METHOD_LEN 32
+#define DMC_FID        0x82000008
+#define DRAM_SET_RATE        0x10
+#define DRAM_GET_RATE        0x11
+#define DDR_INDEX_P0   0
+#define DDR_INDEX_P1   1
+#define DDR_INDEX_P2    2
+#define DDR_FREQ_3200   3200000000
+#define DDR_FREQ_2666   2666000000
+#define DDR_FREQ_667    667000000
+
 #define to_dmc_clk(_hw) container_of(_hw, struct dmc_clk, hw)
 
 /*
@@ -42,7 +53,6 @@
  * function finished
  */
 static unsigned long cur_ddr_rate;
-#define DDR_METHOD_LEN 32
 static char ddr_method[DDR_METHOD_LEN] = "test";
 
 typedef void(hobot_invoke_fn)(unsigned long, unsigned long, unsigned long,
@@ -155,9 +165,22 @@ void register_cr5_send_ipi_func(CR5_SEND_IPI_HANDLE_T func)
 }
 EXPORT_SYMBOL(register_cr5_send_ipi_func);
 
-#define CR5_DDR_SERVICE_START_FLAG 0xA5
+static CR5_SEND_IPI_HANDLE_T cr5_start;
+void register_cr5_start_func(CR5_SEND_IPI_HANDLE_T func)
+{
+	cr5_start = func;
+}
+EXPORT_SYMBOL(register_cr5_start_func);
+
+static CR5_SEND_IPI_HANDLE_T cr5_stop;
+void register_cr5_stop_func(CR5_SEND_IPI_HANDLE_T func)
+{
+	cr5_stop = func;
+}
+EXPORT_SYMBOL(register_cr5_stop_func);
+
 typedef void *(*CR5_GET_BASE_HANDLE_T)(void);
-CR5_GET_BASE_HANDLE_T cr5_get_msginfo_base;
+static CR5_GET_BASE_HANDLE_T cr5_get_msginfo_base;
 void register_cr5_get_msginfo_base(CR5_GET_BASE_HANDLE_T func)
 {
         cr5_get_msginfo_base = func;
@@ -196,39 +219,42 @@ static void hobot_smccc_cr5(unsigned long a0, unsigned long a1,
 		pr_debug("hobot_smccc_cr5, CR5 msg vaddr is not valid\n");
 		return;
 	}
-
-	p_index = sram_vaddr;
-	p_status = sram_vaddr + 1;
-	p_err = sram_vaddr + 2;
+	p_status = sram_vaddr;
+	p_index = sram_vaddr + 2;
+	p_err = sram_vaddr + 1;
 	p_serive_started = sram_vaddr + 3;
-
-	if (rate == 667000000)
-		index = 0;
-	else if (rate == 2666000000)
-		index = 1;
-	else if (rate == 3200000000)
-		index = 2;
-	else if (rate == 0) {
-		/* most case reclac rate is 0
-		 * we dont case, return OK
-		 */
-		res->a0 = 0;
-		return;
+	if (a1 == DRAM_SET_RATE) {
+		if (rate == DDR_FREQ_667) {
+			index = 2;
+		} else if (rate == DDR_FREQ_2666) {
+			index = 1;
+		} else if (rate == DDR_FREQ_3200) {
+			index = 0;
+		} else if (rate == 0) {
+			/* most case reclac rate is 0
+			 * we dont case, return OK
+			 */
+			res->a0 = 0;
+			return;
+		} else {
+			res->a0 = -EINVAL;
+			return;
+		}
 	} else {
-		res->a0 = -EINVAL;
-		return;
+		index = -1;
 	}
 
 	*p_index = index;
 	*p_status = 0;
-	*p_serive_started = CR5_DDR_SERVICE_START_FLAG;
+	*p_serive_started = (unsigned char)a1;
 #if 0
 	udelay(10);
 	send_ipi_cr5();
 #endif
-	*p_serive_started = CR5_DDR_SERVICE_START_FLAG;
+	cr5_start();
 	while(!*p_status) {
 	}
+	cr5_stop();
 	res->a0 = *p_err;
 }
 
@@ -297,10 +323,6 @@ char *dmc_clk_get_method(void)
 		ddr_method, g_ddrclk->invoke_fn);
 	return ddr_method;
 }
-
-#define DMC_FID        0x82000008
-#define DRAM_SET_RATE        0x10
-#define DRAM_GET_RATE        0x11
 
 static void spin_on_cpu(void *info)
 {
@@ -410,23 +432,30 @@ static unsigned long dmc_recalc_rate(struct clk_hw *hw,
 				unsigned long parent_rate)
 {
 	struct dmc_clk *dclk = container_of(hw, struct dmc_clk, hw);
-#ifndef CONFIG_HOBOT_XJ3
 	struct arm_smccc_res res;
+#ifndef CONFIG_HOBOT_XJ3
 
 	dclk->invoke_fn(dclk->fid, dclk->get_cmd, dclk->channel, 0, 0, 0, 0, 0, &res);
 	dclk->invoke_fn(0, 0, 0, 0, 0, 0, 0, 0, &res);
+#else
+	dclk->invoke_fn(DMC_FID, DRAM_GET_RATE, 0, 0, 0, 0, 0, 0, &res);
+#endif
 	if (res.a0 != 0) {
 		pr_err("%s: ddr channel:%u get rate failed with status :%ld\n",
 			__func__, dclk->channel, res.a0);
 	}
 
-	dclk->rate = res.a1;
-#endif
+	if (DDR_INDEX_P0 == res.a1)
+		dclk->rate = DDR_FREQ_3200;
+	else if (DDR_INDEX_P1 == res.a1)
+		dclk->rate = DDR_FREQ_2666;
+	else if (DDR_INDEX_P2 == res.a1)
+		dclk->rate = DDR_FREQ_667;
 
-	/* FIXME: find a better way to get current ddr freq */
 	pr_debug("parent_rate: %ld,  dclk->rate:%ld, cur_ddr_rate:%ld\n",
 		parent_rate, dclk->rate, cur_ddr_rate);
 
+	cur_ddr_rate = dclk->rate;
 	return dclk->rate;
 }
 
