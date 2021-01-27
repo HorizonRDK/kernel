@@ -1,3 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ *
+ * Copyright (c) 2020-21
+ *
+ */
+
 /*
  * Remote Processor Framework
  *
@@ -74,6 +81,7 @@ static const char * const rproc_state_string[] = {
 	[RPROC_RUNNING]		= "running",
 	[RPROC_CRASHED]		= "crashed",
 	[RPROC_DELETED]		= "deleted",
+	[RPROC_RUNNING_INDEPENDENT] = "running_independent",
 	[RPROC_LAST]		= "invalid",
 };
 
@@ -97,17 +105,24 @@ static ssize_t state_store(struct device *dev,
 	int ret = 0;
 
 	if (sysfs_streq(buf, "start")) {
-		if (rproc->state == RPROC_RUNNING)
+		if (rproc->state == RPROC_RUNNING ||
+		rproc->state == RPROC_RUNNING_INDEPENDENT)
 			return -EBUSY;
 
 		ret = rproc_boot(rproc);
 		if (ret)
 			dev_err(&rproc->dev, "Boot failed: %d\n", ret);
 	} else if (sysfs_streq(buf, "stop")) {
-		if (rproc->state != RPROC_RUNNING)
+		if (rproc->state != RPROC_RUNNING &&
+		rproc->state != RPROC_RUNNING_INDEPENDENT)
 			return -EINVAL;
 
 		rproc_shutdown(rproc);
+	} else if (sysfs_streq(buf, "register_virtio")) {
+		rproc->register_virtio = 1;
+		ret = rproc_boot(rproc);
+		if (ret)
+			dev_err(&rproc->dev, "Register virtio failed: %d\n", ret);
 	} else {
 		dev_err(&rproc->dev, "Unrecognised option: %s\n", buf);
 		ret = -EINVAL;
@@ -116,9 +131,42 @@ static ssize_t state_store(struct device *dev,
 }
 static DEVICE_ATTR_RW(state);
 
+static int ipc_state;
+static ssize_t ipc_state_show(struct device *dev,
+struct device_attribute *attr, char *buf)
+{
+	unsigned int state;
+
+	state = ipc_state > RPROC_LAST ? RPROC_LAST : ipc_state;
+	return sprintf(buf, "%s\n", rproc_state_string[state]);
+}
+
+static ssize_t ipc_state_store(struct device *dev,
+struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct rproc *rproc = to_rproc(dev);
+	int ret = 0;
+
+	if (sysfs_streq(buf, "start")) {
+		rproc->ops->kick(rproc, 0);
+		ipc_state = RPROC_RUNNING;
+	} else if (sysfs_streq(buf, "stop")) {
+		if (ipc_state != RPROC_RUNNING &&
+		    ipc_state != RPROC_RUNNING_INDEPENDENT)
+			return -EINVAL;
+		ipc_state = RPROC_SUSPENDED;
+	} else {
+		dev_err(&rproc->dev, "Unrecognised option: %s\n", buf);
+		ret = -EINVAL;
+	}
+	return ret ? ret : count;
+}
+static DEVICE_ATTR_RW(ipc_state);
+
 static struct attribute *rproc_attrs[] = {
 	&dev_attr_firmware.attr,
 	&dev_attr_state.attr,
+	&dev_attr_ipc_state.attr,
 	NULL
 };
 

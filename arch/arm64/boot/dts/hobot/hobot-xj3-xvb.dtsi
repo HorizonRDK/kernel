@@ -116,10 +116,28 @@
 			reg = <0x0 0x8000f000 0x0 0x1000>;
 			no-map;
 		};
+
+		rpmsg_r5_code: rpmsg_r5_code {
+                        reg = <0x0 0x3E00000 0x0 0xFF000>;
+                        no-map;
+                };
+
+                rpmsg_r5_vring: rpmsg_r5_vring {
+                        reg = <0x0 0x3EFF000 0x0 0x1000>;
+                        no-map;
+                };
 	};
 };
 
 &cr5_service {
+	status = "okay";
+};
+
+&remoteproc_rcore {
+	status = "okay";
+};
+
+&rpmsg_char {
 	status = "okay";
 };
 

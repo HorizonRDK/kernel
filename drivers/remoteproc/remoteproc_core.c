@@ -41,6 +41,7 @@
 #include <linux/virtio_ids.h>
 #include <linux/virtio_ring.h>
 #include <asm/byteorder.h>
+#include <linux/delay.h>
 
 #include "remoteproc_internal.h"
 
@@ -140,6 +141,52 @@ static void rproc_disable_iommu(struct rproc *rproc)
 }
 
 /**
+ * rproc_idr_alloc() - allocate id with idr_alloc()
+ * @rproc: handle of a remote processor
+ * @ptr: pointer to the resource to allocate id for
+ * @rsc_type: type of the resource for which to allocate id
+ * @start: start id
+ * @end: end id
+ *
+ * This function returns an ID from idr_alloc() or negative number
+ * if it fails.
+ */
+int rproc_idr_alloc(struct rproc *rproc, void *ptr,
+unsigned int rsc_type, int start, int end)
+{
+	struct rproc_id_rsc *rsc;
+	int ret;
+
+	rsc = kzalloc(sizeof(*rsc), GFP_KERNEL);
+	if (!rsc)
+		return -ENOMEM;
+
+	rsc->rsc_ptr = ptr;
+	rsc->rsc_type = rsc_type;
+
+	ret = idr_alloc(&rproc->notifyids, rsc, start, end, GFP_KERNEL);
+	if (ret < 0)
+		kfree(rsc);
+	return ret;
+}
+
+/**
+ * rproc_idr_remove() - remove id with idr_remove()
+ * @rproc: handle of a remote processor
+ * @id: id to remove
+ */
+void rproc_idr_remove(struct rproc *rproc, int id)
+{
+	struct rproc_id_rsc *rsc;
+
+	rsc = idr_find(&rproc->notifyids, id);
+	if (!rsc)
+		return;
+	idr_remove(&rproc->notifyids, id);
+	kfree(rsc);
+}
+
+/**
  * rproc_da_to_va() - lookup the kernel virtual address for a remoteproc address
  * @rproc: handle of a remote processor
  * @da: remoteproc device address to translate
@@ -210,17 +257,28 @@ int rproc_alloc_vring(struct rproc_vdev *rvdev, int i)
 	void *va;
 	int ret, size, notifyid;
 
-	/* actual size of vring (in bytes) */
-	size = PAGE_ALIGN(vring_size(rvring->len, rvring->align));
+	if (!rproc->fix_map_mode) {
+		/* actual size of vring (in bytes) */
+		size = PAGE_ALIGN(vring_size(rvring->len, rvring->align));
 
-	/*
-	 * Allocate non-cacheable memory for the vring. In the future
-	 * this call will also configure the IOMMU for us
-	 */
-	va = dma_alloc_coherent(dev->parent, size, &dma, GFP_KERNEL);
-	if (!va) {
-		dev_err(dev->parent, "dma_alloc_coherent failed\n");
-		return -EINVAL;
+		/*
+		* Allocate non-cacheable memory for the vring. In the future
+		* this call will also configure the IOMMU for us
+		*/
+		va = dma_alloc_coherent(dev->parent, size, &dma, GFP_KERNEL);
+		if (!va) {
+			dev_err(dev->parent, "dma_alloc_coherent failed\n");
+			return -EINVAL;
+		}
+	} else {
+		// fix_map_mode
+		size = rvring->vring_size;
+		va = ioremap_nocache(rvring->da, size);
+		//va = ioremap_wc(rvring->da, size);
+		if (!va) {
+			dev_err(dev->parent, "ioremap_noncache vring[%d] failed\n", i);
+			return -EINVAL;
+		}
 	}
 
 	/*
@@ -228,10 +286,13 @@ int rproc_alloc_vring(struct rproc_vdev *rvdev, int i)
 	 * TODO: assign a notifyid for rvdev updates as well
 	 * TODO: support predefined notifyids (via resource table)
 	 */
-	ret = idr_alloc(&rproc->notifyids, rvring, 0, 0, GFP_KERNEL);
+	ret = rproc_idr_alloc(rproc, rvring, RPROC_IDR_VRING, 0, 0);
 	if (ret < 0) {
-		dev_err(dev, "idr_alloc failed: %d\n", ret);
-		dma_free_coherent(dev->parent, size, va, dma);
+		dev_err(dev, "rproc_idr_alloc failed: %d\n", ret);
+		if (!rproc->fix_map_mode)
+			dma_free_coherent(dev->parent, size, va, dma);
+		else
+			iounmap(va);
 		return ret;
 	}
 	notifyid = ret;
@@ -244,8 +305,11 @@ int rproc_alloc_vring(struct rproc_vdev *rvdev, int i)
 		i, va, &dma, size, notifyid);
 
 	rvring->va = va;
-	rvring->dma = dma;
 	rvring->notifyid = notifyid;
+	if (!rproc->fix_map_mode)
+		rvring->dma = dma;
+	else
+		rvring->dma = rvring->da;
 
 	/*
 	 * Let the rproc know the notifyid and da of this vring.
@@ -254,8 +318,9 @@ int rproc_alloc_vring(struct rproc_vdev *rvdev, int i)
 	 * hold the physical address and not the device address.
 	 */
 	rsc = (void *)rproc->table_ptr + rvdev->rsc_offset;
-	rsc->vring[i].da = dma;
 	rsc->vring[i].notifyid = notifyid;
+	if (!rproc->fix_map_mode)
+		rsc->vring[i].da = dma;
 	return 0;
 }
 
@@ -280,6 +345,18 @@ rproc_parse_vring(struct rproc_vdev *rvdev, struct fw_rsc_vdev *rsc, int i)
 	rvring->len = vring->num;
 	rvring->align = vring->align;
 	rvring->rvdev = rvdev;
+	if (rproc->fix_map_mode) {
+		rvring->vring_size = vring->vring_size;
+		rvring->da = vring->da;
+	}
+
+	if (rproc->fix_map_mode) {
+		if (i == 0)
+			rvdev->buffer_phy_addr = vring->da +
+			rsc->num_of_vrings * vring->vring_size;
+	} else {
+		rvdev->buffer_phy_addr = 0;
+	}
 
 	return 0;
 }
@@ -291,8 +368,11 @@ void rproc_free_vring(struct rproc_vring *rvring)
 	int idx = rvring->rvdev->vring - rvring;
 	struct fw_rsc_vdev *rsc;
 
-	dma_free_coherent(rproc->dev.parent, size, rvring->va, rvring->dma);
-	idr_remove(&rproc->notifyids, rvring->notifyid);
+	if (!rproc->fix_map_mode)
+		dma_free_coherent(rproc->dev.parent, size, rvring->va, rvring->dma);
+	else
+		iounmap(rvring->va);
+	rproc_idr_remove(rproc, rvring->notifyid);
 
 	/* reset resource entry info */
 	rsc = (void *)rproc->table_ptr + rvring->rvdev->rsc_offset;
@@ -378,6 +458,7 @@ static int rproc_handle_vdev(struct rproc *rproc, struct fw_rsc_vdev *rsc,
 
 	rvdev->id = rsc->id;
 	rvdev->rproc = rproc;
+	rvdev->buffer_size = rsc->buffer_size;
 
 	/* parse the vrings */
 	for (i = 0; i < rsc->num_of_vrings; i++) {
@@ -532,11 +613,13 @@ static int rproc_handle_devmem(struct rproc *rproc, struct fw_rsc_devmem *rsc,
 {
 	struct rproc_mem_entry *mapping;
 	struct device *dev = &rproc->dev;
-	int ret;
+	int ret = 0;
 
 	/* no point in handling this resource without a valid iommu domain */
-	if (!rproc->domain)
-		return -EINVAL;
+	if (!rproc->fix_map_mode) {
+		if (!rproc->domain)
+			return -EINVAL;
+	}
 
 	if (sizeof(*rsc) > avail) {
 		dev_err(dev, "devmem rsc is truncated\n");
@@ -553,10 +636,19 @@ static int rproc_handle_devmem(struct rproc *rproc, struct fw_rsc_devmem *rsc,
 	if (!mapping)
 		return -ENOMEM;
 
-	ret = iommu_map(rproc->domain, rsc->da, rsc->pa, rsc->len, rsc->flags);
-	if (ret) {
-		dev_err(dev, "failed to map devmem: %d\n", ret);
-		goto out;
+	if (!rproc->fix_map_mode) {
+		ret = iommu_map(rproc->domain, rsc->da, rsc->pa, rsc->len, rsc->flags);
+		if (ret) {
+			dev_err(dev, "failed to map devmem: %d\n", ret);
+			goto out;
+		}
+	} else {
+		mapping->va = ioremap_nocache(rsc->pa, rsc->len);
+		if (!mapping->va) {
+			pr_err("%s ioremap_nocache error\n", __func__);
+			goto out;
+		}
+		mapping->dma = rsc->pa;
 	}
 
 	/*
@@ -720,6 +812,42 @@ free_carv:
 	return ret;
 }
 
+/**
+ * rproc_handle_rproc_mem() - handle remote processor memory
+ * @rproc: rproc handle
+ * @rsc: the resource entry
+ * @avail: size of available data (for image validation)
+ *
+ * This function will handle declare the remote procesor's memory
+ * as DMA memory of the remoteproc, and then, the host can use it
+ * as shared memory, e.g. vrings ahre shared buffers.
+ */
+static int rproc_handle_rproc_mem(struct rproc *rproc,
+struct fw_rsc_rproc_mem *rsc, int offset, int avail)
+{
+	struct device *dev = &rproc->dev;
+	int ret;
+
+	if (sizeof(*rsc) > avail) {
+		dev_err(dev, "rproc_mem rsc is truncated\n");
+		return -EINVAL;
+	}
+
+	if (rsc->pa == FW_RSC_ADDR_ANY) {
+		dev_err(dev, "not able to declare rproc mem, pa is 0x%x\n",
+		rsc->pa);
+		return -EINVAL;
+	}
+
+	ret = dma_declare_coherent_memory(dev->parent, rsc->pa,
+	rsc->pa, rsc->len, 0);
+	if (ret) {
+		dev_err(dev, "failed to declare rproc mem as DMA mem.\n");
+		return -ENOMEM;
+	}
+	return 0;
+}
+
 /*
  * A lookup table for resource handlers. The indices are defined in
  * enum fw_resource_type.
@@ -729,6 +857,10 @@ static rproc_handle_resource_t rproc_loading_handlers[RSC_LAST] = {
 	[RSC_DEVMEM] = (rproc_handle_resource_t)rproc_handle_devmem,
 	[RSC_TRACE] = (rproc_handle_resource_t)rproc_handle_trace,
 	[RSC_VDEV] = (rproc_handle_resource_t)rproc_handle_vdev,
+};
+
+static rproc_handle_resource_t rproc_rproc_mem_handler[RSC_LAST] = {
+	[RSC_RPROC_MEM] = (rproc_handle_resource_t)rproc_handle_rproc_mem,
 };
 
 /* handle firmware resource entries before booting the remote processor */
@@ -821,13 +953,17 @@ static void rproc_resource_cleanup(struct rproc *rproc)
 
 	/* clean up iommu mapping entries */
 	list_for_each_entry_safe(entry, tmp, &rproc->mappings, node) {
-		size_t unmapped;
+		if (rproc->fix_map_mode) {
+			iounmap(entry->va);
+		} else {
+			size_t unmapped;
 
-		unmapped = iommu_unmap(rproc->domain, entry->da, entry->len);
-		if (unmapped != entry->len) {
-			/* nothing much to do besides complaining */
-			dev_err(dev, "failed to unmap %u/%zu\n", entry->len,
+			unmapped = iommu_unmap(rproc->domain, entry->da, entry->len);
+			if (unmapped != entry->len) {
+				/* nothing much to do besides complaining */
+				dev_err(dev, "failed to unmap %u/%zu\n", entry->len,
 				unmapped);
+			}
 		}
 
 		list_del(&entry->node);
@@ -845,6 +981,107 @@ static void rproc_resource_cleanup(struct rproc *rproc)
 	/* clean up remote vdev entries */
 	list_for_each_entry_safe(rvdev, rvtmp, &rproc->rvdevs, node)
 		kref_put(&rvdev->refcount, rproc_vdev_release);
+
+	/* Release DMA declared memory */
+	dma_release_declared_memory(dev->parent);
+}
+
+/*
+ * check if the remote is running
+ */
+static bool rproc_is_running(struct rproc *rproc)
+{
+	if (rproc->ops->is_running)
+		return rproc->ops->is_running(rproc);
+	return (rproc->state == RPROC_RUNNING) ? true : false;
+}
+
+/**
+ * rproc_handle_fw_chksum() - handle firmware checksum resource
+ * @rproc: rproc handle
+ * @fw: firmware
+ * @offset: returns fw_chksum resource offset.
+ *
+ * This function will handle request to set the firmware checksum.
+ */
+static struct fw_rsc_fw_chksum *rproc_handle_fw_chksum(
+struct rproc *rproc, const struct firmware *fw, int *offset)
+{
+	struct fw_rsc_fw_chksum *rsc = NULL;
+	int i, tablesz;
+	struct device *dev = &rproc->dev;
+	struct resource_table *table;
+
+	/* look for the resource table */
+	table = rproc_find_rsc_table(rproc, fw, &tablesz);
+	if (!table) {
+		dev_err(dev, "Failed to find resource table\n");
+		return NULL;
+	}
+
+	for (i = 0; i < rproc->table_ptr->num; i++) {
+		int ret = 0;
+		int tmpoffset = rproc->table_ptr->offset[i];
+		struct fw_rsc_hdr *hdr = (void *)rproc->table_ptr + tmpoffset;
+		int avail = tablesz - tmpoffset - sizeof(*hdr);
+
+		if (hdr->type != RSC_FW_CHKSUM)
+			continue;
+
+		rsc = (struct fw_rsc_fw_chksum *)((void *)hdr + sizeof(*hdr));
+		if (sizeof(*rsc) > avail) {
+			dev_err(dev, "firmware checksum rsc is truncated\n");
+			return NULL;
+		}
+		if (rproc->fw_ops->get_chksum) {
+			ret = rproc->fw_ops->get_chksum(rproc, fw,
+				rsc->algo, rsc->chksum, sizeof(rsc->chksum));
+			if (ret) {
+				dev_err(dev,
+					"failed to get firmware chksum.\n");
+				return NULL;
+			}
+		}
+		*offset = tmpoffset + sizeof(*hdr);
+		return rsc;
+	}
+
+	return NULL;
+}
+
+/*
+ * check if the remote needs start.
+ */
+static bool rproc_is_running_fw(struct rproc *rproc,
+const struct firmware *fw)
+{
+	struct resource_table *loaded_table;
+	struct fw_rsc_fw_chksum *rsc, *loaded_rsc;
+	int rsc_fw_chksum_offset;
+
+	rsc = rproc_handle_fw_chksum(rproc, fw, &rsc_fw_chksum_offset);
+	if (!rsc)
+		return false;
+
+	if (!rproc_is_running(rproc))
+		return false;
+
+	/* look for the loaded resource table */
+	loaded_table = rproc_find_loaded_rsc_table(rproc, fw);
+	if (!loaded_table)
+		return false;
+
+	loaded_rsc = (void *)loaded_table + rsc_fw_chksum_offset;
+	if (!loaded_rsc->algo || !loaded_rsc->chksum)
+		return false;
+
+	if (strncmp(rsc->algo, loaded_rsc->algo, strlen(rsc->algo)))
+		return false;
+
+	if (memcmp(rsc->chksum, loaded_rsc->chksum, sizeof(rsc->chksum)))
+		return false;
+
+	return true;
 }
 
 static int rproc_start(struct rproc *rproc, const struct firmware *fw)
@@ -860,11 +1097,19 @@ static int rproc_start(struct rproc *rproc, const struct firmware *fw)
 		return -EINVAL;
 	}
 
-	/* load the ELF segments to memory */
-	ret = rproc_load_segments(rproc, fw);
+	ret = rproc->ops->pre_load(rproc);
 	if (ret) {
-		dev_err(dev, "Failed to load program segments: %d\n", ret);
+		dev_err(dev, "can't pre_load rproc %s: %d\n", rproc->name, ret);
 		return ret;
+	}
+
+	/* load the ELF segments to memory */
+	if (!rproc->register_virtio) {
+		ret = rproc_load_segments(rproc, fw);
+		if (ret) {
+			dev_err(dev, "Failed to load program segments: %d\n", ret);
+			return ret;
+		}
 	}
 
 	/*
@@ -882,10 +1127,12 @@ static int rproc_start(struct rproc *rproc, const struct firmware *fw)
 	}
 
 	/* power up the remote processor */
-	ret = rproc->ops->start(rproc);
-	if (ret) {
-		dev_err(dev, "can't start rproc %s: %d\n", rproc->name, ret);
-		return ret;
+	if (!rproc->register_virtio) {
+		ret = rproc->ops->start(rproc);
+		if (ret) {
+			dev_err(dev, "can't start rproc %s: %d\n", rproc->name, ret);
+			return ret;
+		}
 	}
 
 	/* probe any subdevices for the remote processor */
@@ -911,8 +1158,9 @@ static int rproc_fw_boot(struct rproc *rproc, const struct firmware *fw)
 {
 	struct device *dev = &rproc->dev;
 	const char *name = rproc->firmware;
-	struct resource_table *table;
+	struct resource_table *table, *loaded_table;
 	int ret, tablesz;
+	bool is_running = false;
 
 	ret = rproc_fw_sanity_check(rproc, fw);
 	if (ret)
@@ -955,6 +1203,27 @@ static int rproc_fw_boot(struct rproc *rproc, const struct firmware *fw)
 	/* reset max_notifyid */
 	rproc->max_notifyid = -1;
 
+	/* check if the rproc is already running the firmware */
+	/* As it may be required to know if the remote is already running
+	 * when handling the resource table, check if the remote is already
+	 * running the expected firmware before handling the resource table.
+	 */
+	is_running = rproc_is_running_fw(rproc, fw);
+	if (is_running) {
+		rproc->state = RPROC_RUNNING_INDEPENDENT;
+		loaded_table = rproc_find_loaded_rsc_table(rproc, fw);
+		if (loaded_table)
+			rproc->table_ptr = loaded_table;
+	}
+
+	/* look for remote processor memory and declare them. */
+	ret = rproc_handle_resources(rproc, tablesz, rproc_rproc_mem_handler);
+	if (ret) {
+		dev_err(dev, "Failed to declare rproc memory resource: %d\n",
+			ret);
+		goto clean_up_resources;
+	}
+
 	/* handle fw resources which are required to boot rproc */
 	ret = rproc_handle_resources(rproc, tablesz, rproc_loading_handlers);
 	if (ret) {
@@ -962,9 +1231,24 @@ static int rproc_fw_boot(struct rproc *rproc, const struct firmware *fw)
 		goto clean_up_resources;
 	}
 
-	ret = rproc_start(rproc, fw);
-	if (ret)
-		goto clean_up_resources;
+	if (!is_running) {
+		/* If rproc is running, stop it first */
+		if (rproc_is_running(rproc)) {
+			dev_info(dev, "Restarting the remote.\n");
+			ret = rproc->ops->stop(rproc);
+			if (ret) {
+				atomic_inc(&rproc->power);
+				dev_err(dev, "can't stop rproc: %d\n", ret);
+				goto clean_up_resources;
+			}
+		}
+
+		ret = rproc_start(rproc, fw);
+		if (ret)
+			goto clean_up_resources;
+	} else {
+		dev_info(dev, "remote is already running. Do not restart\n");
+	}
 
 	return 0;
 

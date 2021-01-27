@@ -23,6 +23,27 @@
 #include <linux/irqreturn.h>
 #include <linux/firmware.h>
 
+/**
+ * enum rproc_id_rsc_type -  types of data which needs idr
+ *
+ * @RPROC_IDR_VDEV: rproc vdev data type
+ * @RPROC_IDR_VRING: rpring vring data type
+ */
+enum rproc_id_rsc_type {
+	RPROC_IDR_VDEV  = 0,
+	RPROC_IDR_VRING = 1,
+};
+
+/**
+ * struct rproc_id_rsc - rproc resource with assigned id
+ * @rsc_type: type of resource
+ * @rsc_ptr: pointer to the resource data;
+ */
+struct rproc_id_rsc {
+	unsigned int rsc_type;
+	void *rsc_ptr;
+};
+
 struct rproc;
 
 /**
@@ -43,10 +64,13 @@ struct rproc_fw_ops {
 	int (*load)(struct rproc *rproc, const struct firmware *fw);
 	int (*sanity_check)(struct rproc *rproc, const struct firmware *fw);
 	u32 (*get_boot_addr)(struct rproc *rproc, const struct firmware *fw);
+	int (*get_chksum)(struct rproc *rproc, const struct firmware *fw,
+			char *algo, u8 *chksum, int output_size);
 };
 
 /* from remoteproc_core.c */
 void rproc_release(struct kref *kref);
+irqreturn_t rproc_virtio_interrupt(struct rproc *rproc, int notifyid);
 irqreturn_t rproc_vq_interrupt(struct rproc *rproc, int vq_id);
 void rproc_vdev_release(struct kref *ref);
 
@@ -67,6 +91,12 @@ void rproc_exit_debugfs(void);
 extern struct class rproc_class;
 int rproc_init_sysfs(void);
 void rproc_exit_sysfs(void);
+
+/* rproc idr_alloc wrapper */
+int rproc_idr_alloc(struct rproc *rproc, void *ptr, unsigned int rsc_type,
+		    int start, int end);
+/* rproc idr_remove wrapper */
+void rproc_idr_remove(struct rproc *rproc, int id);
 
 void rproc_free_vring(struct rproc_vring *rvring);
 int rproc_alloc_vring(struct rproc_vdev *rvdev, int i);

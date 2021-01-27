@@ -1326,6 +1326,20 @@
 			interrupts = <0 89 4>;
 		};
 
+		remoteproc_rcore: remoteproc_rcore {
+			compatible = "hobot,remoteproc-rcore";
+			interrupt-parent = <&gic>;
+			interrupts = <0 89 4>;
+			fix-map-mode = <1>;
+			ipc-int-base-addr = <0xA1000000>;
+		};
+
+		rpmsg_char: rpmsg_char {
+			compatible = "hobot,rpmsg-char";
+			nr-server = <2>;
+			server-list-string = "mcore_acore_heart", "rcore_misc_cmd";
+		};
+
 		efuse: efuse@0xA1001000{
 			compatible = "hobot,x3-efuse";
 			reg = <0x0 0xA1001000 0x0 0x60>,
