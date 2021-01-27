@@ -3,4 +3,4 @@
 # Makefile for the hobot_cr5 drivers.
 #
 
-obj-m += cr5_service.o
+obj-$(CONFIG_HOBOT_CR5_SERVICE) += cr5_service.o

@@ -1316,6 +1316,8 @@
 		cr5_service: cr5_service {
 			compatible = "hobot,cr5_service";
 			status = "disabled";
+			clocks = <&cr5_aclk>;
+			resets = <&rst 0x0 13>;
 			image-memory-region = <&image_r5_mem>;
 			msg-memory-region = <&msg_r5_mem>;
 			reg = <0x0 0xA100B000 0x0 0x1000>,<0x0 0xA1000000 0x0 0x1000>;

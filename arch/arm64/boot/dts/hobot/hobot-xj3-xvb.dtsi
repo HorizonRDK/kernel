@@ -106,16 +106,16 @@
 			status = "disabled";
 		};
 
-		/*Reserved 1M memory for CR5*/
+		/*Reserved 16k memory for CR5*/
 		image_r5_mem: image_r5_mem {
-                        reg = <0x0 0x80000000 0x0 0x10000>;
-                        no-map;
-                };
+			reg = <0x0 0x80000000 0x0 0x4000>;
+			no-map;
+		};
 
-                msg_r5_mem: msg_r5_mem {
-                        reg = <0x0 0x3EFF000 0x0 0x1000>;
-                        no-map;
-                };
+		msg_r5_mem: msg_r5_mem {
+			reg = <0x0 0x8000f000 0x0 0x1000>;
+			no-map;
+		};
 	};
 };
 
