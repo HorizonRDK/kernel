@@ -45,12 +45,15 @@ unsigned int uvc_gadget_trace_param;
 #define UVC_STRING_STREAMING_IDX		1
 
 /* terminal link >>
- * UVC_CT_ID -> UVC_PU_ID -> UVC_EU_ID -> UVC_OT_ID
+ * UVC_CT_ID -> UVC_PU_ID -> UVC_XU_ID -> UVC_OT_ID
  */
 #define UVC_CT_ID		1	/* Camera Terminal */
 #define UVC_PU_ID		2	/* Process Unit (common isp control) */
 #define UVC_OT_ID		3	/* Output Terminal */
-#define UVC_EU_ID		4	/* Extension Unit (customer use)*/
+#define UVC_XU_ID		4	/* Extension Unit (customer use)*/
+
+/* Vendor's specific wIndex(Xu UnitID) */
+#define VENDOR_XU_ID		0x602
 
 static struct usb_string uvc_en_us_strings[] = {
 	[UVC_STRING_CONTROL_IDX].s = "UVC Camera",
@@ -502,6 +505,54 @@ uvc_function_set_alt(struct usb_function *f, unsigned interface, unsigned alt)
 			return -EINVAL;
 		}
 	}
+}
+
+static bool uvc_function_req_match(struct usb_function *f,
+			       const struct usb_ctrlrequest *ctrl,
+			       bool config0)
+{
+	struct uvc_device *uvc = to_uvc(f);
+	u16 w_index = le16_to_cpu(ctrl->wIndex);
+
+	/* Vendor specific Extension Unit ID */
+	if (w_index == VENDOR_XU_ID)
+		return true;
+
+	u8 intf = w_index & 0xFF;
+	if (intf != uvc->control_intf &&
+			intf != uvc->streaming_intf)
+		return false;
+
+	/*
+	 * uvc specification only support interface, endpoint recipients
+	 * and class type. we add device recipients for some vendor-specific.
+	 */
+	if (((ctrl->bRequestType & USB_RECIP_MASK) != USB_RECIP_DEVICE &&
+	    (ctrl->bRequestType & USB_RECIP_MASK) != USB_RECIP_INTERFACE &&
+	    (ctrl->bRequestType & USB_RECIP_MASK) != USB_RECIP_ENDPOINT) ||
+	    (ctrl->bRequestType & USB_TYPE_MASK) != USB_TYPE_CLASS)
+		return false;
+
+	switch (ctrl->bRequest) {
+	case UVC_SET_CUR:
+		if (!(USB_DIR_IN & ctrl->bRequestType))
+			break;
+		return false;
+	case UVC_GET_CUR:
+	case UVC_GET_MIN:
+	case UVC_GET_MAX:
+	case UVC_GET_RES:
+	case UVC_GET_LEN:
+	case UVC_GET_INFO:
+	case UVC_GET_DEF:
+		if (USB_DIR_IN & ctrl->bRequestType)
+			break;
+		return false;
+	default:
+		return false;
+	}
+
+	return true;
 }
 
 static void
@@ -1082,14 +1133,14 @@ static struct usb_function_instance *uvc_alloc_inst(void)
 	od->bTerminalID			= UVC_OT_ID;
 	od->wTerminalType		= cpu_to_le16(0x0101);
 	od->bAssocTerminal		= 0;
-	od->bSourceID			= UVC_EU_ID;
+	od->bSourceID			= UVC_XU_ID;
 	od->iTerminal			= 0;
 
 	ed = &opts->uvc_extension;
 	ed->bLength			= UVC_DT_EXTENSION_UNIT_SIZE(1, 2);
 	ed->bDescriptorType		= USB_DT_CS_INTERFACE;
 	ed->bDescriptorSubType		= UVC_VC_EXTENSION_UNIT;
-	ed->bUnitID			= UVC_EU_ID;
+	ed->bUnitID			= UVC_XU_ID;
 	memcpy(ed->guidExtensionCode, extension_guid, sizeof(extension_guid));
 	ed->bNumControls		= 15;	/* totally 15 controls - reserved for customer */
 	ed->bNrInPins			= 1;	/* 1 Input pin (PU) */
@@ -1211,6 +1262,7 @@ static struct usb_function *uvc_alloc(struct usb_function_instance *fi)
 	uvc->func.unbind = uvc_unbind;
 	uvc->func.get_alt = uvc_function_get_alt;
 	uvc->func.set_alt = uvc_function_set_alt;
+	uvc->func.req_match = uvc_function_req_match;
 	uvc->func.disable = uvc_function_disable;
 	uvc->func.setup = uvc_function_setup;
 	uvc->func.free_func = uvc_free;
