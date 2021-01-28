@@ -2563,7 +2563,7 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 					cache_frame->poll_mask = 0x00;
 					if (cache_frame->dispatch_mask == 0x0000
 							&& (framemgr->index_state[cache_bufindex] == FRAME_IND_USING)
-							&& (cache_frame->frameinfo.addr[0] != NULL)) {
+							&& (cache_frame->frameinfo.addr[0] != 0)) {
 						subdev->frameinfo.bufferindex = -1;
 						cache_frame->dispatch_mask = 0xFF00;
 						trans_frame(framemgr, cache_frame, FS_REQUEST);
@@ -3251,7 +3251,7 @@ void ipu_frame_done(struct ipu_subdev *subdev)
 				cache_frame->poll_mask = 0x00;
 				if (cache_frame->dispatch_mask == 0x0000
 						&& framemgr->index_state[cache_bufindex] == FRAME_IND_USING
-						&& (cache_frame->frameinfo.addr[0] != NULL)) {
+						&& (cache_frame->frameinfo.addr[0] != 0)) {
 					subdev->frameinfo.bufferindex = -1;
 					cache_frame->dispatch_mask = 0xFF00;
 					trans_frame(framemgr, cache_frame, FS_REQUEST);
