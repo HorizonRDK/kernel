@@ -216,7 +216,7 @@ void sif_read_frame_work(struct vio_group *group)
 
 void sif_write_frame_work(struct vio_group *group)
 {
-	u32 instance = 0;
+	u32 instance = 0, i;
 	u32 buf_index = 0;
 	u32 mux_index = 0;
 	u32 yuv_format = 0;
@@ -259,7 +259,14 @@ void sif_write_frame_work(struct vio_group *group)
 				sif_transfer_ddr_owner(sif->base_reg, mux_index+1, buf_index);
 			}
 		}
-
+		if (subdev->splice_info.splice_enable) {
+			for(i = 0; i < subdev->splice_info.pipe_num; i++) {
+			sif_set_wdma_buf_addr(sif->base_reg, mux_index + 1 + i,
+									  buf_index, frame->frameinfo.addr[i + 1]);
+			sif_transfer_ddr_owner(sif->base_reg, mux_index + 1 + i,
+						   buf_index);
+			}
+		}
 		if (subdev->dol_num > 2) {
 			sif_set_wdma_buf_addr(sif->base_reg, mux_index + 2,
 					      buf_index, frame->frameinfo.addr[2]);
@@ -511,7 +518,7 @@ int sif_get_stride(u32 pixel_length, u32 width)
 }
 
 int get_free_mux(struct x3_sif_dev *sif, u32 index, int format, u32 dol_num,
-		u32 width, u32 *mux_numbers)
+		u32 width, u32 *mux_numbers, u32 splice_enable, u32 pipe_num)
 {
 	int ret = 0;
 	int i = 0;
@@ -524,6 +531,14 @@ int get_free_mux(struct x3_sif_dev *sif, u32 index, int format, u32 dol_num,
 	if (format == HW_FORMAT_YUV422) {
 		step = 2;
 		mux_nums = 2;
+	}
+	if(splice_enable) {
+		if(pipe_num == 1)
+			mux_nums = 2;
+		else if (pipe_num == 2)
+			mux_nums = 3;
+		else if (pipe_num == 3)
+			mux_nums = 4;
 	}
 	if (format == HW_FORMAT_YUV422 && width >= LINE_BUFFER_SIZE) {
 		step = 4;
@@ -573,12 +588,16 @@ int get_free_mux(struct x3_sif_dev *sif, u32 index, int format, u32 dol_num,
 					continue;
 				if (mux_nums > 2 && test_bit(i + 2, &sif->mux_mask))
 					continue;
+				if (mux_nums > 3 && test_bit(i + 3, &sif->mux_mask))
+					continue;
 
 				set_bit(i, &sif->mux_mask);
 				if (mux_nums > 1)
 					set_bit(i + 1, &sif->mux_mask);
 				if (mux_nums > 2)
 					set_bit(i + 2, &sif->mux_mask);
+				if (mux_nums > 3)
+					set_bit(i + 3, &sif->mux_mask);
 				ret = i;
 				break;
 			}
@@ -603,10 +622,11 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 	u32 dol_exp_num = 0;
 	int format = 0;
 	int isp_flyby = 0;
-	u32 width = 0;
+	u32 width = 0, i;
 	struct x3_sif_dev *sif;
 	struct vio_group_task *gtask;
 	struct vio_group *group;
+	u32 splice_enable, pipe_num;
 
 	sif = subdev->sif_dev;
 	group = subdev->group;
@@ -616,24 +636,31 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 	dol_exp_num = sif_config->output.isp.dol_exp_num;
 	isp_flyby = sif_config->output.isp.func.enable_flyby;
 	ddr_enable =  sif_config->output.ddr.enable;
+	splice_enable = sif_config->input.splice.splice_enable;
+	pipe_num = sif_config->input.splice.pipe_num;
+	subdev->splice_info.splice_enable = splice_enable;
+	subdev->splice_info.splice_mode = sif_config->input.splice.splice_mode;
+	subdev->splice_info.pipe_num = sif_config->input.splice.pipe_num;
 
 	if (isp_flyby && !test_bit(SIF_OTF_OUTPUT, &sif->state))
 		set_bit(SIF_OTF_OUTPUT, &sif->state);
 
 	/* mux initial*/
 	if (!isp_flyby && test_bit(SIF_OTF_OUTPUT, &sif->state)) {
-		mux_index = get_free_mux(sif, 4, format, dol_exp_num, width, &mux_nums);
+		mux_index = get_free_mux(sif, 4, format, dol_exp_num, width, &mux_nums,
+				splice_enable, pipe_num);
 		if (mux_index < 0)
 			return mux_index;
 		sif_config->output.isp.func.enable_flyby = 1;
 	} else {
-		mux_index = get_free_mux(sif, 0, format, dol_exp_num, width, &mux_nums);
+		mux_index = get_free_mux(sif, 0, format, dol_exp_num, width, &mux_nums,
+				splice_enable, pipe_num);
 		if (mux_index < 0)
 			return mux_index;
 	}
 
-	vio_dbg("S[%d] mux_index %d mux_nums %d",
-		group->instance, mux_index, mux_nums);
+	vio_dbg("S[%d] mux_index %d mux_nums %d", group->instance,
+			mux_index, mux_nums);
 	subdev->mux_nums = mux_nums;
 	sif_config->input.mipi.func.set_mux_out_index = mux_index;
 	subdev->mux_index = mux_index;
@@ -644,13 +671,12 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 	if (dol_exp_num > 1)
 		subdev->mux_index1 = mux_index + 1;
 	if(dol_exp_num > 2) {
-		subdev->mux_index1 = mux_index + 1;
 		subdev->mux_index2 = mux_index + 2;
 	}
 	if (isp_flyby && ddr_enable) {
 		vio_info("ddr output enable in online mode\n");
 		ddr_mux_index = get_free_mux(sif, 4, format, dol_exp_num,
-				width, &mux_nums);
+				width, &mux_nums, splice_enable, pipe_num);
 		if (ddr_mux_index < 0)
 			return ddr_mux_index;
 		sif->sif_mux[ddr_mux_index] = group;
@@ -698,6 +724,33 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 
 	subdev->initial_frameid = true;
 	sif->sif_mux[mux_index] = group;
+	if(splice_enable) {
+		for (i = 0; i < pipe_num; i++) {
+			subdev->splice_info.mux_index[i] = mux_index + 1 + i;
+			subdev->splice_info.splice_rx_index[i] =
+				sif_config->input.splice.mipi_rx_index[i];
+			subdev->splice_info.splice_vc_index[i] =
+				sif_config->input.splice.vc_index[i];
+		if (subdev->splice_info.splice_rx_index[i] < 2)
+			subdev->splice_info.splice_ipi_index[i] =
+				subdev->splice_info.splice_rx_index[i] * 4 +
+					subdev->splice_info.splice_vc_index[i];
+		else
+			subdev->splice_info.splice_ipi_index[i] = 8 +
+			(subdev->splice_info.splice_rx_index[i] - 2) * 2 +
+					subdev->splice_info.splice_vc_index[i];
+
+		sif->sif_mux[mux_index + 1 + i] = group;
+		set_bit(SIF_SPLICE_OP + mux_index + 1 + i, &sif->state);
+
+		vio_info("splice_mode %d pipe_num %d \n",
+				subdev->splice_info.splice_mode, pipe_num);
+		vio_info("[S%d] %s ipi_index %d splice_ipi_index = %d splice_vc_index %d\n",
+			group->instance, __func__, subdev->ipi_index,
+			subdev->splice_info.splice_ipi_index[i],
+			subdev->splice_info.splice_vc_index[i]);
+	   }
+	}
 
 	if(ddr_enable == 0) {
 		set_bit(VIO_GROUP_OTF_OUTPUT, &group->state);
@@ -970,6 +1023,7 @@ int sif_video_streamoff(struct sif_video_ctx *sif_ctx)
 	struct vio_framemgr *framemgr;
 	struct sif_subdev *subdev;
 	u32 isp_enable;
+	u32 splice_enable, pipe_num;
 
 	if (!(sif_ctx->state & BIT(VIO_VIDEO_START))) {
 		vio_err("[%s][V%02d] invalid STREAM OFF is requested(%lX)",
@@ -993,6 +1047,14 @@ int sif_video_streamoff(struct sif_video_ctx *sif_ctx)
 		sif_enable_frame_intr(sif_dev->base_reg, subdev->ddr_mux_index, false);
 		for (i = 0; i < subdev->ipi_channels; i++)
 			sif_disable_ipi(sif_dev->base_reg, subdev->ipi_index + i);
+		splice_enable = subdev->splice_info.splice_enable;
+		pipe_num = subdev->splice_info.pipe_num;
+		if(splice_enable) {
+			for (i = 0; i < pipe_num; i++) {
+				sif_enable_frame_intr(sif_dev->base_reg, subdev->mux_index + 1 + i, false);
+				sif_disable_ipi(sif_dev->base_reg, subdev->splice_info.splice_ipi_index[i]);
+			}
+		}
 	}
 	isp_enable = subdev->sif_cfg.output.isp.enable;
 	if (isp_enable && (atomic_dec_return(&sif_dev->isp_init_cnt) == 0)) {
@@ -1471,7 +1533,7 @@ void sif_frame_done(struct sif_subdev *subdev)
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
 	struct vio_group *group;
-	struct sif_video_ctx *sif_ctx;
+	struct sif_video_ctx *sif_ctx = NULL;
 	struct x3_sif_dev *sif;
 	unsigned long flags;
 	u32 event = 0;
@@ -1481,54 +1543,112 @@ void sif_frame_done(struct sif_subdev *subdev)
 
 	group = subdev->group;
 	sif = subdev->sif_dev;
+
 	framemgr = &subdev->framemgr;
-	framemgr_e_barrier_irqs(framemgr, 0, flags);
-	frame = peek_frame(framemgr, FS_PROCESS);
-	if (frame) {
-		if (group->id == 0) {
-			struct timeval tmp_tv;
-			do_gettimeofday(&tmp_tv);
-			g_sif_idx[group->instance]++;
-			if (tmp_tv.tv_sec > g_sif_fps_lasttime[group->instance]) {
-				g_sif_fps[group->instance] = g_sif_idx[group->instance];
-				g_sif_fps_lasttime[group->instance] = tmp_tv.tv_sec;
-				g_sif_idx[group->instance] = 0;
-			}
-		}
-		frame->frameinfo.frame_id = group->frameid.frame_id;
-		frame->frameinfo.timestamps = group->frameid.timestamps;
-		frame->frameinfo.tv = group->frameid.tv;
-		vio_set_stat_info(group->instance, SIF_CAP_FE + group->id * 2,
-				group->frameid.frame_id);
-
-		trans_frame(framemgr, frame, FS_COMPLETE);
-		event = VIO_FRAME_DONE;
-		sif->statistic.fe_normal[group->instance][subdev->id]++;
-	} else {
-		sif->statistic.fe_lack_buf[group->instance][subdev->id]++;
-		event = VIO_FRAME_NDONE;
-		vio_err("[S%d][V%d]SIF PROCESS queue has no member;\n",
-			group->instance, subdev->id);
-		vio_err("[S%d][V%d][FRM](%d %d %d %d %d)\n",
-			group->instance,
-			subdev->id,
-			framemgr->queued_count[0],
-			framemgr->queued_count[1],
-			framemgr->queued_count[2],
-			framemgr->queued_count[3],
-			framemgr->queued_count[4]);
-	}
-	framemgr_x_barrier_irqr(framemgr, 0, flags);
-
-	spin_lock_irqsave(&subdev->slock, flags);
 	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
 		if (test_bit(i, &subdev->val_ctx_mask)) {
 			sif_ctx = subdev->ctx[i];
-			sif_ctx->event = event;
-			wake_up(&sif_ctx->done_wq);
 		}
 	}
-	spin_unlock_irqrestore(&subdev->slock, flags);
+	if(subdev->splice_info.splice_enable && sif_ctx->id == 0) {
+		if (subdev->splice_info.splice_done && subdev->splice_info.frame_done) {
+			framemgr_e_barrier_irqs(framemgr, 0, flags);
+			frame = peek_frame(framemgr, FS_PROCESS);
+			if (frame) {
+				if (group->id == 0) {
+					struct timeval tmp_tv;
+					do_gettimeofday(&tmp_tv);
+					g_sif_idx[group->instance]++;
+					if (tmp_tv.tv_sec > g_sif_fps_lasttime[group->instance]) {
+						g_sif_fps[group->instance] = g_sif_idx[group->instance];
+						g_sif_fps_lasttime[group->instance] = tmp_tv.tv_sec;
+						g_sif_idx[group->instance] = 0;
+					}
+				}
+				frame->frameinfo.frame_id = group->frameid.frame_id;
+				frame->frameinfo.timestamps = group->frameid.timestamps;
+				frame->frameinfo.tv = group->frameid.tv;
+				vio_set_stat_info(group->instance, SIF_CAP_FE + group->id * 2,
+						group->frameid.frame_id);
+
+				trans_frame(framemgr, frame, FS_COMPLETE);
+				event = VIO_FRAME_DONE;
+				sif->statistic.fe_normal[group->instance][subdev->id]++;
+			} else {
+				sif->statistic.fe_lack_buf[group->instance][subdev->id]++;
+				event = VIO_FRAME_NDONE;
+				vio_err("[S%d][V%d]SIF PROCESS queue has no member;\n",
+					group->instance, subdev->id);
+				vio_err("[S%d][V%d][FRM](%d %d %d %d %d)\n",
+					group->instance,
+					subdev->id,
+					framemgr->queued_count[0],
+					framemgr->queued_count[1],
+					framemgr->queued_count[2],
+					framemgr->queued_count[3],
+					framemgr->queued_count[4]);
+			}
+			framemgr_x_barrier_irqr(framemgr, 0, flags);
+			spin_lock_irqsave(&subdev->slock, flags);
+			for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
+				if (test_bit(i, &subdev->val_ctx_mask)) {
+					sif_ctx = subdev->ctx[i];
+					sif_ctx->event = event;
+					wake_up(&sif_ctx->done_wq);
+				}
+			}
+			spin_unlock_irqrestore(&subdev->slock, flags);
+			subdev->splice_info.splice_done = 0;
+			subdev->splice_info.frame_done = 0;
+		}
+	} else {
+			framemgr_e_barrier_irqs(framemgr, 0, flags);
+			frame = peek_frame(framemgr, FS_PROCESS);
+			if (frame) {
+				if (group->id == 0) {
+					struct timeval tmp_tv;
+					do_gettimeofday(&tmp_tv);
+					g_sif_idx[group->instance]++;
+					if (tmp_tv.tv_sec > g_sif_fps_lasttime[group->instance]) {
+						g_sif_fps[group->instance] = g_sif_idx[group->instance];
+						g_sif_fps_lasttime[group->instance] = tmp_tv.tv_sec;
+						g_sif_idx[group->instance] = 0;
+					}
+				}
+				frame->frameinfo.frame_id = group->frameid.frame_id;
+				frame->frameinfo.timestamps = group->frameid.timestamps;
+				frame->frameinfo.tv = group->frameid.tv;
+				vio_set_stat_info(group->instance, SIF_CAP_FE + group->id * 2,
+						group->frameid.frame_id);
+
+				trans_frame(framemgr, frame, FS_COMPLETE);
+				event = VIO_FRAME_DONE;
+				sif->statistic.fe_normal[group->instance][subdev->id]++;
+			} else {
+				sif->statistic.fe_lack_buf[group->instance][subdev->id]++;
+				event = VIO_FRAME_NDONE;
+				vio_err("[S%d][V%d]SIF PROCESS queue has no member;\n",
+					group->instance, subdev->id);
+				vio_err("[S%d][V%d][FRM](%d %d %d %d %d)\n",
+					group->instance,
+					subdev->id,
+					framemgr->queued_count[0],
+					framemgr->queued_count[1],
+					framemgr->queued_count[2],
+					framemgr->queued_count[3],
+					framemgr->queued_count[4]);
+			}
+			framemgr_x_barrier_irqr(framemgr, 0, flags);
+			spin_lock_irqsave(&subdev->slock, flags);
+			for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
+				if (test_bit(i, &subdev->val_ctx_mask)) {
+					sif_ctx = subdev->ctx[i];
+					sif_ctx->event = event;
+					wake_up(&sif_ctx->done_wq);
+				}
+			}
+			spin_unlock_irqrestore(&subdev->slock, flags);
+	}
 	vio_dbg("%s: mux_index = %d\n", __func__, subdev->ddr_mux_index);
 }
 
@@ -1688,7 +1808,7 @@ static void subdev_set_frm_owner(struct sif_subdev *subdev,
 
 static irqreturn_t sif_isr(int irq, void *data)
 {
-	int ret = 0;
+	int ret = 0, i;
 	u32 mux_index = 0;
 	u32 instance = 0;
 	u32 status = 0;
@@ -1699,7 +1819,7 @@ static irqreturn_t sif_isr(int irq, void *data)
 	struct vio_group *group;
 	struct vio_group_task *gtask;
 	struct sif_subdev *subdev;
-	u32 mux = 0, i;
+	u32 mux = 0;
 	u8 temp;
 
 	sif = (struct x3_sif_dev *) data;
@@ -1719,6 +1839,13 @@ static irqreturn_t sif_isr(int irq, void *data)
 			if (status & 1 << (mux_index + INTR_SIF_MUX0_FRAME_DONE)) {
 				group = sif->sif_mux[mux_index];
 				subdev = group->sub_ctx[0];
+				if(subdev->splice_info.splice_enable) {
+					if (test_bit(mux_index + SIF_SPLICE_OP, &sif->state)) {
+						subdev->splice_info.splice_done = 1;
+					} else {
+						subdev->splice_info.frame_done = 1;
+					}
+				}
 				sif_frame_done(subdev);
 				/* fps_ctrl:FDone:if not lost next frame,transfer owner to HW */
 				if ((subdev->fps_ctrl.skip_frame)&&
@@ -1736,14 +1863,35 @@ static irqreturn_t sif_isr(int irq, void *data)
 				sif->statistic.fs[group->instance]++;
 				sif->statistic.grp_tsk_left[group->instance]
 					= atomic_read(&group->rcount);
+
 				if (subdev->initial_frameid) {
-					sif_enable_init_frameid(sif->base_reg, subdev->rx_index, 0);
+					if (test_bit(mux_index + SIF_SPLICE_OP, &sif->state)) {
+						for(i = 0; i < subdev->splice_info.pipe_num; i++) {
+							sif_enable_init_frameid(sif->base_reg,
+								subdev->splice_info.splice_rx_index[i], 0);
+						}
+					} else {
+						sif_enable_init_frameid(sif->base_reg, subdev->rx_index, 0);
+					}
 					subdev->initial_frameid = false;
 				}
-				sif_get_frameid_timestamps(sif->base_reg, mux_index, subdev->ipi_index,
-				 &group->frameid, subdev->dol_num, group->instance, &subdev->sif_cfg.output,
-				 &subdev->sif_cfg.input);
-
+				if (test_bit(mux_index + SIF_SPLICE_OP, &sif->state)) {
+					for(i = 0; i < subdev->splice_info.pipe_num; i++) {
+						 sif_get_frameid_timestamps(sif->base_reg,
+							subdev->splice_info.mux_index[i],
+						 subdev->splice_info.splice_ipi_index[i],
+						 &group->frameid, subdev->dol_num,
+						 group->instance, &subdev->sif_cfg.output,
+						 &subdev->sif_cfg.input);
+					}
+				} else {
+					sif_get_frameid_timestamps(sif->base_reg, mux_index, subdev->ipi_index,
+					&group->frameid, subdev->dol_num, group->instance, &subdev->sif_cfg.output,
+					&subdev->sif_cfg.input);
+				}
+				if (test_bit(mux_index + SIF_SPLICE_OP, &sif->state)) {
+					continue;
+				}
 				if (debug_log_print)
 					vio_print_stat_info(group->instance);
 

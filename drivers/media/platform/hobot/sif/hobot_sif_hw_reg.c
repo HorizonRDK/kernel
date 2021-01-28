@@ -794,15 +794,18 @@ void sif_set_dol_channels(sif_input_mipi_t* p_mipi, sif_output_isp_t *p_isp,
  * @param p_mipi the pointer of sif_input_mipi_t
  */
 static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
-			sif_output_t *p_out, bool *online_ddr_enable)
+			sif_output_t *p_out, sif_input_splice_t *splice, bool *online_ddr_enable)
 {
 	int i = 0;
 	u32 enable_mux_out    = p_mipi->func.enable_mux_out;
 	u32 set_mux_out_index = p_mipi->func.set_mux_out_index;
 	u32 yuv_format        = p_mipi->data.format;
+	u32 splice_enable = splice->splice_enable;
+	u32 pipe_num = splice->pipe_num;
 	u32 format = p_mipi->data.format;
 	const static u32 map_mux_input[] = {0, 4, 8, 10};
 	u32 input_index_start = map_mux_input[p_mipi->mipi_rx_index];
+	u32 ipi_index_start;
 	u32 i_step, mux_out_index, lines, ddr_mux_out_index;
 	u8 *vc_index;
 	u8 ipi_index = 0;
@@ -852,6 +855,15 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
 		}
 	}
 	sif_config_mipi_rx(base_reg, p_mipi->mipi_rx_index, &p_mipi->data);
+	if(splice_enable) {
+		for (i = 0; i < pipe_num; i++) {
+			sif_config_mipi_rx(base_reg, splice->mipi_rx_index[i], &p_mipi->data);
+			sif_config_rx_ipi(base_reg, splice->mipi_rx_index[i],
+						splice->vc_index[i], p_mipi);
+			vio_info("%s: splice->vc_index = %d mipi_rx_index %d\n",
+				__func__, splice->vc_index[i], splice->mipi_rx_index[i]);
+		}
+	}
 	vc_index = p_mipi->vc_index;
 	for (i = 0; i < p_mipi->channels; i++) {
 		ipi_index = vc_index[i];
@@ -917,7 +929,20 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
 				}
 			}
 	}
-
+	if(splice_enable) {
+		for (i = 0; i < pipe_num; i++) {
+			mux_out_index = set_mux_out_index + 1 + i;
+			ipi_index_start = map_mux_input[splice->mipi_rx_index[i]];
+			ipi_index = splice->vc_index[i];
+			lines = (p_mipi->data.width / LINE_BUFFER_SIZE) + 1;
+			sif_enable_mux_out(base_reg,
+						mux_out_index,
+						ipi_index_start + ipi_index,
+						lines);
+			/* Frame Done Interrupt */
+			sif_enable_frame_intr(base_reg, mux_out_index, true);
+		}
+	}
 	/*bypass enable*/
 	if (p_mipi->func.enable_bypass) {
 		sif_config_bypass(base_reg, p_mipi->func.set_bypass_channels);
@@ -1005,14 +1030,20 @@ u32 sif_get_ddr_addr(u32 __iomem *base_reg, u32 mux_out_index, u32 buf_index)
  *
  */
 void sif_set_ddr_output(u32 __iomem *base_reg, sif_output_ddr_t* p_ddr,
-	u32 *enbale)
+	sif_input_splice_t *splice, u32 *enbale)
 {
 	if(!p_ddr->enable)
 		return;
 
-	if(p_ddr->stride)
-		vio_hw_set_reg(base_reg,
+	if(p_ddr->stride) {
+		if(splice->splice_enable && splice->splice_mode == SPLICE_LEFT_RIGHT) {
+				vio_hw_set_reg(base_reg,
+				&sif_regs[SIF_AXI_FRM0_W_STRIDE + p_ddr->mux_index], p_ddr->stride * 2);
+		} else {
+			vio_hw_set_reg(base_reg,
 			&sif_regs[SIF_AXI_FRM0_W_STRIDE + p_ddr->mux_index], p_ddr->stride);
+		}
+	}
 
 	sif_set_wdma_enable(base_reg, p_ddr->mux_index, true);
 
@@ -1228,6 +1259,7 @@ void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c)
 	u32 yuv_format = 0;
 	u32 dol_exp_num = 0;
 	sif_output_ddr_t ddr;
+	u32 splice_enable, i, pipe_num;
 
 	// Input: IAR
 	sif_set_iar_input(base_reg, &c->input.iar);
@@ -1236,10 +1268,12 @@ void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c)
 	sif_set_dvp_input(base_reg, &c->input.dvp);
 
 	// Input: SIF
-	sif_set_mipi_rx(base_reg, &c->input.mipi, &c->output, &online_ddr_enable);
+	sif_set_mipi_rx(base_reg, &c->input.mipi, &c->output,
+			&c->input.splice, &online_ddr_enable);
 
 	// output: ddr
-	sif_set_ddr_output(base_reg, &c->output.ddr, &enable_output_ddr);
+	sif_set_ddr_output(base_reg, &c->output.ddr,
+			&c->input.splice, &enable_output_ddr);
 
 	if(enable_output_ddr){
 		yuv_format = c->input.mipi.data.format;
@@ -1247,13 +1281,22 @@ void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c)
 		if(yuv_format == HW_FORMAT_YUV422 || dol_exp_num > 1) {
 			memcpy(&ddr, &c->output.ddr, sizeof(sif_output_ddr_t));
 			ddr.mux_index += 1;
-			sif_set_ddr_output(base_reg, &ddr, &enable_output_ddr);
+			sif_set_ddr_output(base_reg, &ddr, &c->input.splice, &enable_output_ddr);
 		}
 
 		if(dol_exp_num > 2){
 			memcpy(&ddr, &c->output.ddr, sizeof(sif_output_ddr_t));
 			ddr.mux_index += 2;
-			sif_set_ddr_output(base_reg, &ddr, &enable_output_ddr);
+			sif_set_ddr_output(base_reg, &ddr, &c->input.splice, &enable_output_ddr);
+		}
+		splice_enable = c->input.splice.splice_enable;
+		pipe_num = c->input.splice.pipe_num;
+		if(splice_enable) {
+			memcpy(&ddr, &c->output.ddr, sizeof(sif_output_ddr_t));
+			for(i = 0; i < pipe_num; i++) {
+				ddr.mux_index += 1;
+				sif_set_ddr_output(base_reg, &ddr, &c->input.splice, &enable_output_ddr);
+			}
 		}
 	}
 

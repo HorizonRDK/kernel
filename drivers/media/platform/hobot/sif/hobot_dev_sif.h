@@ -194,6 +194,7 @@ enum sif_state {
 	SIF_DOL2_MODE,
 	SIF_HW_RUN = 20,
 	SIF_HW_FORCE_STOP,
+	SIF_SPLICE_OP,
 };
 
 enum sif_subdev_state {
@@ -211,6 +212,18 @@ typedef struct fps_ctrl_s {
 	atomic_t lost_next_frame;
 	atomic_t lost_this_frame;
 }fps_ctrl_t;
+
+struct splice_info {
+	u32 splice_enable;
+	u32 splice_mode;
+	u32 pipe_num;
+	u32 splice_done;
+	u32 frame_done;
+	u32 mux_index[SPLICE_PIPE_NUM];
+	u32 splice_rx_index[SPLICE_PIPE_NUM];
+	u8	splice_vc_index[SPLICE_PIPE_NUM];
+	u32 splice_ipi_index[SPLICE_PIPE_NUM];
+};
 
 struct sif_subdev {
 	spinlock_t 		slock;
@@ -242,7 +255,7 @@ struct sif_subdev {
 	u32 md_refresh_count;
 	u64 bufcount;
 	u32 id;
-
+	struct splice_info  splice_info;
 	fps_ctrl_t fps_ctrl;
 };
 

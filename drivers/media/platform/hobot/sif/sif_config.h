@@ -9,6 +9,8 @@
 
 #include "vio_config.h"
 
+#define SPLICE_PIPE_NUM 3
+
 typedef enum _sif_event_e {
 	SIF_START  = 1,
 	SIF_STOP   = 2,
@@ -125,11 +127,25 @@ typedef struct sif_input_iar {
 	sif_func_desc_t   func;
 } sif_input_iar_t;
 
+typedef enum sif_ddr_out_splice_mode_s {
+	SPLICE_UP_DOWN = 0,
+	SPLICE_LEFT_RIGHT
+} sif_ddr_out_splice_mode_e;
+
+typedef struct sif_input_splice {
+	uint32_t splice_enable;
+	uint32_t pipe_num;
+	sif_ddr_out_splice_mode_e splice_mode;
+	uint32_t mipi_rx_index[SPLICE_PIPE_NUM];
+	uint8_t vc_index[SPLICE_PIPE_NUM];
+} sif_input_splice_t;
+
 typedef struct sif_input {
 	sif_input_dvp_t 	dvp;
 	sif_input_mipi_t	mipi;
 	sif_input_iar_t 	iar;
 	sif_input_ddr_t     ddr;
+	sif_input_splice_t splice;
 } sif_input_t;
 
 typedef enum sif_ddr_out_type_s {
