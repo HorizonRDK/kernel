@@ -34,6 +34,7 @@
 #define RCORE_DEV_IDX  (3)
 
 #define J3_CPUSYS_CLKEN_SET (0x104)
+#define J3_CPUSYS_CLKEN_CLR (0x108)
 #define cr5_aclk_cken_set_bit (14)
 
 #define J3_CPUSYS_SW_RSTEN (0x400)
@@ -442,6 +443,11 @@ void rcore_start_remoteproc(void *ipc_int_va)
 {
 	unsigned int val = 0;
 
+	val = readl(ipc_int_va + J3_CPUSYS_CLKEN_SET);
+	val |= (0x1 << cr5_aclk_cken_set_bit);
+	writel(val, ipc_int_va + J3_CPUSYS_CLKEN_SET);
+	msleep(10);
+
 	// let rcore run
 	val = readl(ipc_int_va + J3_CPUSYS_SW_RSTEN);
 	val &= ~(0x1 << cr5_rst_en_bit);
@@ -457,13 +463,13 @@ void rcore_release_remoteproc(void *ipc_int_va)
 
 	// let rcore stop run
 	val = readl(ipc_int_va + J3_CPUSYS_SW_RSTEN);
-	val &= ~(0x1 << cr5_rst_en_bit);
+	val |= (0x1 << cr5_rst_en_bit);
 	writel(val, ipc_int_va + J3_CPUSYS_SW_RSTEN);
 
 	//disable clock
-	val = readl(ipc_int_va + J3_CPUSYS_CLKEN_SET);
-	val &= ~(0x1 << cr5_aclk_cken_set_bit);
-	writel(val, ipc_int_va + J3_CPUSYS_CLKEN_SET);
+	val = readl(ipc_int_va + J3_CPUSYS_CLKEN_CLR);
+	val |= (0x1 << cr5_aclk_cken_set_bit);
+	writel(val, ipc_int_va + J3_CPUSYS_CLKEN_CLR);
 
 	pr_info("rcore_release_remoteproc\n");
 }
