@@ -128,6 +128,8 @@ static int pwm0_request_status = 0;
 static int pwm_no = 0;
 static int pwm_period = 1000;
 static int pwm_duty = 10;
+static int bt656_output_pin_group = 0;// default output through low 8bit
+static int bt1120_clk_invert = 0;// default bt clk not invert
 
 struct disp_timing video_1920x1080 = {
 	148, 88, 44, 36, 4, 5, 10
@@ -1122,6 +1124,10 @@ static int disp_clk_enable(void)
 		pixel_clock = clk_get_rate(g_iar_dev->iar_pixel_clk);
 		pr_err("%s: iar pixel rate is %lld\n", __func__, pixel_clock);
 	}
+	if (bt1120_clk_invert != 0) {
+		pr_err("%s: set bt1120 clock phase invert!!\n", __func__);
+		set_iar_pixel_clk_inv();
+	}
 	return 0;
 }
 
@@ -1492,7 +1498,10 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 #ifdef CONFIG_HOBOT_XJ3
 		//output config
 		disp_set_panel_timing(&video_720x1280_touch);
-		writel(0x8, g_iar_dev->regaddr + REG_IAR_DE_OUTPUT_SEL);//0x340
+		if (bt656_output_pin_group == 0)
+			writel(0x8, g_iar_dev->regaddr + REG_IAR_DE_OUTPUT_SEL);//0x340
+		else
+			writel(0x0, g_iar_dev->regaddr + REG_IAR_DE_OUTPUT_SEL);//0x340
 		writel(0x13, g_iar_dev->regaddr + REG_DISP_LCDIF_CFG);//0x800
 		writel(0x3, g_iar_dev->regaddr + REG_DISP_LCDIF_PADC_RESET_N);//0x804
 		writel(0x0, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);//0x204
@@ -4201,6 +4210,20 @@ static int hobot_iar_probe(struct platform_device *pdev)
 	ret = request_threaded_irq(g_iar_dev->irq, hobot_iar_irq, NULL, IRQF_TRIGGER_HIGH,
 							   dev_name(&pdev->dev), g_iar_dev);
 	disable_irq(g_iar_dev->irq);
+
+	ret = of_property_read_u32(pdev->dev.of_node, "bt656_pin_group",
+			&bt656_output_pin_group);
+	if (ret) {
+		pr_err("error get bt656 output pin group config, use low 8bit default!!\n");
+		bt656_output_pin_group = 0;// default use low 8 bits
+	}
+
+	ret = of_property_read_u32(pdev->dev.of_node, "btclk_invert",
+			&bt1120_clk_invert);
+	if (ret) {
+		pr_err("error get bt1120 clk invert config, use normal as default!!\n");
+		bt1120_clk_invert = 0;// default not invert
+	}
 
 	ret = of_property_read_u32(pdev->dev.of_node, "startup-img",
 			&need_startup_img);

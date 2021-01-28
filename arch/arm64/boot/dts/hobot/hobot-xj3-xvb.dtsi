@@ -307,6 +307,8 @@
 	timing_720x480 = <27000000 276 0 0 19 3 0>;
 	startup-img = <0>;
 	pwm = <0 1000 10>;//pwm-no, period, duty
+	bt656_pin_group = <0>;
+	btclk_invert = <0>;
 };
 
 &fb {
