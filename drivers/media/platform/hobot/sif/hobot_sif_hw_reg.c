@@ -69,6 +69,37 @@ static void sif_enable_drop_frame(u32 __iomem *base_reg, bool enable)
 }
 #endif
 
+static void sif_enable_yuv_mux_out(u32 __iomem *base_reg, u32 mux_index,
+				u32 ipi_index)
+{
+	if (mux_index < 8) {
+		vio_hw_set_field(base_reg, &sif_regs[SIF_MUX_OUT_MODE],
+				&sif_fields[SW_SIF_MUX0_OUT_ENABLE - mux_index], 1);
+		vio_hw_set_field(base_reg, &sif_regs[SIF_IN_BUF_OVERFLOW_MASK],
+				&sif_fields[SW_SIF_BUF0_CTRL_OVERFLOW_ERROR_MASK - mux_index],
+				0);
+		vio_hw_set_field(base_reg, &sif_regs[SIF_MUX_OUT_SEL],
+				&sif_fields[SW_SIF_MUX0_OUT_SELECT - mux_index], ipi_index);
+	}
+	vio_info("mux_index = %d, ipi_index = %d \n",
+			mux_index, ipi_index);
+	switch (mux_index) {
+		case 0:
+			vio_info("fifo 0~3 merge\n");
+			vio_hw_set_field(base_reg, &sif_regs[SIF_MUX_OUT_MODE],
+					&sif_fields[SW_SIF_BUF_CTRL_F0TO3_4LENGTH], 1);
+			break;
+		case 1:
+			vio_info("fifo 4~7 merge\n");
+			vio_hw_set_field(base_reg, &sif_regs[SIF_MUX_OUT_MODE],
+					&sif_fields[SW_SIF_BUF_CTRL_F4TO7_4LENGTH], 1);
+			break;
+		default:
+			vio_err("Mux Out can't support lines == 2: %d", mux_index);
+			break;
+	}
+}
+
 /*
  * @brief Enable a frame interrupt
  *
@@ -826,26 +857,14 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
 				case 0:
 					vio_hw_set_field(base_reg, &sif_regs[SIF_YUV422_TRANS],
 							&sif_fields[SW_YUV422TO420SP_MUX01_ENABLE], 1);
-					if (p_mipi->data.width >= LINE_BUFFER_SIZE) {
-						vio_hw_set_field(base_reg, &sif_regs[SIF_YUV422_TRANS],
-							&sif_fields[SW_YUV422TO420SP_MUX23_ENABLE], 1);
-					}
 					break;
 				case 1:
 					vio_hw_set_field(base_reg, &sif_regs[SIF_YUV422_TRANS],
 							&sif_fields[SW_YUV422TO420SP_MUX23_ENABLE], 1);
-					if (p_mipi->data.width >= LINE_BUFFER_SIZE) {
-						vio_hw_set_field(base_reg, &sif_regs[SIF_YUV422_TRANS],
-							&sif_fields[SW_YUV422TO420SP_MUX45_ENABLE], 1);
-					}
 					break;
 				case 2:
 					vio_hw_set_field(base_reg, &sif_regs[SIF_YUV422_TRANS],
 							&sif_fields[SW_YUV422TO420SP_MUX45_ENABLE], 1);
-					if (p_mipi->data.width >= LINE_BUFFER_SIZE) {
-						vio_hw_set_field(base_reg, &sif_regs[SIF_YUV422_TRANS],
-							&sif_fields[SW_YUV422TO420SP_MUX67_ENABLE], 1);
-					}
 					break;
 				case 3:
 					vio_hw_set_field(base_reg, &sif_regs[SIF_YUV422_TRANS],
@@ -905,10 +924,18 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
 				lines = 1;
 			}
 			ipi_index = vc_index[i];
-			sif_enable_mux_out(base_reg,
+			if(yuv_format == HW_FORMAT_YUV422 &&
+				p_mipi->data.width == 3840 &&
+				p_mipi->data.height == 2160) {
+				sif_enable_yuv_mux_out(base_reg,
+					mux_out_index,
+					input_index_start + ipi_index);
+			} else {
+				sif_enable_mux_out(base_reg,
 					mux_out_index,
 					input_index_start + ipi_index,
 					lines);
+			}
 
 			if(ddr_mux_out_index != mux_out_index) {
 				vio_hw_set_field(base_reg, &sif_regs[SIF_MUX_OUT_SEL],
@@ -921,13 +948,20 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
 			sif_enable_frame_intr(base_reg, mux_out_index, true);
 
 			if (yuv_format == HW_FORMAT_YUV422) {
+				if (p_mipi->data.width == 3840 &&
+					p_mipi->data.height == 2160) {
+					sif_enable_yuv_mux_out(base_reg,
+						mux_out_index + 1,
+						input_index_start + ipi_index);
+				} else {
 					sif_enable_mux_out(base_reg,
 							mux_out_index + 1,
 							input_index_start + ipi_index,
 							lines);
 					//sif_enable_frame_intr(base_reg, mux_out_index + 1, true);
 				}
-			}
+			 }
+		}
 	}
 	if(splice_enable) {
 		for (i = 0; i < pipe_num; i++) {

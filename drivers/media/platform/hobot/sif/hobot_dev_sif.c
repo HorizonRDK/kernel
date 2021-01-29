@@ -404,6 +404,7 @@ static u32 x3_sif_poll(struct file *file, struct poll_table_struct *wait)
 void sif_fps_ctrl_deinit(struct sif_subdev *subdev);
 static int x3_sif_close(struct inode *inode, struct file *file)
 {
+	int i;
 	struct sif_video_ctx *sif_ctx;
 	struct vio_group *group;
 	struct x3_sif_dev *sif;
@@ -448,11 +449,23 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 				clear_bit(subdev->mux_index + 3, &sif->mux_mask);
 				clear_bit(subdev->ddr_mux_index + 3, &sif->mux_mask);
 			}
+			if (subdev->mux_nums == SIF_MUX_MAX) {  /* 8M  yuv*/
+				for (i = 0; i < subdev->mux_nums; i++) {
+					clear_bit(subdev->mux_index + i, &sif->mux_mask);
+					clear_bit(subdev->ddr_mux_index + i, &sif->mux_mask);
+				}
+			}
 
 			if (subdev->fmt.width >= LINE_BUFFER_SIZE) {
 				clear_bit(subdev->mux_index + 2, &sif->mux_mask);
 				clear_bit(subdev->ddr_mux_index + 2, &sif->mux_mask);
 			}
+
+			if(subdev->splice_info.splice_enable) {
+				for (i = 0; i < subdev->splice_info.pipe_num; i++) {
+				 clear_bit(SIF_SPLICE_OP + subdev->mux_index + i + 1, &sif->state);
+			}
+		  }
 			sif_fps_ctrl_deinit(subdev);
 		}
 
@@ -541,8 +554,13 @@ int get_free_mux(struct x3_sif_dev *sif, u32 index, int format, u32 dol_num,
 			mux_nums = 4;
 	}
 	if (format == HW_FORMAT_YUV422 && width >= LINE_BUFFER_SIZE) {
-		step = 4;
-		mux_nums = 4;
+		if(width == 3840) {  /*8M yuv*/
+			step = 8;
+			mux_nums = 8;
+		} else {
+			step = 4;
+			mux_nums = 4;
+		}
 	}
 	*mux_numbers = mux_nums;
 
@@ -565,22 +583,40 @@ int get_free_mux(struct x3_sif_dev *sif, u32 index, int format, u32 dol_num,
 			vio_err("can't get free mux for 4k\n");
 			ret = -EINVAL;
 		}
-	} else if (width >= LINE_BUFFER_SIZE && step == 4) {
-		for (i = start_index; i < 4; i++) {
-		if (!test_bit(mux_for_4k[i], &sif->mux_mask)) {
-			if (test_bit(mux_for_4k[i] + 2, &sif->mux_mask))
-				continue;
 
-			set_bit(mux_for_4k[i], &sif->mux_mask);
-			set_bit(mux_for_4k[i] + 2, &sif->mux_mask);
-			ret = mux_for_4k[i];
-			break;
+		vio_info("mux %d sif->mux_mask 0x%lx \n", ret, sif->mux_mask);
+	} else if (width >= LINE_BUFFER_SIZE && step == 4) {
+		if (index == 4)
+			start_index = 2;
+		for (i = start_index; i < 4; i++) {
+			if (!test_bit(mux_for_4k[i], &sif->mux_mask)) {
+				if (test_bit(mux_for_4k[i] + 2, &sif->mux_mask))
+					continue;
+
+				set_bit(mux_for_4k[i], &sif->mux_mask);
+				set_bit(mux_for_4k[i] + 2, &sif->mux_mask);
+			}
 		}
-	}
-	if (i >= 4) {
-		vio_err("can't get free mux for 4k yuv\n");
-			ret = -EINVAL;
+		ret = mux_for_4k[start_index];
+		vio_info("ret %d sif->mux_mask 0x%lx \n", ret, sif->mux_mask);
+	} else if (step== 8) {
+		for (i = start_index; i < SIF_MUX_MAX; i++) {
+			if (!test_bit(i, &sif->mux_mask)) {
+				if (test_bit(i + 1, &sif->mux_mask))
+					continue;
+				if (test_bit(i + 2, &sif->mux_mask))
+					continue;
+				if (test_bit(i + 3, &sif->mux_mask))
+					continue;
+
+				set_bit(i, &sif->mux_mask);
+				set_bit(i + 1, &sif->mux_mask);
+				set_bit(i + 2, &sif->mux_mask);
+				set_bit(i + 3, &sif->mux_mask);
+			}
 		}
+		ret = start_index;
+		vio_info("ret %d sif->mux_mask 0x%lx \n", ret, sif->mux_mask);
 	} else {
 		for (i = index; i < SIF_MUX_MAX; i += step) {
 			if (!test_bit(i, &sif->mux_mask)) {
@@ -604,7 +640,7 @@ int get_free_mux(struct x3_sif_dev *sif, u32 index, int format, u32 dol_num,
 		}
 	}
 
-	if (i >= SIF_MUX_MAX) {
+	if (i > SIF_MUX_MAX) {
 		vio_err("can't get free mux\n");
 		ret = -EINVAL;
 	}
