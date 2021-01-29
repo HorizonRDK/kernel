@@ -52,8 +52,8 @@ unsigned int uvc_gadget_trace_param;
 #define UVC_OT_ID		3	/* Output Terminal */
 #define UVC_XU_ID		4	/* Extension Unit (customer use)*/
 
-/* Vendor's specific wIndex(Xu UnitID) */
-#define VENDOR_XU_ID		0x602
+/* Customer's specific wIndex(Xu UnitID) */
+#define CUSTOMER_XU_ID		0x602
 
 static struct usb_string uvc_en_us_strings[] = {
 	[UVC_STRING_CONTROL_IDX].s = "UVC Camera",
@@ -507,6 +507,7 @@ uvc_function_set_alt(struct usb_function *f, unsigned interface, unsigned alt)
 	}
 }
 
+#ifdef CONFIG_UVC_GADGET_SPECIFIC_XU_REQ
 static bool uvc_function_req_match(struct usb_function *f,
 			       const struct usb_ctrlrequest *ctrl,
 			       bool config0)
@@ -514,8 +515,8 @@ static bool uvc_function_req_match(struct usb_function *f,
 	struct uvc_device *uvc = to_uvc(f);
 	u16 w_index = le16_to_cpu(ctrl->wIndex);
 
-	/* Vendor specific Extension Unit ID */
-	if (w_index == VENDOR_XU_ID)
+	/* Customer specific Extension Unit ID */
+	if (w_index == CUSTOMER_XU_ID)
 		return true;
 
 	u8 intf = w_index & 0xFF;
@@ -525,7 +526,7 @@ static bool uvc_function_req_match(struct usb_function *f,
 
 	/*
 	 * uvc specification only support interface, endpoint recipients
-	 * and class type. we add device recipients for some vendor-specific.
+	 * and class type. we add device recipients for some customer-specific.
 	 */
 	if (((ctrl->bRequestType & USB_RECIP_MASK) != USB_RECIP_DEVICE &&
 	    (ctrl->bRequestType & USB_RECIP_MASK) != USB_RECIP_INTERFACE &&
@@ -554,6 +555,7 @@ static bool uvc_function_req_match(struct usb_function *f,
 
 	return true;
 }
+#endif
 
 static void
 uvc_function_disable(struct usb_function *f)
@@ -1262,7 +1264,9 @@ static struct usb_function *uvc_alloc(struct usb_function_instance *fi)
 	uvc->func.unbind = uvc_unbind;
 	uvc->func.get_alt = uvc_function_get_alt;
 	uvc->func.set_alt = uvc_function_set_alt;
+#ifdef CONFIG_UVC_GADGET_SPECIFIC_XU_REQ
 	uvc->func.req_match = uvc_function_req_match;
+#endif
 	uvc->func.disable = uvc_function_disable;
 	uvc->func.setup = uvc_function_setup;
 	uvc->func.free_func = uvc_free;
