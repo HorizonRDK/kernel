@@ -206,6 +206,12 @@ config USB_F_UAC2
 config USB_F_UVC
 	tristate
 
+config UVC_GADGET_SPECIFIC_XU_REQ
+	bool "Support Customer Specific Extension Unit Request"
+	depends on USB_F_UVC
+	help
+	  Support Some Customer Specific Extension Unit Request
+
 config USB_F_MIDI
 	tristate
 
