@@ -3,7 +3,7 @@
  *             Copyright 2019 Horizon Robotics, Inc.
  *                     All rights reserved.
  ***************************************************************************/
-#define pr_fmt(fmt) "[pym_drv]: %s: " fmt, __func__
+
 #include <linux/module.h>
 #include <linux/delay.h>
 #include <linux/kernel.h>
@@ -39,13 +39,10 @@ static int g_pym_fps_lasttime[VIO_MAX_STREAM] = {0, };
 void pym_update_param(struct pym_subdev *subdev);
 void pym_update_param_ch(struct pym_subdev *subdev);
 int pym_video_streamoff(struct pym_video_ctx *pym_ctx);
-void pym_hw_enable(struct x3_pym_dev *pym, bool enable);
 
 extern struct ion_device *hb_ion_dev;
 static struct pm_qos_request pym_pm_qos_req;
 static struct mutex pym_mutex;
-extern int ipu_front_online(void);
-static int join_vio_reset = 0;
 
 static int x3_pym_open(struct inode *inode, struct file *file)
 {
@@ -83,14 +80,11 @@ static int x3_pym_open(struct inode *inode, struct file *file)
 		atomic_set(&pym->enable_cnt, 0);
 		vio_clk_enable("sif_mclk");
 		vio_clk_enable("pym_mclk");
-		pym_hw_enable(pym, true);
 	}
 
 	atomic_inc(&pym->open_cnt);
 	mutex_unlock(&pym_mutex);
-
 p_err:
-
 	return ret;
 }
 
@@ -287,6 +281,8 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 	}
 
 	if (atomic_dec_return(&pym->open_cnt) == 0) {
+		clear_bit(PYM_OTF_INPUT, &pym->state);
+		clear_bit(PYM_DMA_INPUT, &pym->state);
 		clear_bit(PYM_REUSE_SHADOW0, &pym->state);
 
 		if (test_bit(PYM_HW_RUN, &pym->state)) {
@@ -303,21 +299,11 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 			else
 				vio_info("pym group already NULL\n");
 		}
-		pym_hw_enable(pym, false);
-		if (join_vio_reset &&
-			ipu_front_online() && test_bit(PYM_OTF_INPUT, &pym->state)) {
-			vio_reset_module(PYM_RST);
-		} else {
-			ips_set_module_reset(PYM_RST);
-			ips_set_module_reset(IPU_PYM_RST);
-			vio_clk_disable("pym_mclk");
-			vio_clk_disable("sif_mclk");
-			pm_qos_remove_request(&pym_pm_qos_req);
-		}
+		vio_clk_disable("pym_mclk");
+		vio_clk_disable("sif_mclk");
 		sema_init(&pym->gtask.hw_resource, 1);
 		atomic_set(&pym->gtask.refcount, 0);
-		clear_bit(PYM_OTF_INPUT, &pym->state);
-		clear_bit(PYM_DMA_INPUT, &pym->state);
+		pm_qos_remove_request(&pym_pm_qos_req);
 	}
 	mutex_unlock(&pym_mutex);
 
@@ -501,7 +487,6 @@ end_req_to_pro:
 
 	return;
 }
-
 void pym_hw_enable(struct x3_pym_dev *pym, bool enable)
 {
 	pym_set_common_rdy(pym->base_reg, 0);
@@ -725,27 +710,6 @@ int pym_bind_chain_group(struct pym_video_ctx *pym_ctx, int instance,
 	return ret;
 }
 
-void pym_reset(void)
-{
-	pr_debug("+");
-	ips_set_module_reset(PYM_RST);
-	ips_set_module_reset(IPU_PYM_RST);
-	pr_debug("-");
-}
-
-void pym_clk_disable(void)
-{
-	pr_debug("+");
-	vio_clk_disable("pym_mclk");
-	pm_qos_remove_request(&pym_pm_qos_req);
-	pr_debug("-");
-}
-
-vio_module_down_t pym_down = {
-	.rst_cb = pym_reset,
-	.clk_cb = pym_clk_disable,
-};
-
 int pym_video_init(struct pym_video_ctx *pym_ctx, unsigned long arg)
 {
 	int ret = 0;
@@ -854,14 +818,13 @@ int pym_video_streamon(struct pym_video_ctx *pym_ctx)
 		}
 	}
 
+	spin_lock_irqsave(&pym_dev->shared_slock, flags);
+
+	pym_hw_enable(pym_dev, true);
 	set_bit(PYM_HW_RUN, &pym_dev->state);
 
-	if (join_vio_reset &&
-		ipu_front_online() && test_bit(PYM_OTF_INPUT, &pym_dev->state)) {
-		vio_rst_mutex_lock();
-		vio_down_func_register(PYM_RST, &pym_down);
-		vio_rst_mutex_unlock();
-	}
+	spin_unlock_irqrestore(&pym_dev->shared_slock, flags);
+
 p_inc:
 	atomic_inc(&pym_dev->rsccount);
 	pym_ctx->state = BIT(VIO_VIDEO_START);
@@ -968,7 +931,12 @@ int pym_video_streamoff(struct pym_video_ctx *pym_ctx)
 		&& !test_bit(PYM_HW_FORCE_STOP, &pym_dev->state))
 		goto p_dec;
 
+	spin_lock_irqsave(&pym_dev->shared_slock, flag);
+	pym_hw_enable(pym_dev, false);
 	clear_bit(PYM_HW_RUN, &pym_dev->state);
+	spin_unlock_irqrestore(&pym_dev->shared_slock, flag);
+
+	vio_reset_module(group->id);
 
 p_dec:
 	if (pym_ctx->framemgr->frames_mp[pym_ctx->frm_fst_ind] != NULL) {
@@ -1275,7 +1243,7 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 					cache_frame->poll_mask = 0x00;
 					if (cache_frame->dispatch_mask == 0x0000
 							&& (framemgr->index_state[cache_bufindex] == FRAME_IND_USING)
-							&& (cache_frame->frameinfo.addr[0] != NULL)) {
+							&& (cache_frame->frameinfo.addr[0] != 0)) {
 						subdev->frameinfo.bufferindex = -1;
 						cache_frame->dispatch_mask = 0xFF00;
 						trans_frame(framemgr, cache_frame, FS_REQUEST);
@@ -1907,7 +1875,7 @@ void pym_frame_done(struct pym_subdev *subdev)
 				cache_frame->poll_mask = 0x00;
 				if (cache_frame->dispatch_mask == 0x0000
 						&& (framemgr->index_state[cache_bufindex] == FRAME_IND_USING)
-						&& (cache_frame->frameinfo.addr[0] != NULL)) {
+						&& (cache_frame->frameinfo.addr[0] != 0)) {
 					subdev->frameinfo.bufferindex = -1;
 					cache_frame->dispatch_mask = 0xFF00;
 					trans_frame(framemgr, cache_frame, FS_REQUEST);
@@ -2617,6 +2585,7 @@ static int x3_pym_probe(struct platform_device *pdev)
 		goto p_err;
 	}
 
+	spin_lock_init(&pym->shared_slock);
 	sema_init(&pym->gtask.hw_resource, 1);
 	atomic_set(&pym->gtask.refcount, 0);
 	atomic_set(&pym->rsccount, 0);

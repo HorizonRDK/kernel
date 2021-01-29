@@ -3,7 +3,7 @@
  *             Copyright 2019 Horizon Robotics, Inc.
  *                     All rights reserved.
  ***************************************************************************/
-#define pr_fmt(fmt) "[sif_drv]: %s: " fmt, __func__
+
 #include <linux/module.h>
 #include <linux/delay.h>
 #include <linux/kernel.h>
@@ -46,7 +46,6 @@ static struct pm_qos_request sif_pm_qos_req;
 static int g_sif_fps[VIO_MAX_STREAM] = {0, };
 static int g_sif_idx[VIO_MAX_STREAM] = {0, };
 static int g_sif_fps_lasttime[VIO_MAX_STREAM] = {0, };
-static struct x3_sif_dev *g_sif_dev = NULL;
 
 static int x3_sif_suspend(struct device *dev)
 {
@@ -283,30 +282,6 @@ void sif_write_frame_work(struct vio_group *group)
 	vio_dbg("[S%d]%s:done", group->instance, __func__);
 }
 
-static void sif_reset(void)
-{
-	pr_debug("+");
-	if (g_sif_dev) {
-		pr_debug("disable sif hw\n");
-		sif_disable_isp_out_config(g_sif_dev->base_reg);
-		sif_hw_disable_ex(g_sif_dev->base_reg);
-	}
-	ips_set_module_reset(SIF_RST);
-	pr_debug("-");
-}
-
-static void sif_clk_disable(void)
-{
-	pr_debug("+");
-	ips_set_clk_ctrl(SIF_CLOCK_GATE, false);
-	pm_qos_remove_request(&sif_pm_qos_req);
-	pr_debug("-");
-}
-
-vio_module_down_t sif_down = {
-	.rst_cb = sif_reset,
-	.clk_cb = sif_clk_disable,
-};
 
 static int x3_sif_open(struct inode *inode, struct file *file)
 {
@@ -315,7 +290,6 @@ static int x3_sif_open(struct inode *inode, struct file *file)
 	struct sif_video_ctx *sif_ctx;
 	struct x3_sif_dev *sif;
 
-	vio_rst_mutex_lock();
 	minor = MINOR(inode->i_rdev);
 
 	sif = container_of(inode->i_cdev, struct x3_sif_dev, cdev);
@@ -344,12 +318,9 @@ static int x3_sif_open(struct inode *inode, struct file *file)
 		pm_qos_add_request(&sif_pm_qos_req, PM_QOS_DEVFREQ, 10000);
 		/*4 ddr in channel can not be 0 together*/
 		sif_enable_dma(sif->base_reg, 0x10000);
-		vio_down_func_register(SIF_RST, &sif_down);
 	}
 	mutex_unlock(&sif->shared_mutex);
-
 p_err:
-	vio_rst_mutex_unlock();
 	vio_dbg("%s open_cnt :%d", __func__, atomic_read(&sif->open_cnt));
 	return ret;
 }
@@ -410,7 +381,6 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 	struct x3_sif_dev *sif;
 	struct sif_subdev *subdev;
 
-	vio_rst_mutex_lock();
 	sif_ctx = file->private_data;
 	sif = sif_ctx->sif_dev;
 	subdev = sif_ctx->subdev;
@@ -418,7 +388,6 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 		vio_info("[Sx][V%d] %s: only open.\n", sif_ctx->id, __func__);
 		atomic_dec(&sif->open_cnt);
 		kfree(sif_ctx);
-		vio_rst_mutex_unlock();
 		return 0;
 	}
 	if (!(sif_ctx->state & BIT(VIO_VIDEO_STOP))) {
@@ -483,7 +452,12 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 	if (atomic_dec_return(&sif->open_cnt) == 0) {
 		clear_bit(SIF_DMA_IN_ENABLE, &sif->state);
 		clear_bit(SIF_OTF_OUTPUT, &sif->state);
-		vio_reset_module(SIF_RST);
+		sif_hw_disable_ex(sif->base_reg);
+		//it should disable after ipu stream off because it maybe contain ipu/sif clk
+		//vio_clk_disable("sif_mclk");
+		ips_set_module_reset(SIF_RST);
+		ips_set_clk_ctrl(SIF_CLOCK_GATE, false);
+		pm_qos_remove_request(&sif_pm_qos_req);
 		vio_info("[S%d][V%d]%s SIF last process close \n",
 				sif_ctx->group->instance, sif_ctx->id, __func__);
 	}
@@ -497,7 +471,6 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 	}
 	vio_info("SIF close node %d\n", sif_ctx->id);
 	kfree(sif_ctx);
-	vio_rst_mutex_unlock();
 
 	return 0;
 }
@@ -943,7 +916,8 @@ int sif_bind_chain_group(struct sif_video_ctx *sif_ctx, int instance)
 		subdev->id = sif_ctx->id;
 	}
 	if (atomic_read(&subdev->refcount) >= 1) {
-		vio_err("%s more than one pipeline bind\n", __func__);
+		vio_err("%s instance %d more than one pipeline bind\n",
+			__func__, instance);
 		return -EFAULT;
 	}
 
@@ -1002,7 +976,8 @@ int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 	int ret = 0;
 	struct x3_sif_dev *sif_dev;
 	struct sif_subdev *subdev;
-	u32 isp_enable;
+	u32 isp_enable, ipi_mode;
+	sif_input_mipi_t *p_mipi = NULL;
 
 	if (!(sif_ctx->state & (BIT(VIO_VIDEO_STOP)
 			| BIT(VIO_VIDEO_REBUFS)
@@ -1022,8 +997,26 @@ int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 	sif_dev = sif_ctx->sif_dev;
 	sif_start_pattern_gen(sif_dev->base_reg, 0);
 
+	p_mipi = &subdev->sif_cfg.input.mipi;
+	ipi_mode = p_mipi->ipi_mode;
+
 	isp_enable = subdev->sif_cfg.output.isp.enable;
 	mutex_lock(&sif_dev->shared_mutex);
+	if (sif_ctx->id == 0) {
+		vio_info("[S%d][V%d]%s mux_index %d \n",
+			sif_ctx->group->instance, sif_ctx->id, __func__,
+			subdev->mux_index);
+		sif_enable_frame_intr(sif_dev->base_reg, subdev->mux_index, true);
+		if(subdev->ddr_mux_index != subdev->mux_index) {
+			sif_enable_frame_intr(sif_dev->base_reg, subdev->ddr_mux_index, true);
+		}
+		if(subdev->dol_num > 1 || ipi_mode > 1) {
+			sif_enable_frame_intr(sif_dev->base_reg, subdev->mux_index + 1, true);
+		}
+		if(subdev->dol_num > 2 || ipi_mode > 2) {
+			sif_enable_frame_intr(sif_dev->base_reg, subdev->mux_index + 2, true);
+		}
+	}
 	if (isp_enable && atomic_read(&sif_dev->isp_init_cnt) == 0) {
 		sif_raw_isp_output_config(sif_dev->base_reg, &subdev->sif_cfg.output);
 	}
@@ -1094,12 +1087,15 @@ int sif_video_streamoff(struct sif_video_ctx *sif_ctx)
 	}
 	isp_enable = subdev->sif_cfg.output.isp.enable;
 	if (isp_enable && (atomic_dec_return(&sif_dev->isp_init_cnt) == 0)) {
+		sif_disable_isp_out_config(sif_dev->base_reg);
 		atomic_set(&sif_dev->isp_init_cnt, 0);
 	}
 	if (atomic_dec_return(&sif_dev->rsccount) > 0) {
 		mutex_unlock(&sif_dev->shared_mutex);
 		goto p_dec;
 	}
+	msleep(100);
+	sif_hw_disable(sif_dev->base_reg);
 	clear_bit(SIF_HW_RUN, &sif_dev->state);
 	atomic_set(&sif_dev->rsccount, 0);
 	vio_info("[S%d][V%d]%s SIF last process stream off \n",
@@ -2854,7 +2850,6 @@ static int x3_sif_probe(struct platform_device *pdev)
 	atomic_set(&sif->rsccount, 0);
 	atomic_set(&sif->isp_init_cnt, 0);
 	atomic_set(&sif->open_cnt, 0);
-	vio_rst_mutex_init();
 	vio_init_ldc_access_mutex();
 	vio_rst_mutex_init();
 	mutex_init(&sif->shared_mutex);
@@ -2930,8 +2925,6 @@ static int x3_sif_probe(struct platform_device *pdev)
 	if (diag_register(ModuleDiag_VIO, EventIdVioSifErr,
 					4, 400, 8000, NULL) < 0)
 		vio_err("sif diag register fail\n");
-
-	g_sif_dev = sif;
 
 	vio_info("[FRT:D] %s(%d)\n", __func__, ret);
 

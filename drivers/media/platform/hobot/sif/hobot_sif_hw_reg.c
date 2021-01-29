@@ -941,11 +941,11 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
 				vio_hw_set_field(base_reg, &sif_regs[SIF_MUX_OUT_SEL],
 						&sif_fields[SW_SIF_MUX0_OUT_SELECT - ddr_mux_out_index],
 						input_index_start + ipi_index);
-				sif_enable_frame_intr(base_reg, ddr_mux_out_index, true);
+			//	sif_enable_frame_intr(base_reg, ddr_mux_out_index, true);
 				*online_ddr_enable = true;
 			}
 			// Frame Done Interrupt
-			sif_enable_frame_intr(base_reg, mux_out_index, true);
+			// sif_enable_frame_intr(base_reg, mux_out_index, true);
 
 			if (yuv_format == HW_FORMAT_YUV422) {
 				if (p_mipi->data.width == 3840 &&
@@ -1393,6 +1393,7 @@ void sif_disable_ipi(u32 __iomem *base_reg, u8 ipi_channel)
 static void sif_disable_input_and_output(u32 __iomem *base_reg)
 {
 	uint32_t t = 0, value = 0;
+
 	// Disable Bypass && all TX IPIs
 	// NOTICE: SW_MIPI_RX_OUT_TX_LINE_INS_ENABLE's default value = 1
 	// To disable that will not attach the last blanking hsync at frame end.

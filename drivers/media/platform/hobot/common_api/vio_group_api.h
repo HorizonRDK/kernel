@@ -153,11 +153,6 @@ struct vio_frame_id {
 typedef int (*isp_callback)(int);
 typedef int (*iar_get_type_callback)(u8 *pipeline, u8 *channel);
 typedef int (*iar_set_addr_callback)(uint32_t disp_layer, u32 yaddr, u32 caddr);
-typedef void (*vio_cb)(void);
-typedef struct {
-	vio_cb rst_cb;
-	vio_cb clk_cb;
-} vio_module_down_t;
 
 int vio_group_task_start(struct vio_group_task *group_task);
 int vio_group_task_stop(struct vio_group_task *group_task);
@@ -165,9 +160,6 @@ void vio_group_start_trigger(struct vio_group *group, struct vio_frame *frame);
 void vio_group_start_trigger_mp(struct vio_group *group, struct vio_frame *frame);
 void vio_group_insert_work(struct vio_group *group, struct kthread_work *work);
 
-void vio_rst_mutex_init(void);
-void vio_rst_mutex_lock(void);
-void vio_rst_mutex_unlock(void);
 void vio_init_ldc_access_mutex(void);
 void vio_ldc_access_mutex_lock(void);
 void vio_ldc_access_mutex_unlock(void);
@@ -188,8 +180,6 @@ void vio_get_sif_frame_id(struct vio_group *group);
 void vio_get_ipu_frame_id(struct vio_group *group);
 int vio_check_all_online_state(struct vio_group *group);
 int vio_group_init_mp(u32 group_id);
-void vio_down_func_register(u32 module, vio_module_down_t *md);
-void vio_down_func_unregister(u32 module);
 void vio_reset_module(u32 module);
 void vio_group_done(struct vio_group *group);
 void vio_dwe_clk_enable(void);

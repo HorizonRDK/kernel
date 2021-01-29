@@ -26,32 +26,23 @@
 #define mmio_read_32(reg)		readl(reg)
 
 static void __iomem *normal_efuse_base;
-static void __iomem *sec_efuse_base;
 static void __iomem *fw_base_addr;
-static void __iomem *sysctrl_base_addr;
 static DEFINE_MUTEX(hobot_efuse_mutex);
 static struct hobot_efuse_dev efuse_dev = {0};
 
-static unsigned int _hw_efuse_store(enum EFS_TPE type, unsigned int bnk_num,
+static unsigned int _hw_efuse_store(unsigned int bnk_num,
 		unsigned int data, bool lock)
 {
 	void __iomem *efs_bank_base;
 	unsigned int sta;
 
-	if (type == EFS_NS) {
-		efs_bank_base = normal_efuse_base;
-	} else if (type == EFS_S) {
-		efs_bank_base = sec_efuse_base;
-	} else {
-		pr_err("[ERR] %s no such type %d!!!", __FUNCTION__, type);
-		return HW_EFUSE_READ_FAIL;
-	}
+	efs_bank_base = normal_efuse_base;
 
 	// enable efuse
 	mmio_write_32(efs_bank_base + HW_EFS_CFG, HW_EFS_CFG_EFS_EN);
 
-    //// Check lock bank before write data
-    // set bank addr to bnk31
+	//// Check lock bank before write data
+	// set bank addr to bnk31
 	mmio_write_32(efs_bank_base + HW_EFS_BANK_ADDR, HW_EFUSE_LOCK_BNK);
 
 	// trigger read action
@@ -74,7 +65,7 @@ static unsigned int _hw_efuse_store(enum EFS_TPE type, unsigned int bnk_num,
 		return HW_EFUSE_WRITE_LOCKED_BNK;
 	}
 
-    //// efuse write data
+	//// efuse write data
 	// Set bank address to what we want
 	mmio_write_32(efs_bank_base + HW_EFS_BANK_ADDR, bnk_num);
 
@@ -93,9 +84,9 @@ static unsigned int _hw_efuse_store(enum EFS_TPE type, unsigned int bnk_num,
 			break;
 	} while (1);
 
-    //// efuse read data for varification
-    // Set bank address to what we want
-    mmio_write_32(efs_bank_base + HW_EFS_BANK_ADDR, bnk_num);
+	//// efuse read data for varification
+	// Set bank address to what we want
+	mmio_write_32(efs_bank_base + HW_EFS_BANK_ADDR, bnk_num);
 
 	// Trigger read action
 	mmio_write_32(efs_bank_base + HW_EFS_CFG,
@@ -112,11 +103,11 @@ static unsigned int _hw_efuse_store(enum EFS_TPE type, unsigned int bnk_num,
 	// read data
 	sta = mmio_read_32(efs_bank_base + HW_EFS_READ_DATA);
 
-    // verify writed data
-    if ((sta & data) != data) {
-        pr_err("[ERR] bank %d write fail.\n", bnk_num);
+	// verify writed data
+	if ((sta & data) != data) {
+		pr_err("[ERR] bank %d write fail.\n", bnk_num);
 		return HW_EFUSE_WRITE_FAIL;
-    }
+	}
 	if (lock == 0)
 		return HW_EFUSE_READ_OK;
 	//// efuse lock bank
@@ -141,53 +132,16 @@ static unsigned int _hw_efuse_store(enum EFS_TPE type, unsigned int bnk_num,
 	return HW_EFUSE_READ_OK;
 }
 
-static unsigned int _hw_efuse_load(enum EFS_TPE type, unsigned int bnk_num,
-								   unsigned int *ret)
+static unsigned int _hw_efuse_load(unsigned int bnk_num,
+				   unsigned int *ret)
 {
 	void __iomem *efs_bank_base;
 	unsigned int sta, val;
 
-	if (type == EFS_NS) {
-		efs_bank_base = normal_efuse_base;
-	} else if (type == EFS_S) {
-		efs_bank_base = sec_efuse_base;
-	} else {
-		pr_err("[ERR] %s no such type %d!!!", __FUNCTION__, type);
-		return HW_EFUSE_READ_FAIL;
-	}
+	efs_bank_base = normal_efuse_base;
 
 	// enable efuse
 	mmio_write_32(efs_bank_base + HW_EFS_CFG, HW_EFS_CFG_EFS_EN);
-#if 0
-	// set bank addr to bnk31
-	mmio_write_32(efs_bank_base + HW_EFS_BANK_ADDR, HW_EFUSE_LOCK_BNK);
-
-	// trigger read action
-	mmio_write_32(efs_bank_base + HW_EFS_CFG,
-				  HW_EFS_CFG_EFS_EN | HW_EFS_CFG_EFS_PROG_RD);
-
-	// polling efuse ready (check efs_rdy == 1)
-	do {
-		sta = mmio_read_32(efs_bank_base + HW_EFS_STATUS);
-
-		if (sta & HW_EFS_EFS_RDY)
-			break;
-	} while (1);
-
-	// check if bank is valid programmed data
-	val = mmio_read_32(efs_bank_base + HW_EFS_READ_DATA);
-
-	if (bnk_num == HW_EFUSE_LOCK_BNK) {
-		*ret = val;
-		return HW_EFUSE_READ_OK;
-	}
-
-	if (!(val & (1 << bnk_num))) {
-		pr_err("bank %d not locked, it is not a valid data\n", bnk_num);
-		*ret = 0;
-		return HW_EFUSE_READ_UNLOCK;
-	}
-#endif
 	// Set bank address to what we want
 	mmio_write_32(efs_bank_base + HW_EFS_BANK_ADDR, bnk_num);
 
@@ -211,26 +165,18 @@ static unsigned int _hw_efuse_load(enum EFS_TPE type, unsigned int bnk_num,
 	return HW_EFUSE_READ_OK;
 }
 
-static unsigned int _sw_efuse_set_register(enum EFS_TPE type)
+static unsigned int _sw_efuse_set_register(void)
 {
 	void __iomem *efs_bank_off;
 	unsigned int i, efs_bank_num, val;
 
 
-	if (type == EFS_NS) {
-		efs_bank_off = fw_base_addr + EFUSE_NS_OFF;
-		efs_bank_num = NS_EFUSE_NUM;
-	} else if (type == EFS_S) {
-		efs_bank_off = fw_base_addr + EFUSE_S_OFF;
-		efs_bank_num = S_EFUSE_NUM;
-	} else {
-		pr_err("[ERR] %s no such type %d!!!", __FUNCTION__, type);
-		return SW_EFUSE_FAIL;
-	}
+	efs_bank_off = fw_base_addr + EFUSE_NS_OFF;
+	efs_bank_num = NS_EFUSE_NUM;
 
 	for (i = 0; i < efs_bank_num; i++) {
-		if (_hw_efuse_load(type, i, &val) == HW_EFUSE_READ_FAIL) {
-			pr_err("[ERR] HW Efuse read fail type: %d, bnk: %d\n", type, i);
+		if (_hw_efuse_load(i, &val) == HW_EFUSE_READ_FAIL) {
+			pr_err("[ERR] HW Efuse read fail bnk: %d\n", i);
 			return SW_EFUSE_FAIL;
 		}
 		mmio_write_32(efs_bank_off + i * 4, val);
@@ -239,19 +185,11 @@ static unsigned int _sw_efuse_set_register(enum EFS_TPE type)
 	return SW_EFUSE_OK;
 }
 
-unsigned int scomp_sw_efuse_set_readdone(enum EFS_TPE type,
-										 unsigned int enable)
+unsigned int scomp_sw_efuse_set_readdone(unsigned int enable)
 {
 	void __iomem *efs_rdone_reg_off = 0;
 
-	if (type == EFS_NS) {
-		efs_rdone_reg_off = fw_base_addr + NS_EFS_RDONE;
-	} else if (type == EFS_S) {
-		efs_rdone_reg_off = fw_base_addr + S_EFS_RDONE;
-	} else {
-		pr_err("[ERR] %s no such type %d!!!", __FUNCTION__, type);
-		return SW_EFUSE_FAIL;
-	}
+	efs_rdone_reg_off = fw_base_addr + NS_EFS_RDONE;
 
 	mmio_write_32(efs_rdone_reg_off, enable);
 
@@ -260,79 +198,53 @@ unsigned int scomp_sw_efuse_set_readdone(enum EFS_TPE type,
 
 void scomp_load_efuse(void)
 {
-	_sw_efuse_set_register(EFS_NS);
-	_sw_efuse_set_register(EFS_S);
+	_sw_efuse_set_register();
 }
 
-int read_sw_efuse_bnk(enum EFS_TPE type, unsigned int bnk_num)
+int read_sw_efuse_bnk(unsigned int bnk_num)
 {
 	void __iomem *efs_reg_off;
 
-	if (type == EFS_NS) {
-		efs_reg_off = fw_base_addr + EFUSE_NS_OFF;
-	} else if (type == EFS_S) {
-		efs_reg_off = fw_base_addr + EFUSE_S_OFF;
-	} else {
-		pr_err("[ERR] %s no such type %d!!!", __FUNCTION__, type);
-		return SW_EFUSE_FAIL;
-	}
+	efs_reg_off = fw_base_addr + EFUSE_NS_OFF;
 
 	return mmio_read_32(efs_reg_off + (bnk_num << 2));
 }
 
-int write_hw_efuse_bnk(enum EFS_TPE type, unsigned int bnk_num,
+int write_hw_efuse_bnk(unsigned int bnk_num,
 		unsigned int val, bool lock)
 {
-	return _hw_efuse_store(type, bnk_num, val, lock);
+	return _hw_efuse_store(bnk_num, val, lock);
 }
 
-int write_sw_efuse_bnk(enum EFS_TPE type, unsigned int bnk_num,
+int write_sw_efuse_bnk(unsigned int bnk_num,
 		unsigned int val)
 {
 	void __iomem *efs_reg_off = 0;
 
-	if (type == EFS_NS) {
-		efs_reg_off = fw_base_addr + EFUSE_NS_OFF;
-	} else if (type == EFS_S) {
-		efs_reg_off = fw_base_addr + EFUSE_S_OFF;
-	} else {
-		pr_err("[ERR] %s no such type %d!!!", __FUNCTION__, type);
-		return SW_EFUSE_FAIL;
-	}
+	efs_reg_off = fw_base_addr + EFUSE_NS_OFF;
 
 	mmio_write_32(efs_reg_off + (bnk_num << 2), val);
 
 	return SW_EFUSE_OK;
 }
 
-void scomp_sw_efuse_set_lock(void)
-{
-	mmio_write_32(sysctrl_base_addr + SYSCTL_S_EFS_LOCK, 1);
-}
-
-void scomp_sec_lock_down(void)
-{
-	mmio_write_32(sysctrl_base_addr + SYSCTL_LOCKDOWN_SECURE, 1);
-}
-
 //****************************************
 // Efuse API
 //****************************************
-int efuse_write_data(enum EFS_TPE type,
-		     unsigned int bnk_num,
+int efuse_write_data(unsigned int bnk_num,
 		     unsigned int val, bool lock)
 {
     int nRet = SW_EFUSE_OK;
 
     /// 1st step write hw efuse
-    nRet = write_hw_efuse_bnk(type, bnk_num, val, lock);
+    nRet = write_hw_efuse_bnk(bnk_num, val, lock);
     if (HW_EFUSE_READ_OK != nRet) {
         pr_err("[ERR] %s write hw efuse error:%d.\n", __FUNCTION__, nRet);
         return RET_API_EFUSE_FAIL;
     }
 
     /// 2nd write sw efuse data when 1st step sccess.
-    nRet = write_sw_efuse_bnk(type, bnk_num, val);
+    nRet = write_sw_efuse_bnk(bnk_num, val);
     if (SW_EFUSE_OK != nRet) {
         pr_err("[ERR] %s write sw efuse error:%d.\n", __FUNCTION__, nRet);
         return RET_API_EFUSE_FAIL;
@@ -341,37 +253,6 @@ int efuse_write_data(enum EFS_TPE type,
     return RET_API_EFUSE_OK;
 }
 ////////////// End of efuse API
-
-static ssize_t secure_show(struct device_driver *drv, char *buf)
-{
-	unsigned int i, val, bank = 0;
-	char temp[50];
-
-	/* secure bank only read bank0,
-	 * reserve "for" to get more secure bank
-	 */
-	for (i = 0; i < 1; i++, bank++) {
-		if (!(i % 4)) {
-			sprintf(temp, "\nsecure_bank 0x%.8x:", bank);
-			strcat(buf, temp);
-		}
-
-		val = read_sw_efuse_bnk(EFS_S, bank);
-
-		sprintf(temp, " %.8x", val);
-		strcat(buf, temp);
-	}
-
-	strcat(buf, "\n");
-
-	return strlen(buf);
-}
-
-static ssize_t secure_store(struct device_driver *drv,
-				const char *buf, size_t count)
-{
-	return count;
-}
 
 static ssize_t normal_show(struct device_driver *drv, char *buf)
 {
@@ -384,7 +265,7 @@ static ssize_t normal_show(struct device_driver *drv, char *buf)
 			strcat(buf, temp);
 		}
 
-		val = read_sw_efuse_bnk(EFS_NS, bank);
+		val = read_sw_efuse_bnk(bank);
 
 		sprintf(temp, " %.8x", val);
 		strcat(buf, temp);
@@ -401,14 +282,10 @@ static ssize_t normal_store(struct device_driver *drv,
 	return count;
 }
 
-static struct driver_attribute secure_attribute =
-	__ATTR(secure_efuse, 0644, secure_show, secure_store);
-
 static struct driver_attribute normal_attribute =
 	__ATTR(normal_efuse, 0644, normal_show, normal_store);
 
 static struct attribute *efuse_attributes[] = {
-	&secure_attribute.attr,
 	&normal_attribute.attr,
 	NULL
 };
@@ -444,9 +321,9 @@ static int32_t check_and_efuse_bank(uint32_t bank,
 	uint32_t lock_bank;
 	uint32_t type = EFS_NS;
 
-	lock_bank = read_sw_efuse_bnk(type, HW_EFUSE_LOCK_BNK);
+	lock_bank = read_sw_efuse_bnk(HW_EFUSE_LOCK_BNK);
 	if ((((lock_bank >> bank) & 0x01) == 0)) {
-		efuse_value = read_sw_efuse_bnk(type, bank);
+		efuse_value = read_sw_efuse_bnk(bank);
 		if ((!(efuse_value & value) && (value != 0)) ||
 		     (value == 0 && lock == 1)) {
 			/*efuse condition
@@ -460,23 +337,24 @@ static int32_t check_and_efuse_bank(uint32_t bank,
 			return 0;
 		}
 		if (efuse_condition) {
-			ret = efuse_write_data(type, bank, value, lock);
+			ret = efuse_write_data(bank, value, lock);
 			if (ret != RET_API_EFUSE_OK) {
 				pr_info("burn efuse type: %d secure bank:0x%x failed\n", type, bank);
 				return -1;
 			}
 			if (efuse_value != 0 || lock == 1) {
-				ret = _sw_efuse_set_register(type);
+				ret = _sw_efuse_set_register();
 				if (ret != RET_API_EFUSE_OK)
 					return -1;
 			}
 			pr_info("burn efuse type:%d bank:0x%x, value:0x%x, read:0x%x\n",
 				type,
 				bank, value,
-				read_sw_efuse_bnk(type, bank));
+				read_sw_efuse_bnk(bank));
 		}
 	} else {
 		pr_err("[%s,%d],bank[%d] has locked\n", __FILE__, __LINE__, bank);
+		return -1;
 	}
 	return 0;
 }
@@ -506,13 +384,23 @@ static long hobot_efuse_ioctl(struct file *file,
 		case EFUSE_IOC_SET_BANK:
 			pr_debug("bank:%d,value:0x%x, lock:%d\n",
 				  data.bank, data.bank_value, data.lock);
+			if (data.bank > 11 || data.bank < 7) {
+				pr_err("only can write bank7--bank11\n");
+				ret = -1;
+				break;
+			}
 			ret = check_and_efuse_bank(data.bank,
 						   data.bank_value,
 						   data.lock);
 			break;
 		case EFUSE_IOC_GET_BANK:
-			data.bank_value = read_sw_efuse_bnk(EFS_NS, data.bank);
-			data.lock = (read_sw_efuse_bnk(EFS_NS, HW_EFUSE_LOCK_BNK) >>
+			if (data.bank > 30) {
+				pr_err("only can read bank0--bank30\n");
+				ret = -1;
+				break;
+			}
+			data.bank_value = read_sw_efuse_bnk(data.bank);
+			data.lock = (read_sw_efuse_bnk(HW_EFUSE_LOCK_BNK) >>
 				     data.bank) & 0x1;
 			break;
 		default:
@@ -621,29 +509,10 @@ static int x3_efuse_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
-	reg = platform_get_resource(pdev, IORESOURCE_MEM, 1);
-	if (!reg) {
-		rc = -ENODEV;
-		goto err_out;
-	}
-
-	sec_efuse_base = ioremap(reg->start, resource_size(reg));
-	if (!sec_efuse_base)
-		return -ENOMEM;
-
-	reg = platform_get_resource(pdev, IORESOURCE_MEM, 2);
-	if (!reg) {
-		rc = -ENODEV;
-		goto err_out;
-	}
-
-	fw_base_addr = ioremap(reg->start, resource_size(reg));
+	fw_base_addr = ioremap(FW_BASE_REG_ADDR, FW_BASE_SIZE);
 	if (!fw_base_addr)
 		return -ENOMEM;
 
-	sysctrl_base_addr = ioremap(SYSCTL_REG_BASE, SYSCTL_REG_LEN);
-	if (!sysctrl_base_addr)
-		return -ENOMEM;
 	rc = hobot_efuse_init_chrdev(&efuse_dev);
 	if (rc) {
 		dev_err(&pdev->dev, "failed to create char dev for efuse\n");
@@ -658,9 +527,7 @@ err_out:
 static int x3_efuse_remove(struct platform_device *pdev)
 {
 	iounmap(normal_efuse_base);
-	iounmap(sec_efuse_base);
 	iounmap(fw_base_addr);
-	iounmap(sysctrl_base_addr);
 	efuse_dev_remove(&efuse_dev);
 	return 0;
 }

@@ -10,7 +10,6 @@
  * (at your option) any later version.
  */
 
-#define pr_fmt(fmt) "[ips_drv]: %s: " fmt, __func__
 #include <linux/delay.h>
 #include <linux/slab.h>
 #include <linux/clk.h>
@@ -74,6 +73,8 @@ void ips_set_module_reset(unsigned long module)
 }
 EXPORT_SYMBOL_GPL(ips_set_module_reset);
 
+static int clk_en = 0;
+module_param(clk_en, int, 0644);
 int ips_set_clk_ctrl(unsigned long module, bool enable)
 {
 	int ret = 0;
@@ -82,7 +83,10 @@ int ips_set_clk_ctrl(unsigned long module, bool enable)
 	mutex_lock(&g_ips_dev->shared_mux);
 	if (enable)
 		vio_clk_enable("sif_mclk");
-	ret = ips_clk_ctrl(g_ips_dev->base_reg, module, enable);
+
+	if (enable || clk_en)
+		ret = ips_clk_ctrl(g_ips_dev->base_reg, module, enable);
+
 	if (!enable)
 		vio_clk_disable("sif_mclk");
 	mutex_unlock(&g_ips_dev->shared_mux);
@@ -343,6 +347,9 @@ int vio_clk_disable(const char *name)
 {
 	size_t index;
 	struct clk *clk = NULL;
+
+	if (!clk_en)
+		return 0;
 
 	for (index = 0; index < ARRAY_SIZE(vio_clk_list); index++) {
 		if (!strcmp(name, vio_clk_list[index].name))

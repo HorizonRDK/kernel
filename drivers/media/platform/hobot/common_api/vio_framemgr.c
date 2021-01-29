@@ -180,6 +180,12 @@ void frame_work_function(struct kthread_work *work)
 	leader = (struct vio_group *) frame->data;
 	gtask = leader->gtask;
 
+	if (gtask == NULL) {
+		vio_info("WARN: group leader(%d) task is NULL\n",
+				leader->id);
+		return;
+	}
+
 	set_bit(VIO_GTASK_SHOT, &gtask->state);
 	atomic_dec(&leader->rcount);
 	vio_dbg("[S%d][G%d]%s #0\n", leader->instance, leader->id, __func__);
@@ -239,6 +245,12 @@ void frame_work_function_mp(struct kthread_work *work)
 	leader = vwork->group;
 	gtask = leader->gtask;
 
+	if (gtask == NULL) {
+		vio_info("WARN: group leader(%d) task is NULL\n",
+				leader->id);
+		return;
+	}
+
 	set_bit(VIO_GTASK_SHOT, &gtask->state);
 	atomic_dec(&leader->rcount);
 	vio_dbg("[S%d][G%d]%s #0\n", leader->instance, leader->id, __func__);
@@ -270,7 +282,6 @@ void frame_work_function_mp(struct kthread_work *work)
 			group->frame_work(group);
 	}
 	vio_dbg("[S%d][G%d]%s #2\n", leader->instance, leader->id, __func__);
-
 	leader->frame_work(leader);
 	clear_bit(VIO_GTASK_SHOT, &gtask->state);
 

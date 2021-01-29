@@ -3,7 +3,7 @@
  *             Copyright 2019 Horizon Robotics, Inc.
  *                     All rights reserved.
  ***************************************************************************/
-#define pr_fmt(fmt) "[vio]: %s: " fmt, __func__
+
 #include <linux/delay.h>
 #include <linux/sched.h>
 #include <uapi/linux/sched/types.h>
@@ -515,205 +515,44 @@ int vio_check_all_online_state(struct vio_group *group)
 }
 EXPORT_SYMBOL(vio_check_all_online_state);
 
-/*
-	module close target status, bit[4:0]
-	bit[4]: sif
-	bit[3]: isp
-	bit[2]: ldc/dwe
-	bit[1]: ipu
-	bit[0]: pym
-*/
-static uint8_t vio_close_target = 0;
-static uint8_t vio_close_touched = 0;
-vio_module_down_t vmd_arr[MAX_RST];
-void vio_down_func_register(u32 module, vio_module_down_t *md)
-{
-	if (module >= MAX_RST) {
-		pr_err("module id %d exceed valid range.\n", module);
-		return;
-	}
-
-	switch(module) {
-		case SIF_RST:
-			pr_debug("sif\n");
-			vio_close_target |= 1 << 4;
-			break;
-		case ISP0_RST:
-			pr_debug("isp\n");
-			vio_close_target |= 1 << 3;
-			break;
-		case LDC_RST:
-			pr_debug("ldc\n");
-			vio_close_target |= 1 << 2;
-			break;
-		case IPU0_RST:
-			pr_debug("ipu\n");
-			vio_close_target |= 1 << 1;
-			break;
-		case PYM_RST:
-			pr_debug("pym\n");
-			vio_close_target |= 1 << 0;
-			break;
-		default:
-			pr_err("unknown reset module %d\n", module);
-			break;
-	}
-
-	vmd_arr[module].rst_cb = md->rst_cb;
-	vmd_arr[module].clk_cb = md->clk_cb;
-}
-EXPORT_SYMBOL(vio_down_func_register);
-
-void vio_down_func_unregister(u32 module)
-{
-	if (module >= MAX_RST) {
-		pr_err("module id %d exceed valid range.\n", module);
-		return;
-	}
-
-	switch(module) {
-		case SIF_RST:
-			pr_debug("sif\n");
-			vio_close_target &= ~(1 << 4);
-			break;
-		case ISP0_RST:
-			pr_debug("isp\n");
-			vio_close_target &= ~(1 << 3);
-			break;
-		case LDC_RST:
-			pr_debug("ldc\n");
-			vio_close_target &= ~(1 << 2);
-			break;
-		case IPU0_RST:
-			pr_debug("ipu\n");
-			vio_close_target &= ~(1 << 1);
-			break;
-		case PYM_RST:
-			pr_debug("pym\n");
-			vio_close_target &= ~(1 << 0);
-			break;
-		default:
-			pr_err("unknown reset module %d\n", module);
-			break;
-	}
-
-	vmd_arr[module].rst_cb = NULL;
-	vmd_arr[module].clk_cb = NULL;
-}
-EXPORT_SYMBOL(vio_down_func_unregister);
-
-/*
-	bit31: IAR
-	bit30: PYM
-	bit29: IPU1 no used in X3
-	bit28: IPU0
-	bit27: SIF_R
-	bit26: GDC1
-	bit25: DIS
-	bit24: GDC0
-	bit23: ISP1 no used
-	bit22: ISP1 no used
-	bit21: ISP1 no used
-	bit20: ISP_Temper_R/W
-	bit19: ISP_DMA_DS no used
-	bit18: ISP_DMA_FR
-	bit17: SIF_W
-	bit16: no used
-*/
 void vio_reset_module(u32 module)
 {
-	int i = 0;
-	uint32_t cnt = 20;
-	uint32_t val = 0;
-	static uint32_t rst_val = 0;
+	u32 cfg = 0;
+	u32 cnt = 20;
+	u32 value = 0;
+	u32 bit = 0;
+	u32 reset = 0;
 
-	if (module >= MAX_RST) {
-		pr_err("module id %d exceed valid range.\n", module);
-		return;
+	if (module == GROUP_ID_IPU) {
+		bit = IPU0_IDLE;
+		reset = IPU0_RST;
+	} else if (module == GROUP_ID_PYM) {
+		bit = PYM_IDLE;
+		reset = PYM_RST;
 	}
 
-	pr_debug("+\n");
-	switch(module) {
-		case SIF_RST:
-			pr_debug("sif\n");
-			vio_close_touched |= 1 << 4;
-			rst_val |= 0x08020000;
+	cfg = ips_get_bus_ctrl() | bit;
+	ips_set_bus_ctrl(cfg);
+
+	while(1) {
+		value = ips_get_bus_status();
+		if (value & bit << 16)
 			break;
-		case ISP0_RST:
-			pr_debug("isp\n");
-			vio_close_touched |= 1 << 3;
-			rst_val |= 0x00140000;
+
+		msleep(5);
+		cnt--;
+		if (cnt == 0) {
+			vio_info("%s timeout\n", __func__);
 			break;
-		case LDC_RST:
-			pr_debug("ldc\n");
-			vio_close_touched |= 1 << 2;
-			break;
-		case IPU0_RST:
-			pr_debug("ipu\n");
-			vio_close_touched |= 1 << 1;
-			rst_val |= 0x10000000;
-			break;
-		case PYM_RST:
-			pr_debug("pym\n");
-			vio_close_touched |= 1 << 0;
-			rst_val |= 0x40000000;
-			break;
-		default:
-			pr_err("unknown reset module %d\n", module);
-			break;
+		}
 	}
 
-	pr_debug("close_touched 0x%x, close_target 0x%x, rst_val 0x%x\n",
-		vio_close_touched, vio_close_target, rst_val);
+	ips_set_module_reset(reset);
+	if (module == GROUP_ID_PYM)
+		ips_set_module_reset(IPU_PYM_RST);
 
-	if (vio_close_touched == vio_close_target) {
-		ips_set_bus_ctrl(rst_val);
-
-		/* force axi idle */
-		while(1) {
-			val = ips_get_bus_status();
-			if ((val & rst_val) == rst_val)
-				break;
-
-			pr_err("axi bus sts 0x%x, rst_val 0x%x\n", val, rst_val);
-			msleep(5);
-			cnt--;
-			if (cnt == 0) {
-				pr_err("%s timeout\n", __func__);
-				break;
-			}
-		}
-
-		/* module reset */
-		for (i = SIF_RST; i < MAX_RST; i++) {
-			if (vmd_arr[i].rst_cb != NULL) {
-				pr_debug("rst module idx %d\n", i);
-				vmd_arr[i].rst_cb();
-				vmd_arr[i].rst_cb = NULL;
-			}
-		}
-
-		/* axi idle check */
-		val = ips_get_bus_ctrl();
-		pr_debug("before disable val 0x%x\n", val);
-		ips_set_bus_ctrl(val & (~rst_val));
-		val = ips_get_bus_ctrl();
-		pr_debug("after disable val 0x%x\n", val);
-
-		/* disable clock */
-		for (i = SIF_RST; i < MAX_RST; i++) {
-			if (vmd_arr[i].clk_cb != NULL) {
-				pr_debug("clk disable module idx %d\n", i);
-				vmd_arr[i].clk_cb();
-				vmd_arr[i].clk_cb = NULL;
-			}
-		}
-
-		vio_close_target = 0;
-		vio_close_touched = 0;
-		rst_val = 0;
-	}
-	pr_debug("-\n");
+	cfg = ips_get_bus_ctrl() & ~bit;
+	ips_set_bus_ctrl(cfg);
 }
 EXPORT_SYMBOL(vio_reset_module);
 
