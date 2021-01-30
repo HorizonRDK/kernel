@@ -418,9 +418,9 @@ void camera_sys_sensor_gain_turning_data(uint32_t port,
 			if (camera_mod[port]->camera_param.sensor_data.conversion) {
 				temp = again_lut[i*256 + gain_temp];
 				DOFFSET(&temp, 2);
-				pr_debug("a_gain[%d] = 0x%x\n", i, temp);
+				pr_debug("port %d, a_gain[%d] = 0x%x\n", port, i, temp);
 			} else {
-				pr_debug("a_gain[%d] = 0x%x\n", i, again_lut[i*256 + gain_temp]);
+				pr_debug("port %d, a_gain[%d] = 0x%x\n", port, i, again_lut[i*256 + gain_temp]);
 			}
 			a_gain[i] = again_lut[i*256 + gain_temp];
 		} else {
@@ -438,9 +438,9 @@ void camera_sys_sensor_gain_turning_data(uint32_t port,
 			if (camera_mod[port]->camera_param.sensor_data.conversion) {
 				temp = dgain_lut[i*256 + gain_temp];
 				DOFFSET(&temp, 2);
-				pr_debug("d_gain[%d] = 0x%x\n", i, temp);
+				pr_debug("port %d, d_gain[%d] = 0x%x\n", port, i, temp);
 			} else {
-				pr_debug("d_gain[%d] = 0x%x\n", i, dgain_lut[i*256 + gain_temp]);
+				pr_debug("port %d, d_gain[%d] = 0x%x\n", port, i, dgain_lut[i*256 + gain_temp]);
 			}
 			d_gain[i] = dgain_lut[i*256 + gain_temp];
 		} else {
@@ -1535,7 +1535,8 @@ int camera_sys_priv_set(uint32_t port, sensor_priv_t *priv_param)
 				pr_err("src port %d is not sharer, cur port %d\n", src_port, port);
 				goto out;
 			}
-
+			camera_sys_set_gain_line_control(dst_port, priv_param);
+#if 0
 			uint32_t line = 0;
 			sensor_priv_t param;
 			memcpy(&param, priv_param, sizeof(sensor_priv_t));
@@ -1562,6 +1563,7 @@ int camera_sys_priv_set(uint32_t port, sensor_priv_t *priv_param)
 			pr_debug("line %d, gain idx %d\n", param.line_buf[0], param.gain_buf[0]);
 
 			camera_sys_set_gain_line_control(dst_port, &param);
+#endif
 		}
 		else
 			ret = -1;
