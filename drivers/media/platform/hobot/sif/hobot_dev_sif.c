@@ -428,6 +428,12 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 			if (subdev->fmt.width >= LINE_BUFFER_SIZE) {
 				clear_bit(subdev->mux_index + 2, &sif->mux_mask);
 				clear_bit(subdev->ddr_mux_index + 2, &sif->mux_mask);
+				if(subdev->dol_num > 2) { /*8M DOL3*/
+					clear_bit(subdev->mux_index + 4, &sif->mux_mask);
+					clear_bit(subdev->mux_index + 6, &sif->mux_mask);
+					clear_bit(subdev->ddr_mux_index + 4, &sif->mux_mask);
+					clear_bit(subdev->ddr_mux_index + 6, &sif->mux_mask);
+				}
 			}
 
 			if(subdev->splice_info.splice_enable) {
@@ -511,12 +517,21 @@ int get_free_mux(struct x3_sif_dev *sif, u32 index, int format, u32 dol_num,
 	int step = 1;
 	int mux_nums = 1;
 	int mux_for_4k[] = {0, 1, 4, 5};
+	int mux_for_2length[] = {0, 4};
 	int start_index = 0;
 
 	mux_nums = dol_num;
 	if (format == HW_FORMAT_YUV422) {
 		step = 2;
 		mux_nums = 2;
+	}
+	if(width >= LINE_BUFFER_SIZE && dol_num == 2) {
+		step = 4;
+		mux_nums = 4;
+	}
+	if(width >= LINE_BUFFER_SIZE && dol_num == 3) {
+		step = 4;
+		mux_nums = 6;
 	}
 	if(splice_enable) {
 		if(pipe_num == 1)
@@ -559,20 +574,35 @@ int get_free_mux(struct x3_sif_dev *sif, u32 index, int format, u32 dol_num,
 
 		vio_info("mux %d sif->mux_mask 0x%lx \n", ret, sif->mux_mask);
 	} else if (width >= LINE_BUFFER_SIZE && step == 4) {
-		if (index == 4)
-			start_index = 2;
-		for (i = start_index; i < 4; i++) {
-			if (!test_bit(mux_for_4k[i], &sif->mux_mask)) {
-				if (test_bit(mux_for_4k[i] + 2, &sif->mux_mask))
+		/*4M yuv or 8M DOL2 need 2fifo merge*/
+		for (i = start_index; i < 2; i++) {
+			if (!test_bit(mux_for_2length[i], &sif->mux_mask)) {
+				if (test_bit(mux_for_2length[i] + 1, &sif->mux_mask))
+					continue;
+				if (test_bit(mux_for_2length[i] + 2, &sif->mux_mask))
+					continue;
+				if (test_bit(mux_for_2length[i] + 3, &sif->mux_mask))
+					continue;
+				if (i == 0 && dol_num== 3 &&
+					test_bit(mux_for_2length[i] + 4, &sif->mux_mask)
+					&& test_bit(mux_for_2length[i] + 6, &sif->mux_mask))
 					continue;
 
-				set_bit(mux_for_4k[i], &sif->mux_mask);
-				set_bit(mux_for_4k[i] + 2, &sif->mux_mask);
+				set_bit(mux_for_2length[i], &sif->mux_mask);
+				set_bit(mux_for_2length[i] + 1, &sif->mux_mask);
+				set_bit(mux_for_2length[i] + 2, &sif->mux_mask);
+				set_bit(mux_for_2length[i] + 3, &sif->mux_mask);
+				if (i == 0 && dol_num== 3) {
+					set_bit(mux_for_2length[i] + 4, &sif->mux_mask);
+					set_bit(mux_for_2length[i] + 6, &sif->mux_mask);
+				}
+				ret = mux_for_2length[i];
+				break;
 			}
 		}
-		ret = mux_for_4k[start_index];
-		vio_info("ret %d sif->mux_mask 0x%lx \n", ret, sif->mux_mask);
-	} else if (step== 8) {
+		vio_info("ret %d sif->mux_mask 0x%lx\n", ret, sif->mux_mask);
+	} else if (step == 8) {
+		/* 8M  yuv need 8 mux, y need fifo0~3, uv need fifo4~7 */
 		for (i = start_index; i < SIF_MUX_MAX; i++) {
 			if (!test_bit(i, &sif->mux_mask)) {
 				if (test_bit(i + 1, &sif->mux_mask))
