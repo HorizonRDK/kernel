@@ -782,6 +782,13 @@ void ipu_frame_work(struct vio_group *group)
 		}
 	}
 
+	if (test_bit(IPU_REUSE_SHADOW0, &ipu->state) &&
+			shadow_index == 0) {
+		subdev = group->sub_ctx[0];
+		if (subdev)
+			ipu_update_hw_param(subdev);
+	}
+
 	for (i = MAX_DEVICE - 2; i >= 0; i--) {
 		subdev = group->sub_ctx[i];
 		if (!subdev)
@@ -860,7 +867,7 @@ void ipu_frame_work(struct vio_group *group)
 			}
 
 			if (test_bit(IPU_REUSE_SHADOW0, &ipu->state) &&
-					shadow_index == 0)
+					shadow_index == 0 && i > 0)
 				ipu_update_hw_param(subdev);
 
 			if (!atomic_read(&subdev->lost_next_frame)) {
@@ -1884,7 +1891,9 @@ int ipu_update_common_param(struct ipu_subdev *subdev,
 		ipu_set_ds2_wdma_enable(ipu->base_reg, shadow_index, 0);
 	}
 
-	ipu_update_ds_ch_param(subdev, 2, &ipu_cfg->ds_info[2]);
+	for (i = 0; i < 5; i++)
+		ipu_update_ds_ch_param(subdev, i, &ipu_cfg->ds_info[i]);
+	ipu_update_us_param(subdev, &ipu_cfg->us_info);
 
 	///RD Buffer stride
 	src_stride_uv = ipu_ctrl->src_stride_uv;
@@ -3636,8 +3645,12 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		prev_fs_has_no_fe = 0;
 		if (!group->leader && (test_bit(IPU_OTF_INPUT, &ipu->state))) {
 			vio_dbg("[S%d]ipu not leader", instance);
+			ipu_disable_all_channels(ipu->base_reg, group->instance);
 			vio_group_done(group);
 		}
+
+		if (group->leader && (test_bit(IPU_DMA_INPUT, &ipu->state)))
+			ipu_disable_all_channels(ipu->base_reg, group->instance);
 
 		if (test_bit(IPU_DMA_INPUT, &ipu->state)) {
 			vio_group_done(group);
