@@ -18,5 +18,7 @@
 #define BOOT_DFU		(REBOOT_FLAG + 12)
 /* enter usb fimrware upgrade mode */
 #define BOOT_UFU		(REBOOT_FLAG + 13)
+/* enter eye diagram debug mdoe */
+#define BOOT_EYE_DIAG		(REBOOT_FLAG + 14)
 
 #endif /* __HBOOT_BOOT_MODE_H */

@@ -1286,6 +1286,7 @@
 				mode-ums = <BOOT_UMS>;
 				mode-dfu = <BOOT_DFU>;
 				mode-ufu = <BOOT_UFU>;
+				mode-eye = <BOOT_EYE_DIAG>;
 			};
 		};
 
