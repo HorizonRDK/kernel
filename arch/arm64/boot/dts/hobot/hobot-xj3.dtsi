@@ -1285,6 +1285,7 @@
 				mode-loader = <BOOT_BL_DOWNLOAD>;
 				mode-ums = <BOOT_UMS>;
 				mode-ufu = <BOOT_UFU>;
+				mode-eye = <BOOT_EYE_DIAG>;
 			};
 		};
 
