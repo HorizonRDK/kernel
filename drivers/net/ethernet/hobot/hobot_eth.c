@@ -4757,10 +4757,10 @@ static int xj3_rx_packet(struct xj3_priv *priv, int limit, u32 queue) {
 
         if (status == discard_frame) {
             if (priv->hwts_rx_en && !priv->extend_desc) {
-                dev_kfree_skb_any(rx_q->rx_skbuff[entry]);
-                rx_q->rx_skbuff[entry] = NULL;
                 dma_unmap_single(priv->device, rx_q->rx_skbuff_dma[entry],
                                  priv->dma_buf_sz, DMA_FROM_DEVICE);
+                dev_kfree_skb_any(rx_q->rx_skbuff[entry]);
+                rx_q->rx_skbuff[entry] = NULL;
             }
         } else {
             struct sk_buff *skb;
