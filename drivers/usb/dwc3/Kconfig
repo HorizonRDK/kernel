@@ -116,4 +116,13 @@ config USB_DWC3_POWERSAVE
 	  save freature.
 	  Say 'Y' or 'M' if you need power save feature for dwc3 controller
 	  in hobot platform.
+
+config USB_EXTCON_VBUS_GPIO
+        tristate "Hobot DWC3 Extcon Vbus GPIO Detect Freature"
+        depends on GPIOLIB
+        default n
+        help
+          When Hobot USB as device, vbus-gpio used to detect usb plug/unplug.
+	  unplug need to reset gadget, otherwise usb device not work.
+          Say 'Y' or 'M' here to enable GPIO based USB cable detection extcon support.
 endif
