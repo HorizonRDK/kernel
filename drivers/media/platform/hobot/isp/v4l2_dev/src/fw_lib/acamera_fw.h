@@ -34,6 +34,8 @@
 #define FW_PAUSE 0
 #define FW_RUN 1
 
+#define ALIGN_UP(a, size)   ((a+size-1) & (~(size-1)))
+#define ALIGN_UP16(d)   ALIGN_UP(d, 16)
 
 struct _acamera_fsm_mgr_t;
 struct _acamera_context_t;

@@ -247,7 +247,7 @@ static int dma_writer_configure_frame_writer( dma_pipe *pipe,
         aframe->width = reg_ops->active_width_read( pipe->settings.isp_base );
         aframe->height = reg_ops->active_height_read( pipe->settings.isp_base );
 
-        aframe->line_offset = acamera_line_offset( aframe->width, _get_pixel_width( aframe->type ) );
+        aframe->line_offset =  ALIGN_UP16(aframe->width);
         aframe->size = aframe->line_offset * aframe->height * 3 / 2;
 
         addr = aframe->address;
