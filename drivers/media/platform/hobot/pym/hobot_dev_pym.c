@@ -229,6 +229,26 @@ static int x3_pym_release_subdev_all_ion(struct pym_subdev *subdev)
 	return 0;
 }
 
+void pym_hw_enable(struct x3_pym_dev *pym, bool enable)
+{
+	pym_set_common_rdy(pym->base_reg, 0);
+
+	if(enable)
+		pym_set_intr_mask(pym->base_reg, 0);
+	else
+		pym_set_intr_mask(pym->base_reg, 0xf);
+
+	pym_enable_module(pym->base_reg, enable);
+	if (test_bit(PYM_DMA_INPUT, &pym->state))
+		pym_enable_ddr_clk(pym->base_reg, enable);
+
+	if (test_bit(PYM_OTF_INPUT, &pym->state))
+		pym_enable_otf_clk(pym->base_reg, enable);
+
+	pym_set_common_rdy(pym->base_reg, 1);
+
+}
+
 static int x3_pym_close(struct inode *inode, struct file *file)
 {
 	struct pym_video_ctx *pym_ctx;
@@ -299,6 +319,8 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 			else
 				vio_info("pym group already NULL\n");
 		}
+		pym_hw_enable(pym, false);
+		vio_reset_module(GROUP_ID_PYM);
 		vio_clk_disable("pym_mclk");
 		vio_clk_disable("sif_mclk");
 		sema_init(&pym->gtask.hw_resource, 1);
@@ -487,25 +509,7 @@ end_req_to_pro:
 
 	return;
 }
-void pym_hw_enable(struct x3_pym_dev *pym, bool enable)
-{
-	pym_set_common_rdy(pym->base_reg, 0);
 
-	if(enable)
-		pym_set_intr_mask(pym->base_reg, 0);
-	else
-		pym_set_intr_mask(pym->base_reg, 0xf);
-
-	pym_enable_module(pym->base_reg, enable);
-	if (test_bit(PYM_DMA_INPUT, &pym->state))
-		pym_enable_ddr_clk(pym->base_reg, enable);
-
-	if (test_bit(PYM_OTF_INPUT, &pym->state))
-		pym_enable_otf_clk(pym->base_reg, enable);
-
-	pym_set_common_rdy(pym->base_reg, 1);
-
-}
 void pym_update_param(struct pym_subdev *subdev)
 {
 	u16 src_width, src_height, roi_width;
@@ -932,11 +936,8 @@ int pym_video_streamoff(struct pym_video_ctx *pym_ctx)
 		goto p_dec;
 
 	spin_lock_irqsave(&pym_dev->shared_slock, flag);
-	pym_hw_enable(pym_dev, false);
 	clear_bit(PYM_HW_RUN, &pym_dev->state);
 	spin_unlock_irqrestore(&pym_dev->shared_slock, flag);
-
-	vio_reset_module(group->id);
 
 p_dec:
 	if (pym_ctx->framemgr->frames_mp[pym_ctx->frm_fst_ind] != NULL) {

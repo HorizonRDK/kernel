@@ -7,11 +7,11 @@
 #ifndef __HOBOT_VIO_CONFIG_H__
 #define __HOBOT_VIO_CONFIG_H__
 
-#define vio_err(fmt, ...)	printk( fmt, ##__VA_ARGS__)
-#define vio_warn(fmt, ...)	printk(KERN_DEBUG fmt, ##__VA_ARGS__)
+#define vio_err(fmt, ...)	pr_err(fmt, ##__VA_ARGS__)
+#define vio_warn(fmt, ...)	pr_warn(fmt, ##__VA_ARGS__)
 #define vio_dbg(fmt, ...)	pr_debug(fmt, ##__VA_ARGS__)
-#define vio_info(fmt, ...)	printk(KERN_DEBUG fmt, ##__VA_ARGS__)
-#define vio_cont(fmt, ...)	printk(KERN_DEBUG fmt, ##__VA_ARGS__)
+#define vio_info(fmt, ...)	pr_info(fmt, ##__VA_ARGS__)
+#define vio_cont(fmt, ...)	pr_cont(fmt, ##__VA_ARGS__)
 
 #define IRAM_MAX_RANG	0x140000
 
