@@ -170,7 +170,14 @@ static void isp_idma_tasklet(unsigned long data)
 	if (!list_empty(&hobot_dma->done_list)) {
 		list_for_each_entry_safe(desc, next, &hobot_dma->done_list, node) {
 			list_move_tail(&desc->node, &hobot_dma->free_list);
-			desc->callback.cb(desc->callback.cb_data);
+            if (desc->callback.cb) {
+			    desc->callback.cb(desc->callback.cb_data);
+            } else {
+                pr_err("idma cb is null. desc %p, cb1 %p, cb2 %p, ctx id %d %p, dir %d %p, nents %d %p.\n",
+                    desc, &desc->callback, desc->callback.cb,
+                    desc->ctx_id, &desc->ctx_id, desc->direction, &desc->direction,
+                    desc->isp_sram_nents, &desc->isp_sram_nents);
+            }
 		}
 	}
 	spin_unlock_irqrestore(hobot_dma->dma_ctrl_lock, flags);
