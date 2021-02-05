@@ -13,6 +13,7 @@
 #define vio_info(fmt, ...)	pr_info(fmt, ##__VA_ARGS__)
 #define vio_cont(fmt, ...)	pr_cont(fmt, ##__VA_ARGS__)
 
+#define	VIO_IRQ_CPU_IDX	1
 #define IRAM_MAX_RANG	0x140000
 
 #define VIO_MAX_STREAM	8

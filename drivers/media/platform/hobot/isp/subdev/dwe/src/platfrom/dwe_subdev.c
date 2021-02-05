@@ -36,6 +36,7 @@
 #include <media/v4l2-async.h>
 #include "acamera_logger.h"
 
+#include "vio_config.h"
 #include "system_dwe_api.h"
 #include "dwe_dev.h"
 #include "dwe_subdev.h"
@@ -424,12 +425,16 @@ int dwe_hw_init(void)
 			goto irqldc_err;
 		}
 
+		irq_set_affinity_hint(irq, get_cpu_mask(VIO_IRQ_CPU_IDX));
+
 		irq = dwe_ctx->dev_ctx->dis_dev->irq_num;
 		ret = request_irq(irq, x3_dis_irq, IRQF_TRIGGER_HIGH, "dis", NULL);
 		if (ret < 0) {
 			LOG(LOG_ERR, "dis irq %d register failed!\n", irq);
 			goto irqdis_err;
 		}
+
+		irq_set_affinity_hint(irq, get_cpu_mask(VIO_IRQ_CPU_IDX));
 	}
 
 	/* init workqueue */

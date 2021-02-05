@@ -32,6 +32,7 @@
 #include "system_dma.h"
 #include "system_sw_io.h"
 #include "hobot_isp_reg_dma.h"
+#include "vio_config.h"
 
 #if FW_USE_HOBOT_DMA
 
@@ -286,6 +287,7 @@ void hobot_dma_init(hobot_dma_t *hobot_dma)
     if(ret)
         printk(KERN_ERR "ERROR: %s request_irq() failed: %d\n", __FUNCTION__, ret);
 
+    irq_set_affinity_hint(hobot_dma->irq_in_dts, get_cpu_mask(VIO_IRQ_CPU_IDX));
     dma_isp_reg_mask_int_write(DMA_INT_DISABLE);  //mask dma irq
 
     // disable irq after request_irq, if not, it may cause "Unbalanced enable for IRQ" warning log

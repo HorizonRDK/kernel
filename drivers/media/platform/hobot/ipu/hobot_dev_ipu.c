@@ -4321,6 +4321,8 @@ static int x3_ipu_probe(struct platform_device *pdev)
 		goto err_get_irq;
 	}
 
+	irq_set_affinity_hint(ipu->irq, get_cpu_mask(VIO_IRQ_CPU_IDX));
+
 	ipu->ion_client = ion_client_create(hb_ion_dev, "ipu_driver_ion");
 	if (IS_ERR(ipu->ion_client)) {
 		vio_err("ipu ion client create failed.");

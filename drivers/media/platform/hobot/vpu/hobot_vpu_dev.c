@@ -4117,6 +4117,7 @@ static int vpu_probe(struct platform_device *pdev)
 			"failed to install register interrupt handler\n");
 		goto ERR_REQ_IRQ;
 	}
+	irq_set_affinity_hint(dev->irq, get_cpu_mask(1));
 	dev_dbg(&pdev->dev, "vpu irq number: irq = %d\n", dev->irq);
 
 	dev->vpu_class = class_create(THIS_MODULE, VPU_DEV_NAME);
