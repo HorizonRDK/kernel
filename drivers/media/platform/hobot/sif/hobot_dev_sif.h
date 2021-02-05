@@ -42,6 +42,7 @@
 #define SIF_IOC_USER_STATS       _IOR(SIF_IOC_MAGIC, 11, struct user_statistic)
 #define SIF_IOC_MD_ENABLE	     _IO(SIF_IOC_MAGIC, 12)
 #define SIF_IOC_MD_DISENABLE	 _IO(SIF_IOC_MAGIC, 13)
+#define SIF_IOC_ORDER            _IOWR(SIF_IOC_MAGIC, 14, struct user_seq_info)
 
 
 #define VIO_MP_IOC_MAGIC 'm'
@@ -259,6 +260,37 @@ struct sif_subdev {
 	fps_ctrl_t fps_ctrl;
 };
 
+#define SEQ_WAKEUP_INIT   (0)
+#define SEQ_KTHREAD_STOP  (100)
+#define SEQ_KTHREAD_FLUSH (101)
+
+struct frame_list {
+	spinlock_t slock;
+	u32 enable;               // pipe sequence enable
+	u32 timeout;              // pipe sequence timeout
+	u64 frameid;              // for debug
+	u32 pipeline_id;          // pipe id
+	u32 queue_count;          // node count
+	struct timespec qbuf_ts;  // qbuf last time
+	struct list_head queue_list;
+};
+
+struct frame_node {
+	struct list_head list;
+	u32 interval;            // time interval between two frame
+	u64 frameid;             // for debug
+	struct vio_group *group;
+	struct vio_frame *frame;
+};
+
+struct sif2isp_seq {
+	atomic_t            refcount;
+	int                 stop_flag;
+	int                 wait_flag[VIO_MAX_STREAM];
+	uint8_t             seq_num[VIO_MAX_STREAM];
+	wait_queue_head_t   wait_queue;
+	struct task_struct *seq_kthread;
+};
 
 struct x3_sif_dev {
 	u32 __iomem			*base_reg;
@@ -293,6 +325,10 @@ struct x3_sif_dev {
 	struct vio_group_task	sifout_task[SIF_MUX_MAX];
 	struct vio_work sifout_work[VIO_MAX_STREAM][VIO_MP_MAX_FRAMES];
 	struct vio_work sifin_work[VIO_MAX_STREAM][VIO_MP_MAX_FRAMES];
+
+	struct sif2isp_seq      seq_task;
+	struct frame_list frame_queue[VIO_MAX_STREAM];
+	struct frame_node frame_nodes[VIO_MAX_STREAM][VIO_MP_MAX_FRAMES];
 };
 
 typedef enum HB_SYS_MOD_ID_E {

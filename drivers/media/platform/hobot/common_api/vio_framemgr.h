@@ -241,6 +241,11 @@ struct user_statistic {
 	uint32_t cnt[USER_STATS_NUM];
 };
 
+struct user_seq_info {
+	int timeout;
+	uint8_t seq_num[VIO_MAX_STREAM];
+};
+
 #define HB_VIO_BUFFER_MAX_PLANES 3
 #define HB_VIO_BUFFER_MAX_MP (128)
 typedef struct kernel_ion_one {

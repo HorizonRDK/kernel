@@ -6,11 +6,13 @@
 
 #include <linux/module.h>
 #include <linux/delay.h>
+#include <linux/sched.h>
 #include <linux/kernel.h>
 #include <linux/errno.h>
 #include <linux/interrupt.h>
 #include <linux/device.h>
 #include <linux/platform_device.h>
+#include <uapi/linux/sched/types.h>
 #include <linux/slab.h>
 #include <asm/cacheflush.h>
 #include <asm/pgtable.h>
@@ -372,6 +374,560 @@ static u32 x3_sif_poll(struct file *file, struct poll_table_struct *wait)
 
 	return ret;
 }
+
+static int sif_node_enqueue(struct frame_list *this,
+		struct frame_node *node)
+{
+	if (!this) {
+		vio_err("invalid vio frame queue\n");
+		return -EFAULT;
+	}
+	if (!node) {
+		vio_err("invalid node\n");
+		return -EFAULT;
+	}
+	spin_lock(&this->slock);
+	list_add_tail(&node->list, &this->queue_list);
+	this->queue_count++;
+	spin_unlock(&this->slock);
+	return 0;
+}
+
+static struct frame_node *sif_node_dequeue(struct frame_list *this)
+{
+	struct frame_node *node = NULL;
+
+	if (!this) {
+		vio_err("invalid vio frame queue\n");
+		return NULL;
+	}
+	if (!this->queue_count)
+		return NULL;
+
+	spin_lock(&this->slock);
+	if (!list_empty(&this->queue_list)) {
+		node = list_first_entry(&this->queue_list,
+				struct frame_node, list);
+		list_del(&node->list);
+		this->queue_count--;
+	}
+	spin_unlock(&this->slock);
+	return node;
+}
+
+static int find_seq_num(struct x3_sif_dev *sif, uint8_t seq_num)
+{
+	int pipeid;
+	struct frame_list *queue;
+
+	for (pipeid = 0; pipeid < VIO_MAX_STREAM; pipeid++) {
+		queue = &sif->frame_queue[pipeid];
+		if (queue->enable && (sif->seq_task.seq_num[pipeid] == seq_num))
+			return pipeid;
+	}
+	return -1;
+}
+
+static int sif_next_queue(struct x3_sif_dev *sif, int *cur_seq_num)
+{
+	int index, next_pipeid, next_seq_num;
+
+	next_seq_num = *cur_seq_num + 1;
+	for (index = 0; index < VIO_MAX_STREAM; index++) {
+		if (next_seq_num > VIO_MAX_STREAM)
+			next_seq_num = 1;
+		next_pipeid = find_seq_num(sif, next_seq_num);
+		if (next_pipeid >= 0) {
+			*cur_seq_num = next_seq_num;
+			return next_pipeid;
+		}
+		next_seq_num++;
+	}
+	vio_err("BUG_ON: %s all pipeline not enable sequence !!!\n",
+			__func__);
+	return -1;
+}
+
+static int sif_too_much_frame(struct x3_sif_dev *sif, int limit)
+{
+	int index;
+	struct frame_list *queue;
+	for (index = 0; index < VIO_MAX_STREAM; index++) {
+		queue = &sif->frame_queue[index];
+		if (queue->enable && queue->queue_count >= limit)
+			return 1;
+	}
+	return 0;
+}
+
+static int sif_start_trigger(struct frame_list *queue)
+{
+	struct frame_node *node = sif_node_dequeue(queue);
+	if (node) {
+		vio_dbg("pipe%d %llu %uus\n", queue->pipeline_id,
+				node->frameid, node->interval);
+		vio_group_start_trigger_mp(node->group, node->frame);
+	} else {
+		vio_err("[S%d] %s Bug_on node == NULL\n",
+				node->group->instance, __func__);
+	}
+	return 0;
+}
+
+static int sif_flush_queue(struct x3_sif_dev *sif, int cur_seq_num)
+{
+	int index, pipeid;
+	struct frame_list *queue;
+
+	if (cur_seq_num > VIO_MAX_STREAM)
+		cur_seq_num = 1;
+	pipeid = find_seq_num(sif, cur_seq_num);
+	if (pipeid >= 0) {
+		queue = &sif->frame_queue[pipeid];
+		if (queue->enable && queue->queue_count)
+			sif_start_trigger(queue);
+	}
+
+	while(sif_too_much_frame(sif, 1)) {
+		for (index = 0; index < VIO_MAX_STREAM; index++) {
+			pipeid = sif_next_queue(sif, &cur_seq_num);
+			if (pipeid < 0)
+				goto err_exit;
+			queue = &sif->frame_queue[pipeid];
+			if (queue->enable && queue->queue_count)
+				sif_start_trigger(queue);
+		}
+	}
+	return pipeid;
+err_exit:
+	vio_err("BUG_ON: %s all pipeline not enable sequence !!!\n", __func__);
+	return -1;
+}
+
+static int get_time_sub(struct frame_list *queue)
+{
+	struct timespec ts;
+	getnstimeofday(&ts);
+	return ((ts.tv_sec * 1000000000ULL + ts.tv_nsec) -
+			(queue->qbuf_ts.tv_sec * 1000000000ULL +
+			 queue->qbuf_ts.tv_nsec));
+}
+
+static int check_need_sleep(struct x3_sif_dev *sif)
+{
+	int index;
+	struct frame_list *queue;
+	for (index = 0; index < VIO_MAX_STREAM; index++) {
+		queue = &sif->frame_queue[index];
+		if (queue->enable && (queue->queue_count ||
+			(get_time_sub(queue)/1000000 < 100)))
+			return 0;
+	}
+	return 1;
+}
+
+static int seq_num_check(struct sif_video_ctx *sif_ctx,
+		struct user_seq_info *seq_info)
+{
+	struct x3_sif_dev *sif = sif_ctx->sif_dev;
+	struct frame_list *queue;
+	int pipeid, seq_num, i, ret = 0;
+
+	for (pipeid = 0; pipeid < VIO_MAX_STREAM; pipeid++) {
+		seq_num = seq_info->seq_num[pipeid];
+		if ((seq_num < 0) || (seq_num > VIO_MAX_STREAM)) {
+			printk("sif_order: error: pipe(%d) sequence num %d\n",
+					pipeid, seq_num);
+			ret = -1;
+			goto exit;
+		}
+		queue = &sif->frame_queue[pipeid];
+		if (!queue->enable) {
+			seq_info->seq_num[pipeid] = 0;
+			continue;
+		}
+		if (!seq_num) {
+			printk("sif_order: error: pipe(%d) enabled! order num cannot be 0.\n",
+					pipeid);
+			ret = -1;
+			goto exit;
+		}
+	}
+	for (pipeid = 0; pipeid < VIO_MAX_STREAM - 1; pipeid++) {
+		seq_num = seq_info->seq_num[pipeid];
+		if (seq_num) {
+			for (i = pipeid + 1; i < VIO_MAX_STREAM; i++)
+				if (seq_num == seq_info->seq_num[i]) {
+					printk("sif_order error: pipe(%d-%d) same sequence number.\n",
+							pipeid, i);
+					ret = -1;
+					goto exit;
+				}
+		}
+	}
+exit:
+	return ret;
+}
+
+static int sif_video_order(struct sif_video_ctx *sif_ctx,
+		struct user_seq_info *seq_info)
+{
+	struct x3_sif_dev *sif = sif_ctx->sif_dev;
+	struct user_seq_info new_seq_info;
+	struct frame_list *queue;
+	int ret, pipeid;
+
+	pipeid = sif_ctx->group->instance;
+	queue = &sif->frame_queue[pipeid];
+
+	if (sif_ctx->id == 0) {
+		printk("sif_order: sif_capture sequence not supported.\n");
+		return -EFAULT;
+	} else if (sif_ctx->id == 1) {
+		mutex_lock(&sif->shared_mutex);
+		if (!queue->enable) {
+			printk("sif_order: error: please enable pipe(%d) sequence\n",
+					pipeid);
+			mutex_unlock(&sif->shared_mutex);
+			return -EFAULT;
+		}
+
+		// return current info
+		if (seq_info->timeout < 0) {
+			memcpy(&seq_info->seq_num[0], &sif->seq_task.seq_num[0],
+					sizeof(sif->seq_task.seq_num));
+			seq_info->timeout = queue->timeout;
+			mutex_unlock(&sif->shared_mutex);
+			return 0;
+		}
+
+		memcpy(&new_seq_info, seq_info, sizeof(struct user_seq_info));
+		if(seq_num_check(sif_ctx, &new_seq_info)) {
+			mutex_unlock(&sif->shared_mutex);
+			return -EFAULT;
+		}
+
+		if ((seq_info->timeout > 0) && (seq_info->timeout != queue->timeout)) {
+			printk("sif_order: pipe(%d) timeout change (%d -> %d)\n",
+					pipeid, queue->timeout, seq_info->timeout);
+			queue->timeout = seq_info->timeout;
+		}
+
+		ret = memcmp(&sif->seq_task.seq_num[0], &new_seq_info.seq_num[0],
+				sizeof(sif->seq_task.seq_num));
+		if (ret) {
+			memcpy(&sif->seq_task.seq_num[0], &new_seq_info.seq_num[0],
+					sizeof(sif->seq_task.seq_num));
+
+			sif->seq_task.stop_flag = SEQ_KTHREAD_FLUSH;
+			wake_up_interruptible(&sif->seq_task.wait_queue);
+
+			printk("sif_order: pipe(%d) order change [%d %d %d %d %d %d %d %d]\n",
+					pipeid, sif->seq_task.seq_num[0], sif->seq_task.seq_num[1],
+					sif->seq_task.seq_num[2], sif->seq_task.seq_num[3],
+					sif->seq_task.seq_num[4], sif->seq_task.seq_num[5],
+					sif->seq_task.seq_num[6], sif->seq_task.seq_num[7]);
+		} else {
+			printk("sif_order: pipe(%d) set order done.\n", pipeid);
+		}
+
+		// return current info
+		memcpy(&seq_info->seq_num[0], &sif->seq_task.seq_num[0],
+				sizeof(sif->seq_task.seq_num));
+		seq_info->timeout = queue->timeout;
+		mutex_unlock(&sif->shared_mutex);
+	}
+	return 0;
+}
+
+static int sif_seq_qbuf(struct sif_video_ctx *sif_ctx,
+		int index, struct vio_frame *frame)
+{
+	struct x3_sif_dev *sif = sif_ctx->sif_dev;
+	struct vio_group  *group = sif_ctx->group;
+	struct frame_list *queue;
+	struct frame_node *node;
+	int pipeid;
+
+	pipeid = sif_ctx->group->instance;
+
+	queue = &sif->frame_queue[pipeid];
+	node = &sif->frame_nodes[pipeid][index];
+	node->group = group;
+	node->frame = frame;
+	node->interval = get_time_sub(queue)/1000;
+	node->frameid = queue->frameid;
+	queue->frameid++;
+
+	getnstimeofday(&queue->qbuf_ts);
+	sif_node_enqueue(queue, node);
+
+	/* seq_queue[0-7] */
+	sif->seq_task.wait_flag[pipeid] = pipeid + 1;
+	wake_up_interruptible(&sif->seq_task.wait_queue);
+	return 0;
+}
+
+static int sif_seq_sleep(struct sif2isp_seq *tsk,
+		int timeout, int cur_pipeid, int *con_sleep)
+{
+	int ret_time, us_wait, condi;
+	struct timespec wait_start;
+	struct timespec wait_end;
+
+	getnstimeofday(&wait_start);
+	ret_time = wait_event_interruptible_timeout(
+			tsk->wait_queue, tsk->wait_flag[cur_pipeid]
+			|| tsk->stop_flag, timeout*HZ/1000);
+	getnstimeofday(&wait_end);
+
+	if (tsk->stop_flag)
+		condi = 1;
+	else
+		condi = tsk->wait_flag[cur_pipeid];
+	tsk->wait_flag[cur_pipeid] = SEQ_WAKEUP_INIT;
+
+	us_wait = ((wait_end.tv_sec * 1000000000ULL +
+				wait_end.tv_nsec) -
+			(wait_start.tv_sec * 1000000000ULL +
+			 wait_start.tv_nsec))/1000;
+
+	if ((!ret_time && (us_wait < (timeout*1000)) &&
+				!condi) || (ret_time < 0))
+		*con_sleep = 1;
+
+	return ret_time;
+}
+
+static int sif_seq_kthread(void *data)
+{
+	struct frame_list  *queue;
+	struct x3_sif_dev  *sif = data;
+	struct sif2isp_seq *tsk = &sif->seq_task;
+	int ret_time, timeout, cur_pipeid, cur_seq_num;
+	int flush_queue, con_sleep;
+
+	cur_seq_num = 0;
+	cur_pipeid = sif_next_queue(sif, &cur_seq_num);
+	if (cur_pipeid < 0)
+		goto err_exit;
+
+	while (1) {
+		queue = &sif->frame_queue[cur_pipeid];
+		timeout = queue->timeout;
+		ret_time = 0;
+
+		// none cam work
+		if (check_need_sleep(sif))
+			goto sleep;
+
+		// wait current frame complete
+		if (!queue->queue_count) {
+			timeout -= (get_time_sub(queue)/1000000);
+			if (timeout > 0) {
+sleep:
+				ret_time = sif_seq_sleep(tsk, timeout,
+						cur_pipeid, &con_sleep);
+				if (tsk->stop_flag == SEQ_KTHREAD_FLUSH)
+					flush_queue = 1;
+				tsk->stop_flag = SEQ_WAKEUP_INIT;
+				if (con_sleep)
+					continue;
+			}
+		}
+		if (kthread_should_stop()) {
+			sif_flush_queue(sif, cur_seq_num);
+			break;
+		}
+		if (flush_queue) {
+			flush_queue = 0;
+			if (sif_flush_queue(sif, cur_seq_num) < 0)
+				goto err_exit;
+			cur_seq_num = 0;
+			cur_pipeid = sif_next_queue(sif, &cur_seq_num);
+			if (cur_pipeid < 0)
+				goto err_exit;
+			continue;
+		}
+
+		// timeout: skip current queue
+		if (!ret_time && !queue->queue_count) {
+			vio_dbg("pipe%d %llu miss %dus > %dms\n",
+					queue->pipeline_id, queue->frameid,
+					get_time_sub(queue)/1000, queue->timeout);
+			cur_pipeid = sif_next_queue(sif, &cur_seq_num);
+			if (cur_pipeid < 0)
+				goto err_exit;
+		}
+
+trigger:
+		queue = &sif->frame_queue[cur_pipeid];
+		if (!queue->queue_count)
+			continue;
+
+		sif_start_trigger(queue);
+		cur_pipeid = sif_next_queue(sif, &cur_seq_num);
+		if (cur_pipeid < 0)
+			goto err_exit;
+		goto trigger;
+	}
+	return 0;
+err_exit:
+	vio_err("BUG_ON: %s all pipeline not enable sequence !!!\n",
+			__func__);
+	return -1;
+}
+
+static int sif_seq_enable(struct sif_video_ctx *sif_ctx)
+{
+	int pipeid, en_isp, en_flyby, en_seq;
+	struct x3_sif_dev *sif;
+	struct sif_subdev *subdev;
+	struct frame_list *queue;
+	sif_cfg_t *sif_cfg;
+
+	sif = sif_ctx->sif_dev;
+	subdev = sif_ctx->subdev;
+	sif_cfg = &subdev->sif_cfg;
+
+	pipeid = sif_ctx->group->instance;
+	queue = &sif->frame_queue[pipeid];
+	if ((sif_ctx->id != 1) || !queue->enable)
+		goto no_en;
+
+	en_isp = sif_cfg->output.isp.enable;
+	en_flyby = sif_cfg->output.isp.func.enable_flyby;
+	en_seq = sif_cfg->output.isp.en_seq;
+	if (en_flyby || !(en_isp && en_seq))
+		goto no_en;
+
+	return 1;
+no_en:
+	return 0;
+}
+
+static int seq_kthread_init(struct sif_video_ctx *sif_ctx)
+{
+	int ret, pipeid, en_isp, en_flyby, en_seq;
+	struct sched_param param = {.sched_priority = MAX_RT_PRIO - 1};
+	struct frame_list *frame_queue;
+	struct sif_subdev *subdev;
+	struct x3_sif_dev *sif;
+	sif_cfg_t *sif_cfg;
+
+	BUG_ON(!sif_ctx);
+
+	subdev = sif_ctx->subdev;
+	sif_cfg = &subdev->sif_cfg;
+	pipeid = sif_ctx->group->instance;
+
+	en_isp = sif_cfg->output.isp.enable;
+	en_flyby = sif_cfg->output.isp.func.enable_flyby;
+	en_seq = sif_cfg->output.isp.en_seq;
+	if (en_flyby || !(en_isp && en_seq))
+		goto exit;
+
+	sif = subdev->sif_dev;
+	frame_queue = &sif->frame_queue[pipeid];
+	if (frame_queue->enable) {
+		vio_err("ERROR: Repeated initialization %d\n", pipeid);
+		return -EFAULT;
+	}
+
+	sif->seq_task.seq_num[pipeid] = pipeid + 1;  // default seq num;
+	frame_queue->timeout = 34;                   // default timeout (ms)
+	spin_lock_init(&frame_queue->slock);
+	spin_lock(&frame_queue->slock);
+	frame_queue->enable = 1;
+	frame_queue->frameid = 0;
+	frame_queue->queue_count = 0;
+	frame_queue->pipeline_id = pipeid;
+	memset(&frame_queue->qbuf_ts, 0, sizeof(struct timespec));
+	INIT_LIST_HEAD(&frame_queue->queue_list);
+	spin_unlock(&frame_queue->slock);
+	atomic_inc(&sif->seq_task.refcount);
+
+	if (sif->seq_task.seq_kthread)
+		goto en_ret;
+
+	sif->seq_task.wait_flag[pipeid] = SEQ_WAKEUP_INIT;
+	init_waitqueue_head(&sif->seq_task.wait_queue);
+	sif->seq_task.seq_kthread = kthread_run(sif_seq_kthread,
+			sif, "vio_seq");
+	if (IS_ERR(sif->seq_task.seq_kthread)) {
+		vio_err("create seq_kthread failed\n");
+		sif->seq_task.seq_kthread = NULL;
+		goto err_kth;
+	}
+	ret = sched_setscheduler_nocheck(sif->seq_task.seq_kthread,
+			SCHED_FIFO, &param);
+	if (ret) {
+		vio_err("sched_setscheduler_nocheck is fail(%d)", ret);
+		goto err_scd;
+	}
+
+	vio_info("[S%d][V1] %s: seq_kthread start.\n", pipeid, __func__);
+en_ret:
+	vio_info("[S%d][V1] %s: en sequence queue%d tmout %dms HZ:%d\n",
+			pipeid, __func__, pipeid, frame_queue->timeout, HZ);
+exit:
+	return 0;
+
+err_scd:
+	sif->seq_task.stop_flag = SEQ_KTHREAD_STOP;
+	kthread_stop(sif->seq_task.seq_kthread);
+	sif->seq_task.seq_kthread = NULL;
+err_kth:
+	frame_queue->enable = 0;
+	frame_queue->pipeline_id = -1;
+	atomic_dec(&sif->seq_task.refcount);
+	sif->seq_task.seq_num[pipeid] = 0;
+	return -EFAULT;
+}
+
+static int seq_kthread_stop(struct sif_video_ctx *sif_ctx)
+{
+	int pipeid;
+	struct x3_sif_dev *sif;
+	struct sif_subdev *subdev;
+	struct frame_list *queue;
+
+	sif = sif_ctx->sif_dev;
+	subdev = sif_ctx->subdev;
+	pipeid = sif_ctx->group->instance;
+
+	if (!atomic_read(&sif->seq_task.refcount) ||
+			!sif_seq_enable(sif_ctx) ||
+			!sif->seq_task.seq_kthread) {
+		goto exit;
+	}
+	if (!atomic_dec_return(&sif->seq_task.refcount)) {
+		sif->seq_task.stop_flag = SEQ_KTHREAD_STOP;
+		kthread_stop(sif->seq_task.seq_kthread);
+		sif->seq_task.seq_kthread = NULL;
+		vio_info("[S%d][V1] %s: seq-kthread exit\n", pipeid,
+				__func__);
+	}
+
+	queue = &sif->frame_queue[pipeid];
+	spin_lock(&queue->slock);
+	queue->enable = 0;
+	queue->pipeline_id = -1;
+	queue->timeout = 0;
+	queue->frameid = 0;
+	spin_unlock(&queue->slock);
+	sif->seq_task.seq_num[pipeid] = 0;
+
+	if(queue->queue_count)
+		vio_err("[S%d] %s: error frame count %d.\n", pipeid,
+				__func__, queue->queue_count);
+
+	vio_info("[S%d][V1] %s: sif-ddr-input close.\n", pipeid,
+			__func__);
+exit:
+	return 0;
+}
+
 void sif_fps_ctrl_deinit(struct sif_subdev *subdev);
 static int x3_sif_close(struct inode *inode, struct file *file)
 {
@@ -455,6 +1011,7 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 		frame_manager_close(sif_ctx->framemgr);
 	}
 
+	seq_kthread_stop(sif_ctx);
 	if (atomic_dec_return(&sif->open_cnt) == 0) {
 		clear_bit(SIF_DMA_IN_ENABLE, &sif->state);
 		clear_bit(SIF_OTF_OUTPUT, &sif->state);
@@ -894,6 +1451,11 @@ int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 		ret = sif_mux_init(subdev, sif_config);
 		sif_fps_ctrl_init(subdev, sif_config);
 	} else if (sif_ctx->id == 1) {
+		if (seq_kthread_init(sif_ctx) < 0) {
+			mutex_unlock(&sif->shared_mutex);
+			return -EFAULT;
+		}
+
 		subdev->dol_num = sif_config->output.isp.dol_exp_num;
 		memcpy(&subdev->ddrin_fmt, &sif_config->input.ddr.data,
 			sizeof(sif_data_desc_t));
@@ -1249,7 +1811,12 @@ int sif_video_qbuf(struct sif_video_ctx *sif_ctx,
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
 	group = sif_ctx->group;
-	vio_group_start_trigger_mp(group, frame);
+
+	// ddr to isp enable sequence
+	if (sif_seq_enable(sif_ctx))
+		sif_seq_qbuf(sif_ctx, index, frame);
+	else
+		vio_group_start_trigger_mp(group, frame);
 
 	if (sif_ctx->ctx_index == 0)
 		sif->statistic.q_normal\
@@ -1441,6 +2008,7 @@ static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 	struct x3_sif_dev *sif_dev;
 	struct vio_bind_info_dev *bind_info_dev;
 	struct frame_info frameinfo;
+	struct user_seq_info seq_info;
 	struct vio_group *group;
 	struct user_statistic stats;
 	struct hb_bind_info_s (*bind_info)[HB_ID_MAX];
@@ -1481,6 +2049,17 @@ static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 		if (ret)
 			return -EFAULT;
 		sif_video_qbuf(sif_ctx, &frameinfo);
+		break;
+	case SIF_IOC_ORDER:
+		if (copy_from_user((char *) &seq_info,
+					(u32 __user *) arg, sizeof(struct user_seq_info)))
+			return -EFAULT;
+		ret = sif_video_order(sif_ctx, &seq_info);
+		if (!ret)
+			ret = copy_to_user((void __user *)arg, (char *)&seq_info,
+					sizeof(struct user_seq_info));
+		if (ret)
+			return -EFAULT;
 		break;
 	case SIF_IOC_REQBUFS:
 		ret = get_user(buffers, (u32 __user *) arg);
@@ -2878,6 +3457,7 @@ static int x3_sif_probe(struct platform_device *pdev)
 
 	irq_set_affinity_hint(sif->irq, get_cpu_mask(VIO_IRQ_CPU_IDX));
 
+	atomic_set(&sif->seq_task.refcount, 0);
 	sema_init(&sif->sifin_task.hw_resource, 1);
 	atomic_set(&sif->rsccount, 0);
 	atomic_set(&sif->isp_init_cnt, 0);

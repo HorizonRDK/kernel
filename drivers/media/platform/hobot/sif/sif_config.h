@@ -175,6 +175,7 @@ typedef struct sif_output_ddr {
 
 typedef struct sif_output_isp {
 	uint32_t		  enable;
+	uint32_t		  en_seq;
 	uint32_t		  dol_exp_num;
 	sif_func_desc_t   func;
 } sif_output_isp_t;
