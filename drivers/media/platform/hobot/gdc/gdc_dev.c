@@ -746,6 +746,8 @@ static int x3_gdc_probe(struct platform_device *pdev)
 		goto err_get_irq;
 	}
 
+	irq_set_affinity_hint(gdc->irq, get_cpu_mask(VIO_IRQ_CPU_IDX));
+
 #ifdef CONFIG_OF
 	ret = of_property_read_u32(dnode, "id", &gdc->hw_id);
 	if (ret){

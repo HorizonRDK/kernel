@@ -2550,6 +2550,8 @@ static int x3_pym_probe(struct platform_device *pdev)
 		goto err_get_irq;
 	}
 
+	irq_set_affinity_hint(pym->irq, get_cpu_mask(VIO_IRQ_CPU_IDX));
+
 	pym->ion_client = ion_client_create(hb_ion_dev, "pym_driver_ion");
 	if (IS_ERR(pym->ion_client)) {
 			vio_err("pym ion client create failed.");

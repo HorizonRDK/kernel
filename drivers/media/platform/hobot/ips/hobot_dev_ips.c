@@ -560,6 +560,7 @@ static int x3_ips_probe(struct platform_device *pdev)
 		goto err_get_irq;
 	}
 
+	irq_set_affinity_hint(ips->irq, get_cpu_mask(VIO_IRQ_CPU_IDX));
 	dev = &pdev->dev;
 	ret = device_create_file(dev, &dev_attr_regdump);
 	if (ret < 0) {

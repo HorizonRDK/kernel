@@ -1524,6 +1524,7 @@ static int jpu_probe(struct platform_device *pdev)
 			"failed to install register interrupt handler\n");
 		goto ERR_REQ_IRQ;
 	}
+	irq_set_affinity_hint(dev->irq, get_cpu_mask(1));
 	dev_dbg(&pdev->dev, "jpu irq number: irq = %d\n", dev->irq);
 
 	dev->jpu_class = class_create(THIS_MODULE, JPU_DEV_NAME);
