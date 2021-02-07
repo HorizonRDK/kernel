@@ -750,6 +750,7 @@ static int sbuf_mgr_free( struct sbuf_mgr *p_sbuf_mgr )
         LOG( LOG_INFO, "sbuf alloc buffer %p is freed.", p_sbuf_mgr->buf_allocated );
         p_sbuf_mgr->buf_allocated = NULL;
         p_sbuf_mgr->buf_used = NULL;
+        p_sbuf_mgr->sbuf_base = NULL;
     } else {
         LOG( LOG_ERR, "Error: sbuf allocated memory is NULL." );
     }
@@ -1033,6 +1034,10 @@ static uint32_t sbuf_is_ready_to_send_data( struct sbuf_context *p_ctx )
 {
     uint32_t rc = 1;
 
+    if (p_ctx->sbuf_mgr.sbuf_base == NULL) {
+        rc = 0;
+        return rc;
+    }
     // If sbuf FSM is paused or UF didn't fetched calibration data yet,
     // we need to wait before send stats data.
     if ( p_ctx->p_fsm->is_paused ||
@@ -1754,20 +1759,35 @@ static ssize_t sbuf_fops_read( struct file *file, char __user *buf, size_t count
         return -EINVAL;
     }
 
-    if ( !sbuf_is_ready_to_send_data( p_ctx ) ) {
+    rc = mutex_lock_interruptible( &p_ctx->fops_lock );
+    if ( rc ) {
+        LOG( LOG_ERR, "Error: lock failed." );
+        return rc;
+    }
+
+    if ( p_ctx->dev_minor_id == -1 || !sbuf_is_ready_to_send_data( p_ctx ) ) {
         LOG( LOG_NOTICE, "Not ready to send data." );
+        mutex_unlock(&p_ctx->fops_lock);
         return -ENODATA;
     }
+
+    mutex_unlock(&p_ctx->fops_lock);
 
     /* Get latest sbuf index set, it will wait if no data availabe */
     sbuf_mgr_get_latest_idx_set( p_ctx, &idx_set );
 
+    rc = mutex_lock_interruptible( &p_ctx->fops_lock );
+    if ( rc ) {
+        LOG( LOG_ERR, "Error: lock failed." );
+        return rc;
+    }
     // 2nd Check because sbuf_mgr_get_latest_idx_set() will wait for data available.
     if ( !sbuf_is_ready_to_send_data( p_ctx ) ) {
         // recycle items to sbuf_mgr
         sbuf_recycle_idx_set( p_ctx, &idx_set );
 
         LOG( LOG_NOTICE, "Not ready to send data." );
+        mutex_unlock(&p_ctx->fops_lock);
         return -ENODATA;
     }
 
@@ -1792,6 +1812,8 @@ static ssize_t sbuf_fops_read( struct file *file, char __user *buf, size_t count
     int32_t total_gain_log2 = 0;
     acamera_fsm_mgr_get_param( p_ctx->p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_CMOS_TOTAL_GAIN, NULL, 0, &total_gain_log2, sizeof( total_gain_log2 ) );
     p_ctx->sbuf_mgr.sbuf_base->kf_info.cmos_info.total_gain_log2 = total_gain_log2;
+
+    mutex_unlock(&p_ctx->fops_lock);
 
     return rc ? rc : len_to_copy;
 }
@@ -1993,9 +2015,7 @@ static int sbuf_clear(uint32_t fw_id)
 
 void sbuf_deinit( sbuf_fsm_ptr_t p_fsm )
 {
-#if ( LINUX_VERSION_CODE < KERNEL_VERSION( 4, 3, 0 ) )
     int rc;
-#endif
     uint32_t fw_id = p_fsm->cmn.ctx_id;
     struct sbuf_context *p_ctx = NULL;
     struct miscdevice *p_dev = NULL;
@@ -2013,6 +2033,12 @@ void sbuf_deinit( sbuf_fsm_ptr_t p_fsm )
 
     // sbuf_clear(fw_id);
 
+    rc = mutex_lock_interruptible( &p_ctx->fops_lock );
+    if ( rc ) {
+        LOG( LOG_ERR, "Error: lock failed." );
+        return;
+    }
+
     p_ctx->dev_minor_id = -1;
 
     sbuf_mgr_free( &p_ctx->sbuf_mgr );
@@ -2020,6 +2046,7 @@ void sbuf_deinit( sbuf_fsm_ptr_t p_fsm )
     p_dev = &p_ctx->sbuf_dev;
     if ( !p_dev->name ) {
         LOG( LOG_ERR, "skip sbuf[%d] deregister due to NULL name", fw_id );
+        mutex_unlock(&p_ctx->fops_lock);
         return;
     }
 
@@ -2033,6 +2060,7 @@ void sbuf_deinit( sbuf_fsm_ptr_t p_fsm )
         LOG( LOG_INFO, "deregister sbuf dev '%s' ok.", p_dev->name );
     }
 #endif
+    mutex_unlock(&p_ctx->fops_lock);
 
     LOG( LOG_INFO, "sbuf deinit for ctx_id '%d' is done", fw_id );
 }
