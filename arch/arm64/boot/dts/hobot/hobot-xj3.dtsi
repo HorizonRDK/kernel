@@ -1337,8 +1337,8 @@
 
 		rpmsg_char: rpmsg_char {
 			compatible = "hobot,rpmsg-char";
-			nr-server = <2>;
-			server-list-string = "mcore_acore_heart", "rcore_misc_cmd";
+			nr-server = <4>;
+			server-list-string = "mcore_acore_heart", "rcore_misc_cmd", "bpu0_sram_check", "bpu1_sram_check";
 		};
 
 		efuse: efuse@0xA1001000{
