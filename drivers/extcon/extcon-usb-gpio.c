@@ -160,9 +160,7 @@ static int usb_extcon_probe(struct platform_device *pdev)
 	}
 
 	info->usb_host_reset = devm_gpiod_get_optional(&pdev->dev, "host-rst", GPIOD_OUT_LOW);
-	if (info->usb_host_reset <= 0) {
-		dev_err(dev, "failed to get usb-host-rst-gpio\n");
-	} else {
+	if (info->usb_host_reset) {
 		gpiod_set_value(info->usb_host_reset, 0);
 		udelay(5*1000);
 		gpiod_set_value(info->usb_host_reset, 1);
@@ -171,9 +169,7 @@ static int usb_extcon_probe(struct platform_device *pdev)
 	}
 
 	info->usb_host_exreset = devm_gpiod_get_optional(&pdev->dev, "host-exrst", GPIOD_OUT_HIGH);
-	if (info->usb_host_exreset <= 0) {
-		dev_err(dev, "failed to get usb-host-exrst-gpio\n");
-	} else {
+	if (info->usb_host_exreset) {
 		gpiod_set_value(info->usb_host_exreset, 0);
 	}
 
