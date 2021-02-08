@@ -243,8 +243,13 @@ function all()
 
     if [ "$TARGET_MODE" = "debug" ];then
         [ -f ko_debug.tgz ] && tar xvf ko_debug.tgz
-    else
+    elif [ "$TARGET_MODE" = "release" ];then
         [ -f ko_release.tgz ] && tar xvf ko_release.tgz
+    elif [ "$TARGET_MODE" = "docker" ];then
+        [ -f ko_release.tgz ] && tar xvf ko_docker.tgz
+    else
+        echo "TARGET_MODE:$TARGET_MODE has not support yet"
+        exit 1
     fi
 
     # make modules_install to INSTALL_MOD_PATH for debug ko (default: /)
