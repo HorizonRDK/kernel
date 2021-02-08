@@ -1317,6 +1317,51 @@ uint8_t system_exposure( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t di
 }
 #endif
 
+#ifdef SYSTEM_LUX_ID
+uint8_t system_lux_info( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    *ret_value = 0;
+    uint32_t cur_exposure_log2 = 0;
+    uint32_t lux = 0;
+    uint32_t _i = 0;
+    int32_t type = CMOS_CURRENT_EXPOSURE_LOG2;
+    uint32_t *evtolux_ev_lut = (uint32_t *)_GET_UINT_PTR(ACAMERA_MGR2CTX_PTR(instance), CALIBRATION_EVTOLUX_EV_LUT);
+    uint32_t evtolux_ev_lut_len = _GET_LEN(ACAMERA_MGR2CTX_PTR(instance), CALIBRATION_EVTOLUX_EV_LUT);
+    uint32_t *evtolux_lux_lut = (uint32_t *)_GET_UINT_PTR(ACAMERA_MGR2CTX_PTR(instance), CALIBRATION_EVTOLUX_LUX_LUT);
+    uint32_t evtolux_lux_lut_len = _GET_LEN(ACAMERA_MGR2CTX_PTR(instance), CALIBRATION_EVTOLUX_LUX_LUT);
+    acamera_fsm_mgr_get_param(instance, FSM_PARAM_GET_CMOS_EXPOSURE_LOG2, &type, sizeof(type), &cur_exposure_log2, sizeof(cur_exposure_log2));
+
+    if ((evtolux_ev_lut_len < 1) || (evtolux_lux_lut_len < 1)) {
+	return NOT_SUPPORTED;
+    }
+
+    if (direction == COMMAND_GET) {
+	if (cur_exposure_log2 < evtolux_ev_lut[0]) {
+		lux = evtolux_lux_lut[0];
+	} else if (cur_exposure_log2 >= evtolux_ev_lut[evtolux_ev_lut_len - 1]) {
+		lux = evtolux_lux_lut[evtolux_lux_lut_len - 1];
+	} else {
+		for ( _i = 1; _i < evtolux_ev_lut_len; _i++ ) {
+			if ( cur_exposure_log2 < evtolux_ev_lut[_i] )
+				break;
+		}
+		//return y0+(y1-y0)*(U16_MAX-x*x0)/(x*(x1-x0));
+		if (evtolux_ev_lut[_i] == evtolux_ev_lut[_i - 1]) {
+			lux = evtolux_lux_lut[_i - 1];
+		} else {
+			lux = evtolux_lux_lut[_i - 1] + (((evtolux_lux_lut[_i] - evtolux_lux_lut[_i - 1]) *
+				(cur_exposure_log2 - evtolux_ev_lut[_i - 1]) ) / (evtolux_ev_lut[_i] - evtolux_ev_lut[_i - 1]));
+		}
+	}
+        *ret_value = lux;
+        return SUCCESS;
+    } else {
+        return NOT_SUPPORTED;
+    }
+    return NOT_SUPPORTED;
+}
+#endif
+
 #ifdef SYSTEM_EXPOSURE_RATIO
 uint8_t system_exposure_ratio( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
 {

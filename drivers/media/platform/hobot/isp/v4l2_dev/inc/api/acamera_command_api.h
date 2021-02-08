@@ -400,6 +400,7 @@
 #define LOGLIST_SOC_SENSOR                                0x000000aa // add API by myself
 #define LOGLIST_SOC_LENS                                  0x000000ab // add API by myself
 #define AF_KERNEL_MANUAL_CONTROL_ID                       0x000000ac // add API by myself
+#define SYSTEM_LUX_ID                                     0x000000ad // add API by myself
 
 // ------------------------------------------------------------------------------ //
 //		VALUE LIST

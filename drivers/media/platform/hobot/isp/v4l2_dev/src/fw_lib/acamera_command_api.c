@@ -159,6 +159,9 @@ case  TSYSTEM:
 		case  SYSTEM_MANUAL_SATURATION:
 			ret = system_manual_saturation(instance, value, direction, ret_value);
 			break;
+		case  SYSTEM_LUX_ID:
+			ret = system_lux_info(instance, value, direction, ret_value);
+			break;
 		case  SYSTEM_EXPOSURE:
 			ret = system_exposure(instance, value, direction, ret_value);
 			break;

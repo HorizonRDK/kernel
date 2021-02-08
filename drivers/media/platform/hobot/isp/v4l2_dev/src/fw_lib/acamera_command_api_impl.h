@@ -142,6 +142,7 @@ uint8_t register_value(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t dire
 uint8_t hue_theta( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value );
 uint8_t shading_strength(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value);
 uint8_t noise_reduction_mode(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value);
+uint8_t system_lux_info(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value);
 
 //IE&E
 uint8_t sensor_type(acamera_fsm_mgr_t *instance,
