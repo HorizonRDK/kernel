@@ -1559,7 +1559,7 @@ static int dwc3_probe(struct platform_device *pdev)
 	if (IS_ERR(dwc->regulator)) { /* PRQA S ALL */
 		/* some platform not has regulator, so just report error info */
 		dwc->regulator = NULL;
-		dev_err(dev, "can't get usb regulator\n");
+		dev_info(dev, "can't get usb regulator\n");
 	}
 
 	if (dwc->regulator) {

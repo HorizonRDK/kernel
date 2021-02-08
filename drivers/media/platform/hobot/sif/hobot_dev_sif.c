@@ -3458,6 +3458,7 @@ static int x3_sif_probe(struct platform_device *pdev)
 	irq_set_affinity_hint(sif->irq, get_cpu_mask(VIO_IRQ_CPU_IDX));
 
 	atomic_set(&sif->seq_task.refcount, 0);
+
 	sema_init(&sif->sifin_task.hw_resource, 1);
 	atomic_set(&sif->rsccount, 0);
 	atomic_set(&sif->isp_init_cnt, 0);
