@@ -260,9 +260,8 @@ struct sif_subdev {
 	fps_ctrl_t fps_ctrl;
 };
 
-#define SEQ_WAKEUP_INIT   (0)
-#define SEQ_KTHREAD_STOP  (100)
-#define SEQ_KTHREAD_FLUSH (101)
+#define SEQ_KTHREAD_STOP  (1 << VIO_MAX_STREAM)
+#define SEQ_KTHREAD_FLUSH (SEQ_KTHREAD_STOP << 1)
 
 struct frame_list {
 	spinlock_t slock;
@@ -285,8 +284,8 @@ struct frame_node {
 
 struct sif2isp_seq {
 	atomic_t            refcount;
-	int                 stop_flag;
-	int                 wait_flag[VIO_MAX_STREAM];
+	spinlock_t          slock;
+	uint32_t            wait_mask;
 	uint8_t             seq_num[VIO_MAX_STREAM];
 	wait_queue_head_t   wait_queue;
 	struct task_struct *seq_kthread;

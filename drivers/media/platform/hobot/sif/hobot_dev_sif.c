@@ -536,7 +536,7 @@ static int seq_num_check(struct sif_video_ctx *sif_ctx,
 	for (pipeid = 0; pipeid < VIO_MAX_STREAM; pipeid++) {
 		seq_num = seq_info->seq_num[pipeid];
 		if ((seq_num < 0) || (seq_num > VIO_MAX_STREAM)) {
-			printk("sif_order: error: pipe(%d) sequence num %d\n",
+			vio_err("sif_order: error: pipe(%d) sequence num %d\n",
 					pipeid, seq_num);
 			ret = -1;
 			goto exit;
@@ -547,7 +547,7 @@ static int seq_num_check(struct sif_video_ctx *sif_ctx,
 			continue;
 		}
 		if (!seq_num) {
-			printk("sif_order: error: pipe(%d) enabled! order num cannot be 0.\n",
+			vio_err("sif_order: error: pipe(%d) enabled! order num cannot be 0.\n",
 					pipeid);
 			ret = -1;
 			goto exit;
@@ -558,7 +558,7 @@ static int seq_num_check(struct sif_video_ctx *sif_ctx,
 		if (seq_num) {
 			for (i = pipeid + 1; i < VIO_MAX_STREAM; i++)
 				if (seq_num == seq_info->seq_num[i]) {
-					printk("sif_order error: pipe(%d-%d) same sequence number.\n",
+					vio_err("sif_order error: pipe(%d-%d) same sequence number.\n",
 							pipeid, i);
 					ret = -1;
 					goto exit;
@@ -581,12 +581,12 @@ static int sif_video_order(struct sif_video_ctx *sif_ctx,
 	queue = &sif->frame_queue[pipeid];
 
 	if (sif_ctx->id == 0) {
-		printk("sif_order: sif_capture sequence not supported.\n");
+		vio_err("sif_order: sif_capture sequence not supported.\n");
 		return -EFAULT;
 	} else if (sif_ctx->id == 1) {
 		mutex_lock(&sif->shared_mutex);
 		if (!queue->enable) {
-			printk("sif_order: error: please enable pipe(%d) sequence\n",
+			vio_err("sif_order: error: please enable pipe(%d) sequence\n",
 					pipeid);
 			mutex_unlock(&sif->shared_mutex);
 			return -EFAULT;
@@ -608,7 +608,7 @@ static int sif_video_order(struct sif_video_ctx *sif_ctx,
 		}
 
 		if ((seq_info->timeout > 0) && (seq_info->timeout != queue->timeout)) {
-			printk("sif_order: pipe(%d) timeout change (%d -> %d)\n",
+			vio_info("sif_order: pipe(%d) timeout change (%d -> %d)\n",
 					pipeid, queue->timeout, seq_info->timeout);
 			queue->timeout = seq_info->timeout;
 		}
@@ -619,16 +619,18 @@ static int sif_video_order(struct sif_video_ctx *sif_ctx,
 			memcpy(&sif->seq_task.seq_num[0], &new_seq_info.seq_num[0],
 					sizeof(sif->seq_task.seq_num));
 
-			sif->seq_task.stop_flag = SEQ_KTHREAD_FLUSH;
+			spin_lock(&sif->seq_task.slock);
+			sif->seq_task.wait_mask |= SEQ_KTHREAD_FLUSH;
+			spin_unlock(&sif->seq_task.slock);
 			wake_up_interruptible(&sif->seq_task.wait_queue);
 
-			printk("sif_order: pipe(%d) order change [%d %d %d %d %d %d %d %d]\n",
+			vio_info("sif_order: pipe(%d) order change [%d %d %d %d %d %d %d %d]\n",
 					pipeid, sif->seq_task.seq_num[0], sif->seq_task.seq_num[1],
 					sif->seq_task.seq_num[2], sif->seq_task.seq_num[3],
 					sif->seq_task.seq_num[4], sif->seq_task.seq_num[5],
 					sif->seq_task.seq_num[6], sif->seq_task.seq_num[7]);
 		} else {
-			printk("sif_order: pipe(%d) set order done.\n", pipeid);
+			vio_info("sif_order: pipe(%d) set order done.\n", pipeid);
 		}
 
 		// return current info
@@ -658,12 +660,12 @@ static int sif_seq_qbuf(struct sif_video_ctx *sif_ctx,
 	node->interval = get_time_sub(queue)/1000;
 	node->frameid = queue->frameid;
 	queue->frameid++;
-
 	getnstimeofday(&queue->qbuf_ts);
-	sif_node_enqueue(queue, node);
 
-	/* seq_queue[0-7] */
-	sif->seq_task.wait_flag[pipeid] = pipeid + 1;
+	spin_lock(&sif->seq_task.slock);
+	sif_node_enqueue(queue, node);
+	sif->seq_task.wait_mask |= (1 << pipeid);
+	spin_unlock(&sif->seq_task.slock);
 	wake_up_interruptible(&sif->seq_task.wait_queue);
 	return 0;
 }
@@ -671,22 +673,20 @@ static int sif_seq_qbuf(struct sif_video_ctx *sif_ctx,
 static int sif_seq_sleep(struct sif2isp_seq *tsk,
 		int timeout, int cur_pipeid, int *con_sleep)
 {
-	int ret_time, us_wait, condi;
+	int ret_time, us_wait, condi = 0;
 	struct timespec wait_start;
 	struct timespec wait_end;
 
 	getnstimeofday(&wait_start);
 	ret_time = wait_event_interruptible_timeout(
-			tsk->wait_queue, tsk->wait_flag[cur_pipeid]
-			|| tsk->stop_flag, timeout*HZ/1000);
+			tsk->wait_queue, tsk->wait_mask &
+			((1 << cur_pipeid) | SEQ_KTHREAD_FLUSH |
+			 SEQ_KTHREAD_STOP), timeout*HZ/1000);
 	getnstimeofday(&wait_end);
 
-	if (tsk->stop_flag)
+	if (tsk->wait_mask & ((1 << cur_pipeid) |
+				SEQ_KTHREAD_FLUSH | SEQ_KTHREAD_STOP))
 		condi = 1;
-	else
-		condi = tsk->wait_flag[cur_pipeid];
-	tsk->wait_flag[cur_pipeid] = SEQ_WAKEUP_INIT;
-
 	us_wait = ((wait_end.tv_sec * 1000000000ULL +
 				wait_end.tv_nsec) -
 			(wait_start.tv_sec * 1000000000ULL +
@@ -717,23 +717,32 @@ static int sif_seq_kthread(void *data)
 		timeout = queue->timeout;
 		ret_time = 0;
 
-		// none cam work
+		spin_lock(&tsk->slock);
 		if (check_need_sleep(sif))
 			goto sleep;
 
 		// wait current frame complete
 		if (!queue->queue_count) {
 			timeout -= (get_time_sub(queue)/1000000);
-			if (timeout > 0) {
 sleep:
+			tsk->wait_mask &= ~(1 << cur_pipeid);
+			spin_unlock(&tsk->slock);
+			if (timeout > 0) {
 				ret_time = sif_seq_sleep(tsk, timeout,
 						cur_pipeid, &con_sleep);
-				if (tsk->stop_flag == SEQ_KTHREAD_FLUSH)
+				spin_lock(&tsk->slock);
+				if (tsk->wait_mask & SEQ_KTHREAD_FLUSH) {
+					tsk->wait_mask &= ~SEQ_KTHREAD_FLUSH;
 					flush_queue = 1;
-				tsk->stop_flag = SEQ_WAKEUP_INIT;
-				if (con_sleep)
+				}
+				spin_unlock(&tsk->slock);
+				if (con_sleep) {
+					con_sleep = 0;
 					continue;
+				}
 			}
+		} else {
+			spin_unlock(&tsk->slock);
 		}
 		if (kthread_should_stop()) {
 			sif_flush_queue(sif, cur_seq_num);
@@ -752,7 +761,7 @@ sleep:
 
 		// timeout: skip current queue
 		if (!ret_time && !queue->queue_count) {
-			vio_dbg("pipe%d %llu miss %dus > %dms\n",
+			vio_err("pipe%d %llu miss %dus > %dms\n",
 					queue->pipeline_id, queue->frameid,
 					get_time_sub(queue)/1000, queue->timeout);
 			cur_pipeid = sif_next_queue(sif, &cur_seq_num);
@@ -850,7 +859,9 @@ static int seq_kthread_init(struct sif_video_ctx *sif_ctx)
 	if (sif->seq_task.seq_kthread)
 		goto en_ret;
 
-	sif->seq_task.wait_flag[pipeid] = SEQ_WAKEUP_INIT;
+	spin_lock(&sif->seq_task.slock);
+	sif->seq_task.wait_mask &= ~(1 << pipeid);
+	spin_unlock(&sif->seq_task.slock);
 	init_waitqueue_head(&sif->seq_task.wait_queue);
 	sif->seq_task.seq_kthread = kthread_run(sif_seq_kthread,
 			sif, "vio_seq");
@@ -874,7 +885,9 @@ exit:
 	return 0;
 
 err_scd:
-	sif->seq_task.stop_flag = SEQ_KTHREAD_STOP;
+	spin_lock(&sif->seq_task.slock);
+	sif->seq_task.wait_mask |= SEQ_KTHREAD_STOP;
+	spin_unlock(&sif->seq_task.slock);
 	kthread_stop(sif->seq_task.seq_kthread);
 	sif->seq_task.seq_kthread = NULL;
 err_kth:
@@ -902,7 +915,9 @@ static int seq_kthread_stop(struct sif_video_ctx *sif_ctx)
 		goto exit;
 	}
 	if (!atomic_dec_return(&sif->seq_task.refcount)) {
-		sif->seq_task.stop_flag = SEQ_KTHREAD_STOP;
+		spin_lock(&sif->seq_task.slock);
+		sif->seq_task.wait_mask |= SEQ_KTHREAD_STOP;
+		spin_unlock(&sif->seq_task.slock);
 		kthread_stop(sif->seq_task.seq_kthread);
 		sif->seq_task.seq_kthread = NULL;
 		vio_info("[S%d][V1] %s: seq-kthread exit\n", pipeid,
@@ -3457,6 +3472,7 @@ static int x3_sif_probe(struct platform_device *pdev)
 
 	irq_set_affinity_hint(sif->irq, get_cpu_mask(VIO_IRQ_CPU_IDX));
 
+	spin_lock_init(&sif->seq_task.slock);
 	atomic_set(&sif->seq_task.refcount, 0);
 
 	sema_init(&sif->sifin_task.hw_resource, 1);
