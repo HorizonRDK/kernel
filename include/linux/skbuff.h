@@ -287,6 +287,7 @@ struct sk_buff_head {
 
 	__u32		qlen;
 	spinlock_t	lock;
+	raw_spinlock_t	raw_lock;
 };
 
 struct sk_buff;
@@ -1288,6 +1289,22 @@ static inline void skb_zcopy_set(struct sk_buff *skb, struct ubuf_info *uarg)
 	}
 }
 
+static inline void skb_zcopy_set_nouarg(struct sk_buff *skb, void *val)
+{
+	skb_shinfo(skb)->destructor_arg = (void *)((uintptr_t) val | 0x1UL);
+	skb_shinfo(skb)->tx_flags |= SKBTX_ZEROCOPY_FRAG;
+}
+
+static inline bool skb_zcopy_is_nouarg(struct sk_buff *skb)
+{
+	return (uintptr_t) skb_shinfo(skb)->destructor_arg & 0x1UL;
+}
+
+static inline void *skb_zcopy_get_nouarg(struct sk_buff *skb)
+{
+	return (void *)((uintptr_t) skb_shinfo(skb)->destructor_arg & ~0x1UL);
+}
+
 /* Release a reference on a zerocopy structure */
 static inline void skb_zcopy_clear(struct sk_buff *skb, bool zerocopy)
 {
@@ -1297,7 +1314,7 @@ static inline void skb_zcopy_clear(struct sk_buff *skb, bool zerocopy)
 		if (uarg->callback == sock_zerocopy_callback) {
 			uarg->zerocopy = uarg->zerocopy && zerocopy;
 			sock_zerocopy_put(uarg);
-		} else {
+		} else if (!skb_zcopy_is_nouarg(skb)) {
 			uarg->callback(uarg, zerocopy);
 		}
 
@@ -1669,6 +1686,12 @@ static inline void __skb_queue_head_init(struct sk_buff_head *list)
 static inline void skb_queue_head_init(struct sk_buff_head *list)
 {
 	spin_lock_init(&list->lock);
+	__skb_queue_head_init(list);
+}
+
+static inline void skb_queue_head_init_raw(struct sk_buff_head *list)
+{
+	raw_spin_lock_init(&list->raw_lock);
 	__skb_queue_head_init(list);
 }
 

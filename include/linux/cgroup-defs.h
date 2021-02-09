@@ -19,6 +19,7 @@
 #include <linux/percpu-rwsem.h>
 #include <linux/workqueue.h>
 #include <linux/bpf-cgroup.h>
+#include <linux/swork.h>
 
 #ifdef CONFIG_CGROUPS
 
@@ -152,6 +153,7 @@ struct cgroup_subsys_state {
 	/* percpu_ref killing and RCU release */
 	struct rcu_head rcu_head;
 	struct work_struct destroy_work;
+	struct swork_event destroy_swork;
 
 	/*
 	 * PI: the parent css.	Placed here for cache proximity to following
@@ -353,6 +355,7 @@ struct cgroup {
 	 * specific task are charged to the dom_cgrp.
 	 */
 	struct cgroup *dom_cgrp;
+	struct cgroup *old_dom_cgrp;		/* used while enabling threaded */
 
 	/*
 	 * list of pidlists, up to two for each namespace (one for procs, one

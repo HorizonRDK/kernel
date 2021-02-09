@@ -20,6 +20,7 @@ config OPROFILE
 	tristate "OProfile system profiling"
 	depends on PROFILING
 	depends on HAVE_OPROFILE
+	depends on !PREEMPT_RT_FULL
 	select RING_BUFFER
 	select RING_BUFFER_ALLOW_SWAP
 	help
@@ -964,5 +965,13 @@ config REFCOUNT_FULL
 	  implementation, which can be (slightly) slower but provides protections
 	  against various use-after-free conditions that can be used in
 	  security flaw exploits.
+
+config HAVE_ARCH_COMPILER_H
+	bool
+	help
+	  An architecture can select this if it provides an
+	  asm/compiler.h header that should be included after
+	  linux/compiler-*.h in order to override macro definitions that those
+	  headers generally provide.
 
 source "kernel/gcov/Kconfig"
