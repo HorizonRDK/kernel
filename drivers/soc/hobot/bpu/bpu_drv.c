@@ -570,7 +570,9 @@ static long bpu_ioctl(struct file *filp,/*PRQA S ALL*/
 		list_for_each_safe(pos, pos_n, &g_bpu->core_list) {/*PRQA S ALL*/
 			tmp_core = (struct bpu_core*)pos;/*PRQA S ALL*/
 			if (tmp_core != NULL) {
+				mutex_lock(&tmp_core->mutex_lock);
 				ret = bpu_core_reset(tmp_core);
+				mutex_unlock(&tmp_core->mutex_lock);
 				if (ret != 0) {
 					pr_err("BPU Core reset failed\n");/*PRQA S ALL*/
 				}
