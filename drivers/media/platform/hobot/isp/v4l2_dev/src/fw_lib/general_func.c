@@ -586,6 +586,47 @@ void general_deinitialize( general_fsm_ptr_t p_fsm )
 #endif
 }
 
+static void general_dynamic_iridix_lut_update( general_fsm_ptr_t p_fsm )
+{
+    // update iridix here
+    const uint32_t *iridix_ev1 = _GET_UINT_PTR(ACAMERA_FSM2CTX_PTR(p_fsm), CALIBRATION_IRIDIX_ASYMMETRY_EV1);
+    const uint32_t *iridix_ev2 = _GET_UINT_PTR(ACAMERA_FSM2CTX_PTR(p_fsm), CALIBRATION_IRIDIX_ASYMMETRY_EV2);
+    const uint32_t iridix_len_ev1 = _GET_LEN(ACAMERA_FSM2CTX_PTR(p_fsm), CALIBRATION_IRIDIX_ASYMMETRY_EV1);
+    const uint32_t iridix_len_ev2 = _GET_LEN(ACAMERA_FSM2CTX_PTR(p_fsm), CALIBRATION_IRIDIX_ASYMMETRY_EV2);
+
+    uint32_t expected_iridix_size = 65;
+    uint32_t expected_thresh_len = _GET_LEN(ACAMERA_FSM2CTX_PTR(p_fsm), CALIBRATION_IRIDIX_THRESHOLD);
+
+    if ((iridix_len_ev1 == expected_iridix_size) && (iridix_len_ev2 == expected_iridix_size) && (expected_thresh_len == 2)) {
+        fsm_param_ae_info_t ae_info;
+        uint32_t i = 0;
+        // get current exposure value
+        acamera_fsm_mgr_get_param(p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_AE_INFO, NULL, 0, &ae_info, sizeof(ae_info));
+        uint32_t exposure_log2 = ae_info.exposure_log2;
+        uint32_t ev1_thresh = _GET_UINT_PTR(ACAMERA_FSM2CTX_PTR(p_fsm), CALIBRATION_IRIDIX_THRESHOLD)[0];
+        uint32_t ev2_thresh = _GET_UINT_PTR(ACAMERA_FSM2CTX_PTR(p_fsm), CALIBRATION_IRIDIX_THRESHOLD)[1];
+
+        modulation_entry_32_t p_table[2];
+        p_table[0].x = ev1_thresh;
+        p_table[1].x = ev2_thresh;
+        // Use EV1 iridix curve if EV < EV1_THRESHOLD
+        // Use EV2 iridix curve if EV > EV2_THRESHOLD
+        // Do alpha blending between EV1 and EV2 when EV1_THRESHOLD < EV < EV2_THRESHOLD
+        for (i = 0; i < expected_iridix_size; i++) {
+            p_table[0].y = iridix_ev1[i];
+            p_table[1].y = iridix_ev2[i];
+            // do alpha blending between two gammas for bin [i]
+            uint16_t iridix_bin = acamera_calc_modulation_u32(exposure_log2, p_table, 2);
+            LOG( LOG_DEBUG, "IRIDIX update: ev %d, ev1 %d, ev2 %d, ref_gamma_ev1 %d, ref_gamma_ev2 %d, result %d", exposure_log2, ev1_thresh, ev2_thresh, iridix_ev1[i], iridix_ev2[i], iridix_bin );
+            // update the hardware iridix curve for fr and ds
+	    acamera_isp_iridix_lut_asymmetry_lut_write(p_fsm->cmn.isp_base, i, iridix_bin);
+        }
+    } else {
+        // wrong gamma lut size
+        LOG( LOG_ERR, "wrong elements number in iridix_ev1 or ev2 -> ev1 size %d, ev2 size, expected %d", (int)iridix_len_ev1, (int)iridix_len_ev2, (int)expected_iridix_size );
+    }
+}
+
 #if ISP_WDR_SWITCH
 
 static void general_dynamic_gamma_update( general_fsm_ptr_t p_fsm )
@@ -722,6 +763,14 @@ void general_frame_start( general_fsm_ptr_t p_fsm )
 		general_dynamic_gamma_update( p_fsm );
 	}
 
+	const uint32_t iridix_threshold_num = _GET_LEN(ACAMERA_FSM2CTX_PTR(p_fsm), CALIBRATION_IRIDIX_THRESHOLD);
+	if (iridix_threshold_num < 3) {
+		return;
+	}
+        uint32_t dynamic_iridix = _GET_UINT_PTR(ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_IRIDIX_THRESHOLD)[2];
+	if (dynamic_iridix) {
+		general_dynamic_iridix_lut_update( p_fsm );
+	}
 }
 
 void general_frame_end( general_fsm_ptr_t p_fsm )

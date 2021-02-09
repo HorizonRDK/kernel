@@ -185,14 +185,32 @@
 #define CALIBRATION_GAMMA_THRESHOLD                       0x00000079
 #define CALIBRATION_SINTER_STRENGTH4                      0x0000007a
 #define CALIBRATION_BYPASS_CONTROL                        0x0000007b
+
+// dynamic
 #define CALIBRATION_IRIDIX_BRIGHT_PR                      0x0000007c
 #define CALIBRATION_IRIDIX_SVARIANCE                      0x0000007d
+// static
+#define CALIBRATION_LUT3D_MEM_A                           0x0000007e
+#define CALIBRATION_LUT3D_MEM_D40                         0x0000007f
+#define CALIBRATION_LUT3D_MEM_D50                         0x00000080
+#define CALIBRATION_MT_ABSOLUTE_LS_U30_CCM                0x00000081
+// dynamic
+#define CALIBRATION_SHADING_TEMPER_THRESHOLD              0x00000082
+#define CALIBRATION_CCM_TEMPER_THRESHOLD                  0x00000083
+// static
+#define CALIBRATION_SHADING_LS_D50_R                      0x00000084
+#define CALIBRATION_SHADING_LS_D50_G                      0x00000085
+#define CALIBRATION_SHADING_LS_D50_B                      0x00000086
+// dynamic
+#define CALIBRATION_IRIDIX_ASYMMETRY_EV1                  0x00000087
+#define CALIBRATION_IRIDIX_ASYMMETRY_EV2                  0x00000088
+#define CALIBRATION_IRIDIX_THRESHOLD                      0x00000089
 
 // ------------------------------------------------------------------------------ //
 //		DYNAMIC STATE VALUES
 // ------------------------------------------------------------------------------ //
 
-#define CALIBRATION_TOTAL_SIZE 126
+#define CALIBRATION_TOTAL_SIZE 138
 //------------------FILE TRANSFER-------------------
 
 
