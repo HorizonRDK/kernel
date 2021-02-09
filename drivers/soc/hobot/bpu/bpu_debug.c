@@ -143,11 +143,13 @@ static ssize_t bpu_core_power_en_store(struct device *dev, struct device_attribu
 		return 0;
 	}
 
+	mutex_lock(&core->mutex_lock);
 	if (power_en <= 0) {
 		ret = bpu_core_disable(core);
 	} else {
 		ret = bpu_core_enable(core);
 	}
+	mutex_unlock(&core->mutex_lock);
 	if (ret < 0) {
 		return 0;
 	}
@@ -174,7 +176,9 @@ static ssize_t bpu_core_power_store(struct device *dev, struct device_attribute 
 		return 0;
 	}
 
+	mutex_lock(&core->mutex_lock);
 	ret = bpu_core_set_freq_level(core, power_level);
+	mutex_unlock(&core->mutex_lock);
 	if (ret < 0) {
 		return 0;
 	}

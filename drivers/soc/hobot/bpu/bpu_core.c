@@ -216,13 +216,17 @@ static long bpu_core_ioctl(struct file *filp,/*PRQA S ALL*/
 			return -EFAULT;
 		}
 		if (level <= 0) {
+			mutex_lock(&core->mutex_lock);
 			ret = bpu_core_disable(core);
+			mutex_unlock(&core->mutex_lock);
 			if (ret != 0) {
 				dev_err(core->dev, "Disable BPU core%d failed\n", core->index);
 				return ret;
 			}
 		} else {
+			mutex_lock(&core->mutex_lock);
 			ret = bpu_core_enable(core);
+			mutex_unlock(&core->mutex_lock);
 			if (ret != 0) {
 				dev_err(core->dev, "Enable BPU core%d failed\n", core->index);
 				return ret;
@@ -235,7 +239,9 @@ static long bpu_core_ioctl(struct file *filp,/*PRQA S ALL*/
 			dev_err(core->dev, "copy data from userspace failed\n");
 			return -EFAULT;
 		}
+		mutex_lock(&core->mutex_lock);
 		ret = bpu_core_set_freq_level(core, level);
+		mutex_unlock(&core->mutex_lock);
 		if (ret != 0) {
 			dev_err(core->dev, "Set BPU core%d freq level(%d)failed\n",
 					core->index, level);
@@ -271,7 +277,9 @@ static long bpu_core_ioctl(struct file *filp,/*PRQA S ALL*/
 		}
 		break;
 	case BPU_RESET:/*PRQA S ALL*/
+		mutex_lock(&core->mutex_lock);
 		ret = bpu_core_reset(core);
+		mutex_unlock(&core->mutex_lock);
 		break;
 	case BPU_SET_LIMIT:/*PRQA S ALL*/
 		if (copy_from_user(&limit, (void __user *)arg, _IOC_SIZE(cmd)) != 0) {/*PRQA S ALL*/
