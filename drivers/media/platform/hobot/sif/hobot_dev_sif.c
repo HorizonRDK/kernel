@@ -432,6 +432,7 @@ static int sif_next_queue(struct x3_sif_dev *sif, int *cur_seq_num)
 {
 	int index, next_pipeid, next_seq_num;
 
+	spin_lock(&sif->seq_task.slock);
 	next_seq_num = *cur_seq_num + 1;
 	for (index = 0; index < VIO_MAX_STREAM; index++) {
 		if (next_seq_num > VIO_MAX_STREAM)
@@ -439,10 +440,12 @@ static int sif_next_queue(struct x3_sif_dev *sif, int *cur_seq_num)
 		next_pipeid = find_seq_num(sif, next_seq_num);
 		if (next_pipeid >= 0) {
 			*cur_seq_num = next_seq_num;
+			spin_unlock(&sif->seq_task.slock);
 			return next_pipeid;
 		}
 		next_seq_num++;
 	}
+	spin_unlock(&sif->seq_task.slock);
 	vio_err("BUG_ON: %s all pipeline not enable sequence !!!\n",
 			__func__);
 	return -1;
@@ -498,7 +501,7 @@ static int sif_flush_queue(struct x3_sif_dev *sif, int cur_seq_num)
 				sif_start_trigger(queue);
 		}
 	}
-	return pipeid;
+	return 0;
 err_exit:
 	vio_err("BUG_ON: %s all pipeline not enable sequence !!!\n", __func__);
 	return -1;
@@ -616,10 +619,9 @@ static int sif_video_order(struct sif_video_ctx *sif_ctx,
 		ret = memcmp(&sif->seq_task.seq_num[0], &new_seq_info.seq_num[0],
 				sizeof(sif->seq_task.seq_num));
 		if (ret) {
+			spin_lock(&sif->seq_task.slock);
 			memcpy(&sif->seq_task.seq_num[0], &new_seq_info.seq_num[0],
 					sizeof(sif->seq_task.seq_num));
-
-			spin_lock(&sif->seq_task.slock);
 			sif->seq_task.wait_mask |= SEQ_KTHREAD_FLUSH;
 			spin_unlock(&sif->seq_task.slock);
 			wake_up_interruptible(&sif->seq_task.wait_queue);
@@ -705,7 +707,7 @@ static int sif_seq_kthread(void *data)
 	struct x3_sif_dev  *sif = data;
 	struct sif2isp_seq *tsk = &sif->seq_task;
 	int ret_time, timeout, cur_pipeid, cur_seq_num;
-	int flush_queue, con_sleep;
+	int con_sleep, flush_queue = 0;
 
 	cur_seq_num = 0;
 	cur_pipeid = sif_next_queue(sif, &cur_seq_num);
@@ -761,7 +763,7 @@ sleep:
 
 		// timeout: skip current queue
 		if (!ret_time && !queue->queue_count) {
-			vio_err("pipe%d %llu miss %dus > %dms\n",
+			vio_dbg("pipe%d %llu miss %dus > %dms\n",
 					queue->pipeline_id, queue->frameid,
 					get_time_sub(queue)/1000, queue->timeout);
 			cur_pipeid = sif_next_queue(sif, &cur_seq_num);
