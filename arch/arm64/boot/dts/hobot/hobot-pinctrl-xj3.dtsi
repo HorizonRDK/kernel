@@ -421,6 +421,13 @@
 				>;
 			};
 
+			lpwm_pps: lpwm_pps {
+				pinctrl-single,pins = <
+					0x068	(MUX_F1 | DRIVE2_09MA | SCHMITT2_ENA | PULL2_UP) /*BIFSD_RSTN/PPS_TRIG_IN*/
+				>;
+			};
+
+
 			bifsd_func: bifsd_func {
 				pinctrl-single,pins = <
 					0x050	(MUX_F0 | DRIVE2_09MA | SCHMITT2_ENA | PULL2_DOWN) /*BIFSD_CLK*/

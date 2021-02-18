@@ -730,11 +730,12 @@
 			reg = <0 0xA5018000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 68 4>;
-			pinctrl-names = "lpwm0", "lpwm1","lpwm2","lpwm3";
+			pinctrl-names = "lpwm0", "lpwm1","lpwm2","lpwm3", "lpwm_pps";
 			pinctrl-0 = <&lpwm0_func>;
 			pinctrl-1 = <&lpwm1_func>;
 			pinctrl-2 = <&lpwm2_func>;
 			pinctrl-3 = <&lpwm3_func>;
+			pinctrl-4 = <&lpwm_pps>;
 			clocks = <&lpwm_mclk>;
 			clock-names = "lpwm_mclk";
 			status = "disabled";

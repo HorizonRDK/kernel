@@ -33,6 +33,8 @@
 #define LPWM_MODE_PPS_TRIG BIT(5)
 #define LPWM_NAME     "hobot-lpwm"
 #define LPWM_NPWM 4
+#define LPWM_PPS  4
+#define LPWM_NPIN 5
 
 struct hobot_lpwm_chip {
 	struct pwm_chip chip;
@@ -42,7 +44,7 @@ struct hobot_lpwm_chip {
 	void __iomem *base;
 	int offset[LPWM_NPWM];
 	struct pinctrl *pinctrl;
-	struct pinctrl_state *pins[LPWM_NPWM];
+	struct pinctrl_state *pins[LPWM_NPIN];
 };
 
 #define to_hobot_lpwm_chip(_chip) \
@@ -222,6 +224,27 @@ static ssize_t lpwm_swtrig_store(struct device *dev,
 }
 static DEVICE_ATTR_WO(lpwm_swtrig);
 
+static ssize_t lpwm_ppstrig_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct hobot_lpwm_chip *lpwm = dev_get_drvdata(dev);
+	int val;
+
+	sscanf(buf, "%d", &val);
+	pr_info("pps trigger lpwms, val:%d\n", val);
+	if (val == 0) {
+		val = hobot_lpwm_rd(lpwm, LPWM_EN);
+		val &= ~(LPWM_MODE_PPS_TRIG);
+	} else {
+		val = hobot_lpwm_rd(lpwm, LPWM_EN);
+		val |= LPWM_MODE_PPS_TRIG;
+	}
+	hobot_lpwm_wr(lpwm, LPWM_EN, val);
+
+	return count;
+}
+static DEVICE_ATTR_WO(lpwm_ppstrig);
+
 
 static int hobot_lpwm_probe(struct platform_device *pdev)
 {
@@ -264,7 +287,13 @@ static int hobot_lpwm_probe(struct platform_device *pdev)
 			return -ENODEV;
 		}
 	}
-
+	lpwm->pins[LPWM_PPS] = pinctrl_lookup_state(lpwm->pinctrl, "lpwm_pps");
+	if (lpwm->pins[LPWM_PPS] == NULL) {
+		pr_err("lpwm_pps pinctrl is not found, check dts.\n");
+		return -ENODEV;
+	}
+	if (lpwm->pinctrl != NULL && lpwm->pins[LPWM_PPS] != NULL)
+		pinctrl_select_state(lpwm->pinctrl, lpwm->pins[LPWM_PPS]);
 	ret = clk_prepare_enable(lpwm->clk);
 	if (ret) {
 		pr_err("failed to enable lpwm_mclk clock\n");
@@ -289,6 +318,11 @@ static int hobot_lpwm_probe(struct platform_device *pdev)
 
 	if (sysfs_create_file(&pdev->dev.kobj, &dev_attr_lpwm_swtrig.attr)) {
 		pr_err("lpwm_swtrig create failed\n");
+		return -ENOMEM;
+	}
+
+	if (sysfs_create_file(&pdev->dev.kobj, &dev_attr_lpwm_ppstrig.attr)) {
+		pr_err("lpwm_ppstrig create failed\n");
 		return -ENOMEM;
 	}
 
