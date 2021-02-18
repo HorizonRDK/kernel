@@ -159,6 +159,14 @@ static int32_t bpu_fc_create_from_user(struct bpu_fc *fc,
 		return ret;
 	}
 
+	/* to confirm fc bind mode */
+	if ((fc->info.priority & (~USER_PRIO_MASK)) == 0u) {
+		fc->bind = false;
+	} else {
+		fc->bind = true;
+	}
+	fc->info.priority = fc->info.priority & USER_PRIO_MASK;
+
 	if ((data != NULL) && (user_fc->length > 0u)) {
 		fc->fc_data = vmalloc(user_fc->length);/*PRQA S ALL*/
 		if (fc->fc_data == NULL) {

@@ -24,6 +24,9 @@
 #define SECTOMS		(1000)
 #define SECTOUS		(1000000)
 
+/* user priority high bit to confirm bind fc mode */
+#define USER_PRIO_MASK (0x7FFFFFFFu)
+
 /* must be a power of 2 */
 #define BPU_CORE_RECORE_NUM		64
 
@@ -47,6 +50,12 @@ struct bpu_fc {
 
 	/* index in hw core buffer */
 	uint32_t index;
+
+	/*
+	 * if true, hw fcs which in bpu_fc
+	 * need bind set to hardware
+	 */
+	bool bind;
 
 	/*
 	 * start: time set to hw buffer
