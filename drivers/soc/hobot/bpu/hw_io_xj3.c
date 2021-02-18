@@ -294,7 +294,7 @@ static void bpu_core_set_update_tail(const struct bpu_core *core, uint32_t tail_
 }
 
 static int32_t bpu_core_fc_equeue(const struct bpu_core *core,
-		const struct bpu_hw_fc fc_data[], uint32_t *fc_num)
+		const struct bpu_hw_fc fc_data[], uint32_t *fc_num, bool bind)
 {
 	uint32_t free_fc_fifo;
 	uint32_t head_index, tail_index,
@@ -318,7 +318,7 @@ static int32_t bpu_core_fc_equeue(const struct bpu_core *core,
 		free_fc_fifo = fc_depth - tail_index + head_index + 1u;
 	}
 
-	if (core->fc_buf_limit > 0) {
+	if ((core->fc_buf_limit > 0) && (!bind)) {
 		free_fc_fifo =
 			(uint32_t)core->fc_buf_limit - (fc_depth + 1u - free_fc_fifo);
 		/* running fc num need not larger then limit */
@@ -328,6 +328,9 @@ static int32_t bpu_core_fc_equeue(const struct bpu_core *core,
 	}
 
 	if (*fc_num > free_fc_fifo) {
+		if (bind) {
+			pr_info("Hint: Make sure BPU model use right priority and compile mode!\n");
+		}
 		*fc_num = free_fc_fifo;
 	}
 
@@ -403,7 +406,7 @@ static int32_t bpu_core_hw_write_fc(const struct bpu_core *core,
 		*tmp_fc_id = (uint16_t)fc->hw_id;
 	}
 
-	ret = bpu_core_fc_equeue(core, &fc->fc_data[offpos], &fc_num);
+	ret = bpu_core_fc_equeue(core, &fc->fc_data[offpos], &fc_num, fc->bind);
 	if (ret < 0) {
 		return ret;
 	} else {
