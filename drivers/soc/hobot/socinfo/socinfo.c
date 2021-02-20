@@ -42,6 +42,8 @@ const char *som_name;
 const char *base_board_name;
 const char *board_name;
 const char *chip_id;
+static unsigned int secure_chip = 0;
+static void __iomem *sec_flag_addr;
 EXPORT_SYMBOL_GPL(base_board_name);
 
 #if 0
@@ -325,6 +327,16 @@ ssize_t chip_id_show(struct class *class,
 	return strlen(buf);
 }
 
+ssize_t secure_chip_show(struct class *class,
+			struct class_attribute *attr, char *buf)
+{
+	if (!buf)
+		return 0;
+	snprintf(buf, BUF_LEN, "%d\n", secure_chip);
+
+	return strlen(buf);
+}
+
 ssize_t soc_store(struct class *class, struct class_attribute *attr,
 				const char *buf, size_t count)
 {
@@ -370,6 +382,9 @@ static struct class_attribute socuid_attribute =
 static struct class_attribute chip_id_attribute =
 	__ATTR(chip_id, 0644, chip_id_show, soc_store);
 
+static struct class_attribute secure_chip_attribute =
+	__ATTR(secure_chip, 0444, secure_chip_show, NULL);
+
 static struct attribute *socinfo_attributes[] = {
 	&name_attribute.attr,
 	&id_attribute.attr,
@@ -384,6 +399,7 @@ static struct attribute *socinfo_attributes[] = {
 	&boot_attribute.attr,
 	&socuid_attribute.attr,
 	&chip_id_attribute.attr,
+	&secure_chip_attribute.attr,
 	NULL
 };
 
@@ -501,6 +517,11 @@ static int socinfo_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+	sec_flag_addr = ioremap(SEC_FLAG_REG_ADDR, SEC_FLAG_SIZE);
+	if (!sec_flag_addr)
+		return -ENOMEM;
+	secure_chip = readl(sec_flag_addr) & 0x1;
+
 	ret = class_register(&socinfo_class);
 	if (ret < 0)
 		return ret;
@@ -510,6 +531,7 @@ static int socinfo_probe(struct platform_device *pdev)
 
 static int socinfo_remove(struct platform_device *pdev)
 {
+	iounmap(sec_flag_addr);
 	class_unregister(&socinfo_class);
 	return 0;
 }
