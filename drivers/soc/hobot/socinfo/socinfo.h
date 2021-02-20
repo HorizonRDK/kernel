@@ -53,6 +53,9 @@
 #define DDR_CAPACITY_2G		0x2
 #define DDR_CAPACITY_4G		0x3
 
+#define SEC_FLAG_REG_ADDR       0xA6000214
+#define SEC_FLAG_SIZE           4
+
 enum hobot_board {
 	X2_SVB = 100,
 	J2_SVB = 200,
