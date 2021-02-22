@@ -1352,5 +1352,10 @@
 			socuid = "00000000000000000000000000000000";
 			chip_id = "00000000";
 		};
+
+		sscg: sscg{
+			compatible = "hobot,sscg";
+			status = "okay";
+		};
 	};
 };

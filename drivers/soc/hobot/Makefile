@@ -19,6 +19,7 @@ obj-$(CONFIG_HOBOT_BIF_LITE_CORE)  	+= bif_lite/
 obj-$(CONFIG_HOBOT_BIF_LITE_SPI)   	+= bif_lite/
 obj-$(CONFIG_HOBOT_BIF_LITE_SD)    	+= bif_lite/
 obj-$(CONFIG_HOBOT_HBIPC_ETH)    	+= bif_lite/
+obj-$(CONFIG_HOBOT_SSCG)		+= sscg/
 obj-$(CONFIG_HOBOT_DDR_MON)	+= ddr_monitor/
 obj-$(CONFIG_HOBOT_SOCINFO)	+= socinfo/
 obj-$(CONFIG_HOBOT_VCAM)	+= vcam/

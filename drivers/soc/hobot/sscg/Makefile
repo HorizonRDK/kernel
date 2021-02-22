@@ -1,0 +1,1 @@
+obj-$(CONFIG_HOBOT_SSCG) += hobot_sscg.o
