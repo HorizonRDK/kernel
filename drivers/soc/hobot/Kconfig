@@ -133,6 +133,12 @@ config HOBOT_APB_TIMEOUT
 	help
 	  say yes to enable hobot APB timeout detection module
 
+config HOBOT_SSCG
+	tristate "Enable HOBOT Spread Specturm"
+	default n
+	help
+	  say yes to enable spread specturm
+
 config HOBOT_PM
 	bool "Enable HOBOT suspend"
 	default n
