@@ -24,6 +24,11 @@
 #include <linux/semaphore.h>
 #include <linux/kthread.h>
 #include <linux/crc16.h>
+
+#ifdef CONFIG_HOBOT_DIAG
+#include <soc/hobot/diag.h>
+#endif
+
 #include "acamera_fw.h"
 #include "acamera_firmware_api.h"
 #include "acamera_firmware_config.h"
@@ -1261,6 +1266,41 @@ int isp_status_check(void)
 }
 EXPORT_SYMBOL(isp_status_check);
 
+#ifdef CONFIG_HOBOT_DIAG
+static void isp_diag_report(int errsta, isp_status_t *sts)
+{
+	unsigned int sta;
+
+	if (errsta) {
+		if (sts->broken_frame || sts->dma_error || sts->frame_collision ||
+			sts->context_manage_error || sts->watchdog_timeout) {
+			/*isp hw error*/
+			sta = 1;
+		} else if (sts->fr_uv_dma_drop || sts->fr_y_dma_drop) {
+			/*isp drop error*/
+			sta = 2;
+		} else if (sts->temper_lsb_dma_drop || sts->temper_msb_dma_drop) {
+			/*isp temper drop error*/
+			sta = 3;
+		}
+		diag_send_event_stat_and_env_data(
+				DiagMsgPrioHigh,
+				ModuleDiag_VIO,
+				EventIdVioIspErr,
+				DiagEventStaFail,
+				DiagGenEnvdataWhenErr,
+				(uint8_t *)&sta,
+				sizeof(unsigned int));
+	} else {
+		diag_send_event_stat(
+				DiagMsgPrioMid,
+				ModuleDiag_VIO,
+				EventIdVioIspErr,
+				DiagEventStaSuccess);
+	}
+}
+#endif
+
 volatile int y_done = 0;
 volatile int uv_done = 0;
 void inline acamera_buffer_done(acamera_context_ptr_t p_ctx)
@@ -1403,6 +1443,7 @@ int32_t acamera_interrupt_handler()
              ( irq_mask & 1 << ISP_INTERRUPT_EVENT_FRAME_COLLISION ) ) {
 
             isp_error_sts = 1;
+
 #if 0
             pr_debug("isp error handle routine\n");
             acamera_fw_error_routine( p_ctx, irq_mask );
@@ -1599,6 +1640,9 @@ int32_t acamera_interrupt_handler()
             }
 			irq_bit--;
         } //while ( irq_mask > 0 && irq_bit >= 0 )
+	#ifdef CONFIG_HOBOT_DIAG
+		isp_diag_report(isp_error_sts, &p_ctx->sts);
+	#endif
     } //if ( irq_mask > 0 )
 
     return result;

@@ -34,6 +34,10 @@
 #include <asm/io.h>
 #include <asm/signal.h>
 
+#ifdef CONFIG_HOBOT_DIAG
+#include <soc/hobot/diag.h>
+#endif
+
 #include "acamera_fw.h"
 #include "acamera_isp_config.h"
 #include "acamera_firmware_config.h"
@@ -418,6 +422,12 @@ static int32_t isp_platform_probe( struct platform_device *pdev )
         return -1;
     }
 
+#endif
+
+#ifdef CONFIG_HOBOT_DIAG
+	if (diag_register(ModuleDiag_VIO, EventIdVioIspErr,
+				4, 400, 8000, NULL) < 0)
+	LOG(LOG_ERR, "Failed to register ISP diag.");
 #endif
 
 free_res:

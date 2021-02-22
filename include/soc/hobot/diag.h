@@ -100,7 +100,7 @@ enum diag_vio_module_eventid {
 	EventIdVioMipiDevErr,
 	EventIdVioSifErr,
 	EventIdVioIpuErr,
-	EventIdVioIspDropErr,
+	EventIdVioIspErr,
 };
 
 /* bpu module event id */
