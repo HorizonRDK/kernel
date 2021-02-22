@@ -19,6 +19,7 @@
 #include <linux/of_irq.h>
 #include <linux/slab.h>
 #include <linux/clk-provider.h>
+#include <linux/delay.h>
 
 /* the offset of pwm registers */
 #define LPWM_EN       0x00
@@ -232,10 +233,14 @@ static ssize_t lpwm_ppstrig_store(struct device *dev,
 
 	sscanf(buf, "%d", &val);
 	pr_info("pps trigger lpwms, val:%d\n", val);
+
 	if (val == 0) {
 		val = hobot_lpwm_rd(lpwm, LPWM_EN);
 		val &= ~(LPWM_MODE_PPS_TRIG);
 	} else {
+		if (lpwm->pinctrl != NULL && lpwm->pins[LPWM_PPS] != NULL)
+			pinctrl_select_state(lpwm->pinctrl, lpwm->pins[LPWM_PPS]);
+		udelay(100);
 		val = hobot_lpwm_rd(lpwm, LPWM_EN);
 		val |= LPWM_MODE_PPS_TRIG;
 	}
@@ -292,8 +297,7 @@ static int hobot_lpwm_probe(struct platform_device *pdev)
 		pr_err("lpwm_pps pinctrl is not found, check dts.\n");
 		return -ENODEV;
 	}
-	if (lpwm->pinctrl != NULL && lpwm->pins[LPWM_PPS] != NULL)
-		pinctrl_select_state(lpwm->pinctrl, lpwm->pins[LPWM_PPS]);
+
 	ret = clk_prepare_enable(lpwm->clk);
 	if (ret) {
 		pr_err("failed to enable lpwm_mclk clock\n");
