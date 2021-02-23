@@ -1395,5 +1395,10 @@
 			compatible = "hobot,sscg";
 			status = "okay";
 		};
+
+		fusa_fatal: fusa_fatal {
+			compatible = "hobot,fusa_fatal";
+			status = "disabled";
+		};
 	};
 };

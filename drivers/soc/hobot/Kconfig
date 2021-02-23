@@ -19,6 +19,12 @@ config HOBOT_CNN_HOST
         help
           Say yes to enable hobot cnn driver In doubt, say N
 
+config HOBOT_FUSA
+		tristate "Enable J3 FUSA FATAL Drivers"
+		default n
+		help
+			Say yes to enable J3 fusa fatal api driver In doubt, say N
+
 config HOBOT_CNN_MM
         bool "hobot CNN Memory Heap Drivers"
         default n

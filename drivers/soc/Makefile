@@ -24,3 +24,4 @@ obj-$(CONFIG_ARCH_U8500)	+= ux500/
 obj-$(CONFIG_PLAT_VERSATILE)	+= versatile/
 obj-$(CONFIG_ARCH_ZX)		+= zte/
 obj-$(CONFIG_ARCH_HOBOT)	+= hobot/
+obj-$(CONFIG_HOBOT_FUSA)       += hobot/fusa/

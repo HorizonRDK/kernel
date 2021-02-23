@@ -190,3 +190,18 @@
 	timesync_irq_pin = <100>;
 	//timesync_debug_pin = <118>;
 };
+
+&pwm_c0 {
+	status = "disabled";
+};
+
+&pwm_gpio {
+	status = "okay";
+	pwm-gpios = <&gpios 22 GPIO_ACTIVE_LOW>;
+};
+
+&fusa_fatal {
+	status = "okay";
+	pwms = <&pwm_gpio 0 20000000 0>;
+	pwm-names = "errpin";
+};

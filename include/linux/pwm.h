@@ -401,6 +401,7 @@ static inline int pwm_enable(struct pwm_device *pwm)
 	if (state.enabled)
 		return 0;
 
+	pr_err("1111period:%d duty:%d\n",state.period, state.duty_cycle);
 	state.enabled = true;
 	return pwm_apply_state(pwm, &state);
 }

@@ -28,6 +28,7 @@
 #include <linux/bug.h>
 #include <linux/ratelimit.h>
 #include <soc/hobot/hobot_bifspi.h>
+#include <soc/hobot/hobot_fusa_fatal.h>
 
 #define PANIC_TIMER_STEP 100
 #define PANIC_BLINK_SPD 18
@@ -143,6 +144,10 @@ void panic(const char *fmt, ...)
 
 #ifdef CONFIG_HOBOT_BIFSPI_DEV
 	bifspi_write_share_reg(SYS_STATUS_REG, STAGE_PANIC);
+#endif
+
+#ifdef CONFIG_HOBOT_FUSA
+	panic_diagnose_notify();
 #endif
 
 	/*
