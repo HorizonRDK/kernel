@@ -62,6 +62,9 @@
 		idma0 = &i2sidma0;
 		idma1 = &i2sidma1;
 
+		pwm_c0 = &pwm_c0;
+		pwm_c1 = &pwm_c1;
+		pwm_c2 = &pwm_c2;
 	};
 
 	chosen {

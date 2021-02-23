@@ -206,7 +206,7 @@ static int hobot_pwm_probe(struct platform_device *pdev)
 	}
 
 	/* Look for a serialN alias */
-	id = of_alias_get_id(node, "pwm");
+	id = of_alias_get_id(node, "pwm_c");
 	if (id < 0) {
 		dev_err(&pdev->dev, "Get id of pwm:%d is err!\n", id);
 		id = 0;
