@@ -341,7 +341,7 @@ static irqreturn_t x3_ldc_irq(int this_irq, void *data)
 		} else {
 			dwe_ctx->ctx.ldc_running = 0;
 		}
-		if (dwe_ctx->ctx.dis_running == 0) {
+		if ((dwe_ctx->ctx.dis_running == 0) && (get_dis_status(dwe_ctx->ctx.dis_next_port))) {
 			dwe_ctx->ctx.dis_running = 1;
 		} else {
 			dwe_ctx->ctx.dis_running = 0;

@@ -812,6 +812,20 @@ int ldc_hwparam_set(dwe_context_t *ctx, uint32_t port)
 	return ret;
 }
 
+uint32_t get_dis_status(uint32_t port)
+{
+	if (port >= FIRMWARE_CONTEXT_NUMBER) {
+		LOG(LOG_ERR, "---port %d param is error!---", port);
+		return 0;
+	} else {
+		if (dwe_param[port].dis_param.path.path_b.rg_dis_enable == 1) {
+			return 1;
+		} else {
+			return 0;
+		}
+	}
+}
+
 int dis_hwparam_set(dwe_context_t *ctx, uint32_t port)
 {
 	int ret = 0;
