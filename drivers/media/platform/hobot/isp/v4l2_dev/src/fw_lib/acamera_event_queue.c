@@ -24,7 +24,6 @@
 #include "acamera_fsm_mgr.h"
 #include "acamera_logger.h"
 #include "system_spinlock.h"
-#include <linux/ratelimit.h>
 
 void acamera_event_queue_clear( acamera_event_queue_ptr_t p_queue )
 {
@@ -135,33 +134,7 @@ int32_t acamera_event_queue_empty( acamera_event_queue_ptr_t p_queue )
     }
     system_spinlock_unlock( p_queue->lock, flags );
 	if (debug_flag) {
-		int index = p_fsm_mgr->p_ctx->process_start.index;
-		printk_ratelimited("output pipe[%d] time record\n", ctx_id);
-		printk_ratelimited("acamera_interrupt_handler = %ld.%06ld\n",
-				p_fsm_mgr->p_ctx->process_start.time[index % 2].tv_sec,
-				p_fsm_mgr->p_ctx->process_start.time[index % 2].tv_usec);
-		printk_ratelimited("start_processing_frame time = %ld.%06ld\n",
-				p_fsm_mgr->p_ctx->frame_process_start.tv_sec,
-				p_fsm_mgr->p_ctx->frame_process_start.tv_usec);
-
-		printk_ratelimited("event_new_frame time = %ld.%06ld\n",
-				p_fsm_mgr->p_ctx->event_start.tv_sec,
-				p_fsm_mgr->p_ctx->event_start.tv_usec);
-		printk_ratelimited("wake_up_3A time = %ld.%06ld\n",
-				p_fsm_mgr->p_ctx->wake_3a_time.tv_sec,
-				p_fsm_mgr->p_ctx->wake_3a_time.tv_usec);
-		printk_ratelimited("ae_time=%ld.%06ld, awb_time=%ld.%06ld,af_time=%ld.%06ld, gamma_time=%ld.%06ld,iridix_time=%ld.%06ld\n",
-				p_fsm_mgr->p_ctx->A_write_time[0].tv_sec,
-				p_fsm_mgr->p_ctx->A_write_time[0].tv_usec,
-				p_fsm_mgr->p_ctx->A_write_time[1].tv_sec,
-				p_fsm_mgr->p_ctx->A_write_time[1].tv_usec,
-				p_fsm_mgr->p_ctx->A_write_time[2].tv_sec,
-				p_fsm_mgr->p_ctx->A_write_time[2].tv_usec,
-				p_fsm_mgr->p_ctx->A_write_time[3].tv_sec,
-				p_fsm_mgr->p_ctx->A_write_time[3].tv_usec,
-				p_fsm_mgr->p_ctx->A_write_time[4].tv_sec,
-				p_fsm_mgr->p_ctx->A_write_time[4].tv_usec);
-
+		acamera_evt_process_dbg(p_fsm_mgr->p_ctx);
 	}
 
     return result;
@@ -181,7 +154,7 @@ int32_t acamera_event_queue_has_mask_event( acamera_event_queue_ptr_t p_queue )
 	struct _acamera_fsm_mgr_t *p_fsm_mgr;
 	p_fsm_mgr = container_of(p_queue, struct _acamera_fsm_mgr_t, event_queue);
 	int ctx_id = p_fsm_mgr->ctx_id;
-	debug_flag = ((event_debug == 1) && ((1 << ctx_id) & isp_debug_mask));
+	debug_flag = (1 << ctx_id) & isp_debug_mask;
 	flags = system_spinlock_lock( p_queue->lock );
 
 	pos = p_buf->tail;
@@ -208,44 +181,19 @@ int32_t acamera_event_queue_has_mask_event( acamera_event_queue_ptr_t p_queue )
 
 	system_spinlock_unlock( p_queue->lock, flags );
 	if (rc == 0 && debug_flag == 1) {
-		int head, tail;
-		int index = p_fsm_mgr->p_ctx->process_start.index;
+		int head;
 		flags = system_spinlock_lock( p_queue->lock );
 		pos = p_buf->tail;
 		head = p_buf->head;
-		printk_ratelimited("tail= %d, head = %d\n", pos, head);
+		printk_ratelimited(TAG_EVT_DBG "tail= %d, head = %d\n", pos, head);
 		while (head != pos) {
 			pos = pos % p_buf->data_buf_size;
 			event = p_buf->p_data_buf[pos];
 			event_id = (event_id_t)(event);
 			pos ++;
-			printk_ratelimited("no process event:[%s]\n", event_name[event_id]);
+			printk_ratelimited(TAG_EVT_DBG "no process event:[%s]\n", event_name[event_id]);
 		}
 		system_spinlock_unlock( p_queue->lock, flags );
-		printk_ratelimited("output pipe[%d] time record\n", ctx_id);
-		printk_ratelimited("acamera_interrupt_handler = %ld.%06ld\n",
-				p_fsm_mgr->p_ctx->process_start.time[index % 2].tv_sec,
-				p_fsm_mgr->p_ctx->process_start.time[index % 2].tv_usec);
-		printk_ratelimited("start_processing_frame time = %ld.%06ld\n",
-				p_fsm_mgr->p_ctx->frame_process_start.tv_sec,
-				p_fsm_mgr->p_ctx->frame_process_start.tv_usec);
-		printk_ratelimited("event_new_frame time = %ld.%06ld\n",
-				p_fsm_mgr->p_ctx->event_start.tv_sec,
-				p_fsm_mgr->p_ctx->event_start.tv_usec);
-		printk_ratelimited("wake_up_3A time = %ld.%06ld\n",
-				p_fsm_mgr->p_ctx->wake_3a_time.tv_sec,
-				p_fsm_mgr->p_ctx->wake_3a_time.tv_usec);
-		printk_ratelimited("ae_time=%ld.%06ld, awb_time=%ld.%06ld,af_time=%ld.%06ld, gamma_time=%ld.%06ld,iridix_time=%ld.%06ld\n",
-				p_fsm_mgr->p_ctx->A_write_time[0].tv_sec,
-				p_fsm_mgr->p_ctx->A_write_time[0].tv_usec,
-				p_fsm_mgr->p_ctx->A_write_time[1].tv_sec,
-				p_fsm_mgr->p_ctx->A_write_time[1].tv_usec,
-				p_fsm_mgr->p_ctx->A_write_time[2].tv_sec,
-				p_fsm_mgr->p_ctx->A_write_time[2].tv_usec,
-				p_fsm_mgr->p_ctx->A_write_time[3].tv_sec,
-				p_fsm_mgr->p_ctx->A_write_time[3].tv_usec,
-				p_fsm_mgr->p_ctx->A_write_time[4].tv_sec,
-				p_fsm_mgr->p_ctx->A_write_time[4].tv_usec);
 	}
 	return rc;
 }

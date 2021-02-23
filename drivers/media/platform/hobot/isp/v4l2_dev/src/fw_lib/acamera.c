@@ -95,7 +95,7 @@ static int g_isp_idx[VIO_MAX_STREAM] = {0, };
 static int g_isp_fps_lasttime[VIO_MAX_STREAM] = {0, };
 
 int event_debug = 0;
-int threshold = 10;
+int threshold = 50;
 int isp_debug_mask = 0;
 module_param(event_debug, int, S_IRUGO|S_IWUSR);
 module_param(threshold, int, S_IRUGO|S_IWUSR);
@@ -1074,11 +1074,6 @@ int sif_isp_ctx_sync_func(int ctx_id)
 	isp_input_port_size_config(p_ctx->fsm_mgr.fsm_arr[FSM_ID_SENSOR]->p_fsm);
 	ldc_set_ioctl(ctx_id, 0);
 	dis_set_ioctl(ctx_id, 0);
-	if ((1 << ctx_id) & isp_debug_mask) {
-		int index = p_ctx->process_start.index;
-		do_gettimeofday(&(p_ctx->process_start.time[index % 2]));
-		p_ctx->process_start.index ++;
-	}
 
 	if (acamera_event_queue_empty(&p_ctx->fsm_mgr.event_queue)
         || acamera_event_queue_has_mask_event(&p_ctx->fsm_mgr.event_queue)) {
@@ -1340,6 +1335,12 @@ int32_t acamera_interrupt_handler()
 
                 if (irq_bit == ISP_INTERRUPT_EVENT_ISP_START_FRAME_START) {
 
+					if ((1 << cur_ctx_id) & isp_debug_mask) {
+						int index = p_ctx->process_start.index;
+						do_gettimeofday(&(p_ctx->process_start.time[index % 2]));
+						p_ctx->process_start.index ++;
+					}
+
                     y_done = 0;
                     uv_done = 0;
                     //clear error status
@@ -1354,11 +1355,6 @@ int32_t acamera_interrupt_handler()
                 }
                 if ( p_ctx->p_gfw->sif_isp_offline == 0 && irq_bit == ISP_INTERRUPT_EVENT_ISP_START_FRAME_START ) {
                     static uint32_t fs_cnt = 0;
-					if ((1 << cur_ctx_id) & isp_debug_mask) {
-						int index = p_ctx->process_start.index;
-						do_gettimeofday(&(p_ctx->process_start.time[index % 2]));
-						p_ctx->process_start.index ++;
-					}
                     if ( fs_cnt < 10 ) {
                         LOG( LOG_INFO, "[KeyMsg]: FS interrupt: %d", fs_cnt++ );
                     }
@@ -1409,6 +1405,7 @@ int32_t acamera_interrupt_handler()
                             p_ctx->fsm_mgr.event_queue.buf.head,
                             p_ctx->fsm_mgr.event_queue.buf.tail);
                         pr_err("->previous frame events are not process done\n");
+                        acamera_evt_process_dbg(p_ctx);
 
                         //isp m2m ipu
                         if (p_ctx->fsm_mgr.reserved) {

@@ -20,6 +20,8 @@
 #if !defined( __ACAMERA_FW_H__ )
 #define __ACAMERA_FW_H__
 
+#include <linux/ratelimit.h>
+
 #include "acamera_types.h"
 #include "acamera_logger.h"
 #include "acamera_calibrations.h"
@@ -221,6 +223,8 @@ struct _acamera_context_t {
 	struct timeval A_write_time[5];
 	struct timeval wake_3a_time;
 };
+
+#define TAG_EVT_DBG "[evt_dbg]: "
 extern int event_debug;
 extern int isp_debug_mask;
 extern const char * const event_name[];
@@ -306,6 +310,41 @@ static __inline void acamera_isp_interrupts_disable( acamera_fsm_mgr_t *p_fsm_mg
     if ( p_fsm_mgr != NULL ) {
         acamera_fw_interrupts_disable( p_fsm_mgr->p_ctx );
     }
+}
+
+static __inline void acamera_evt_process_dbg(acamera_context_ptr_t p_ctx)
+{
+    int last_idx = p_ctx->process_start.index % 2;
+    int cur_idx = !last_idx;
+
+    printk_ratelimited(TAG_EVT_DBG "==s[%d] time record==\n", p_ctx->context_id);
+    printk_ratelimited(TAG_EVT_DBG "cur_irq_fs = %ld.%06ld\n",
+            p_ctx->process_start.time[cur_idx].tv_sec,
+            p_ctx->process_start.time[cur_idx].tv_usec);
+    printk_ratelimited(TAG_EVT_DBG "last_irq_fs = %ld.%06ld\n",
+            p_ctx->process_start.time[last_idx].tv_sec,
+            p_ctx->process_start.time[last_idx].tv_usec);
+    printk_ratelimited(TAG_EVT_DBG "start_processing_frame time = %ld.%06ld\n",
+            p_ctx->frame_process_start.tv_sec,
+            p_ctx->frame_process_start.tv_usec);
+    printk_ratelimited(TAG_EVT_DBG "event_new_frame time = %ld.%06ld\n",
+            p_ctx->event_start.tv_sec,
+            p_ctx->event_start.tv_usec);
+    printk_ratelimited(TAG_EVT_DBG "wake_up_3A time = %ld.%06ld\n",
+            p_ctx->wake_3a_time.tv_sec,
+            p_ctx->wake_3a_time.tv_usec);
+    printk_ratelimited(TAG_EVT_DBG "3A set: ae=%ld.%06ld, awb=%ld.%06ld, af=%ld.%06ld, "
+            "gamma=%ld.%06ld, iridix=%ld.%06ld\n",
+            p_ctx->A_write_time[0].tv_sec,
+            p_ctx->A_write_time[0].tv_usec,
+            p_ctx->A_write_time[1].tv_sec,
+            p_ctx->A_write_time[1].tv_usec,
+            p_ctx->A_write_time[2].tv_sec,
+            p_ctx->A_write_time[2].tv_usec,
+            p_ctx->A_write_time[3].tv_sec,
+            p_ctx->A_write_time[3].tv_usec,
+            p_ctx->A_write_time[4].tv_sec,
+            p_ctx->A_write_time[4].tv_usec);
 }
 
 void acamera_fw_raise_event( acamera_context_ptr_t p_ctx, event_id_t event_id );
