@@ -739,6 +739,13 @@
 			status = "disabled";
 		};
 
+		pwm_gpio: pwm@0 {
+				compatible = "pwm-gpio";
+				status = "disabled";
+				#pwm-cells = <3>;
+				pwm-gpios = <&gpios 5 GPIO_ACTIVE_LOW>;
+		};
+
 		lpwm: lpwm@0xA500D000 {
 			compatible = "hobot,hobot-lpwm";
 			reg = <0 0xA5018000 0 0x1000>;
