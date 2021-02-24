@@ -59,7 +59,7 @@
 
 
 #if defined( CUR_MOD_NAME)
-#undef CUR_MOD_NAME 
+#undef CUR_MOD_NAME
 #define CUR_MOD_NAME LOG_MODULE_GENERAL
 #else
 #define CUR_MOD_NAME LOG_MODULE_GENERAL
@@ -376,6 +376,16 @@ void acamera_reload_isp_calibratons( general_fsm_ptr_t p_fsm )
         acamera_isp_pf_correction_shading_shading_lut_write( p_fsm->cmn.isp_base, i, lut_pf[i] );
     }
 
+	// Load temper noise lut
+    const uint8_t *lut_temper = _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_USER_TEMPER_NOISE_LUT);
+    for ( i = 0; i < _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_USER_TEMPER_NOISE_LUT ); i++ ) {
+	   acamera_isp_temper_noise_profile_lut_weight_lut_write( p_fsm->cmn.isp_base, i, lut_temper[i] );
+    }
+	// Load sinter lut
+    const uint8_t *lut_sinter = _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_USER_SINTER_LUT);
+    for ( i = 0; i < _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_USER_SINTER_LUT ); i++ ) {
+        acamera_isp_sinter_noise_profile_lut_weight_lut_write( p_fsm->cmn.isp_base, i, lut_sinter[i] );
+    }
     const uint16_t *p_pf_radial_params = (uint16_t *)_GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_PF_RADIAL_PARAMS );
     acamera_isp_pf_correction_center_x_write( p_fsm->cmn.isp_base, p_pf_radial_params[0] );
     acamera_isp_pf_correction_center_y_write( p_fsm->cmn.isp_base, p_pf_radial_params[1] );
@@ -966,7 +976,7 @@ static int general_temper_configure( general_fsm_ptr_t p_fsm )
     if ( TEMPER_FRAMES_NO >= 2 )
         msb_frame = &p_fsm->temper_frames[1];
 
-    if ( !lsb_frame || !lsb_frame->address) {    
+    if ( !lsb_frame || !lsb_frame->address) {
         LOG( LOG_ERR, "unable to configure TEMPER" );
         return -1;
     }

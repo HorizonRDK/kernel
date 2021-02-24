@@ -169,6 +169,12 @@ static uint16_t _calibration_awb_zone_wght_hor[]
 static uint32_t _calibration_custom_settings_context[]
  = {0,0,0,0};
 
+ static uint8_t _calibration_user_temper_noise_lut[] =
+   {0,0,0,0,0,0,0,1,25,36,41,45,47,50,51,53,54,56,57,58,59,60,60,61,62,63,63,63,64,65,65,66,66,67,67,68,68,68,69,69,69,70,70,70,71,71,71,72,72,72,73,73,73,73,74,74,74,74,74,75,75,75,75,76,76,76,76,76,77,77,77,77,77,77,78,78,78,78,78,78,79,79,79,79,79,79,80,80,80,80,80,80,80,81,81,81,81,81,81,81,81,82,82,82,82,82,82,82,82,82,83,83,83,83,83,83,83,83,83,84,84,84,84,84,84,84,84,84};
+
+ static uint8_t _calibration_user_sinter_lut[] =
+  {0,0,0,0,0,0,0,17,45,51,55,58,61,63,65,66,67,68,70,71,72,72,73,73,75,75,75,76,77,77,78,78,79,79,80,80,81,81,81,82,82,82,83,83,83,84,84,84,84,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85};
+
 // CALIBRATION_GAMMA_EV1
 static uint16_t _calibration_gamma_ev1[] =
     /*sRGB highcontrast{0, 150, 261, 359, 452, 541, 623, 702, 781, 859, 937, 1014, 1087, 1158, 1224, 1288, 1348, 1407, 1464, 1519, 1572, 1625, 1676, 1727, 1775, 1823, 1869, 1913, 1956, 1999, 2041, 2082, 2123, 2162, 2201, 2238, 2276, 2312, 2348, 2383, 2417, 2451, 2485, 2516, 2549, 2580, 2611, 2641, 2671, 2701, 2730, 2759, 2787, 2816, 2843, 2871, 2897, 2923, 2950, 2975, 3000, 3025, 3048, 3071, 3095,3118, 3139, 3161, 3182, 3204, 3224, 3244, 3263, 3283, 3302, 3322, 3340, 3358, 3377, 3394, 3412, 3429, 3447, 3464, 3481, 3497, 3514, 3530, 3546, 3562, 3579, 3594, 3610, 3625, 3641, 3656, 3671, 3686, 3701, 3716, 3731, 3745, 3759, 3774, 3788, 3802, 3816, 3830, 3843, 3857, 3871, 3884, 3898, 3911, 3924, 3936, 3949, 3962, 3974, 3987, 4000, 4011, 4024, 4036, 4048, 4060, 4072, 4083, 4095}; */
@@ -310,6 +316,7 @@ static uint16_t _calibration_demosaic_np_offset[][2]
   { 1280, 18 },
   { 1536, 15 }
 };
+
 
 // CALIBRATION_PF_RADIAL_LUT (1x33 1 bytes)
 static uint8_t _calibration_pf_radial_lut[]
@@ -601,6 +608,9 @@ static LookupTable calibration_sinter_strength4 = {.ptr = _calibration_sinter_st
 static LookupTable calibration_iridix_bright_pr = { .ptr = _calibration_iridix_bright_pr, .cols = 2, .rows = sizeof(_calibration_iridix_bright_pr) / sizeof(_calibration_iridix_bright_pr[0]), .width = sizeof(_calibration_iridix_bright_pr[0][0] ) };
 static LookupTable calibration_iridix_svariance = { .ptr = _calibration_iridix_svariance, .cols = 2, .rows = sizeof(_calibration_iridix_svariance) / sizeof(_calibration_iridix_svariance[0]), .width = sizeof(_calibration_iridix_svariance[0][0] ) };
 
+static LookupTable calibration_user_temper_noise_lut = { .ptr = _calibration_user_temper_noise_lut, .rows = 1, .cols = sizeof(_calibration_user_temper_noise_lut) / sizeof(_calibration_user_temper_noise_lut[0]), .width = sizeof(_calibration_user_temper_noise_lut[0] ) };
+static LookupTable calibration_user_sinter_lut = { .ptr = _calibration_user_sinter_lut, .rows = 1, .cols = sizeof(_calibration_user_sinter_lut) / sizeof(_calibration_user_sinter_lut[0]), .width = sizeof(_calibration_user_sinter_lut[0] ) };
+
 uint32_t get_calibrations_dynamic_linear_dummy( ACameraCalibrations *c ) {
 //uint32_t get_dynamic_calibrations( ApicalCalibrations * c ) {
     uint32_t result = 0;
@@ -675,6 +685,8 @@ uint32_t get_calibrations_dynamic_linear_dummy( ACameraCalibrations *c ) {
 	c->calibrations[CALIBRATION_SINTER_STRENGTH4] = &calibration_sinter_strength4;
 	c->calibrations[CALIBRATION_IRIDIX_BRIGHT_PR] = &calibration_iridix_bright_pr;
 	c->calibrations[CALIBRATION_IRIDIX_SVARIANCE] = &calibration_iridix_svariance;
+	c->calibrations[CALIBRATION_USER_TEMPER_NOISE_LUT] = &calibration_user_temper_noise_lut;
+	c->calibrations[CALIBRATION_USER_SINTER_LUT] = &calibration_user_sinter_lut;
     } else {
         result = -1;
     }

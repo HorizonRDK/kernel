@@ -206,11 +206,15 @@
 #define CALIBRATION_IRIDIX_ASYMMETRY_EV2                  0x00000088
 #define CALIBRATION_IRIDIX_THRESHOLD                      0x00000089
 
+// dynamic
+#define CALIBRATION_USER_TEMPER_NOISE_LUT                 0x0000008a
+#define CALIBRATION_USER_SINTER_LUT                       0x0000008b
+
 // ------------------------------------------------------------------------------ //
 //		DYNAMIC STATE VALUES
 // ------------------------------------------------------------------------------ //
 
-#define CALIBRATION_TOTAL_SIZE 138
+#define CALIBRATION_TOTAL_SIZE 140
 //------------------FILE TRANSFER-------------------
 
 
@@ -347,7 +351,7 @@
 #define REGISTERS_SIZE_ID                                 0x00000065
 #define REGISTERS_SOURCE_ID                               0x00000066
 #define REGISTERS_VALUE_ID                                0x00000067
-#define SENSOR_TYPE                                       0x00000068 //add 
+#define SENSOR_TYPE                                       0x00000068 //add
 #define SENSOR_I2C_CHANNEL                                0x00000069 //add
 #define SENSOR_MAX_AGAIN                                  0x0000006a//add
 #define SENSOR_MAX_DGAIN                                  0x0000006b//add

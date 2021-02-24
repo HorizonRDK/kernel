@@ -466,6 +466,8 @@ static uint8_t is_uf_needed_calibration( uint8_t command_type, uint8_t command, 
 	|| (command == CALIBRATION_DECOMPANDER1_MEM)
 	|| (command == CALIBRATION_CA_CORRECTION)
 	|| (command == CALIBRATION_GAMMA)
+	|| (command == CALIBRATION_USER_TEMPER_NOISE_LUT)
+	|| (command == CALIBRATION_USER_SINTER_LUT)
 	) {
 	    rc = 0;
     }
