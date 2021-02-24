@@ -2097,6 +2097,7 @@ int ipu_video_streamon(struct ipu_video_ctx *ipu_ctx)
 		goto p_inc;
 	ipu_set_ddr_fifo_thred(ipu->base_reg, 0, ipu->wr_fifo_thred0);
 	ipu_set_ddr_fifo_thred(ipu->base_reg, 1, ipu->wr_fifo_thred1);
+	ipu_set_chn0_chn4_prio(ipu->base_reg);
 
 	set_bit(IPU_HW_RUN, &ipu->state);
 p_inc:
