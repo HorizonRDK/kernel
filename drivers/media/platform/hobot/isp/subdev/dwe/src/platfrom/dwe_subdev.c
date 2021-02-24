@@ -34,6 +34,7 @@
 #include <linux/module.h>
 #include <media/v4l2-subdev.h>
 #include <media/v4l2-async.h>
+#include <soc/hobot/diag.h>
 #include "acamera_logger.h"
 
 #include "vio_config.h"
@@ -287,6 +288,22 @@ static irqreturn_t x3_dis_irq(int this_irq, void *data)
 	return IRQ_HANDLED;
 }
 
+static void ldc_diag_report(uint8_t errsta, unsigned int status)
+{
+	if (errsta) {
+		diag_send_event_stat_and_env_data(
+				DiagMsgPrioHigh,
+				ModuleDiag_VIO,
+				EventIdVioLdcErr,
+				DiagEventStaFail,
+				DiagGenEnvdataWhenErr,
+				(uint8_t *)&status,
+				sizeof(unsigned int));
+	}
+
+	return;
+}
+
 /* ldc model irq
  * frame start: clear ldc_update
  * overflow:  debug ldc param info
@@ -384,6 +401,7 @@ static irqreturn_t x3_ldc_irq(int this_irq, void *data)
 		dwe_ctx->ldc_irqstatus |= tmp_irq.status_g;
 		dwe_ctx->ctx.ldc_running = 0;
 		//LOG(LOG_DEBUG, "----over_flow!----");
+		ldc_diag_report(ldc_error_sts, tmp_irq.status_g);
 	}
 
 	spin_unlock(&dwe_ctx->ldclock);
@@ -593,6 +611,11 @@ static int32_t soc_dwe_probe(struct platform_device *pdev)
 	dwe_ctx->soc_dwe.dev = &pdev->dev;
 	dwe_ctx->soc_dwe.internal_ops = &dwe_int_ops;
 	rc = v4l2_async_register_subdev(&dwe_ctx->soc_dwe);
+
+	if (diag_register(ModuleDiag_VIO, EventIdVioLdcErr,
+					4, 400, 8000, NULL) < 0) {
+		vio_err("LDC diag register fail\n");
+	}
 
 	LOG(LOG_DEBUG, "register v4l2 lens device. result %d", rc);
 
