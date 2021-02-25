@@ -758,8 +758,8 @@ uint32_t get_calibrations_dynamic_fs_lin_dummy( ACameraCalibrations *c )
 	c->calibrations[CALIBRATION_GAMMA_THRESHOLD] = &calibration_gamma_threshold;
 	c->calibrations[CALIBRATION_BYPASS_CONTROL] = &calibration_bypass_control;
 	c->calibrations[CALIBRATION_SINTER_STRENGTH4] = &calibration_sinter_strength4;
-	c->calibrations[CALIBRATION_IRIDIX_BRIGHT_PR] = &calibration_iridix_bright_pr;
-	c->calibrations[CALIBRATION_IRIDIX_SVARIANCE] = &calibration_iridix_svariance;
+	c->calibrations[CALIBRATION_IRIDIX_BRIGHT_PR] = NULL;
+	c->calibrations[CALIBRATION_IRIDIX_SVARIANCE] = NULL;
 	c->calibrations[CALIBRATION_USER_TEMPER_NOISE_LUT] = &calibration_user_temper_noise_lut;
 	c->calibrations[CALIBRATION_USER_SINTER_LUT] = &calibration_user_sinter_lut;
     } else {

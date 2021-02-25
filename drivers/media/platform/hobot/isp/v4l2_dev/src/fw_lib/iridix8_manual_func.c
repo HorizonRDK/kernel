@@ -174,7 +174,7 @@ void iridix_fsm_process_interrupt( iridix_fsm_const_ptr_t p_fsm, uint8_t irq_eve
 		uint32_t bright_pr_table_len = _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), iridxi_bright_pr_table_idx );
 		modulation_entry_t *svariance_table = _GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), iridxi_svariance_table_idx );
 		uint32_t svariance_table_len = _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), iridxi_svariance_table_idx );
-		if (bright_pr_table && svariance_table) {
+		if (bright_pr_table && svariance_table && (bright_pr_table_len > 2) && (svariance_table_len > 2)) {
 			bright_pr = acamera_calc_modulation_u16( log2_gain, bright_pr_table, bright_pr_table_len );
 			svariance = acamera_calc_modulation_u16( log2_gain, svariance_table, svariance_table_len );
 
