@@ -21,7 +21,7 @@ function choose()
                 manifest=${KERNEL_DEBUG_INITRAMFS_MANIFEST}
             fi
             ${SRC_SCRIPTS_DIR}/build_root_manifest.sh $manifest \
-                ${TARGET_PREROOTFS_DIR} ${SRC_KERNEL_DIR}/usr/prerootfs/
+                ${TARGET_PREROOTFS_DIR} ${TARGET_TMPROOTFS_DIR} ${SRC_KERNEL_DIR}/usr/prerootfs/
             sed -i "/AMA0/d" ${SRC_KERNEL_DIR}/usr/prerootfs/etc/inittab
         fi
     fi
@@ -48,8 +48,7 @@ function make_recovery_img()
     rm -rf ${SRC_KERNEL_DIR}/usr/prerootfs/
     mkdir -p ${SRC_KERNEL_DIR}/usr/prerootfs/
 
-    local kernel_initram=${KERNEL_DEBUG_INITRAMFS_MANIFEST}
-    ${SRC_SCRIPTS_DIR}/build_root_manifest.sh ${kernel_initram} ${TARGET_PREROOTFS_DIR} ${SRC_KERNEL_DIR}/usr/prerootfs/
+    ${SRC_SCRIPTS_DIR}/build_root_manifest.sh ${KERNEL_DEBUG_INITRAMFS_MANIFEST} ${TARGET_PREROOTFS_DIR} ${TARGET_TMPROOTFS_DIR} ${SRC_KERNEL_DIR}/usr/prerootfs/
     sed -i "/AMA0/d" ${SRC_KERNEL_DIR}/usr/prerootfs/etc/inittab
 
     cp $conftmp .config
