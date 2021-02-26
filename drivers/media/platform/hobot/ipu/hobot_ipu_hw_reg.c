@@ -955,6 +955,27 @@ void ipu_set_ddr_fifo_thred(void __iomem *base_addr, u8 index, u32 value)
 	vio_hw_set_reg(base_addr, &ipu_regs[IPU_WR_DDR_FIFO_THRED_0 + index], value);
 }
 
+void ipu_set_chn0_chn4_prio(void __iomem *base_addr)
+{
+	u32 value;
+	value = vio_hw_get_reg(base_addr, &ipu_regs[IPU_BUS_CTRL_WM_0]);
+	value |= 0x08;
+	value &= 0xfffffff8;
+	vio_hw_set_reg(base_addr, &ipu_regs[IPU_BUS_CTRL_WM_0], value);
+	value = vio_hw_get_reg(base_addr, &ipu_regs[IPU_BUS_CTRL_WM_1]);
+	value |= 0x08;
+	value &= 0xfffffff8;
+	vio_hw_set_reg(base_addr, &ipu_regs[IPU_BUS_CTRL_WM_1], value);
+	value = vio_hw_get_reg(base_addr, &ipu_regs[IPU_BUS_CTRL_WM_8]);
+	value |= 0x08;
+	value &= 0xfffffff8;
+	vio_hw_set_reg(base_addr, &ipu_regs[IPU_BUS_CTRL_WM_8], value);
+	value = vio_hw_get_reg(base_addr, &ipu_regs[IPU_BUS_CTRL_WM_9]);
+	value |= 0x08;
+	value &= 0xfffffff8;
+	vio_hw_set_reg(base_addr, &ipu_regs[IPU_BUS_CTRL_WM_9], value);
+}
+
 int ipu_get_err_status(void __iomem *base_addr)
 {
 	return vio_hw_get_reg(base_addr, &ipu_regs[IPU_ERR_STATUS]);
