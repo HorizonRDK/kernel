@@ -52,7 +52,6 @@ static bool rproc_vq_notify(struct virtqueue *vq)
 	int notifyid = rvring->notifyid;
 
 	dev_dbg(&rproc->dev, "kicking vq index: %d\n", notifyid);
-	msleep(100);
 	rproc->ops->kick(rproc, notifyid);
 	return true;
 }
