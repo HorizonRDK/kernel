@@ -35,7 +35,7 @@
 #define HOBOT_I2S_FMTS (SNDRV_PCM_FMTBIT_S8 | SNDRV_PCM_FMTBIT_S16_LE)
 
 #define HOBOT_DEF_I2S_MS 1;
-static int i2s_ms = HOBOT_DEF_I2S_MS;
+static int i2s_ms = 2;
 module_param(i2s_ms, uint, S_IRUGO);
 MODULE_PARM_DESC(i2s_ms, "Hobot i2s master/slave mode");
 
@@ -164,16 +164,32 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
 
 		if (i2s->i2sdsp == 0) {	/* i2s mode */
+			lrck_div = i2s->wordlength * i2s->channel_num;
+			if (i2s->samplerate == 8000)
+				lrck_div = 64;
+			ws_h = ws_l = (lrck_div / 2) - 1;
+			i2s->div_ws = ws_l | (ws_h << 8);
+			i2s->clk = i2s->samplerate * lrck_div;
+			spin_unlock_irqrestore(&i2s->lock, flags);
+			if (i2s->ms == 1) {
+				ret = change_clk(i2s->dev, "i2s-bclk",
+					i2s->clk);
+				if (ret < 0)
+					pr_err("change i2s bclk failed\n");
+			}
+			spin_lock_irqsave(&i2s->lock, flags);
 			writel(i2s->div_ws, i2s->regaddr_rx + I2S_DIV_WS);
 		} else {/* dsp mode */
 			ws_h = 0;
 			ws_l = i2s->slot_width - 2;
 			i2s->clk = i2s->samplerate * i2s->slot_width;
 			spin_unlock_irqrestore(&i2s->lock, flags);
-			ret = change_clk(i2s->dev, "i2s-bclk",
-				i2s->clk);
-			if (ret < 0)
-				pr_err("change i2s bclk failed\n");
+			if (i2s->ms == 1) {
+				ret = change_clk(i2s->dev, "i2s-bclk",
+					i2s->clk);
+				if (ret < 0)
+					pr_err("change i2s bclk failed\n");
+			}
 			spin_lock_irqsave(&i2s->lock, flags);
 			writel(ws_l | (ws_h << 8), i2s->regaddr_rx +
 				I2S_DIV_WS);
@@ -182,6 +198,22 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 	} else {/* play */
 
 		if (i2s->i2sdsp == 0) {	/* i2s mode */
+			lrck_div = i2s->wordlength * i2s->channel_num;
+			if (i2s->samplerate == 8000)
+                                lrck_div = 64;
+			ws_h = ws_l = (lrck_div / 2) - 1;
+			i2s->div_ws = ws_l | (ws_h << 8);
+			i2s->clk = i2s->samplerate * lrck_div;
+			spin_unlock_irqrestore(&i2s->lock, flags);
+			if (i2s->ms == 1) {
+				ret = change_clk(i2s->dev, "i2s-bclk",
+					i2s->clk);
+				if (ret < 0)
+					pr_err("change i2s bclk failed\n");
+			}
+			spin_lock_irqsave(&i2s->lock, flags);
+			writel(i2s->div_ws, i2s->regaddr_tx + I2S_DIV_WS);
+#if 0
 			if (i2s->ms == 4) {
 				writel(i2s->div_ws, i2s->regaddr_tx + I2S_DIV_WS);
 			} else {
@@ -234,7 +266,7 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 			i2s->div_ws = ws_l | (ws_h << 8);
 			writel(i2s->div_ws, i2s->regaddr_tx + I2S_DIV_WS);
 			}
-
+#endif
 		} else {
 			ws_h = 0;
 			ws_l = (i2s->channel_num) * (i2s->wordlength) - 2;
@@ -260,7 +292,7 @@ static int i2s_hw_params(struct snd_pcm_substream *substream,
 			  struct snd_soc_dai *dai)
 {
 	struct hobot_i2s *i2s = snd_soc_dai_get_drvdata(dai);
-	u32 mod, chan = 0;
+	u32 mod, chan = 0, ret;
 	unsigned long flags;
 
 	spin_lock_irqsave(&i2s->lock, flags);
@@ -273,39 +305,23 @@ static int i2s_hw_params(struct snd_pcm_substream *substream,
 		mod = readl(i2s->regaddr_rx + I2S_MODE);
 		mod &= ~MOD_CH_NUM;
 		/* setting channel num and enable channel */
-		switch (i2s->channel_num) {
-		case 16:
-		case 15:
-		case 14:
-		case 13:
-		case 12:
-		case 11:
-		case 10:
-		case 9:
+
+		if (i2s->channel_num <= 16 && i2s->channel_num >= 9) {
 			mod |= MOD_16_CH;
 			chan |= 0xffff;
-			break;
-		case 8:
-		case 7:
-		case 6:
-		case 5:
+		} else if (i2s->channel_num <= 8 && i2s->channel_num >= 5) {
 			mod |= MOD_8_CH;
 			chan |= 0xff;
-			break;
-		case 4:
-		case 3:
+		} else if (i2s->channel_num <= 4 && i2s->channel_num >= 3) {
 			mod |= MOD_4_CH;
 			chan |= 0xf;
-			break;
-		case 2:
+		} else if (i2s->channel_num == 2) {
 			mod |= MOD_2_CH;
 			chan |= 0x3;
-			break;
-		case 1:
+		} else if (i2s->channel_num == 1) {
 			mod |= MOD_1_CH_C;
 			chan |= 0x1;
-			break;
-		default:
+		} else {
 			dev_err(i2s->dev, "%d channels not supported\n",
 				params_channels(params));
 			spin_unlock_irqrestore(&i2s->lock, flags);
@@ -328,6 +344,9 @@ static int i2s_hw_params(struct snd_pcm_substream *substream,
 				params_format(params));
 			spin_unlock_irqrestore(&i2s->lock, flags);
 			return -EINVAL;
+		}
+		if (i2s->ms == 4) {
+			i2s->slot_width = i2s->channel_num * i2s->wordlength;
 		}
 		writel(mod, i2s->regaddr_rx + I2S_MODE);
 		writel(chan, i2s->regaddr_rx + I2S_CH_EN);
@@ -391,7 +410,7 @@ static int i2s_startup(struct snd_pcm_substream *substream,
 	spin_lock_irqsave(&i2s->lock, flags);
 
 	/* enable mclk, first disable bclk, if master, enable it later */
-	clk_enable(i2s->mclk);
+	//clk_enable(i2s->mclk);
 
 	reset_control_assert(i2s->rst);
 	ndelay(100);
@@ -403,19 +422,7 @@ static int i2s_startup(struct snd_pcm_substream *substream,
 	else
 		i2s->streamflag = 1;
 
-	//if (i2s->ms == 1) {
-		//clk_enable(i2s->bclk);
-	//}
-	/*
-	else if (i2s->ms == 4) {
-                clk_disable(i2s->bclk);
-        }
-	*/
-	//i2s_transfer_ctl(i2s, 0);
-
 	spin_unlock_irqrestore(&i2s->lock, flags);
-	//dev_dbg(i2s->dev, "i2s_startup E,
-	//reset i2s module by rst framework\n");
 	return 0;
 }
 
@@ -474,11 +481,6 @@ static int i2s_set_clkdiv(struct snd_soc_dai *dai, int div_id, int div)
 static int i2s_hw_free(struct snd_pcm_substream *substream,
 		struct snd_soc_dai *dai) {
 	struct hobot_i2s *i2s = snd_soc_dai_get_drvdata(dai);
-
-	if (i2s->streamflag == 0) {
-		//clk_disable(i2s->bclk);
-		//clk_disable(i2s->mclk);
-	}
 
 	return 0;
 }
@@ -608,8 +610,6 @@ static ssize_t show_hobot_i2s_reg(struct device *dev,
 		return s-buf;
 }
 
-
-
 static DEVICE_ATTR(reg_dump, 0644, show_hobot_i2s_reg, store_hobot_i2s_reg);
 
 static inline int change_clk(struct device *dev,
@@ -634,9 +634,6 @@ static inline int change_clk(struct device *dev,
 			clk_name, rate, round_rate);
 		return ret;
 }
-
-
-
 
 static int hobot_i2s_probe(struct platform_device *pdev)
 {
@@ -725,7 +722,7 @@ static int hobot_i2s_probe(struct platform_device *pdev)
 		ret = of_property_read_u32(pdev->dev.of_node,
 			"ms", &i2s->ms);
 
-		if (i2s->id == 0) {
+		if (i2s_ms != 2) {
 			i2s->ms = i2s_ms;
 		}
 
@@ -749,38 +746,18 @@ static int hobot_i2s_probe(struct platform_device *pdev)
 		reset_control_assert(i2s->rst);
 		ndelay(100);
 		reset_control_deassert(i2s->rst);
-
-		if (i2s->ms == 1) {
+		if (i2s->ms == 4) {
 			clk_disable(i2s->bclk);
-			ret = change_clk(&pdev->dev, "i2s-mclk",
-				i2s->mclk_set);
-			ret = change_clk(&pdev->dev, "i2s-bclk",
-				i2s->bclk_set);
-
-			clk_enable(i2s->mclk);
-			clk_enable(i2s->bclk);
-			pr_info("change_clk blck ret = %d\n", ret);
-		} else if (i2s->ms == 4) {
-
-			/*
-			value = readl(i2s->sysctl_addr + 0x158);
-			if (i2s->id == 0)
-				value = (value | (0x1 << 18));
-			else
-				value = (value | (0x1 << 19));
-
-			writel(value, i2s->sysctl_addr + 0x158);
-			*/
-			/*
-			value = readl(i2s->sysctl_addr + 0x360);
-			value = (value | (0x1 << 20));
-			writel(value, i2s->sysctl_addr + 0x360);
-			*/
-			clk_disable(i2s->bclk);
-		} else {
-			pr_err("i2s->ms invalid\n");
-			return -1;
 		}
+#if 0
+		ret = change_clk(&pdev->dev, "i2s-mclk",
+			i2s->mclk_set);
+		ret = change_clk(&pdev->dev, "i2s-bclk",
+			i2s->bclk_set);
+		clk_enable(i2s->mclk);
+		clk_enable(i2s->bclk);
+		pr_info("change_clk blck ret = %d\n", ret);
+#endif
 		ret = of_property_read_u32(pdev->dev.of_node,
 			"div_ws", &i2s->div_ws);
 		if (ret < 0) {
@@ -788,21 +765,6 @@ static int hobot_i2s_probe(struct platform_device *pdev)
 			return ret;
 		}
 
-		/*
-		if (i2s->id == 0) {
-			value = readl(i2s->regaddr_tx);
-			value |= 1<<0;
-			writel(value, i2s->regaddr_tx);
-			writel(i2s->div_ws, i2s->regaddr_tx + I2S_DIV_WS);
-			pr_info("run i2s0 probe\n");
-		} else {
-			value = readl(i2s->regaddr_rx);
-			value |= 1<<0;
-			writel(value, i2s->regaddr_rx);
-			writel(i2s->div_ws, i2s->regaddr_rx + I2S_DIV_WS);
-			pr_info("run i2s1 probe\n");
-		}
-		*/
 	i2s->rst = devm_reset_control_get(&pdev->dev, "i2s");
 	if (IS_ERR(i2s->rst)) {
 		dev_err(&pdev->dev, "Missing reset controller!\n");

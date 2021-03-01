@@ -12,48 +12,18 @@
 
 #include <linux/module.h>
 #include <sound/soc.h>
-#include <sound/pcm_params.h>
 
-
-/*pll source*/
-#define AC101_MCLK1 1
-#define AC101_MCLK2 2
-#define AC101_BCLK1 3
-#define AC101_BCLK2 4
-
-#define FREQ_OUT 24576000
 #define HOBOT_DEF_SND_CARD 0;
 static int snd_card = HOBOT_DEF_SND_CARD;
 module_param(snd_card, uint, S_IRUGO);
 MODULE_PARM_DESC(snd_card, "Hobot Sound card");
-
-static int mclk;
-enum adau1977_sysclk_src {
-        ADAU1977_SYSCLK_SRC_MCLK,
-        ADAU1977_SYSCLK_SRC_LRCLK,
-};
 
 static int hobot_snd_hw_params(struct snd_pcm_substream *substream,
 			     struct snd_pcm_hw_params *params)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	unsigned long sample_rate = params_rate(params);
-	uint32_t SLOT_WIDTH, LRCK_PERIOD, channels;
-	unsigned int clk = 0;
-	int ret;
-
-	switch (params_rate(params)) {
-	case 8000:
-	case 16000:
-	case 32000:
-	case 48000:
-		clk = 12288000;
-		break;
-	case 22050:
-	case 44100:
-		clk = 11289600;
-		break;
-	}
+	int ret = 0;
 
 	if(rtd->dai_link){
 		if(rtd->dai_link->dai_fmt){
@@ -79,15 +49,6 @@ static int hobot_snd_hw_params(struct snd_pcm_substream *substream,
 		}
 	}
 
-	if (!strcmp(rtd->codec_dai->name, "ac101-ic-pcm0")) {
-		ret = snd_soc_dai_set_sysclk(rtd->codec_dai, AC101_MCLK1, clk,
-			SND_SOC_CLOCK_IN);
-		if (ret < 0) {
-			pr_err("%s, line:%d\n", __func__, __LINE__);
-			return ret;
-		}
-	}
-
 	return ret;
 }
 
@@ -98,6 +59,7 @@ static struct snd_soc_ops hobot_snd_ops = {
 static int hobot_snd_probe(struct platform_device *pdev)
 {
 	int ret = 0, id = 0, num = 0, idx = 0;
+	int source = 0;
 	struct snd_soc_card *card = NULL;
 	struct snd_soc_dai_link *link = NULL, *links = NULL;
 	struct device *dev = &pdev->dev;
@@ -135,8 +97,8 @@ static int hobot_snd_probe(struct platform_device *pdev)
 	id = of_alias_get_id(pdev->dev.of_node, "sndcard");
 	if (id < 0) {
 		pr_debug("id: %d\n", id);
-		if (!strcmp(card->name, "hobotsnd0"))
-			id = 0;
+		if (!strcmp(card->name, "hobotsnd3"))
+			id = 3;
 	}
 		for_each_child_of_node(node, np) {
 			link = links + idx;
@@ -153,9 +115,6 @@ static int hobot_snd_probe(struct platform_device *pdev)
 				dev_err(dev, "error getting cpu phandle\n");
 				return ret;
 			}
-
-			ret = of_property_read_u32(link->cpu_of_node,
-				"mclk_set", &mclk);
 
 			pr_debug("Name of link->cpu_of_node : %s\n", link->cpu_of_node->name);
 		
@@ -219,7 +178,7 @@ static int hobot_snd_remove(struct platform_device *pdev)
 
 #ifdef CONFIG_OF
 static const struct of_device_id hobot_snd_of_match[] = {
-	{.compatible = "hobot, hobot-snd0", },
+	{.compatible = "hobot, hobot-snd3", },
 	{}
 };
 

@@ -661,6 +661,8 @@ static int ac101_aif1clk(struct snd_soc_codec* codec, int event, int quick) {
 	case SND_SOC_DAPM_PRE_PMU:
 		if (ac10x->aif1_clken == 0){
 			ret = ac101_update_bits(codec, SYSCLK_CTRL, (0x1<<AIF1CLK_ENA), (0x1<<AIF1CLK_ENA));
+			ret = ret || ac101_update_bits(codec, MOD_CLK_ENA, (0x1<<MOD_CLK_AIF1), (0x1<<MOD_CLK_AIF1));
+                        ret = ret || ac101_update_bits(codec, MOD_RST_CTRL, (0x1<<MOD_RESET_AIF1), (0x1<<MOD_RESET_AIF1));
 			ret = ret || ac101_update_bits(codec, SYSCLK_CTRL, (0x1<<SYSCLK_ENA), (0x1<<SYSCLK_ENA));
 
 			if (ret) {
@@ -1077,7 +1079,10 @@ int ac101_hw_params(struct snd_pcm_substream *substream,
 	}
 
 	/* set LRCK/BCLK ratio */
-	//aif1_lrck_div = aif1_slot_size * channels;
+	aif1_lrck_div = aif1_slot_size * channels;
+	if (params_rate(params) == 8000)
+		aif1_lrck_div = 64;
+	#if 0
 	switch(params_rate(params)) {
 	case 16000:
 	case 22050:
@@ -1092,6 +1097,7 @@ int ac101_hw_params(struct snd_pcm_substream *substream,
 		aif1_lrck_div = 32;
 		break;
 	}
+	#endif
 	for (i = 0; i < ARRAY_SIZE(codec_aif1_lrck); i++) {
 		if (codec_aif1_lrck[i].val == aif1_lrck_div) {
 			break;
@@ -1129,10 +1135,10 @@ int ac101_hw_params(struct snd_pcm_substream *substream,
 	*/
 
 	/* setting pll if it's master mode */
-	reg_val = ac101_read(codec, AIF_CLK_CTRL);
-	if ((reg_val & (0x1 << AIF1_MSTR_MOD)) == 0) {
+	//reg_val = ac101_read(codec, AIF_CLK_CTRL);
+	//if ((reg_val & (0x1 << AIF1_MSTR_MOD)) == 0) {
 		ac101_set_pll(codec_dai, ac10x->clk_id, 0, ac10x->sysclk, freq_out);
-	}
+	//}
 	bclkdiv = freq_out / (aif1_lrck_div * params_rate(params));
 	for (i = 0; i < ARRAY_SIZE(ac101_bclkdivs) - 1; i++) {
 		if (ac101_bclkdivs[i] >= bclkdiv) {
@@ -1152,7 +1158,6 @@ int ac101_hw_params(struct snd_pcm_substream *substream,
 	ac101_update_bits(codec, MOD_CLK_ENA, (0x1<<MOD_CLK_AIF1), (0x1<<MOD_CLK_AIF1));
         ac101_update_bits(codec, MOD_RST_CTRL, (0x1<<MOD_RESET_AIF1), (0x1<<MOD_RESET_AIF1));
 	msleep(10);
-	ac101_set_clock(1);
 
 	AC101_DBG("rate: %d , channels: %d , samp_res: %d",
 		params_rate(params), channels, aif1_slot_size);
@@ -1268,6 +1273,7 @@ int ac101_set_dai_fmt(struct snd_soc_dai *codec_dai, unsigned int fmt)
 	}
 	ac101_write(codec, AIF_CLK_CTRL, reg_val);
 
+	ac101_set_clock(1);
 	return 0;
 }
 
@@ -1276,7 +1282,7 @@ int ac101_audio_startup(struct snd_pcm_substream *substream,
 {
 	// struct snd_soc_codec *codec = codec_dai->codec;
 
-	AC101_DBG("\n\n\n");
+		AC101_DBG("\n\n\n");
 
 	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
 	}
@@ -1348,15 +1354,20 @@ static int ac101_set_dai_sysclk(struct snd_soc_dai *codec_dai,
 	return 0;
 }
 
+static int ac101_set_clkdiv(struct snd_soc_dai *dai, int div_id, int div) {
+	return 0;
+}
+
 static const struct snd_soc_dai_ops ac101_aif1_dai_ops = {
 	.startup	= ac101_audio_startup,
-	//.shutdown	= ac101_aif_shutdown,
+	.shutdown	= ac101_aif_shutdown,
 	.set_sysclk	= ac101_set_dai_sysclk,
 	.set_pll	= ac101_set_pll,
 	.set_fmt	= ac101_set_dai_fmt,
 	.hw_params	= ac101_hw_params,
 	//.trigger	= ac101_trigger,
 	.digital_mute	= ac101_aif_mute,
+	.set_clkdiv     = ac101_set_clkdiv,
 };
 
 static struct snd_soc_dai_driver ac101_dai = {
@@ -1776,7 +1787,7 @@ void ac10x_init(struct snd_soc_codec *codec) {
 	ac101_write(codec, 0x03, 0x0808);
 
 	ac101_write(codec, 0x06, 0x8000);
-	ac101_write(codec, 0x10, 0xaC50);
+	ac101_write(codec, 0x10, 0x2C50);
 
 	ac101_write(codec, 0x04, 0x808c);
 	ac101_write(codec, 0x05, 0x808c);
