@@ -24,6 +24,7 @@
 
 #include "u_os_desc.h"
 
+static void reset_config(struct usb_composite_dev *cdev);
 /**
  * struct usb_os_string - represents OS String to be reported by a gadget
  * @bLength: total length of the entire descritor, always 0x12
@@ -352,8 +353,12 @@ int usb_function_deactivate(struct usb_function *function)
 
 	spin_lock_irqsave(&cdev->lock, flags);
 
-	if (cdev->deactivations == 0)
+	if (cdev->deactivations == 0) {
+		if (cdev->config)
+			reset_config(cdev);
 		status = usb_gadget_deactivate(cdev->gadget);
+	}
+
 	if (status == 0)
 		cdev->deactivations++;
 
