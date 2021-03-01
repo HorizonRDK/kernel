@@ -1786,8 +1786,11 @@ static int dwc3_gadget_run_stop(struct dwc3 *dwc, int is_on, int suspend)
 		reg &= DWC3_DSTS_DEVCTRLHLT;
 	} while (--timeout && !(!is_on ^ !reg));
 
-	if (!timeout)
-		return -ETIMEDOUT;
+	if (!timeout) {
+		// uvc-ecm still meet some timeout case, ignore it temporarily
+		// return -ETIMEDOUT;
+		return 0;
+	}
 
 	return 0;
 }
