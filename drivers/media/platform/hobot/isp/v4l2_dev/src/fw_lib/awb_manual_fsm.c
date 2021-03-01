@@ -321,7 +321,7 @@ uint8_t AWB_fsm_process_event( AWB_fsm_t *p_fsm, event_id_t event_id )
     case event_id_awb_result_ready:
         awb_update_ccm( p_fsm );
         awb_normalise( p_fsm );
-        fsm_raise_event( p_fsm, event_id_WB_matrix_ready );
+        // fsm_raise_event( p_fsm, event_id_WB_matrix_ready );
         b_event_processed = 1;
         break;
     }

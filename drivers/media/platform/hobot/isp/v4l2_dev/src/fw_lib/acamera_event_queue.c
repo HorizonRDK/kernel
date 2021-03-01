@@ -186,11 +186,10 @@ int32_t acamera_event_queue_has_mask_event( acamera_event_queue_ptr_t p_queue )
 		pos = p_buf->tail;
 		head = p_buf->head;
 		printk_ratelimited(TAG_EVT_DBG "tail= %d, head = %d\n", pos, head);
-		while (head != pos) {
-			pos = pos % p_buf->data_buf_size;
-			event = p_buf->p_data_buf[pos];
+		while (head != pos && pos < p_buf->data_buf_size) {
+			event = p_buf->p_data_buf[pos++];
 			event_id = (event_id_t)(event);
-			pos ++;
+			pos = pos % p_buf->data_buf_size;
 			printk_ratelimited(TAG_EVT_DBG "no process event:[%s]\n", event_name[event_id]);
 		}
 		system_spinlock_unlock( p_queue->lock, flags );
