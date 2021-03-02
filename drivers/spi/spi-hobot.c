@@ -627,6 +627,11 @@ static irqreturn_t hb_spi_int_handle(int irq, void *data)
 		errflg = 1;
 	}
 
+	if (pnd & HB_SPI_INT_TX_DMAERR) {
+		dev_err(hbspi->dev, "INT_TX_DMAERR\n");
+		errflg = 1;
+	}
+
 	if (pnd)
 		hb_spi_wr(hbspi, HB_SPI_SRCPND_REG, pnd);
 
