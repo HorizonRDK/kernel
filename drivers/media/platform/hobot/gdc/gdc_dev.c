@@ -447,7 +447,7 @@ int gdc_video_process(struct gdc_video_ctx *gdc_ctx, unsigned long arg)
 				msecs_to_jiffies(GDC_PROCESS_TIMEOUT));
 	if (timeout == 0) {
 		up(&gdc_dev->smp_gdc_enable);
-		vio_err("GDC process timeout;\n");
+		vio_err("GDC process timeout %d ms;\n", GDC_PROCESS_TIMEOUT);
 		return -ETIMEDOUT;
 	}
 	gdc_dev->state = GDC_DEV_FREE;

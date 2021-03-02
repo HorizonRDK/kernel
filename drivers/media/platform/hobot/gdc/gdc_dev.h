@@ -23,7 +23,7 @@
 #define GDC_IOC_MAGIC 'g'
 
 #define GDC_IOC_PROCESS          _IOW(GDC_IOC_MAGIC, 0, int)
-#define GDC_PROCESS_TIMEOUT		(40) /* ms */
+#define GDC_PROCESS_TIMEOUT		(60) /* ms */
 
 
 #define ACAMERA_GDC_MAX_INPUT 3
