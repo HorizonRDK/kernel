@@ -196,7 +196,8 @@ void sif_read_frame_work(struct vio_group *group)
 				sif_frame_info[instance].frame_id = frameinfo->frame_id;
 				sif_frame_info[instance].timestamps = frameinfo->timestamps;
 				sif_frame_info[instance].tv = frameinfo->tv;
-				vio_dbg("sif_read_frame_work frame_id %d", frameinfo->frame_id);
+				vio_dbg("sif_read_frame_work frame_id %d pipe_id %d",
+						frameinfo->frame_id, instance);
 				sif_config_rdma_cfg(subdev, 0, frameinfo);
 				if (subdev->dol_num > 1) {
 					sif_config_rdma_cfg(subdev, 1, frameinfo);
@@ -611,7 +612,7 @@ static int sif_video_order(struct sif_video_ctx *sif_ctx,
 		}
 
 		if ((seq_info->timeout > 0) && (seq_info->timeout != queue->timeout)) {
-			vio_info("sif_order: pipe(%d) timeout change (%d -> %d)\n",
+			vio_dbg("sif_order: pipe(%d) timeout change (%d -> %d)\n",
 					pipeid, queue->timeout, seq_info->timeout);
 			queue->timeout = seq_info->timeout;
 		}
@@ -626,13 +627,13 @@ static int sif_video_order(struct sif_video_ctx *sif_ctx,
 			spin_unlock(&sif->seq_task.slock);
 			wake_up_interruptible(&sif->seq_task.wait_queue);
 
-			vio_info("sif_order: pipe(%d) order change [%d %d %d %d %d %d %d %d]\n",
+			vio_dbg("sif_order: pipe(%d) order change [%d %d %d %d %d %d %d %d]\n",
 					pipeid, sif->seq_task.seq_num[0], sif->seq_task.seq_num[1],
 					sif->seq_task.seq_num[2], sif->seq_task.seq_num[3],
 					sif->seq_task.seq_num[4], sif->seq_task.seq_num[5],
 					sif->seq_task.seq_num[6], sif->seq_task.seq_num[7]);
 		} else {
-			vio_info("sif_order: pipe(%d) set order done.\n", pipeid);
+			vio_dbg("sif_order: pipe(%d) set order done.\n", pipeid);
 		}
 
 		// return current info
@@ -763,7 +764,7 @@ sleep:
 
 		// timeout: skip current queue
 		if (!ret_time && !queue->queue_count) {
-			vio_dbg("pipe%d %llu miss %dus > %dms\n",
+			vio_dbg("timeout pipe%d %llu miss %dus > %dms\n",
 					queue->pipeline_id, queue->frameid,
 					get_time_sub(queue)/1000, queue->timeout);
 			cur_pipeid = sif_next_queue(sif, &cur_seq_num);
