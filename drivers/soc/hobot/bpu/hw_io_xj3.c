@@ -477,8 +477,8 @@ static int32_t bpu_core_hw_enable(struct bpu_core *core)
 	}
 
 	if ((EventIdBpu0Err + core->index) <= EventIdBpu1Err) {
-		if (diag_register(ModuleDiag_bpu, EventIdBpu0Err + core->index, 5, 300,
-					7000, bpu_diag_test) < 0)
+		if (diag_register(ModuleDiag_bpu, EventIdBpu0Err + core->index, 5, 100,
+					148, bpu_diag_test) < 0)
 			pr_debug("bpu%d diag register fail\n", core->index);
 	} else {
 		dev_err(core->dev, "bpu event id overun: max = 2,but now is:%d\n",
