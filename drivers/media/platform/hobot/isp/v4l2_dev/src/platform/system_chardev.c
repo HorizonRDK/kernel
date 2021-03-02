@@ -816,7 +816,6 @@ buf_free:
 	case ISPIOC_STA_CTRL:
 	{
 		isp_sta_ctrl_t ctx_ctrl;
-		isp_ctx_node_t *cn = NULL;
 		acamera_context_t *p_ctx;
 
 		if (copy_from_user(&ctx_ctrl, (void __user *)arg, sizeof(ctx_ctrl))) {

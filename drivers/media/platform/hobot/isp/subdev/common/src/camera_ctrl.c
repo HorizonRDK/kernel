@@ -125,7 +125,6 @@ static long camera_ctrl_fop_ioctl(struct file *pfile, unsigned int cmd,
 {
 	int ret = 0;
 	uint32_t port = 0;
-	camera_ctrlmod_s *camera_cdev = pfile->private_data;
 
 	//pr_info("---[%s-%d]---\n", __func__, __LINE__);
 	switch(cmd) {

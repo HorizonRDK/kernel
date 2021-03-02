@@ -559,7 +559,7 @@ void cmos_fsm_process_interrupt( cmos_fsm_const_ptr_t p_fsm, uint8_t irq_event )
     status_info_param_t *p_status_info = (status_info_param_t *)_GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_STATUS_INFO );
 
     uint32_t wdr_mode = 0;
-    int fw_id = p_fsm->cmn.ctx_id;
+    // int fw_id = p_fsm->cmn.ctx_id;
 
     fsm_param_sensor_info_t sensor_info;
     acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_SENSOR_INFO, NULL, 0, &sensor_info, sizeof( sensor_info ) );

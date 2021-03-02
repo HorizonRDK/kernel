@@ -389,7 +389,6 @@ int dwe_init_api(dwe_context_t *ctx, struct dwe_dev_s *pdev, dwe_param_t **ppara
 {
 	int ret = 0;
 	uint32_t tmp = 0;
-	uint32_t add_t = 0;
 
 	if (pdev != NULL)
 		dev_ptr = pdev;

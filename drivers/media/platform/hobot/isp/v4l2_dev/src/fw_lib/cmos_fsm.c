@@ -382,7 +382,7 @@ uint8_t cmos_fsm_process_event( cmos_fsm_t *p_fsm, event_id_t event_id )
         cmos_calc_target_gain( p_fsm );
         cmos_analog_gain_update( p_fsm );
         cmos_digital_gain_update( p_fsm );
-        fsm_raise_event( p_fsm, event_id_update_iridix );
+        // fsm_raise_event( p_fsm, event_id_update_iridix );
 
         cmos_update_exposure_history( p_fsm );
 
@@ -398,7 +398,7 @@ uint8_t cmos_fsm_process_event( cmos_fsm_t *p_fsm, event_id_t event_id )
         cmos_calc_target_gain( p_fsm );
         cmos_analog_gain_update( p_fsm );
         cmos_digital_gain_update( p_fsm );
-        fsm_raise_event( p_fsm, event_id_update_iridix );
+        // fsm_raise_event( p_fsm, event_id_update_iridix );
 
         cmos_update_exposure_history( p_fsm );
 
@@ -424,7 +424,7 @@ uint8_t cmos_fsm_process_event( cmos_fsm_t *p_fsm, event_id_t event_id )
         cmos_calc_target_gain( p_fsm );
         cmos_analog_gain_update( p_fsm );
         cmos_digital_gain_update( p_fsm );
-        fsm_raise_event( p_fsm, event_id_update_iridix );
+        // fsm_raise_event( p_fsm, event_id_update_iridix );
 
         cmos_update_exposure_history( p_fsm );
 
@@ -433,7 +433,7 @@ uint8_t cmos_fsm_process_event( cmos_fsm_t *p_fsm, event_id_t event_id )
     case event_id_extern_ae_readly:
         cmos_exposure_update_extern_ae( p_fsm );
         cmos_gain_update_extern_ae( p_fsm );
-        fsm_raise_event( p_fsm, event_id_update_iridix );
+        // fsm_raise_event( p_fsm, event_id_update_iridix );
 
         cmos_update_exposure_history( p_fsm );
         b_event_processed = 1;

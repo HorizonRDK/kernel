@@ -646,7 +646,7 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
             p_ctx->p_gfw->cache_area = vmalloc(HOBOT_DMA_SRAM_ONE_ZONE);
             if (p_ctx->p_gfw->cache_area == NULL) {
                 pr_err("cache area alloc failed.\n");
-				vfree(p_ctx->sw_reg_map.isp_sw_config_map);
+				vfree((void *)p_ctx->sw_reg_map.isp_sw_config_map);
                 mutex_unlock(&p_ctx->p_gfw->ctx_chg_lock);
                 return -1;
             }
@@ -746,7 +746,7 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
 			if (p_ctx->initialized == 0)
 				acamera_fw_deinit(p_ctx);
 			if (p_ctx->content_side == SIDE_DDR) {
-				vfree(p_ctx->sw_reg_map.isp_sw_config_map);
+				vfree((void *)p_ctx->sw_reg_map.isp_sw_config_map);
 			} else {
 				if (p_ctx->dma_chn_idx >= 0 &&
 					p_ctx->dma_chn_idx < HW_CONTEXT_NUMBER) {

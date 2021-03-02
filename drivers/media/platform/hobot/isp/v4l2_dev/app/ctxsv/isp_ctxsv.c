@@ -286,7 +286,7 @@ int isp_irq_wait_for_completion(int ctx_id, uint8_t irq_type, unsigned long time
 		pr_debug("ctx[%d] irq_type[%d] is time_out\n", ctx_id, irq_type);
 		ret = -1;
 	}
-	pr_debug("ctx %d, irq_type %d is require, time is %d!\n", ctx_id, irq_type, td);
+	pr_debug("ctx %d, irq_type %d is require, time is %lu!\n", ctx_id, irq_type, td);
 	return ret;
 }
 

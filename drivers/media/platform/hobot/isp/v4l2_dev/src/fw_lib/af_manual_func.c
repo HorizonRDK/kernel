@@ -193,7 +193,6 @@ void af_read_stats_data( AF_fsm_ptr_t p_fsm )
 
     //add get af static func
 	int rc = 0;
-	static int count = 0;
 	rc = system_chardev_lock();
 	if (rc == 0 && p_ctx->isp_af_stats_on) {
 		isp_ctx_node_t *cn;

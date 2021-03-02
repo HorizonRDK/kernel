@@ -1040,7 +1040,6 @@ int isp_init_iridix(uint32_t ctx_id, uint32_t ctrl_val)
 	int i;
 	int iridix_no;
 	int ret = 0;
-	int stream_on = 0;
 	acamera_context_t *ptr_tmp;
 	acamera_context_t *ptr = acamera_get_ctx_ptr(ctx_id);
 	mutex_lock(&ptr->p_gfw->ctx_chg_lock);
