@@ -3666,7 +3666,10 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		if (subdev) {
 			if (test_bit(IPU_OTF_INPUT, &ipu->state) &&
 				(isp_status_check() || ldc_status_check())) {
-				vio_err("[s%d]-us isp/ldc frame drop\n", instance);
+				if (isp_status_check())
+					vio_err("[s%d]-us isp frame drop\n", instance);
+				if (ldc_status_check())
+					vio_err("[s%d]-us ldc frame drop\n", instance);
 				ipu_frame_ndone(subdev);
 			} else {
 				ipu_frame_done(subdev);
@@ -3679,7 +3682,10 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		if (subdev) {
 			if (test_bit(IPU_OTF_INPUT, &ipu->state) &&
 				(isp_status_check() || ldc_status_check())) {
-				vio_err("[s%d]-ds0 isp/ldc frame drop\n", instance);
+				if (isp_status_check())
+					vio_err("[s%d]-ds0 isp frame drop\n", instance);
+				if (ldc_status_check())
+					vio_err("[s%d]-ds0 ldc frame drop\n", instance);
 				ipu_frame_ndone(subdev);
 			} else {
 				ipu_frame_done(subdev);
@@ -3692,7 +3698,10 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		if (subdev) {
 			if (test_bit(IPU_OTF_INPUT, &ipu->state) &&
 				(isp_status_check() || ldc_status_check())) {
-				vio_err("[s%d]-ds1 isp/ldc frame drop\n", instance);
+				if (isp_status_check())
+					vio_err("[s%d]-ds1 isp frame drop\n", instance);
+				if (ldc_status_check())
+					vio_err("[s%d]-ds1 ldc frame drop\n", instance);
 				ipu_frame_ndone(subdev);
 			} else {
 				ipu_frame_done(subdev);
@@ -3707,7 +3716,10 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		if (subdev && subdev->cur_enable_flag) {
 			if (test_bit(IPU_OTF_INPUT, &ipu->state) &&
 				(isp_status_check() || ldc_status_check())) {
-				vio_err("[s%d]-ds2 isp/ldc frame drop\n", instance);
+				if (isp_status_check())
+					vio_err("[s%d]-ds2 isp frame drop\n", instance);
+				if (ldc_status_check())
+					vio_err("[s%d]-ds2 ldc frame drop\n", instance);
 				ipu_frame_ndone(subdev);
 			} else {
 				ipu_frame_done(subdev);
@@ -3723,7 +3735,10 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		if (subdev) {
 			if (test_bit(IPU_OTF_INPUT, &ipu->state) &&
 				(isp_status_check() || ldc_status_check())) {
-				vio_err("[s%d]-ds3 isp/ldc frame drop\n", instance);
+				if (isp_status_check())
+					vio_err("[s%d]-ds3 isp frame drop\n", instance);
+				if (ldc_status_check())
+					vio_err("[s%d]-ds3 ldc frame drop\n", instance);
 				ipu_frame_ndone(subdev);
 			} else {
 				ipu_frame_done(subdev);
@@ -3736,7 +3751,10 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		if (subdev) {
 			if (test_bit(IPU_OTF_INPUT, &ipu->state) &&
 				(isp_status_check() || ldc_status_check())) {
-				vio_err("[s%d]-ds4 isp/ldc frame drop\n", instance);
+				if (isp_status_check())
+					vio_err("[s%d]-ds4 isp frame drop\n", instance);
+				if (ldc_status_check())
+					vio_err("[s%d]-ds4 ldc frame drop\n", instance);
 				ipu_frame_ndone(subdev);
 			} else {
 				ipu_frame_done(subdev);
