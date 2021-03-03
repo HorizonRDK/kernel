@@ -4723,7 +4723,7 @@ static int x3_ipu_probe(struct platform_device *pdev)
 	x3_ipu_subdev_init(ipu);
 	vio_group_init_mp(GROUP_ID_IPU);
 	if (diag_register(ModuleDiag_VIO, EventIdVioIpuErr,
-					4, 380, 8000, NULL) < 0)
+					4, 100, 148, NULL) < 0)
 		pr_err("ipu dual diag register fail\n");
 	vio_info("[FRT:D] %s(%d)\n", __func__, ret);
 
