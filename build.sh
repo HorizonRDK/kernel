@@ -220,6 +220,11 @@ function all()
     cpfiles "${BUILD_OUTPUT_PATH}/arch/$ARCH_KERNEL/boot/$KERNEL_IMAGE_NAME" "$prefix/"
     cpfiles "${BUILD_OUTPUT_PATH}/arch/$ARCH_KERNEL/boot/dts/hobot/$KERNEL_DTB_NAME" "$prefix/"
 
+    #calculate kernel crc
+    runcmd "$SRC_KERNEL_DIR/crc.py ${BUILD_OUTPUT_PATH}/arch/arm64/boot/Image.gz ${BUILD_OUTPUT_PATH}/result_crc"
+    cpfiles "${BUILD_OUTPUT_PATH}/result_crc " "$TARGET_TMPROOTFS_DIR/etc/diag/"
+    #rm $SRC_KERNEL_DIR/_install/ -rf
+
     # build dtb-mapping.conf
     build_dtbmapping
 
