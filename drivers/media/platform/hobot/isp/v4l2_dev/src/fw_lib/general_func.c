@@ -413,7 +413,7 @@ void acamera_reload_isp_calibratons( general_fsm_ptr_t p_fsm )
         const uint32_t *p_lut3d_mem = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_LUT3D_MEM );
         LOG( LOG_INFO, "lut3d_mem_len: %d", lut3d_mem_len );
         for ( i = 0; i < lut3d_mem_len; i++ ) {
-            acamera_lut3d_mem_array_data_write( p_fsm->cmn.isp_base, i, p_lut3d_mem[i] );
+            // acamera_lut3d_mem_array_data_write( p_fsm->cmn.isp_base, i, p_lut3d_mem[i] );
         }
 #endif
     }

@@ -5012,6 +5012,7 @@ uint8_t acamera_api_calibration( uint32_t ctx_id, uint8_t type, uint8_t id, uint
                 case CALIBRATION_MT_ABSOLUTE_LS_A_CCM:
                 case CALIBRATION_MT_ABSOLUTE_LS_D40_CCM:
                 case CALIBRATION_MT_ABSOLUTE_LS_D50_CCM:
+		case CALIBRATION_LUT3D_MEM:
 #if ISP_HAS_COLOR_MATRIX_FSM
                     acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_CCM_CHANGE, NULL, 0 );
 #endif

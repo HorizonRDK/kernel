@@ -420,6 +420,9 @@ uint32_t get_calibrations_static_linear_dummy( ACameraCalibrations *c ) {
         c->calibrations[CALIBRATION_MT_ABSOLUTE_LS_D40_CCM] = &calibration_mt_absolute_ls_d40_ccm;
         c->calibrations[CALIBRATION_MT_ABSOLUTE_LS_D50_CCM] = &calibration_mt_absolute_ls_d50_ccm;
         c->calibrations[CALIBRATION_LUT3D_MEM] = &calibration_lut3d_mem;
+	c->calibrations[CALIBRATION_LUT3D_MEM_A] = NULL;
+	c->calibrations[CALIBRATION_LUT3D_MEM_D40] = NULL;
+	c->calibrations[CALIBRATION_LUT3D_MEM_D50] = NULL;
         c->calibrations[CALIBRATION_LIGHT_SRC] = &calibration_light_src;
         c->calibrations[CALIBRATION_RG_POS] = &calibration_rg_pos;
         c->calibrations[CALIBRATION_BG_POS] = &calibration_bg_pos;

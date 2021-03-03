@@ -26,6 +26,8 @@
 #include "acamera_math.h"
 #include "acamera_command_api.h"
 #include "color_matrix_fsm.h"
+#include "awb_manual_fsm.h"
+#include "acamera_lut3d_mem_config.h"
 
 #include "system_stdlib.h"
 
@@ -337,6 +339,15 @@ void color_matrix_initialize( color_matrix_fsm_t *p_fsm )
     ACAMERA_FSM2CTX_PTR( p_fsm )
         ->stab.global_manual_saturation = ( 0 );
 
+	{
+	uint32_t i = 0;
+	uint32_t lut3d_mem_len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_LUT3D_MEM );
+	const uint32_t *p_lut3d_mem = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_LUT3D_MEM );
+	for ( i = 0; i < lut3d_mem_len; i++ ) {
+		acamera_lut3d_mem_array_data_write( p_fsm->cmn.isp_base, i, p_lut3d_mem[i] );
+	}
+	}
+
 #endif // FW_DO_INITIALIZATION
 }
 
@@ -524,6 +535,31 @@ void color_matrix_update( color_matrix_fsm_t *p_fsm )
     color_matrix_write( p_fsm );
     mesh_shading_modulate_strength( p_fsm );
 
+	// update 3d_lut
+	{
+	fsm_param_awb_info_t wb_info;
+	uint32_t i = 0;
+	acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_AWB_INFO, NULL, 0, &wb_info, sizeof( wb_info ) );
+	const uint32_t *p_lut3d_mem_a = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_LUT3D_MEM_A );
+	const uint32_t *p_lut3d_mem_d40 = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_LUT3D_MEM_D40 );
+	const uint32_t *p_lut3d_mem_d50 = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_LUT3D_MEM_D50 );
+	if (p_lut3d_mem_a && p_lut3d_mem_d40 &&  p_lut3d_mem_d50) {
+		if (wb_info.temperature_detected < AWB_DLS_LIGHT_SOURCE_A_D40_BORDER) {
+			for ( i = 0; i < 1000; i++ ) {
+				acamera_lut3d_mem_array_data_write(p_fsm->cmn.isp_base, i, p_fsm->lut3d_a[i]);
+			}
+		} else if (wb_info.temperature_detected > AWB_DLS_LIGHT_SOURCE_D40_D50_BORDER) {
+			for ( i = 0; i < 1000; i++ ) {
+				acamera_lut3d_mem_array_data_write(p_fsm->cmn.isp_base, i, p_fsm->lut3d_d50[i]);
+			}
+		} else {
+			for ( i = 0; i < 1000; i++ ) {
+				acamera_lut3d_mem_array_data_write(p_fsm->cmn.isp_base, i, p_fsm->lut3d_d40[i]);
+			}
+		}
+	}
+	}
+
     if ( p_fsm->light_source_change_frames_left > 0 ) {
         p_fsm->light_source_change_frames_left--;
     }
@@ -574,4 +610,28 @@ void color_matrix_change_CCMs( color_matrix_fsm_t *p_fsm )
             p_fsm->color_correction_matrix[i] = p_ccm_next[i];
         }
     }
+
+	// update 3d_lut
+	{
+	uint32_t i = 0;
+	uint32_t lut3d_mem_len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_LUT3D_MEM );
+	const uint32_t *p_lut3d_mem = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_LUT3D_MEM );
+	const uint32_t *p_lut3d_mem_a = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_LUT3D_MEM_A );
+	const uint32_t *p_lut3d_mem_d40 = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_LUT3D_MEM_D40 );
+	const uint32_t *p_lut3d_mem_d50 = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_LUT3D_MEM_D50 );
+	if (p_lut3d_mem_a && p_lut3d_mem_d40 && p_lut3d_mem_d50) {
+		memcpy(p_fsm->lut3d_a, p_lut3d_mem_a, 1000 * sizeof(uint32_t));
+		memcpy(p_fsm->lut3d_d40, p_lut3d_mem_d40, 1000 * sizeof(uint32_t));
+		memcpy(p_fsm->lut3d_d50, p_lut3d_mem_d50, 1000 * sizeof(uint32_t));
+	} else {
+		memcpy(p_fsm->lut3d_a, p_lut3d_mem, 1000 * sizeof(uint32_t));
+	}
+
+	if (!p_lut3d_mem_a || !p_lut3d_mem_d40 || !p_lut3d_mem_d50) {
+		for ( i = 0; i < lut3d_mem_len; i++ ) {
+			acamera_lut3d_mem_array_data_write(p_fsm->cmn.isp_base, i, p_fsm->lut3d_a[i]);
+		}
+	}
+	}
+
 }
