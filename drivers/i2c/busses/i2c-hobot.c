@@ -759,7 +759,7 @@ static int hobot_i2c_probe(struct platform_device *pdev)
 	dev->i2c_id = i2c_id;
 	dev_err(&pdev->dev, "i2c%d diag register....\n", i2c_id);
 	if (diag_register(ModuleDiag_i2c, EventIdI2cController0Err + i2c_id,
-			5, 300, 4000, NULL) < 0) {
+			5, 100, 148, NULL) < 0) {
 		dev_err(&pdev->dev, "i2c%d diag register fail\n",
 				EventIdI2cController0Err + i2c_id);
 	}
