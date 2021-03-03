@@ -1655,12 +1655,14 @@ void sif_print_buffer_status(u32 __iomem *base_reg)
 {
 	int cur_index = 0;
 	int value = 0;
+	int sys_report;
 
 	cur_index = vio_hw_get_reg(base_reg, &sif_regs[SIF_AXI_BUF_STATUS]);
 	value = vio_hw_get_reg(base_reg, &sif_regs[SIF_AXI_BUS_OWNER]);
+	sys_report = vio_hw_get_reg(base_reg, &sif_regs[SIF_SYS_REPORT]);
 
-	vio_err("current buffer index = 0x%x, buffer owner = 0x%x\n\n",
-			cur_index, value);
+	vio_err("sys_report 0x%x current buffer index = 0x%x, buffer owner = 0x%x\n\n",
+			sys_report, cur_index, value);
 }
 
 bool sif_get_wdma_enable(u32 __iomem *base_reg, u32 mux)
@@ -1740,6 +1742,14 @@ int sif_get_irq_src(u32 __iomem *base_reg, struct sif_irq_src *src,
 			vio_hw_get_reg(base_reg, &sif_regs[SIF_IN_BUF_OVERFLOW]);
 
 	return 0;
+}
+
+void sif_statics_err_overflow_clr(u32 __iomem *base_reg)
+{
+	vio_hw_set_field(base_reg, &sif_regs[SIF_SETTING],
+		&sif_fields[SW_STATICS_ERR_CLR], 1);
+	vio_hw_set_field(base_reg, &sif_regs[SIF_SETTING],
+		&sif_fields[SW_STATICS_ERR_CLR], 0);
 }
 
 void sif_set_isp_performance(u32 __iomem *base_reg, u8 value)
