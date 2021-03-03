@@ -216,3 +216,9 @@ config HOBOT_CR5_SERVICE
         default n
         ---help---
            Drivers for the HOBOT CR5 Service
+		   
+config HOBOT_CPU_CAL
+        tristate "HOBOT CPU CALCULATE Service Drivers"
+        default n
+        ---help---
+           Drivers for the HOBOT CPU CAL Service

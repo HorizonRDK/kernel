@@ -666,6 +666,10 @@ ENTRY(__enable_mmu)
 	isb
 	msr	sctlr_el1, x0
 	isb
+	mrs x25, SCTLR_EL1
+	bic x25, x25, #8 // Disable Stack Alignment Check Enable. SA BIT[4]
+	msr SCTLR_EL1, x25
+	 isb
 	/*
 	 * Invalidate the local I-cache so that any instructions fetched
 	 * speculatively from the PoC are discarded, since they may have

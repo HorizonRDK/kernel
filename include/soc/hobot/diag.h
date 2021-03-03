@@ -33,6 +33,7 @@ enum diag_module_id {
 	ModuleDiag_spi,
 	ModuleDiag_emmc,
 	ModuleDiag_qspi,
+	ModuleDiag_cpu_cal,
 	ModuleIdMax = 1000,
 };
 
@@ -73,7 +74,7 @@ enum diag_gen_envdata_timing {
  * not go over EVENT_ID_MAX, and start form 1, end
  * with EVENT_ID_MAX - 1.
  */
-#define EVENT_ID_MAX 20
+#define EVENT_ID_MAX 25
 
 /* diag driver module event id */
 enum diag_driver_module_eventid {
@@ -135,6 +136,31 @@ enum diag_qspi_module_eventid {
 	EventIdqspiErr = 1,
 };
 
+/* cpu cal module event id */
+enum diag_cpu_cal_module_eventid {
+	EventIdCpuCalTestInitErr = 1,
+	EventIdCpuCalTestDivErr,
+	EventIdCpuCalTestBitANDORRErr,
+	EventIdCpuCalTestAddSubErr,
+	EventIdCpuCalTestADRPErr,
+	EventIdCpuCalTestAdd1Err,
+	EventIdCpuCalTestAdd2rr,
+	EventIdCpuCalTestBitBICErr,
+	EventIdCpuCalTestASRVrr,
+	EventIdCpuCalTestCRCErr,
+	EventIdCpuCalTestBitOpErr,
+	EventIdCpuCalTestCondSel1rr,
+	EventIdCpuCalTestLoadErr,
+	EventIdCpuCalTestJumpBranErr,
+	EventIdCpuCalTestGenRegErr,
+	EventIdCpuCalTestMultiErr,
+	EventIdCpuCalTestStoreErr,
+	EventIdCpuCalTestSBFMErr,
+	EventIdCpuCalTestSUB1Err,
+	EventIdCpuCalTestSUB2Err,
+	EventIdCpuCalTestLogicErr,
+	EventIdCpuCalTestConSel2Err,
+};
 /* spi module event id */
 enum diag_spi_module_eventid {
 	EventIdSpi0Err = 1,

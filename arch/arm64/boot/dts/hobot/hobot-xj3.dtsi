@@ -1374,6 +1374,10 @@
 			status = "disabled";
 		};
 
+		cpu_cal_test: cpu_cal_test {
+			compatible = "cpu_cal_test";
+			status = "disabled";
+		};
 		socinfo: socinfo{
 			compatible = "hobot,x3-socinfo";
 			board_name = "0";

@@ -1,0 +1,73 @@
+obj-m := cpu_cal.o
+cpu_cal-objs += hobot_cpu_cal_cdev.o
+cpu_cal-objs += scheduler/src/a53_stl_arrays.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p001_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p002_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p003_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p004_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p005_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p006_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p007_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p008_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p009_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p010_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p011_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p012_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p013_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p014_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p015_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p016_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p017_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p018_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p019_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p020_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p021_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p022_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p023_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p024_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p025_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p026_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p027_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p028_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p029_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p030_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p031_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p032_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p033_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p034_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p035_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p036_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p037_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p038_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p039_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p040_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p041_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p042_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p043_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p044_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p045_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p046_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p047_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p048_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p049_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p050_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p051_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p052_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p053_n001.o
+cpu_cal-objs += stl_core/src/a53_stl_core_p054_n001.o
+#cpu_cal-objs += stl_gic/src/a53_stl_gic_p001_n001.o
+#cpu_cal-objs += stl_gic/src/a53_stl_gic_p002_n001.o
+cpu_cal-objs += shared/src/a53_stl_global_func.o
+cpu_cal-objs += shared/src/a53_stl_utils.o
+cpu_cal-objs += shared/src/a53_stl_save.o
+cpu_cal-objs += shared/src/a53_stl_restore.o
+cpu_cal-objs += shared/src/a53_stl_lut_data.o
+cpu_cal-objs += shared/ARMv8/src/v8_aarch64.o
+cpu_cal-objs += shared/ARMv8/src/v8_utils.o
+cpu_cal-objs += scheduler/src/a53_stl.o
+
+
+
+
+
+

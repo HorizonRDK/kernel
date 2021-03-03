@@ -26,3 +26,4 @@ obj-$(CONFIG_HOBOT_VCAM)	+= vcam/
 obj-$(CONFIG_HOBOT_IAR)		+= iar/
 obj-$(CONFIG_HOBOT_XJ3_CV_USRDRV)	+= usrdrv/
 obj-$(CONFIG_HOBOT_CR5_SERVICE) += cr5_service/
+obj-$(CONFIG_HOBOT_CPU_CAL) += cpu_cal/
