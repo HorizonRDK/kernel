@@ -1342,7 +1342,7 @@ static int hb_spi_probe(struct platform_device *pdev)
 	/* diag */
 	hbspi->spi_id = spi_id;
 	if (diag_register(ModuleDiag_spi, EventIdSpi0Err + spi_id,
-						4, 300, 6000, NULL) < 0)
+						4, 100, 148, NULL) < 0)
 		dev_err(hbspi->dev, "spi%d diag register fail\n", spi_id);
 
 	dev_info(&pdev->dev, "ver: %s %s\n", VER, ctrl_mode);
