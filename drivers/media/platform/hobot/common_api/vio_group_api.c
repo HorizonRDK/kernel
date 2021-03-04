@@ -6,7 +6,9 @@
 
 #include <linux/delay.h>
 #include <linux/sched.h>
+#include <linux/sched/signal.h>
 #include <uapi/linux/sched/types.h>
+#include <linux/stacktrace.h>
 #include "vio_group_api.h"
 
 static struct vio_core iscore;
@@ -340,7 +342,6 @@ void vio_bind_group_done(int instance)
 	int offset = 0;
 	struct vio_chain *ischain;
 	struct vio_group *group;
-	struct vio_group *group_ipu;
 	struct vio_group *ipu_group, *pym_group;
 	int every_group_input[GROUP_ID_NUMBER] = {-1, -1, -1, -1};
 
@@ -846,3 +847,26 @@ void vio_print_stat_info(u32 instance)
 		stat[GDC_FE].g_tv.tv_sec, stat[GDC_FE].g_tv.tv_usec);
 }
 EXPORT_SYMBOL(vio_print_stat_info);
+
+void vio_print_stack_by_name(char *name)
+{
+#define TRACE_DEPTH 20
+
+    struct task_struct *p = NULL;
+    unsigned long backtrace[TRACE_DEPTH];
+    struct stack_trace trace;
+
+    memset(&trace, 0, sizeof(trace));
+    memset(backtrace, 0, sizeof(unsigned long) * TRACE_DEPTH);
+    trace.max_entries = TRACE_DEPTH;
+    trace.entries = backtrace;
+
+    for_each_process(p) {
+        if (!strcmp(p->comm, name)) {
+            pr_info("find %s.\n", name);
+            save_stack_trace_tsk(p, &trace);
+            print_stack_trace(&trace, 0);
+        }
+    }
+}
+EXPORT_SYMBOL(vio_print_stack_by_name);

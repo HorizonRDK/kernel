@@ -254,6 +254,7 @@ struct _acamera_firmware_t {
     atomic_t frame_done;
     atomic_t y_dma_done;
     atomic_t uv_dma_done;
+    atomic_t evt_cnt;
     uint8_t first_frame;
 
     volatile uint8_t *cache_area;

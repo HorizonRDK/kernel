@@ -1405,6 +1405,7 @@ int32_t acamera_interrupt_handler()
                             p_ctx->fsm_mgr.event_queue.buf.head,
                             p_ctx->fsm_mgr.event_queue.buf.tail);
                         pr_err("->previous frame events are not process done\n");
+                        // vio_print_stack_by_name("isp_evt0");
                         acamera_evt_process_dbg(p_ctx);
 
                         //isp m2m ipu
@@ -1508,7 +1509,7 @@ int isp_fw_process( void *data )
 
     while ( !kthread_should_stop() ) {
         acamera_fw_process( p_ctx );
-        system_semaphore_wait( p_ctx->sem_evt_avail, 1 );
+        system_semaphore_wait( p_ctx->sem_evt_avail, 0 );
     }
 
     pr_debug( "isp_fw_process stop" );

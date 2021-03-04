@@ -187,6 +187,7 @@ void vio_dwe_clk_disable(void);
 void vio_set_stat_info(u32 instance, u32 stat_type, u16 frameid);
 void vio_print_stat_info(u32 instance);
 int vio_print_delay(s32 instance, s8* buf, u32 size);
+void vio_print_stack_by_name(char *name);
 void vio_clear_stat_info(u32 instance);
 
 extern iar_get_type_callback iar_get_type;
