@@ -710,6 +710,34 @@ int disp_set_interlace_mode(void)
 }
 EXPORT_SYMBOL_GPL(disp_set_interlace_mode);
 
+int disp_set_display_crop(struct position_cfg_t *crop_cfg)
+{
+	if (NULL == g_iar_dev) {
+		pr_err(KERN_ERR "IAR dev not inited!");
+		return -1;
+	}
+
+	writel(crop_cfg->y << 16 | crop_cfg->x,
+		g_iar_dev->regaddr + REG_IAR_CROPPED_WINDOW_RD1
+		- crop_cfg->layer * 4);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(disp_set_display_crop);
+
+int disp_set_display_position(struct position_cfg_t *position_cfg)
+{
+	if (NULL == g_iar_dev) {
+		pr_err(KERN_ERR "IAR dev not inited!");
+		return -1;
+	}
+
+	writel(position_cfg->y << 16 | position_cfg->x,
+		g_iar_dev->regaddr + REG_IAR_DISPLAY_POSTION_RD1
+		- position_cfg->layer * 4);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(disp_set_display_position);
+
 int disp_set_panel_timing(struct disp_timing *timing)
 {
 	uint32_t value;

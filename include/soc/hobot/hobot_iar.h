@@ -497,6 +497,12 @@ typedef struct _output_cfg_t {
 	uint32_t user_control_disp_layer1;
 } output_cfg_t;
 
+struct position_cfg_t {
+	uint32_t	layer;
+	uint32_t	x;
+	uint32_t	y;
+};
+
 typedef struct _upscaling_cfg_t {
 	uint32_t enable;
 	uint32_t src_width;
@@ -856,7 +862,8 @@ int iar_output_stream_on(int layer_no);
 int iar_output_stream_off(int layer_no);
 int disp_set_interlace_mode(void);
 int user_config_display(enum DISPLAY_TYPE d_type);
-
+int disp_set_display_crop(struct position_cfg_t *crop_cfg);
+int disp_set_display_position(struct position_cfg_t *position_cfg);
 // Supported rotation.
 enum RotationMode {
 	kRotate0 = 0,		// No rotation.
