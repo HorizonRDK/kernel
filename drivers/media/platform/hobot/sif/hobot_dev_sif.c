@@ -1279,6 +1279,7 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 	sif_config->input.mipi.func.set_mux_out_index = mux_index;
 	subdev->mux_index = mux_index;
 	ddr_mux_index = mux_index;
+	subdev->format = format;
 	if (format == HW_FORMAT_YUV422)
 		subdev->mux_index1 = mux_index + 1;
 	if (dol_exp_num > 1)
