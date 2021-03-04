@@ -827,7 +827,7 @@ static int x3_gdc_probe(struct platform_device *pdev)
 	vio_info("[FRT:D] %s(%d)\n", __func__, ret);
 
 	if (diag_register(ModuleDiag_VIO, EventIdVioGdcErr,
-					4, 400, 8000, NULL) < 0) {
+					4, 74, 148, NULL) < 0) {
 		vio_err("GDC diag register fail\n");
 	}
 

@@ -613,7 +613,7 @@ static int32_t soc_dwe_probe(struct platform_device *pdev)
 	rc = v4l2_async_register_subdev(&dwe_ctx->soc_dwe);
 
 	if (diag_register(ModuleDiag_VIO, EventIdVioLdcErr,
-					4, 400, 8000, NULL) < 0) {
+					4, 74, 148, NULL) < 0) {
 		vio_err("LDC diag register fail\n");
 	}
 

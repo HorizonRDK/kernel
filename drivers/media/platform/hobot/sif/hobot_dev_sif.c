@@ -2538,12 +2538,6 @@ static void sif_diag_report(uint8_t errsta, unsigned int status)
 				DiagGenEnvdataWhenErr,
 				(uint8_t *)&sta,
 				sizeof(unsigned int));
-	} else {
-		diag_send_event_stat(
-				DiagMsgPrioMid,
-				ModuleDiag_VIO,
-				EventIdVioSifErr,
-				DiagEventStaSuccess);
 	}
 }
 
@@ -3706,7 +3700,7 @@ static int x3_sif_probe(struct platform_device *pdev)
 	sif->vio_bind_info_dev = g_vio_bind_info_dev;
 
 	if (diag_register(ModuleDiag_VIO, EventIdVioSifErr,
-					4, 400, 8000, NULL) < 0)
+					4, 74, 148, NULL) < 0)
 		vio_err("sif diag register fail\n");
 
 	vio_info("[FRT:D] %s(%d)\n", __func__, ret);
