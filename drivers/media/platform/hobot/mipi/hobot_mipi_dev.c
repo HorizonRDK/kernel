@@ -2441,7 +2441,7 @@ static int hobot_mipi_dev_probe_cdev(mipi_ddev_t *ddev)
 #ifdef CONFIG_HOBOT_DIAG
 	/* diag */
 	if (diag_register(ModuleDiag_VIO, EventIdVioMipiDevErr,
-		sizeof(mipi_dev_icnt_t), 300, 5000, mipi_dev_diag_test) < 0) {
+		sizeof(mipi_dev_icnt_t), 100, 148, mipi_dev_diag_test) < 0) {
 		pr_err("mipi dev %d diag register fail\n", ddev->port);
 	} else {
 		ddev->last_err_tm_ms = 0;
