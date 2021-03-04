@@ -24,6 +24,7 @@
 #include <asm/cacheflush.h>
 #include <linux/io.h>
 #include <linux/poll.h>
+#include <soc/hobot/diag.h>
 #include <linux/ion.h>
 #include <linux/pm_qos.h>
 
@@ -1977,11 +1978,35 @@ void pym_frame_ndone(struct pym_subdev *subdev)
 	spin_unlock_irqrestore(&subdev->slock, flags);
 }
 
+static void pym_diag_report(uint8_t errsta, unsigned int status)
+{
+	unsigned int sta;
+
+	sta = status;
+	if (errsta) {
+		diag_send_event_stat_and_env_data(
+				DiagMsgPrioHigh,
+				ModuleDiag_VIO,
+				EventIdVioPymErr,
+				DiagEventStaFail,
+				DiagGenEnvdataWhenErr,
+				(uint8_t *)&sta,
+				sizeof(unsigned int));
+	} else {
+		diag_send_event_stat(
+				DiagMsgPrioMid,
+				ModuleDiag_VIO,
+				EventIdVioPymErr,
+				DiagEventStaSuccess);
+	}
+}
+
 static irqreturn_t pym_isr(int irq, void *data)
 {
 	u32 status;
 	u32 instance;
 	bool drop_flag = 0;
+	u32 err_occured = 0;
 	struct x3_pym_dev *pym;
 	struct vio_group *group;
 	struct vio_group_task *gtask;
@@ -2002,6 +2027,7 @@ static irqreturn_t pym_isr(int irq, void *data)
 			pym->statistic.soft_frame_drop_ds[instance]++;
 		else
 			pym->statistic.hard_frame_drop_ds[instance]++;
+		err_occured = 1;
 	}
 
 	if (status & (1 << INTR_PYM_US_FRAME_DROP)) {
@@ -2011,6 +2037,7 @@ static irqreturn_t pym_isr(int irq, void *data)
 			pym->statistic.soft_frame_drop_us[instance]++;
 		else
 			pym->statistic.hard_frame_drop_us[instance]++;
+		err_occured = 2;
 	}
 
 	if (status & (1 << INTR_PYM_FRAME_DONE)) {
@@ -2060,6 +2087,11 @@ static irqreturn_t pym_isr(int irq, void *data)
 			vio_group_done(group);
 		pym_frame_ndone(subdev);
 	}
+
+	if (drop_flag)
+		pym_diag_report(err_occured, status);
+	else
+		pym_diag_report(err_occured, status);
 	return IRQ_HANDLED;
 }
 
@@ -2604,6 +2636,9 @@ static int x3_pym_probe(struct platform_device *pdev)
 
 	x3_pym_subdev_init(pym);
 	vio_group_init_mp(GROUP_ID_PYM);
+	if (diag_register(ModuleDiag_VIO, EventIdVioPymErr,
+				4, 100, 148, NULL) < 0)
+	pr_err("pym diag register fail\n");
 
 	vio_info("[FRT:D] %s(%d)\n", __func__, ret);
 
