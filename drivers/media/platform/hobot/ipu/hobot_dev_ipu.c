@@ -1378,7 +1378,9 @@ void ipu_hw_set_info_cfg(struct ipu_subdev *subdev, u32 shadow_index)
 {
 	u32 id = 0;
 	struct ipu_info_cfg *info_cfg;
-	ipu_ds_info_t *sc_info, *sc_info_old;
+	struct vio_group *group;
+	struct ipu_subdev *src_subdev;
+	ipu_ds_info_t *sc_info, *sc_info_old, *sc_info_src;
 	ipu_roi_box_t *roi;
 	ipu_scale_info_t *scale_info;
 
@@ -1392,9 +1394,17 @@ void ipu_hw_set_info_cfg(struct ipu_subdev *subdev, u32 shadow_index)
 	roi = &sc_info->ds_roi_info;
 	scale_info = &sc_info->ds_sc_info;
 	sc_info_old = &subdev->scale_cfg;
+	group = subdev->group;
+	src_subdev = group->sub_ctx[0];
+	if (id == GROUP_ID_US) {
+		sc_info_src = (ipu_ds_info_t *)&src_subdev->ipu_cfg.us_info;
+	} else {
+		sc_info_src = &src_subdev->ipu_cfg.ds_info[id - GROUP_ID_DS0];
+	}
 
 	if (info_cfg->info_update) {
 		memcpy(sc_info_old, sc_info, sizeof(ipu_ds_info_t));
+		memcpy(sc_info_src, sc_info, sizeof(ipu_ds_info_t));
 		if (sc_info->ds_roi_en)
 			ipu_hw_set_roi_cfg(subdev, shadow_index, roi);
 		ipu_set_roi_enable(subdev, shadow_index, sc_info->ds_roi_en);
