@@ -70,6 +70,9 @@
 #define DISP_SET_VIDEO_PAUSE   _IOW(IAR_CDEV_MAGIC, 0x80, int)
 #define DISP_SET_INTERLACE_MODE   _IO(IAR_CDEV_MAGIC, 0x45)
 #define DISP_SET_PIXEL_CLK   _IOW(IAR_CDEV_MAGIC, 0x46, unsigned int)
+#define DISP_SET_POSITION _IOW(IAR_CDEV_MAGIC, 0x47, struct position_cfg_t)
+#define DISP_SET_CROP _IOW(IAR_CDEV_MAGIC, 0x48, struct position_cfg_t)
+#define DISP_UPDATE_PAR       _IO(IAR_CDEV_MAGIC, 0x49)
 
 unsigned int iar_open_cnt = 0;
 unsigned int iar_start_cnt = 0;
@@ -458,6 +461,36 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 			if (ret)
 				pr_err("error user set video timing!\n");
 			iar_update();
+		}
+		break;
+	case DISP_UPDATE_PAR:
+		 {
+			iar_update();
+			ret = 0;
+		}
+		break;
+	case DISP_SET_POSITION:
+		 {
+			struct position_cfg_t position;
+
+			if (copy_from_user(&position, arg,
+						sizeof(position)))
+				return -EFAULT;
+			ret = disp_set_display_position(&position);
+			if (ret)
+				pr_err("error user set display position!\n");
+		}
+		break;
+	case DISP_SET_CROP:
+		 {
+			struct position_cfg_t crop;
+
+			if (copy_from_user(&crop, arg,
+						sizeof(crop)))
+				return -EFAULT;
+			ret = disp_set_display_crop(&crop);
+			if (ret)
+				pr_err("error user set crop!\n");
 		}
 		break;
 	case DISP_SET_PIXEL_CLK:
