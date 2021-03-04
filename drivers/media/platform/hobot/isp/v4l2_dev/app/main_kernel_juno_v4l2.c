@@ -402,7 +402,6 @@ static int32_t isp_platform_probe( struct platform_device *pdev )
 		pr_err("create fps failed, rc = %d\n", rc);
 		goto free_res;
 	}
-
     rc = device_create_file(dev, &dev_attr_v3a);
 	if (rc < 0) {
 		pr_err("create v3a failed, rc = %d\n", rc);
@@ -426,7 +425,7 @@ static int32_t isp_platform_probe( struct platform_device *pdev )
 
 #ifdef CONFIG_HOBOT_DIAG
 	if (diag_register(ModuleDiag_VIO, EventIdVioIspErr,
-				4, 400, 8000, NULL) < 0)
+				4, 100, 148, NULL) < 0)
 	LOG(LOG_ERR, "Failed to register ISP diag.");
 #endif
 
