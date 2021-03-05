@@ -357,7 +357,8 @@ static int ion_get_range(struct ion_cma_info *info)
 					|| (strcmp(status, "ok") == 0)) {
 				if (!of_address_to_resource(node, 0, &ion_res)) {
 					pr_debug("%s:ION Carveout MEM start 0x%llx, size 0x%llx\n",
-							__func__, ion_res.start, ion_res.end);
+							__func__, ion_res.start,
+							ion_res.end - ion_res.start + 1);
 					info->start = ion_res.start;
 					info->end = ion_res.end + 1;
 					return 1;
