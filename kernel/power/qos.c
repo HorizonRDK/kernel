@@ -793,6 +793,8 @@ static int __init pm_qos_power_init(void)
 			cpufreq_min_constraints[cpuid].notifiers = &cpufreq_min_notifier[cpuid];
 			cpufreq_min_pm_qos[cpuid].constraints =
 				&cpufreq_min_constraints[cpuid];
+
+			init_rwsem(&cpufreq_min_pm_qos[cpuid].constraints->notifiers->rwsem);
 			snprintf(cpufreq_min_pm_qos_name[cpuid],
 				sizeof(cpufreq_min_pm_qos_name[cpuid]),
 				"cpu%d_freq_min", cpuid);
