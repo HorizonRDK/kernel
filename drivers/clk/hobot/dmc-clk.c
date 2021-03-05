@@ -65,6 +65,7 @@ struct dmc_clk {
 	unsigned int flags;
 	void __iomem *clk_base;
 	spinlock_t lock;
+	raw_spinlock_t raw_lock;
 	unsigned long rate;
 	hobot_invoke_fn *invoke_fn;
 	uint32_t fid;
@@ -337,10 +338,10 @@ static void spin_on_cpu(void *info)
 	/* this core will spin on the lock before ddr freq
 	 * changing finished
 	 */
-	spin_lock_irqsave(&g_ddrclk->lock, flags);
+	raw_spin_lock_irqsave(&g_ddrclk->raw_lock, flags);
 
 
-	spin_unlock_irqrestore(&g_ddrclk->lock, flags);
+	raw_spin_unlock_irqrestore(&g_ddrclk->raw_lock, flags);
 	pr_debug("%s %d exit\n", __func__, smp_processor_id());
 }
 
@@ -378,13 +379,13 @@ static int dmc_set_rate(struct clk_hw *hw,
 	unsigned long flags;
 	int timeout = 2000;
 
-	spin_lock_irqsave(&dclk->lock, flags);
+	raw_spin_lock_irqsave(&dclk->raw_lock, flags);
 
 	atomic_set(&dclk->vote_cnt, 0);
 	park_other_cpus();
 
 	if(!mutex_trylock(&dclk->mlock)) {
-		spin_unlock_irqrestore(&dclk->lock, flags);
+		raw_spin_unlock_irqrestore(&dclk->raw_lock, flags);
 		return -EBUSY;
 	}
 
@@ -396,7 +397,7 @@ static int dmc_set_rate(struct clk_hw *hw,
 	if (timeout <= 0) {
 		pr_err("timeout waiting for ipi voting\n");
 		mutex_unlock(&dclk->mlock);
-		spin_unlock_irqrestore(&dclk->lock, flags);
+		raw_spin_unlock_irqrestore(&dclk->raw_lock, flags);
 		return -EBUSY;
 	}
 
@@ -409,7 +410,7 @@ static int dmc_set_rate(struct clk_hw *hw,
 		pr_err("%s: ddr channel:%u set rate to %lu failed with status :%ld\n",
 			__func__, dclk->channel, rate, res.a0);
 		mutex_unlock(&dclk->mlock);
-		spin_unlock_irqrestore(&dclk->lock, flags);
+		raw_spin_unlock_irqrestore(&dclk->raw_lock, flags);
 		return -EINVAL;
 	}
 	dclk->rate = rate;
@@ -417,7 +418,7 @@ static int dmc_set_rate(struct clk_hw *hw,
 
 	mutex_unlock(&dclk->mlock);
 
-	spin_unlock_irqrestore(&dclk->lock, flags);
+	raw_spin_unlock_irqrestore(&dclk->raw_lock, flags);
 
 	return 0;
 }
@@ -551,6 +552,7 @@ static struct clk *dmc_clk_register(struct device *dev, struct device_node *node
 	ddrclk->hw.init = &init;
 
 	spin_lock_init(&ddrclk->lock);
+	raw_spin_lock_init(&ddrclk->raw_lock);
 	mutex_init(&ddrclk->mlock);
 	clk = clk_register(dev, &ddrclk->hw);
 	if (IS_ERR(clk)) {
