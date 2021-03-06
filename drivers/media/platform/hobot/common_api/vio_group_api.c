@@ -852,6 +852,7 @@ void vio_print_stack_by_name(char *name)
 {
 #define TRACE_DEPTH 20
 
+#ifdef CONFIG_STACK_TRACER
     struct task_struct *p = NULL;
     unsigned long backtrace[TRACE_DEPTH];
     struct stack_trace trace;
@@ -868,5 +869,6 @@ void vio_print_stack_by_name(char *name)
             print_stack_trace(&trace, 0);
         }
     }
+#endif
 }
 EXPORT_SYMBOL(vio_print_stack_by_name);
