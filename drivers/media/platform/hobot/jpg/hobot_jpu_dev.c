@@ -241,7 +241,6 @@ static int jpu_free_instances(struct file *filp)
 			}
 			dev->jpu_open_ref_count--;
 			list_del(&vil->list);
-			kfree(vil);
 			test_and_clear_bit(vil->inst_idx, jpu_inst_bitmap);
 			spin_lock(&dev->poll_spinlock);
 			dev->poll_event[vil->inst_idx] = JPU_INST_CLOSED;
@@ -251,6 +250,7 @@ static int jpu_free_instances(struct file *filp)
 				sizeof(dev->jpu_ctx[vil->inst_idx]));
 			memset(&dev->jpu_status[vil->inst_idx], 0x00,
 				sizeof(dev->jpu_status[vil->inst_idx]));
+			kfree(vil);
 		}
 	}
 

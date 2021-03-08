@@ -1377,7 +1377,6 @@ static int vpu_free_instances(struct file *filp)
 			}
 			dev->vpu_open_ref_count--;
 			list_del(&vil->list);
-			kfree(vil);
 			test_and_clear_bit(vil->inst_idx, vpu_inst_bitmap);
 			spin_lock(&dev->poll_spinlock);
 			dev->poll_event[vil->inst_idx] = VPU_INST_CLOSED;
@@ -1387,6 +1386,7 @@ static int vpu_free_instances(struct file *filp)
 				sizeof(dev->vpu_ctx[vil->inst_idx]));
 			memset(&dev->vpu_status[vil->inst_idx], 0x00,
 				sizeof(dev->vpu_status[vil->inst_idx]));
+			kfree(vil);
 		}
 	}
 	vpu_debug_leave();
@@ -2477,27 +2477,37 @@ INTERRUPT_REMAIN_IN_QUEUE:
 		}
 		break;
 		case VDI_IOCTL_SET_CTX_INFO: {
-				hb_vpu_ctx_info_t info;
+				hb_vpu_ctx_info_t *info;
 				//vpu_debug(5, "[+]VDI_IOCTL_SET_CTX_INFO\n");
 				if ((ret = down_interruptible(&dev->vpu_sem)) == 0) {
-				ret = copy_from_user(&info, (hb_vpu_ctx_info_t *) arg,
+				info = kzalloc(sizeof(hb_vpu_ctx_info_t), GFP_KERNEL);
+				if (info == NULL) {
+					up(&dev->vpu_sem);
+					vpu_err("failed to allocate ctx info.\n");
+					return -ENOMEM;
+				}
+
+				ret = copy_from_user(info, (hb_vpu_ctx_info_t *) arg,
 							 sizeof(hb_vpu_ctx_info_t));
 				if (ret != 0) {
 					vpu_err
 						("VDI_IOCTL_SET_CTX_INFO copy from user fail.\n");
+					kfree(info);
 					up(&dev->vpu_sem);
 					return -EFAULT;
 				}
-				inst_index = info.context.instance_index;
+				inst_index = info->context.instance_index;
 				if (inst_index < 0 || inst_index >= MAX_NUM_VPU_INSTANCE) {
 					vpu_err
 						("Invalid instance index %d.\n", inst_index);
+					kfree(info);
 					up(&dev->vpu_sem);
 					return -EINVAL;
 				}
 				spin_lock(&dev->vpu_info_spinlock);
-				dev->vpu_ctx[inst_index] = info;
+				dev->vpu_ctx[inst_index] = *info;
 				spin_unlock(&dev->vpu_info_spinlock);
+				kfree(info);
 				up(&dev->vpu_sem);
 				}
 				//vpu_debug(5, "[-]VDI_IOCTL_SET_CTX_INFO\n");
