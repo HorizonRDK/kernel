@@ -2088,10 +2088,7 @@ static irqreturn_t pym_isr(int irq, void *data)
 		pym_frame_ndone(subdev);
 	}
 
-	if (drop_flag)
-		pym_diag_report(err_occured, status);
-	else
-		pym_diag_report(err_occured, status);
+	pym_diag_report(err_occured, status);
 	return IRQ_HANDLED;
 }
 
