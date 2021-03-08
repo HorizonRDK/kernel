@@ -65,6 +65,10 @@ void vio_hw_set_field(void __iomem *base_addr, const struct vio_reg_def *reg,
 u32 vio_hw_get_field_value(u32 reg_value, const struct vio_field_def *field);
 u32 vio_hw_set_field_value(u32 reg_value, const struct vio_field_def *field,
 				u32 val);
+void vio_hw_set_owner_field(void __iomem *base_addr,
+		const struct vio_reg_def *reg,
+		const struct vio_field_def *field, u32 val);
+
 void vio_hw_dump_regs(void __iomem *base_addr, const struct vio_reg_def *regs,
 				u32 total_cnt);
 #endif /* VIO_HW_API_COMMON_H */

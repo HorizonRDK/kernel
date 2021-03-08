@@ -28,6 +28,36 @@ u32 vio_hw_get_reg(void __iomem *base_addr, const struct vio_reg_def *reg)
 }
 EXPORT_SYMBOL(vio_hw_get_reg);
 
+void vio_hw_set_owner_field(void __iomem *base_addr,
+		const struct vio_reg_def *reg,
+		const struct vio_field_def *field, u32 val)
+{
+	u32 reg_value = 0;
+	u32 pre_value;
+
+	/* previous value reading */
+#if CONFIG_QEMU_TEST
+	reg_value = *(u32 *) ((u8 *) base_addr + reg->sfr_offset);
+
+#else
+	pre_value = readl(base_addr + (reg->sfr_offset));
+#endif
+
+#ifdef DEBUG_HW_SFR
+	vio_info("[SET_FIELD] reg:[%s][0x%04X], field:[0x%08X] reg_value(W):[0x%08X] val(W):[%d] pre_value[0x%x]\n",
+		reg->reg_name, reg->sfr_offset, field->reg, reg_value, val, pre_value);
+#endif /*  */
+
+	reg_value = vio_hw_set_field_value(reg_value, field, val);
+	/* store reg value */
+#if CONFIG_QEMU_TEST
+	*(u32 *) (base_addr + reg->sfr_offset) = reg_value;
+#else
+	writel(reg_value, base_addr + (reg->sfr_offset));
+#endif
+}
+EXPORT_SYMBOL(vio_hw_set_owner_field);
+
 void vio_hw_set_reg(void __iomem *base_addr, const struct vio_reg_def *reg,
 		u32 val) 
 {
