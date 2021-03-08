@@ -101,7 +101,7 @@ int vio_group_task_start(struct vio_group_task *group_task)
 {
 	int ret = 0;
 	char name[30];
-	struct sched_param param = { .sched_priority = MAX_RT_PRIO - 1 };
+	struct sched_param param = { .sched_priority = MAX_RT_PRIO - 21 };
 
 	BUG_ON(!group_task);
 
