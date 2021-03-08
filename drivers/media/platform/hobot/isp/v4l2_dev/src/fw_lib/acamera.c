@@ -1509,7 +1509,7 @@ int isp_fw_process( void *data )
 
     while ( !kthread_should_stop() ) {
         acamera_fw_process( p_ctx );
-        system_semaphore_wait( p_ctx->sem_evt_avail, 0 );
+        system_semaphore_wait( p_ctx->sem_evt_avail, FW_EVT_QUEUE_TIMEOUT_MS );
     }
 
     pr_debug( "isp_fw_process stop" );
