@@ -205,6 +205,12 @@
 	pwms = <&pwm_gpio 0 20000000 0>;
 	pwm-names = "errpin";
 };
+
 &cpu_cal_test {
 	status = "okay";
 };
+
+&soc_crit {
+	temperature = <120000>;
+};
+
