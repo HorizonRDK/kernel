@@ -25,6 +25,7 @@
 #include <linux/ion.h>
 #include <linux/cma.h>
 #include <linux/dma-contiguous.h>
+#include <soc/hobot/diag.h>
 
 #include "./hobot_ddr_mpu.h"
 
@@ -210,6 +211,8 @@ static void check_mpu_violation(int check_write, int port_id)
 	int j;
 	int reg_offset = 0;
 	char *rw_type = check_write ? "write" : "read";
+	uint8_t block_id = 0xff;
+	uint8_t user = 0xff;
 
 	if (check_write)
 		reg_offset = 0x80;
@@ -233,9 +236,11 @@ static void check_mpu_violation(int check_write, int port_id)
 
 	if (user_id != 0) {
 		for (j = 0; j < FW_USR_ID_FW_USR_ID_MAX; j++) {
-			if (user_id & (1 << j))
+			if (user_id & (1 << j)) {
 				pr_err("!!MPU %s violation!!! IP = [%s]\n",
 					rw_type, fw_user_id_tbl[j]);
+				user = j;
+			}
 		}
 	}
 
@@ -244,11 +249,28 @@ static void check_mpu_violation(int check_write, int port_id)
 				rw_type, (addr >> 16) << 12);
 
 		for (j = 0; j < MPU_BLOCK_NUM; j++) {
-			if (addr & (1 << j))
+			if (addr & (1 << j)) {
 				pr_err("%s violation block name: [%s]\n",
 					rw_type, mpu_vio_block[j]);
+				block_id = j;
+			}
 		}
 	}
+
+#ifdef CONFIG_HOBOT_DIAG
+	if (user != 0xff && block_id != 0xff) {
+		pr_err("report err_id(%d) and block_id(%d) to diag\n",
+			user, block_id);
+		diag_send_event_stat_and_env_data(
+					   DiagMsgPrioHigh,
+					   ModuleDiag_mpu,
+					   user,
+					   DiagEventStaFail,
+					   DiagGenEnvdataWhenErr,
+					   (uint8_t *)&block_id,
+					   sizeof(uint8_t));
+	}
+#endif
 }
 
 static void check_rpu_violation(int port_id)
@@ -500,6 +522,33 @@ static int ddr_mpu_protect_kernel(void)
 }
 
 
+#ifdef CONFIG_HOBOT_DIAG
+#define MPU_REG_DIAG(event_id) \
+	do { \
+		ret = diag_register(ModuleDiag_mpu, (event_id), \
+			sizeof(uint8_t), 100, 148, NULL);  \
+		if (ret < 0) \
+			pr_err("MPU diag register fail for event %d\n", event_id); \
+	} while (0);
+
+static int ddr_mpu_register_diag_event(void)
+{
+	int ret  = 0;
+
+	MPU_REG_DIAG(EventIdMpuCNN0FetchErr);
+	MPU_REG_DIAG(EventIdMpuCNN1FetchErr);
+	MPU_REG_DIAG(EventIdMpuCNN0OtherErr);
+	MPU_REG_DIAG(EventIdMpuCNN1OtherErr);
+	MPU_REG_DIAG(EventIdMpuVioM0Err);
+	MPU_REG_DIAG(EventIdMpuVpuErr);
+	MPU_REG_DIAG(EventIdMpuVioM1Err);
+
+	return ret;
+}
+#else
+static int ddr_mpu_register_diag_event() {void}
+#endif
+
 int ddr_mpu_init(struct platform_device *pdev)
 {
 	struct resource *pres;
@@ -557,6 +606,8 @@ int ddr_mpu_init(struct platform_device *pdev)
 
 	if (!dis_vio_prot)
 		ddr_mpu_protect_kernel();
+
+	ddr_mpu_register_diag_event();
 
 	return 0;
 }

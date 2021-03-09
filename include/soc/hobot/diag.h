@@ -34,6 +34,7 @@ enum diag_module_id {
 	ModuleDiag_emmc,
 	ModuleDiag_qspi,
 	ModuleDiag_cpu_cal,
+	ModuleDiag_mpu,
 	ModuleIdMax = 1000,
 };
 
@@ -71,10 +72,10 @@ enum diag_gen_envdata_timing {
  *
  * Define the event id for your own module below,
  * note: the counts of event ID of each module shall
- * not go over EVENT_ID_MAX, and start form 1, end
+ * not go over EVENT_ID_MAX, and start from 1, end
  * with EVENT_ID_MAX - 1.
  */
-#define EVENT_ID_MAX 25
+#define EVENT_ID_MAX 32
 
 /* diag driver module event id */
 enum diag_driver_module_eventid {
@@ -173,6 +174,17 @@ enum diag_spi_module_eventid {
 /* emmc module event id */
 enum diag_emmc_module_eventid {
 	EventIdEmmcErr = 1,
+};
+
+/* mpu module event id */
+enum diag_mpu_module_eventid {
+	EventIdMpuCNN0FetchErr = 12,
+	EventIdMpuCNN1FetchErr,
+	EventIdMpuCNN0OtherErr,
+	EventIdMpuCNN1OtherErr,
+	EventIdMpuVioM0Err = 29,
+	EventIdMpuVpuErr,
+	EventIdMpuVioM1Err,
 };
 
 /*
