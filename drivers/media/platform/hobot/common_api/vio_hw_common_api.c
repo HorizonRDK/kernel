@@ -29,7 +29,7 @@ u32 vio_hw_get_reg(void __iomem *base_addr, const struct vio_reg_def *reg)
 EXPORT_SYMBOL(vio_hw_get_reg);
 
 void vio_hw_set_reg(void __iomem *base_addr, const struct vio_reg_def *reg,
-		u32 val) 
+		u32 val)
 {
 
 #ifdef DEBUG_HW_SFR
@@ -47,7 +47,7 @@ EXPORT_SYMBOL(vio_hw_set_reg);
 
 u32 vio_hw_get_field(void __iomem *base_addr,
 		const struct vio_reg_def *reg,
-		const struct vio_field_def *field) 
+		const struct vio_field_def *field)
 {
 	u32 reg_value;
 	u32 field_value;
@@ -100,12 +100,12 @@ EXPORT_SYMBOL(vio_hw_set_owner_field);
 
 void vio_hw_set_field(void __iomem *base_addr,
 		const struct vio_reg_def *reg,
-		const struct vio_field_def *field, u32 val) 
+		const struct vio_field_def *field, u32 val)
 {
 	u32 reg_value;
 	u32 pre_value;
 
-	/* previous value reading */ 
+	/* previous value reading */
 #if CONFIG_QEMU_TEST
 	reg_value = *(u32 *) ((u8 *) base_addr + reg->sfr_offset);
 
@@ -122,7 +122,7 @@ void vio_hw_set_field(void __iomem *base_addr,
 		reg->reg_name, reg->sfr_offset, field->reg, reg_value, val, pre_value);
 
 #endif /*  */
-	/* store reg value */ 
+	/* store reg value */
 #if CONFIG_QEMU_TEST
 	*(u32 *) (base_addr + reg->sfr_offset) = reg_value;
 #else
@@ -132,7 +132,7 @@ void vio_hw_set_field(void __iomem *base_addr,
 EXPORT_SYMBOL(vio_hw_set_field);
 
 u32 vio_hw_get_field_value(u32 reg_value,
-		const struct vio_field_def *field) 
+		const struct vio_field_def *field)
 {
 	u32 field_mask = 0;
 	u32 field_value = 0;
@@ -153,10 +153,10 @@ u32 vio_hw_set_field_value(u32 reg_value, const struct vio_field_def *field,
 	field_mask =(field->bit_width >= 32) ?
 		0xFFFFFFFF : ((1 << field->bit_width) - 1);
 
-	/* bit clear */ 
+	/* bit clear */
 	reg_value &= ~(field_mask << field->bit_start);
 
-	/* setting value */ 
+	/* setting value */
 	reg_value |= (val & field_mask) << (field->bit_start);
 
 	return reg_value;
