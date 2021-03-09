@@ -5250,7 +5250,7 @@ static int hobot_eth_probe(struct platform_device *pdev) {
 
     ret = xj3_dvr_probe(&pdev->dev, plat_dat, &xj3_res);
     if (ret) goto remove;
-    if (diag_register(ModuleDiag_eth, EventIdEthDmaBusErr, 4, 20, 8000,
+    if (diag_register(ModuleDiag_eth, EventIdEthDmaBusErr, 4, 100, 148,
                       hobot_eth_diag_test) < 0)
         dev_err(&pdev->dev, "eth diag register fail\n");
     dev_info(&pdev->dev, "%s: probe sucessfully\n", __func__);
