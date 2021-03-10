@@ -472,8 +472,8 @@ static int sif_start_trigger(struct frame_list *queue)
 				node->frameid, node->interval);
 		vio_group_start_trigger_mp(node->group, node->frame);
 	} else {
-		vio_err("[S%d] %s Bug_on node == NULL\n",
-				node->group->instance, __func__);
+		vio_warn("%s: pipe%d sort queue empty !\n", __func__,
+				queue->pipeline_id);
 	}
 	return 0;
 }
