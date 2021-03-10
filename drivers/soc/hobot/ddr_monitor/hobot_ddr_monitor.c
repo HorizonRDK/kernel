@@ -347,7 +347,13 @@ static int get_monitor_data(char* buf)
 	unsigned long write_bw = 0;
 	unsigned long mask_bw = 0;
 
+	if (buf == NULL) {
+		pr_err("%s buf is NULL\n", __func__);
+		return -EINVAL;
+	}
+
 	if (!ddr_info) {
+		pr_err("%s ddr_info is NULL\n", __func__);
 		length += sprintf(buf + length, "ddr_monitor not started \n");
 		return 0;
 	}
@@ -463,6 +469,11 @@ static int ddr_monitor_mod_open(struct inode *pinode, struct file *pfile)
 
 	if (g_ddr_monitor_dev && !ddr_info) {
 		ddr_info = vmalloc(sizeof(struct ddr_monitor_result_s) * TOTAL_RECORD_NUM);
+		if (ddr_info == NULL) {
+			pr_err("failed to allocate ddr_info buffer, size:%08x\n",
+				sizeof(struct ddr_monitor_result_s) * TOTAL_RECORD_NUM);
+			return -ENOMEM;
+		}
 		result_buf = g_ddr_monitor_dev->res_vaddr;//vmalloc(1024*80);
 		g_current_index = 0;
 		g_record_num = 0;
