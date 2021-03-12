@@ -929,6 +929,13 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 		iar_start(1);
 		user_config_display(display_type);
 		set_mipi_display(2);
+	} else if (strncmp(tmp, "dsi1280x720", 11) == 0) {
+		pr_info("iar output lcd mipi 1280x720 panel config......\n");
+		display_type = MIPI_720P_H;
+		screen_backlight_init();
+		iar_start(1);
+		user_config_display(display_type);
+		set_mipi_display(3);
 	} else if (strncmp(tmp, "hdmi", 4) == 0) {
 		pr_info("iar output hdmi panel config......\n");
 		display_type = HDMI_TYPE;

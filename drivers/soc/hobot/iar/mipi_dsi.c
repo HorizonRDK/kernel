@@ -512,6 +512,10 @@ struct video_timing video_720_1280_sdb = {
 	720, 0, 0, 10, 40, 810, 3, 11, 16, 1310,
 };
 
+struct video_timing video_1280_720 = {
+	1280, 0, 0, 10, 40, 1370, 3, 11, 16, 750,
+};
+
 #define MIPI_SNP        0x05
 #define MIPI_S1P        0x15
 #define MIPI_LCP        0x39
@@ -1547,7 +1551,10 @@ int mipi_dsi_panel_init(uint8_t panel_no)
 		mipi_dsi_set_mode(0);//video mode
 		pr_info("mipi dsi panel config end!\n");
 		return 0;
-        }
+        } else {
+		pr_err("%s: not support panel type,", __func__);
+		pr_err("please add panel init code!!\n");
+	}
 	return 0;
 }
 
@@ -1562,6 +1569,8 @@ int set_mipi_display(uint8_t panel_no)
 		mipi_dsi_video_config(&video_720_1280);
 	else if (panel_no == 2)
 		mipi_dsi_video_config(&video_720_1280_sdb);
+	else if (panel_no == 3)
+		mipi_dsi_video_config(&video_1280_720);
 
 	msleep(100);
 	//mipi_dsi_set_mode(0);//video mode
