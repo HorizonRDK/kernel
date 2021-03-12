@@ -167,6 +167,16 @@ static void hobot_wdt_init_hw(struct hobot_wdt *hbwdt)
 	val |= (HOBOT_TIMER_WDT_MODE << HOBOT_TIMER_T2MODE_OFFSET);
 	hobot_wdt_wr(hbwdt, HOBOT_TIMER_TMRMODE_REG, val);
 
+	/* reset previous value */
+	hobot_wdt_wr(hbwdt, HOBOT_TIMER_WDCLR_REG, HOBOT_TIMER_WDT_RESET);
+
+	val = hobot_wdt_rd(hbwdt, HOBOT_TIMER_TMREN_REG);
+	val |= HOBOT_TIMER_T2STOP;
+	hobot_wdt_wr(hbwdt, HOBOT_TIMER_TMRSTOP_REG, val);
+
+	/* disable bark irq */
+	hobot_wdt_wr(hbwdt, HOBOT_TIMER_TMR_SETMASK_REG, HOBOT_TIMER_WDT_INTMASK);
+
 	return;
 }
 
