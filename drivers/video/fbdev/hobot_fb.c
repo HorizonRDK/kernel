@@ -466,6 +466,78 @@ struct fb_fix_screeninfo fb_720_1280_fix_default = {
 	.reserved = {0x0},
 };
 
+struct fb_var_screeninfo fb_1280_720_var_default = {
+	.xres = 1280,
+	.yres = 720,
+	.xres_virtual = 1280,
+	.yres_virtual = 720,
+	.xoffset = 0,
+	.yoffset = 0,
+	.bits_per_pixel = 32,
+	.grayscale = 0,
+	.red = {
+		.offset = 16,
+		.length = 8,
+		.msb_right = 0,//MSB left; !=0,MSB right
+	},
+	.green = {
+		.offset = 8,
+		.length = 8,
+		.msb_right = 0,
+	},
+	.blue = {
+		.offset = 0,
+		.length = 8,
+		.msb_right = 0,
+	},
+	.transp = {
+		.offset = 24,
+		.length = 8,
+		.msb_right = 0,
+	},
+	.nonstd = 0,
+	.activate = FB_ACTIVATE_NOW,
+	.height = 110,
+	.width = 62,
+	.accel_flags = FB_ACCEL_NONE,
+
+	.pixclock = 30030,//33.3M,
+//	.left_margin = 40,//20~200
+//	.right_margin = 40,//87~1
+	.left_margin = 46,//100+20
+	.right_margin = 46,//52+28
+//	.upper_margin = 12,//5~200
+//	.lower_margin = 30,//31~29
+	.upper_margin = 16,//42+1
+	.lower_margin = 14,//31+1
+	.hsync_len = 10,//1~87,no type value
+	.vsync_len = 3,//1~3,no type value
+
+	.sync = 0,//????????
+	.vmode = FB_VMODE_NONINTERLACED,
+	.rotate = 1,
+	.colorspace = 0,
+	.reserved = {0x0},
+};
+
+struct fb_fix_screeninfo fb_1280_720_fix_default = {
+	.id = "x2-fb",
+	.smem_start = 0x0,
+	.smem_len = MAX_FRAME_BUF_SIZE,
+	.type = FB_TYPE_PACKED_PIXELS,
+	.type_aux = 0,
+	.visual = FB_VISUAL_TRUECOLOR,  //FB_VISUAL_PSEUDOCOLOR,
+	.xpanstep = 0,
+	.ypanstep = 0,
+	.ywrapstep = 0,
+	.line_length = 5120,
+	.mmio_start = 0,
+	.mmio_len = 0,
+	.accel = FB_ACCEL_NONE,
+	.capabilities = 0,
+	.reserved = {0x0},
+};
+
 struct fb_var_screeninfo fb_1920_1080_var_default = {
 	.xres = 1920,
 	.yres = 1080,
@@ -1721,6 +1793,9 @@ static int hbfb_probe(struct platform_device *pdev)
 	} else if (display_type == MIPI_720P || display_type == MIPI_720P_TOUCH) {
 		hobot_fbi->fb.fix = fb_720_1280_fix_default;
 		hobot_fbi->fb.var = fb_720_1280_var_default;
+	} else if (display_type == MIPI_720P_H) {
+		hobot_fbi->fb.fix = fb_1280_720_fix_default;
+                hobot_fbi->fb.var = fb_1280_720_var_default;
 	} else if (outmode == OUTPUT_BT1120 && lcd_type == RGB888_700) {
 		hobot_fbi->fb.fix = RGB700_fix_default;
 		hobot_fbi->fb.var = RGB700_var_default;
