@@ -17,8 +17,12 @@
 #include <linux/platform_device.h>
 #include <linux/interrupt.h>
 #include <asm-generic/io.h>
+#include <linux/moduleparam.h>
 
 #include "./hobot_ddr_ecc.h"
+
+unsigned int g_ecc_stat_rst = 0; // ecc statistical data reset
+module_param(g_ecc_stat_rst, uint, 0644);
 
 struct ddr_ecc_s {
 	int irq;
@@ -99,6 +103,12 @@ static ssize_t ddr_ecc_stat_show(struct device *dev,
 	if (ddr_ecc.enabled == 0) {
 		len += snprintf(buf+len, 64, "ddr ecc is not enabled\n");
 	} else {
+		if (g_ecc_stat_rst) {
+			ddr_ecc.corr_cnt = 0;
+			ddr_ecc.uncorr_cnt = 0;
+			ddr_ecc.uncorr_corr_cnt = 0;
+			g_ecc_stat_rst = 0;
+		}
 		len += snprintf(buf+len, 64, "ddr ecc is enabled\n");
 
 		len += snprintf(buf+len, 64, "1 bit corrected error hits %llu times\n",
