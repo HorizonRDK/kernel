@@ -83,7 +83,7 @@
         };
     };
 
-    cnn_opp_table_lite: cnn_opp_table_dc_lite {
+    cnn_opp_table_lite: cnn_opp_table_lite {
         compatible = "operating-points-v2";
         opp-shared;
 	opp00 {
