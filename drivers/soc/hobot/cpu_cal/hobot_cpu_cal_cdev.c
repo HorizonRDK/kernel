@@ -33,6 +33,12 @@
 #define CPU_CAL_TEST_KTHREAD_NAME  	"cpu_cal_test_kthread"
 #define ERR_EVENT_BASE (0x400)
 #define CFG_MODE_UNUSED      (0u)
+// Trigger the input ID test failure
+// default -1.should be >=1 && <=22
+static int err_test_id = -1;
+module_param(err_test_id, int, 0644);
+MODULE_PARM_DESC(err_test_id,
+	"fault injection,default -1.should be >=1 && <=22");
 
 struct cpu_cal_test_data {
         struct task_struct *cpu_cal_test_tsk;
@@ -98,7 +104,8 @@ static int cpu_cal_test_kthread(void *data)
 	unsigned long cpu_cal_test_spinlock_flags;
 	struct cpu_cal_test_data *cpu_cal_data = (struct cpu_cal_test_data *)data;
 	result = cpu_cal_test_init();
-	if(result != A53_STL_RET_OK) {
+	if(result != A53_STL_RET_OK || err_test_id == 1) {
+		err_test_id = -1;
 		cpu_cal_diag_report(EventIdCpuCalTestInitErr);
 		return 0;
 	}
@@ -116,7 +123,8 @@ static int cpu_cal_test_kthread(void *data)
 				result = A53_STL();
 				spin_unlock_irqrestore(&cpu_cal_test_spinlock, cpu_cal_test_spinlock_flags);
 			}
-			if(result != A53_STL_RET_OK) {
+			if(result != A53_STL_RET_OK || err_test_id == i + 2) {
+				err_test_id = -1;
 				err_event_id = i + 2;
 				cpu_cal_diag_report(err_event_id);
 			}
