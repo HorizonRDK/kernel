@@ -3,14 +3,9 @@
 
 #include "acamera_firmware_config.h"
 
-// for ctx save
-//(ACAMERA_ISP1_BASE_ADDR - ACAMERA_DECOMPANDER0_MEM_BASE_ADDR + ACAMERA_ISP1_SIZE)
-
-// for stats
-//#define MAX_AWB_ZONES	(33 * 33)
-
-#define CFG_NODE_SIZE	(0x18e88 - 0xab6c + 0x4000) //74524
-#define CTX_SIZE	CFG_NODE_SIZE
+//CFG_NODE_SIZE: multi ctx - ACAMERA_DECOMPANDER0_MEM_BASE_ADDR + 4
+#define CFG_NODE_SIZE	(0x1c310 - 0xab6c + 4) //0x117a8(71592)
+#define CTX_SIZE		CFG_NODE_SIZE
 #define CTX_OFFSET      0xab6c
 
 #define AWB_NODE_SIZE	(33 * 33 * 8) //8712

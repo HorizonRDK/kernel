@@ -103,6 +103,7 @@ module_param(isp_debug_mask, int, S_IRUGO|S_IWUSR);
 
 #if FW_USE_HOBOT_DMA
 extern hobot_dma_t g_hobot_dma;
+void hobot_idma_try_restore(void *data);
 #endif
 extern int isp_stream_onoff_check(void);
 extern void system_interrupts_disable( void );
@@ -1360,8 +1361,19 @@ int32_t acamera_interrupt_handler()
                     }
 
                     if ( g_firmware.dma_flag_isp_metering_completed == 0 || g_firmware.dma_flag_isp_config_completed == 0 ) {
+                        static uint32_t idma_error = 0;
                         p_ctx->sts.ispctx_dma_error++;
+
                         pr_err("DMA is not finished, cfg: %d, meter: %d.\n", g_firmware.dma_flag_isp_config_completed, g_firmware.dma_flag_isp_metering_completed );
+
+                        idma_error = p_ctx->sts.ispctx_dma_error;
+                        if (idma_error >= 5) {
+                            idma_error = 0;
+                            g_firmware.dma_flag_isp_metering_completed = 1;
+                            g_firmware.dma_flag_isp_config_completed = 1;
+                            hobot_idma_try_restore(&g_hobot_dma);
+                            pr_err("idma restored\n");
+                        }
 
                         //isp m2m ipu
                         if (p_ctx->fsm_mgr.reserved) {

@@ -232,6 +232,37 @@ irqreturn_t hobot_dma_interrupt(int irq, void *data)
     return IRQ_HANDLED;
 }
 
+void hobot_idma_try_restore(void *data)
+{
+    hobot_dma_t *hobot_dma = (hobot_dma_t*) data;
+    unsigned long flags;
+
+    pr_debug("+\n");
+
+    dma_isp_reg_start_dma_write(0);         // disable dma
+    dma_isp_reg_mask_int_write(DMA_INT_DISABLE);  //mask dma irq
+    dma_isp_reg_dma_sram_ch_en_write(0);    // cpu can control sram now
+
+    spin_lock_irqsave( hobot_dma->dma_ctrl_lock, flags );
+
+    // check int status
+    if(dma_isp_dma_int_read()) {
+        dma_isp_reg_clr_int_write(1);           // clear dma int
+        dma_isp_reg_clr_int_write(0);           // clear dma int
+    }
+
+    if (!list_empty(&hobot_dma->active_list)) {
+        list_splice_tail_init(&hobot_dma->active_list, &hobot_dma->free_list);
+    }
+
+    hobot_dma->nents_total = 0;
+    hobot_dma->is_busy = 0;
+
+    spin_unlock_irqrestore(hobot_dma->dma_ctrl_lock, flags);
+
+    pr_debug("-\n");
+}
+
 void hobot_dma_init(hobot_dma_t *hobot_dma)
 {
     int i = 0;

@@ -30,7 +30,7 @@
 // ------------------------------------------------------------------------------ //
 
 #define ACAMERA_LUT3D_MEM_BASE_ADDR (0x508L)
-#define ACAMERA_LUT3D_MEM_SIZE (0x1000)
+#define ACAMERA_LUT3D_MEM_SIZE (0xFA0) //0x14a8-0x508=0xFA0
 
 #define ACAMERA_LUT3D_MEM_ARRAY_DATA_DEFAULT (0x0)
 #define ACAMERA_LUT3D_MEM_ARRAY_DATA_DATASIZE (32)
