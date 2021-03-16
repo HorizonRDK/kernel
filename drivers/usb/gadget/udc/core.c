@@ -281,7 +281,9 @@ int usb_ep_queue(struct usb_ep *ep,
 	ret = ep->ops->queue(ep, req, gfp_flags);
 
 out:
-	trace_usb_ep_queue(ep, req, ret);
+	/* only trace when req->length not 0, to avoid isoc too many log */
+	if (req->length)
+		trace_usb_ep_queue(ep, req, ret);
 
 	return ret;
 }
@@ -906,7 +908,9 @@ void usb_gadget_giveback_request(struct usb_ep *ep,
 	if (likely(req->status == 0))
 		usb_led_activity(USB_LED_EVENT_GADGET);
 
-	trace_usb_gadget_giveback_request(ep, req, 0);
+	/* only trace when req->length not 0, to avoid isoc too many log */
+	if (req->length)
+		trace_usb_gadget_giveback_request(ep, req, 0);
 
 	req->complete(ep, req);
 }
