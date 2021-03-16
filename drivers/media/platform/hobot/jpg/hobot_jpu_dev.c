@@ -1612,6 +1612,9 @@ static int jpu_probe(struct platform_device *pdev)
 	spin_lock_init(&dev->poll_spinlock);
 	for (i = 0; i < MAX_NUM_JPU_INSTANCE; i++) {
 		init_waitqueue_head(&dev->interrupt_wait_q[i]);
+	}
+
+	for (i = 0; i < MAX_NUM_JPU_INSTANCE; i++) {
 		init_waitqueue_head(&dev->poll_wait_q[i]);
 	}
 
