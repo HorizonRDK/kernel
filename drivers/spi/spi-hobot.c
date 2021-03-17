@@ -23,7 +23,9 @@
 #include <linux/spinlock_types.h>
 #include <linux/pm_runtime.h>
 #include <linux/dma-mapping.h>
+#define CONFIG_HOBOT_DIAG
 #include <soc/hobot/diag.h>
+#endif
 #include <linux/timer.h>
 #include <linux/clk.h>
 #ifdef CONFIG_SPI_HOBOT_DFS_PROTECT
@@ -580,6 +582,7 @@ static int hb_spi_drain_rxdma(struct hb_spi *hbspi)
 #endif
 #endif
 
+#define CONFIG_HOBOT_DIAG
 static void spi_diag_report(uint8_t errsta, uint32_t srcpndreg,
 						struct hb_spi *hbspi)
 {
@@ -594,6 +597,7 @@ static void spi_diag_report(uint8_t errsta, uint32_t srcpndreg,
 				4);
 	}
 }
+#endif
 
 /* spi interrupt handle */
 static irqreturn_t hb_spi_int_handle(int irq, void *data)
@@ -648,8 +652,10 @@ static irqreturn_t hb_spi_int_handle(int irq, void *data)
 #endif
 	}
 
+#define CONFIG_HOBOT_DIAG
 	if (errflg)
 		spi_diag_report(1, pnd, hbspi);
+#endif
 
 	return IRQ_HANDLED;
 }
@@ -1339,11 +1345,13 @@ static int hb_spi_probe(struct platform_device *pdev)
 	}
 #endif
 
+#define CONFIG_HOBOT_DIAG
 	/* diag */
 	hbspi->spi_id = spi_id;
 	if (diag_register(ModuleDiag_spi, EventIdSpi0Err + spi_id,
-						4, 100, 148, NULL) < 0)
+			4, DIAG_MSG_INTERVAL_MIN, DIAG_MSG_INTERVAL_MAX, NULL) < 0)
 		dev_err(hbspi->dev, "spi%d diag register fail\n", spi_id);
+#endif
 
 	dev_info(&pdev->dev, "ver: %s %s\n", VER, ctrl_mode);
 
