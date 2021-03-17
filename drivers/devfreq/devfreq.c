@@ -587,9 +587,10 @@ struct devfreq *devfreq_add_device(struct device *dev,
 #ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
 	if (!strncmp(dev_name(dev), "soc:dmc0", 8)) {
 #ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ_DEFAULT_GOV
-		pr_err("set governor %s\n", CONFIG_ARM_HOBOT_DMC_DEVFREQ_DEFAULT_GOV);
+		pr_info("set dmc devfreq governor to %s\n",
+			CONFIG_ARM_HOBOT_DMC_DEVFREQ_DEFAULT_GOV);
 		strncpy(devfreq->governor_name,
-		CONFIG_ARM_HOBOT_DMC_DEVFREQ_DEFAULT_GOV, DEVFREQ_NAME_LEN);
+			CONFIG_ARM_HOBOT_DMC_DEVFREQ_DEFAULT_GOV, DEVFREQ_NAME_LEN);
 #endif
 	}
 #endif
