@@ -39,12 +39,17 @@
 #include <linux/of.h>
 #include <linux/of_gpio.h>
 #include <linux/mmc/slot-gpio.h>
+#ifdef CONFIG_HOBOT_DIAG
 #include <soc/hobot/diag.h>
+#endif
 #include "dw_mmc.h"
 #include "dw_mmc-hobot.h"
 
+#ifdef CONFIG_HOBOT_DIAG
 static int last_err;
 static int first_time;
+#endif
+
 #define INDEX_ID_EMMC	(0)
 #define INDEX_ID_SD	(1)
 
@@ -2735,6 +2740,7 @@ static int mmc_dpm_callback(struct hobot_dpm *self,
 }
 #endif
 
+#ifdef CONFIG_HOBOT_DIAG
 static void hb_emmc_diag_process(u32 errsta, u32 envdata)
 {
 	u8 sta;
@@ -2752,6 +2758,7 @@ static void hb_emmc_diag_process(u32 errsta, u32 envdata)
 							EventIdEmmcErr, sta);
 	}
 }
+#endif
 
 static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
 {
@@ -2858,6 +2865,7 @@ static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
 		}
 	}
 
+#ifdef CONFIG_HOBOT_DIAG
 	if ((first_time == 0) && (slot->mmc->index == INDEX_ID_EMMC)) {
 		first_time = 1;
 		last_err = err;
@@ -2866,6 +2874,7 @@ static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
 		last_err = err;
 		hb_emmc_diag_process(err, pending);
 	}
+#endif
 	if (host->use_dma != TRANS_MODE_IDMAC)
 		return IRQ_HANDLED;
 
@@ -3521,11 +3530,13 @@ int dw_mci_probe(struct dw_mci *host)
 		 "DW MMC controller at irq %d,%d bit host data width,%u deep fifo\n",
 		 host->irq, width, fifo_size);
 
+#ifdef CONFIG_HOBOT_DIAG
 	if (host->slot->mmc->index == INDEX_ID_EMMC) {
 		if (diag_register(ModuleDiag_emmc, EventIdEmmcErr,
-							4, 50, 4000, NULL) < 0)
+							4, 50, DIAG_MSG_INTERVAL_MAX, NULL) < 0)
 			pr_err("emmc diag register fail\n");
 	}
+#endif
 
 	return 0;
 
