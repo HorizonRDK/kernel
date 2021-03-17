@@ -21,7 +21,9 @@
 #include <linux/slab.h>
 #include <linux/string.h>
 #include <linux/reset.h>
+#ifdef CONFIG_HOBOT_DIAG
 #include <soc/hobot/diag.h>
+#endif
 #include <linux/clk.h>
 #include <linux/init.h>
 #include <linux/notifier.h>
@@ -271,6 +273,7 @@ static void hobot_drain_rxfifo(struct hobot_i2c_dev *dev, int hold)
 	}
 }
 
+#ifdef CONFIG_HOBOT_DIAG
 /*
  * i2c diag msg send
  */
@@ -298,6 +301,7 @@ static void hobot_i2c_diag_process(u32 errsta, struct hobot_i2c_dev *i2c_contro)
 								i2c_event, sta);
 	}
 }
+#endif
 
 static irqreturn_t hobot_i2c_isr(int this_irq, void *data)
 {
@@ -352,7 +356,9 @@ static irqreturn_t hobot_i2c_isr(int this_irq, void *data)
 
 	}
 
+#ifdef CONFIG_HOBOT_DIAG
 	hobot_i2c_diag_process(err, dev);
+#endif
 
 	if (comp)
 		complete(&dev->completion);
@@ -757,12 +763,14 @@ static int hobot_i2c_probe(struct platform_device *pdev)
 	dev_info(&pdev->dev, "clkdiv = 0x%x\n", dev->clkdiv);
 
 	dev->i2c_id = i2c_id;
+#ifdef CONFIG_HOBOT_DIAG
 	dev_err(&pdev->dev, "i2c%d diag register....\n", i2c_id);
 	if (diag_register(ModuleDiag_i2c, EventIdI2cController0Err + i2c_id,
-			5, 100, 148, NULL) < 0) {
+			5, DIAG_MSG_INTERVAL_MIN, DIAG_MSG_INTERVAL_MAX, NULL) < 0) {
 		dev_err(&pdev->dev, "i2c%d diag register fail\n",
 				EventIdI2cController0Err + i2c_id);
 	}
+#endif
 
 	irq = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
 	if (!irq) {

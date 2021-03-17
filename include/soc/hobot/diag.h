@@ -18,6 +18,19 @@
 #define ENV_PAYLOAD_SIZE	128
 #define MSG_WITH_ENV		1
 #define MSG_WITHOUT_ENV		0
+#define EVENT_ID_MAX 32
+
+/*
+ * Modules can use those two parameters below when register
+ * to diagnose module.Message will be filerted when they meet
+ * the conditions listed below:
+ * 1.message with the same event ID,and the time interval is
+ *   less than DIAG_MSG_INTERVAL_MIN
+ * 2.message with the same event ID,and the time interval is
+ *   between DIAG_MSG_INTERVAL_MIN & DIAG_MSG_INTERVAL_MAX,but
+ *   the event status has not changed*/
+#define DIAG_MSG_INTERVAL_MIN 100
+#define DIAG_MSG_INTERVAL_MAX 148
 
 /*
  * module id
@@ -76,7 +89,6 @@ enum diag_gen_envdata_timing {
  * not go over EVENT_ID_MAX, and start from 1, end
  * with EVENT_ID_MAX - 1.
  */
-#define EVENT_ID_MAX 32
 
 /* diag driver module event id */
 enum diag_driver_module_eventid {
@@ -293,7 +305,6 @@ extern int diag_register(uint16_t module_id, uint16_t event_id,
 		size_t envdata_max_size, uint32_t min_snd_ms,
 		uint32_t max_time_out_snd, void (*rcvcallback)(void *p, size_t len));
 
-#define NOT_SUPPORT -1
 /*
  * register to the diagnose driver, other modules should call
  * this function before send event to the diagnose driver.
