@@ -2281,6 +2281,7 @@ static int ddr_monitor_probe(struct platform_device *pdev)
 	int ret = 0;
 	struct resource *pres;
 	void __iomem *ddrc_base = NULL;
+	void __iomem *axibus_reg = NULL;
 	struct devfreq_event_desc *desc;
 	u32 reg_val;
 
@@ -2366,6 +2367,10 @@ static int ddr_monitor_probe(struct platform_device *pdev)
 	} else {
 		pr_err("Can't detected DDR type\n");
 	}
+
+	axibus_reg = ioremap_nocache(0xa4000038, 4);
+	writel(0x10000000, axibus_reg);
+	iounmap(axibus_reg);
 #endif
 
 	desc = devm_kzalloc(&pdev->dev, sizeof(*desc), GFP_KERNEL);
@@ -2398,8 +2403,8 @@ static int ddr_monitor_probe(struct platform_device *pdev)
 	spin_lock_init(&g_ddr_monitor_dev->lock);
 
 #ifdef CONFIG_HOBOT_XJ3
-	writel(0x2021100, g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
-	writel(0x2021100, g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
+	writel(0x04032211, g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
+	writel(0x04032211, g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
 #else
 	writel(0x21100, g_ddr_monitor_dev->regaddr + DDR_PORT_READ_QOS_CTRL);
 	writel(0x21100, g_ddr_monitor_dev->regaddr + DDR_PORT_WRITE_QOS_CTRL);
