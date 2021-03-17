@@ -33,14 +33,18 @@
 #include <linux/mutex.h>
 #include <linux/mtd/spinand.h>
 #include <linux/completion.h>
+#ifdef CONFIG_HOBOT_DIAG
 #include <soc/hobot/diag.h>
+#endif
 #if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
 #include <soc/hobot/hobot_bus.h>
 #endif
 #include "./spi-hobot-qspi.h"
 
+#ifdef CONFIG_HOBOT_DIAG
 static int first_time;
 static int last_err;
+#endif
 
 struct hb_qspi;
 
@@ -951,6 +955,7 @@ static const struct spi_controller_mem_ops hb_mem_ops = {
 	.exec_op = hb_qspi_exec_mem_op,
 };
 
+#ifdef CONFIG_HOBOT_DIAG
 static void hb_qspiflash_diag_report(uint8_t errsta, uint32_t sta_reg)
 {
 	if (errsta) {
@@ -970,11 +975,14 @@ static void hb_qspiflash_diag_report(uint8_t errsta, uint32_t sta_reg)
 				DiagEventStaSuccess);
 	}
 }
+#endif
 
+#ifdef CONFIG_HOBOT_DIAG
 static void hb_qspiflash_callback(void *p, size_t len)
 {
 	first_time = 0;
 }
+#endif
 
 #if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
 static int hbqspi_dpm_callback(struct hobot_dpm *self,
@@ -1018,6 +1026,7 @@ static irqreturn_t hb_qspi_irq_handler(int irq, void *dev_id)
 	if (err_status & (HB_QSPI_RXWR_FULL | HB_QSPI_TXRD_EMPTY))
 		err = 1;
 
+#ifdef CONFIG_HOBOT_DIAG
 	if (first_time == 0) {
 		first_time = 1;
 		last_err = err;
@@ -1026,6 +1035,7 @@ static irqreturn_t hb_qspi_irq_handler(int irq, void *dev_id)
 		last_err = err;
 		hb_qspiflash_diag_report(err, err_status);
 	}
+#endif
 	return IRQ_HANDLED;
 }
 
@@ -1135,9 +1145,11 @@ static int hb_qspi_probe(struct platform_device *pdev)
 		master->dev.init_name =  device_name;
 	}
 
+#ifdef CONFIG_HOBOT_DIAG
 	if (diag_register(ModuleDiag_qspi, EventIdqspiErr,
-						4, 10, 5000, hb_qspiflash_callback) < 0)
+			4, 10, DIAG_MSG_INTERVAL_MAX, hb_qspiflash_callback) < 0)
 		pr_err("qspi flash diag register fail\n");
+#endif
 
 	/* QSPI controller initializations */
 	hb_qspi_hw_init(hbqspi);
