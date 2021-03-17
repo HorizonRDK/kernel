@@ -36,7 +36,9 @@
 #include <linux/delay.h>
 #include <soc/hobot/hobot_bus.h>
 #endif
+#ifdef CONFIG_HOBOT_DIAG
 #include <soc/hobot/diag.h>
+#endif
 #include "hobot_serial.h"
 
 #define HOBOT_UART_TTY_NAME	"ttyS"
@@ -579,6 +581,7 @@ static void hobot_uart_handle_tx(void *dev_id, unsigned char in_irq)
 }
 #endif /* CONFIG_HOBOT_TTY_IRQ_MODE || CONFIG_HOBOT_TTY_POLL_MODE */
 
+#ifdef CONFIG_HOBOT_DIAG
 static void uart_diag_report(uint8_t errsta, uint32_t srcpndreg,
 						struct hobot_uart *hbuart)
 {
@@ -593,6 +596,7 @@ static void uart_diag_report(uint8_t errsta, uint32_t srcpndreg,
 				4);
 	}
 }
+#endif
 
 /**
  * hobot_uart_isr - Interrupt handler
@@ -662,8 +666,10 @@ static irqreturn_t hobot_uart_isr(int irq, void *dev_id)
 	spin_unlock(&port->lock);
 #endif /* CONFIG_HOBOT_TTY_IRQ_MODE */
 
+#ifdef CONFIG_HOBOT_DIAG
 	if (errflag)
 		uart_diag_report(1, status, hobot_uart);
+#endif
 
 	return IRQ_HANDLED;
 }
@@ -1839,11 +1845,13 @@ static int hobot_uart_probe(struct platform_device *pdev)
 	atomic_set(&hobot_uart_data->dmatx_flag, 0);
 #endif
 
+#ifdef CONFIG_HOBOT_DIAG
 	/* diag */
 	hobot_uart_data->uart_id = id;
 	if (diag_register(ModuleDiag_uart, EventIdUart0Err + id,
-						4, 100, 148, NULL) < 0)
+				4, DIAG_MSG_INTERVAL_MIN, DIAG_MSG_INTERVAL_MAX, NULL) < 0)
 		dev_err(&pdev->dev, "uart%d diag register fail\n", id);
+#endif
 
 	return 0;
 
