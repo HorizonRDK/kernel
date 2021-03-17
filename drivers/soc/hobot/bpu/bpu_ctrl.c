@@ -16,6 +16,17 @@
 #endif
 #include "bpu_ctrl.h"
 
+enum core_pe_type {
+    CORE_TYPE_UNKNOWN,
+    CORE_TYPE_4PE,
+    CORE_TYPE_1PE,
+    CORE_TYPE_2PE,
+    CORE_TYPE_ANY,
+    CORE_TYPE_INVALID,
+};
+
+#define CORE_PE_TYPE_OFFSET 4
+
 static int soc_is_x3e(void)
 {
 	int32_t chipid;
@@ -30,6 +41,21 @@ static int soc_is_x3e(void)
 
 	return 0;
 }
+
+uint8_t bpu_core_type(struct bpu_core *core)
+{
+	if (core == NULL) {
+		pr_err("BPY Core TYPE on invalid core!\n");/*PRQA S ALL*/
+		return 0;
+	}
+
+	if (soc_is_x3e()) {
+		return (1u << CORE_PE_TYPE_OFFSET) | CORE_TYPE_4PE;
+	} else {
+		return CORE_TYPE_ANY;
+	}
+}
+EXPORT_SYMBOL(bpu_core_type);/*PRQA S ALL*/
 
 static int32_t bpu_core_pend_on(struct bpu_core *core)
 {
@@ -550,7 +576,7 @@ static int32_t bpu_core_raw_set_clk(const struct bpu_core *core, uint64_t rate)
 	return ret;
 }
 
-static int32_t bpu_core_set_clk(struct bpu_core *core, uint64_t rate)
+int32_t bpu_core_set_clk(struct bpu_core *core, uint64_t rate)
 {
 	int32_t err, ret = 0;
 
@@ -582,6 +608,26 @@ static int32_t bpu_core_set_clk(struct bpu_core *core, uint64_t rate)
 
 	return ret;
 }
+// PRQA S ALL ++
+EXPORT_SYMBOL(bpu_core_set_clk);
+// PRQA S ALL --
+
+uint64_t bpu_core_get_clk(struct bpu_core *core)
+{
+	uint64_t rate;
+
+	if (core == NULL) {
+		pr_err("Invalid core get clk!\n");/*PRQA S ALL*/
+		return 0;
+	}
+
+	rate = clk_get_rate(core->mclk);
+
+	return rate;
+}
+// PRQA S ALL ++
+EXPORT_SYMBOL(bpu_core_get_clk);
+// PRQA S ALL --
 
 #if defined(CONFIG_PM_DEVFREQ) && defined(CONFIG_DEVFREQ_THERMAL)
 static int bpu_core_set_freq(struct device *dev, unsigned long *freq, u32 flags)/*PRQA S ALL*/
@@ -668,6 +714,7 @@ static int bpu_core_get_freq(struct device *dev, unsigned long *freq)/*PRQA S AL
 
 	if (core != NULL) {
 		if (core->dvfs != NULL) {
+			core->dvfs->rate = bpu_core_get_clk(core);
 			*freq = core->dvfs->rate;
 		}
 	}

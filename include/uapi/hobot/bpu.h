@@ -64,5 +64,8 @@ struct bpu_group {
 #define BPU_GET_FREQ_LEVEL _IOR(BPU_IOC_MAGIC, 10, int16_t)
 #define BPU_GET_FREQ_LEVEL_NUM _IOR(BPU_IOC_MAGIC, 11, int16_t)
 #define BPU_SET_LIMIT _IOW(BPU_IOC_MAGIC, 12, uint32_t)
+#define BPU_SET_CLK _IOW(BPU_IOC_MAGIC, 13, uint64_t)
+#define BPU_GET_CLK _IOR(BPU_IOC_MAGIC, 14, uint64_t)
+#define BPU_CORE_TYPE _IOR(BPU_IOC_MAGIC, 15, uint8_t)
 
 #endif
