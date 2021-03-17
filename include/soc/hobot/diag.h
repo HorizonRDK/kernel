@@ -35,6 +35,7 @@ enum diag_module_id {
 	ModuleDiag_qspi,
 	ModuleDiag_cpu_cal,
 	ModuleDiag_mpu,
+	ModuleDiag_uart,
 	ModuleIdMax = 1000,
 };
 
@@ -185,6 +186,14 @@ enum diag_mpu_module_eventid {
 	EventIdMpuVioM0Err = 29,
 	EventIdMpuVpuErr,
 	EventIdMpuVioM1Err,
+};
+
+/* uart module event id */
+enum diag_uart_module_eventid {
+	EventIdUart0Err = 1,
+	EventIdUart1Err,
+	EventIdUart2Err,
+	EventIdUart3Err,
 };
 
 /*

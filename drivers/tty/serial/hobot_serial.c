@@ -36,6 +36,7 @@
 #include <linux/delay.h>
 #include <soc/hobot/hobot_bus.h>
 #endif
+#include <soc/hobot/diag.h>
 #include "hobot_serial.h"
 
 #define HOBOT_UART_TTY_NAME	"ttyS"
@@ -578,6 +579,21 @@ static void hobot_uart_handle_tx(void *dev_id, unsigned char in_irq)
 }
 #endif /* CONFIG_HOBOT_TTY_IRQ_MODE || CONFIG_HOBOT_TTY_POLL_MODE */
 
+static void uart_diag_report(uint8_t errsta, uint32_t srcpndreg,
+						struct hobot_uart *hbuart)
+{
+	if (errsta) {
+		diag_send_event_stat_and_env_data(
+				DiagMsgPrioHigh,
+				ModuleDiag_uart,
+				EventIdUart0Err + hbuart->uart_id,
+				DiagEventStaFail,
+				DiagGenEnvdataWhenErr,
+				(uint8_t *)&srcpndreg,
+				4);
+	}
+}
+
 /**
  * hobot_uart_isr - Interrupt handler
  * @irq: Irq number
@@ -590,9 +606,15 @@ static irqreturn_t hobot_uart_isr(int irq, void *dev_id)
 #ifdef CONFIG_HOBOT_TTY_IRQ_MODE
 	struct uart_port *port = (struct uart_port *)dev_id;
 	unsigned int status;
+	struct hobot_uart *hobot_uart = port->private_data;
+	u8 errflag = 0;
 
 	spin_lock(&port->lock);
 	status = readl(port->membase + HOBOT_UART_SRC_PND);
+
+	if(status & (UART_RXOE | UART_PE | UART_FE))
+		errflag = 1;
+
 	/* Disable the special irq */
 	writel(status, port->membase + HOBOT_UART_INT_SETMASK);
 	/* Clear irq's status */
@@ -611,10 +633,16 @@ static irqreturn_t hobot_uart_isr(int irq, void *dev_id)
 #elif defined(CONFIG_HOBOT_TTY_DMA_MODE)
 	struct uart_port *port = (struct uart_port *)dev_id;
 	unsigned int status;
+	struct hobot_uart *hobot_uart = port->private_data;
+	u8 errflag = 0;
 
 	check_switch_mode(port, UART_DMA_MODE);
 	spin_lock(&port->lock);
 	status = readl(port->membase + HOBOT_UART_SRC_PND);
+
+	if(status & (UART_RXOE | UART_PE | UART_FE))
+		errflag = 1;
+
 	/* Disable the special irq */
 	writel(status, port->membase + HOBOT_UART_INT_SETMASK);
 	/* Clear irq's status */
@@ -633,6 +661,9 @@ static irqreturn_t hobot_uart_isr(int irq, void *dev_id)
 
 	spin_unlock(&port->lock);
 #endif /* CONFIG_HOBOT_TTY_IRQ_MODE */
+
+	if (errflag)
+		uart_diag_report(1, status, hobot_uart);
 
 	return IRQ_HANDLED;
 }
@@ -1807,6 +1838,13 @@ static int hobot_uart_probe(struct platform_device *pdev)
 	atomic_set(&hobot_uart_data->uart_start, 0);
 	atomic_set(&hobot_uart_data->dmatx_flag, 0);
 #endif
+
+	/* diag */
+	hobot_uart_data->uart_id = id;
+	if (diag_register(ModuleDiag_uart, EventIdUart0Err + id,
+						4, 100, 148, NULL) < 0)
+		dev_err(&pdev->dev, "uart%d diag register fail\n", id);
+
 	return 0;
 
 err_out_clk_disable:
