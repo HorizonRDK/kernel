@@ -63,7 +63,9 @@
 #include <linux/sysfs.h>
 #include <linux/tcp.h>
 #include <linux/timer.h>
+#ifdef CONFIG_HOBOT_DIAG
 #include <soc/hobot/diag.h>
+#endif
 #include <uapi/linux/if_arp.h>
 
 #include "hobot_eth.h"
@@ -2763,6 +2765,7 @@ static void xj3_start_all_queues(struct xj3_priv *priv) {
         netif_tx_start_queue(netdev_get_tx_queue(priv->dev, queue));
 }
 
+#ifdef CONFIG_HOBOT_DIAG
 static void dwceqos_diag_process(u32 errsta, uint32_t regval) {
     u8 sta;
     u8 envgen_timing;
@@ -2787,6 +2790,8 @@ static void dwceqos_diag_process(u32 errsta, uint32_t regval) {
         }
     }
 }
+#endif
+
 static int xj3_dma_interrupt(struct xj3_priv *priv, struct xj3_extra_stats *x,
                              u32 chan) {
     int ret = 0;
@@ -2847,7 +2852,9 @@ static int xj3_dma_interrupt(struct xj3_priv *priv, struct xj3_extra_stats *x,
         eth_err_flag = 0;
     }
 
+#ifdef CONFIG_HOBOT_DIAG
     dwceqos_diag_process(err, intr_status);
+#endif
     return ret;
 }
 
@@ -5210,7 +5217,9 @@ static int xj3_eth_dwmac_config_dt(struct platform_device *pdev,
     return 0;
 }
 
+#ifdef CONFIG_HOBOT_DIAG
 static void hobot_eth_diag_test(void *p, size_t len) { eth_err_flag = 1; }
+#endif
 
 static int hobot_eth_probe(struct platform_device *pdev) {
     struct plat_config_data *plat_dat;
@@ -5250,9 +5259,12 @@ static int hobot_eth_probe(struct platform_device *pdev) {
 
     ret = xj3_dvr_probe(&pdev->dev, plat_dat, &xj3_res);
     if (ret) goto remove;
-    if (diag_register(ModuleDiag_eth, EventIdEthDmaBusErr, 4, 100, 148,
-                      hobot_eth_diag_test) < 0)
+#ifdef CONFIG_HOBOT_DIAG
+    if (diag_register(ModuleDiag_eth, EventIdEthDmaBusErr, 4,
+			DIAG_MSG_INTERVAL_MIN, DIAG_MSG_INTERVAL_MAX,
+			hobot_eth_diag_test) < 0)
         dev_err(&pdev->dev, "eth diag register fail\n");
+#endif
     dev_info(&pdev->dev, "%s: probe sucessfully\n", __func__);
     return ret;
 remove:
