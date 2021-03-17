@@ -185,6 +185,8 @@ static long bpu_core_ioctl(struct file *filp,/*PRQA S ALL*/
 	uint16_t cap;
 	int16_t level;
 	uint32_t limit;
+	uint64_t clock;
+	uint8_t type;
 
 	int32_t ret = 0;
 	int32_t i;
@@ -276,6 +278,28 @@ static long bpu_core_ioctl(struct file *filp,/*PRQA S ALL*/
 			return -EFAULT;
 		}
 		break;
+	case BPU_SET_CLK:/*PRQA S ALL*/
+		clock = 0;
+		if (copy_from_user(&clock, (void __user *)arg, _IOC_SIZE(cmd)) != 0) {/*PRQA S ALL*/
+			dev_err(core->dev, "copy data from userspace failed\n");
+			return -EFAULT;
+		}
+		mutex_lock(&core->mutex_lock);
+		ret = bpu_core_set_clk(core, clock);
+		mutex_unlock(&core->mutex_lock);
+		if (ret != 0) {
+			dev_err(core->dev, "Set BPU core%d clock(%lld)failed\n",
+					core->index, clock);
+			return ret;
+		}
+		break;
+	case BPU_GET_CLK:/*PRQA S ALL*/
+		clock = bpu_core_get_clk(core);
+		if (copy_to_user((void __user *)arg, &clock, _IOC_SIZE(cmd)) != 0) {/*PRQA S ALL*/
+			dev_err(core->dev, "copy data to userspace failed\n");
+			return -EFAULT;
+		}
+		break;
 	case BPU_RESET:/*PRQA S ALL*/
 		mutex_lock(&core->mutex_lock);
 		ret = bpu_core_reset(core);
@@ -289,6 +313,13 @@ static long bpu_core_ioctl(struct file *filp,/*PRQA S ALL*/
 		ret = bpu_core_set_limit(core, (int32_t)limit);
 		if (ret != 0) {
 			dev_err(core->dev, "BPU core set prio limit failed\n");
+		}
+		break;
+	case BPU_CORE_TYPE:
+		type = bpu_core_type(core);
+		if (copy_to_user((void __user *)arg, &type, _IOC_SIZE(cmd)) != 0) {/*PRQA S ALL*/
+			dev_err(core->dev, "copy data to userspace failed\n");
+			return -EFAULT;
 		}
 		break;
 	default:
