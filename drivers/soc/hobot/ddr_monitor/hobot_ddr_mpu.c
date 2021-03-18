@@ -25,7 +25,9 @@
 #include <linux/ion.h>
 #include <linux/cma.h>
 #include <linux/dma-contiguous.h>
+#ifdef CONFIG_HOBOT_DIAG
 #include <soc/hobot/diag.h>
+#endif
 
 #include "./hobot_ddr_mpu.h"
 
@@ -526,7 +528,8 @@ static int ddr_mpu_protect_kernel(void)
 #define MPU_REG_DIAG(event_id) \
 	do { \
 		ret = diag_register(ModuleDiag_mpu, (event_id), \
-			sizeof(uint8_t), 100, 148, NULL);  \
+			sizeof(uint8_t), DIAG_MSG_INTERVAL_MIN, \
+			DIAG_MSG_INTERVAL_MAX, NULL);  \
 		if (ret < 0) \
 			pr_err("MPU diag register fail for event %d\n", event_id); \
 	} while (0);
@@ -546,7 +549,7 @@ static int ddr_mpu_register_diag_event(void)
 	return ret;
 }
 #else
-static int ddr_mpu_register_diag_event() {void}
+static int ddr_mpu_register_diag_event(void) {}
 #endif
 
 int ddr_mpu_init(struct platform_device *pdev)
