@@ -47,7 +47,9 @@
 #include <linux/kthread.h>
 #include <linux/clk-provider.h>
 #include <linux/regulator/consumer.h>
+#ifdef CONFIG_HOBOT_DIAG
 #include <soc/hobot/diag.h>
+#endif
 #ifdef CONFIG_HOBOT_CNN_DEVFREQ
 #include <linux/devfreq.h>
 #include <linux/devfreq_cooling.h>
@@ -364,6 +366,8 @@ error:
 	dev_err(cnn_dev->dev, "failed to get %s reset signal\n", name);
 	return PTR_ERR(rst_temp);
 }
+
+#ifdef CONFIG_HOBOT_DIAG
 static void report_bpu_diagnose_msg(u32 err, int core_index)
 {
 	u32 ret;
@@ -387,6 +391,8 @@ static void report_bpu_diagnose_msg(u32 err, int core_index)
 		diag_send_event_stat(DiagMsgPrioMid, ModuleDiag_bpu,
 							bpu_event, DiagEventStaSuccess);
 }
+#endif
+
 /**
  * hobot_bpu_hw_reset_reinit - sw reset cnn controller
  * @cnn_dev: pointer cnn dev struct
@@ -459,7 +465,9 @@ static irqreturn_t hobot_bpu_interrupt_handler(int irq, void *dev_id)
 		irq_err = 0x1000;
 		bpu_err_flag = 0;
 	}
+#ifdef CONFIG_HOBOT_DIAG
 	report_bpu_diagnose_msg(irq_err, dev->core_index);
+#endif
 	spin_unlock_irqrestore(&dev->cnn_spin_lock, flags);
 	dev->head_value = 0;
 	dev->inst_num = 0;
@@ -1657,12 +1665,14 @@ static int cnnfreq_target(struct device *dev, unsigned long *freq,
 			goto out;
 		}
 	}
+#ifdef CONFIG_HOBOT_DIAG
 	/* Send the bpu freq change notify to listener */
 	diag_send_event_stat_and_env_data(DiagMsgPrioLow,
 			ModuleDiag_bpu, CNN_FREQ_CHANGE(cnn_dev->core_index),
 			DiagEventStaUnknown,
 			DiagGenEnvdataWhenSuccess,
 			(uint8_t *)&target_rate, sizeof(target_rate));
+#endif
 
 	cnnfreq->volt = target_volt;
 out:
@@ -1942,10 +1952,13 @@ static void hobot_check_cnn(unsigned long arg)
 }
 #endif
 
+#ifdef CONFIG_HOBOT_DIAG
 static void bpu_diag_test(void *p, size_t len)
 {
 	bpu_err_flag = 1;
 }
+#endif
+
 int hobot_bpu_probe(struct platform_device *pdev)
 {
 
@@ -2138,18 +2151,22 @@ int hobot_bpu_probe(struct platform_device *pdev)
 	init_completion(&cnn_dev->bpu_completion);
 	init_completion(&cnn_dev->nega_completion);
 
+#ifdef CONFIG_HOBOT_DIAG
 	/* diag ref init */
 	if ((EventIdBpu0Err + cnn_id) <= EventIdBpu1Err) {
-		if (diag_register(ModuleDiag_bpu, EventIdBpu0Err + cnn_id, 5, 300,
-					7000, bpu_diag_test) < 0)
+		if (diag_register(ModuleDiag_bpu, EventIdBpu0Err + cnn_id, 5,
+				DIAG_MSG_INTERVAL_MIN, DIAG_MSG_INTERVAL_MAX,
+				bpu_diag_test) < 0)
 			dev_err(&pdev->dev, "bpu%d diag register fail\n", cnn_id);
 	} else
 			dev_err(&pdev->dev, "bpu event id overun: max = 2,but now is:%d\n",
 					EventIdBpu0Err + cnn_id);
 
 	if (diag_register(ModuleDiag_bpu,
-			  CNN_FREQ_CHANGE(cnn_id), 16, 300, 5000, NULL) < 0)
+			  CNN_FREQ_CHANGE(cnn_id), 16, DIAG_MSG_INTERVAL_MIN,
+			  DIAG_MSG_INTERVAL_MAX, NULL) < 0)
 		dev_err(&pdev->dev, "bpu%d freq notify register fail\n", cnn_id);
+#endif
 	pr_info("hobot bpu%d probe OK!!\n", cnn_id);
 #ifdef CONFIG_HOBOT_CNN_DEVFREQ
 	if (cnn_dev->has_regulator)
