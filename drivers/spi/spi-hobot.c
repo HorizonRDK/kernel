@@ -23,7 +23,7 @@
 #include <linux/spinlock_types.h>
 #include <linux/pm_runtime.h>
 #include <linux/dma-mapping.h>
-#define CONFIG_HOBOT_DIAG
+#ifdef CONFIG_HOBOT_DIAG
 #include <soc/hobot/diag.h>
 #endif
 #include <linux/timer.h>
@@ -582,7 +582,7 @@ static int hb_spi_drain_rxdma(struct hb_spi *hbspi)
 #endif
 #endif
 
-#define CONFIG_HOBOT_DIAG
+#ifdef CONFIG_HOBOT_DIAG
 static void spi_diag_report(uint8_t errsta, uint32_t srcpndreg,
 						struct hb_spi *hbspi)
 {
@@ -652,7 +652,7 @@ static irqreturn_t hb_spi_int_handle(int irq, void *data)
 #endif
 	}
 
-#define CONFIG_HOBOT_DIAG
+#ifdef CONFIG_HOBOT_DIAG
 	if (errflg)
 		spi_diag_report(1, pnd, hbspi);
 #endif
@@ -1345,7 +1345,7 @@ static int hb_spi_probe(struct platform_device *pdev)
 	}
 #endif
 
-#define CONFIG_HOBOT_DIAG
+#ifdef CONFIG_HOBOT_DIAG
 	/* diag */
 	hbspi->spi_id = spi_id;
 	if (diag_register(ModuleDiag_spi, EventIdSpi0Err + spi_id,
