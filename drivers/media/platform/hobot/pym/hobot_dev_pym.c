@@ -24,7 +24,9 @@
 #include <asm/cacheflush.h>
 #include <linux/io.h>
 #include <linux/poll.h>
+#ifdef CONFIG_HOBOT_DIAG
 #include <soc/hobot/diag.h>
+#endif
 #include <linux/ion.h>
 #include <linux/pm_qos.h>
 
@@ -1978,6 +1980,7 @@ void pym_frame_ndone(struct pym_subdev *subdev)
 	spin_unlock_irqrestore(&subdev->slock, flags);
 }
 
+#ifdef CONFIG_HOBOT_DIAG
 static void pym_diag_report(uint8_t errsta, unsigned int status)
 {
 	unsigned int sta;
@@ -2000,6 +2003,7 @@ static void pym_diag_report(uint8_t errsta, unsigned int status)
 				DiagEventStaSuccess);
 	}
 }
+#endif
 
 static irqreturn_t pym_isr(int irq, void *data)
 {
@@ -2088,7 +2092,9 @@ static irqreturn_t pym_isr(int irq, void *data)
 		pym_frame_ndone(subdev);
 	}
 
+#ifdef CONFIG_HOBOT_DIAG
 	pym_diag_report(err_occured, status);
+#endif
 	return IRQ_HANDLED;
 }
 
@@ -2633,9 +2639,11 @@ static int x3_pym_probe(struct platform_device *pdev)
 
 	x3_pym_subdev_init(pym);
 	vio_group_init_mp(GROUP_ID_PYM);
+#ifdef CONFIG_HOBOT_DIAG
 	if (diag_register(ModuleDiag_VIO, EventIdVioPymErr,
-				4, 100, 148, NULL) < 0)
-	pr_err("pym diag register fail\n");
+			4, DIAG_MSG_INTERVAL_MIN, DIAG_MSG_INTERVAL_MAX, NULL) < 0)
+		pr_err("pym diag register fail\n");
+#endif
 
 	vio_info("[FRT:D] %s(%d)\n", __func__, ret);
 
