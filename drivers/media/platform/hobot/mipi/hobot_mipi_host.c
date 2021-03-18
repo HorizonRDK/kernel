@@ -3354,7 +3354,8 @@ static int hobot_mipi_host_probe_cdev(mipi_hdev_t *hdev)
 #ifdef CONFIG_HOBOT_DIAG
 	/* diag */
 	if (diag_register(ModuleDiag_VIO, EventIdVioMipiHost0Err + hdev->port,
-						4, 100, 148, mipi_host_diag_test) < 0) {
+			4, DIAG_MSG_INTERVAL_MIN, DIAG_MSG_INTERVAL_MAX,
+			mipi_host_diag_test) < 0) {
 		pr_err("mipi host %d diag register fail\n", hdev->port);
 	} else {
 		hdev->last_err_tm_ms = 0;
