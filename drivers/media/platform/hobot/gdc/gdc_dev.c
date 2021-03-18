@@ -23,7 +23,9 @@
 #include <linux/uaccess.h>
 #include <asm/cacheflush.h>
 #include <linux/io.h>
+#ifdef CONFIG_HOBOT_DIAG
 #include <soc/hobot/diag.h>
+#endif
 
 #include "gdc_dev.h"
 #include "gdc_hw_api.h"
@@ -523,6 +525,7 @@ static long x3_gdc_ioctl(struct file *file, unsigned int cmd,
 	return ret;
 }
 
+#ifdef CONFIG_HOBOT_DIAG
 static void gdc_diag_report(uint8_t errsta, unsigned int status)
 {
 	if (errsta) {
@@ -538,6 +541,7 @@ static void gdc_diag_report(uint8_t errsta, unsigned int status)
 
 	return;
 }
+#endif
 
 static irqreturn_t gdc_isr(int irq, void *data)
 {
@@ -594,7 +598,9 @@ static irqreturn_t gdc_isr(int irq, void *data)
 		}
 
 		gdc_ctx->event = VIO_FRAME_NDONE;
+#ifdef CONFIG_HOBOT_DIAG
 		gdc_diag_report(1, status);
+#endif
 	}
 
 	if (gdc_ctx->event) {
@@ -826,10 +832,12 @@ static int x3_gdc_probe(struct platform_device *pdev)
 	ips_set_clk_ctrl(GDC0_CLOCK_GATE - gdc->hw_id, false);
 	vio_info("[FRT:D] %s(%d)\n", __func__, ret);
 
+#ifdef CONFIG_HOBOT_DIAG
 	if (diag_register(ModuleDiag_VIO, EventIdVioGdcErr,
-					4, 74, 148, NULL) < 0) {
+					4, 74, DIAG_MSG_INTERVAL_MAX, NULL) < 0) {
 		vio_err("GDC diag register fail\n");
 	}
+#endif
 
 	return 0;
 
