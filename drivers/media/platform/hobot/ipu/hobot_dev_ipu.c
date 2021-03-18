@@ -24,7 +24,9 @@
 #include <asm/cacheflush.h>
 #include <linux/io.h>
 #include <linux/poll.h>
+#ifdef CONFIG_HOBOT_DIAG
 #include <soc/hobot/diag.h>
+#endif
 #include <linux/ion.h>
 #include <linux/pm_qos.h>
 #include <linux/sched/signal.h>
@@ -3634,6 +3636,7 @@ void ipu_frame_ndone(struct ipu_subdev *subdev)
 	spin_unlock_irqrestore(&subdev->slock, flags);
 }
 
+#ifdef CONFIG_HOBOT_DIAG
 static void ipu_diag_report(uint8_t errsta, unsigned int status)
 {
 	unsigned int sta;
@@ -3656,6 +3659,7 @@ static void ipu_diag_report(uint8_t errsta, unsigned int status)
 				DiagEventStaSuccess);
 	}
 }
+#endif
 
 static irqreturn_t ipu_isr(int irq, void *data)
 {
@@ -3987,10 +3991,12 @@ static irqreturn_t ipu_isr(int irq, void *data)
 				vio_group_done(group);
 	}
 
+#ifdef CONFIG_HOBOT_DIAG
 	if (err_occured == 1)
 		ipu_diag_report(err_occured, err_status);
 	else
 		ipu_diag_report(err_occured, status);
+#endif
 	return IRQ_HANDLED;
 }
 
@@ -4722,9 +4728,11 @@ static int x3_ipu_probe(struct platform_device *pdev)
 
 	x3_ipu_subdev_init(ipu);
 	vio_group_init_mp(GROUP_ID_IPU);
+#ifdef CONFIG_HOBOT_DIAG
 	if (diag_register(ModuleDiag_VIO, EventIdVioIpuErr,
-					4, 100, 148, NULL) < 0)
+			4, DIAG_MSG_INTERVAL_MIN, DIAG_MSG_INTERVAL_MAX, NULL) < 0)
 		pr_err("ipu dual diag register fail\n");
+#endif
 	vio_info("[FRT:D] %s(%d)\n", __func__, ret);
 
 	return 0;
