@@ -26,7 +26,9 @@
 #include <linux/semaphore.h>
 #include <linux/reset.h>
 #include <linux/delay.h>
+#ifdef CONFIG_HOBOT_DIAG
 #include <soc/hobot/diag.h>
+#endif
 
 #include <linux/interrupt.h>
 #include <linux/platform_device.h>
@@ -472,6 +474,7 @@ static int i2sidma_mmap(struct snd_pcm_substream *substream,
 	return ret;
 }
 
+#ifdef CONFIG_HOBOT_DIAG
 static void iis_diag_report(uint8_t errsta, uint32_t status, uint8_t channel)
 {
 	uint32_t sta;
@@ -507,6 +510,7 @@ static void iis_diag_report(uint8_t errsta, uint32_t status, uint8_t channel)
 				DiagEventStaSuccess);
 	}
 }
+#endif
 
 static irqreturn_t iis_irq0(int irqno, void *dev_id)
 {
@@ -592,7 +596,9 @@ static irqreturn_t iis_irq0(int irqno, void *dev_id)
 	if (dma_ctrl->cb)
 			dma_ctrl->cb(dma_ctrl->token, dma_ctrl->period);
 err:
+#ifdef CONFIG_HOBOT_DIAG
 	iis_diag_report(errsta, intstatus, 0);
+#endif
 	return IRQ_HANDLED;
 }
 
@@ -682,7 +688,9 @@ static irqreturn_t iis_irq1(int irqno, void *dev_id)
 		dma_ctrl->cb(dma_ctrl->token, dma_ctrl->period);
 
 err:
+#ifdef CONFIG_HOBOT_DIAG
 	iis_diag_report(errsta, intstatus, 0);
+#endif
 	return IRQ_HANDLED;
 }
 
@@ -928,9 +936,11 @@ static int asoc_i2sidma_platform_probe(struct platform_device *pdev)
 
 	ret =  devm_snd_soc_register_platform(&pdev->dev,
 					      &asoc_i2sidma_platform[id]);
+#ifdef CONFIG_HOBOT_DIAG
 	if (diag_register(ModuleDiag_sound, EventIdSoundI2s0Err + id,
-				5, 200, 5000, NULL) < 0)
+				5, DIAG_MSG_INTERVAL_MIN, DIAG_MSG_INTERVAL_MAX, NULL) < 0)
 		dev_err(&pdev->dev, "i2s%d diag register fail\n", EventIdSoundI2s0Err + id);
+#endif
 
 	pr_info("success register platform %d, ret = %d\n", id, ret);
 
