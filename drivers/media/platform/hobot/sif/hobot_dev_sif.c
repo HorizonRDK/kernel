@@ -27,7 +27,9 @@
 #include <linux/io.h>
 #include <linux/timer.h>
 #include <linux/poll.h>
+#ifdef CONFIG_HOBOT_DIAG
 #include <soc/hobot/diag.h>
+#endif
 #include <linux/pm_qos.h>
 #include "hobot_dev_sif.h"
 #include "sif_hw_api.h"
@@ -2524,6 +2526,7 @@ void sif_frame_done(struct sif_subdev *subdev)
 	vio_dbg("%s: mux_index = %d\n", __func__, subdev->ddr_mux_index);
 }
 
+#ifdef CONFIG_HOBOT_DIAG
 static void sif_diag_report(uint8_t errsta, unsigned int status)
 {
 	unsigned int sta;
@@ -2540,6 +2543,7 @@ static void sif_diag_report(uint8_t errsta, unsigned int status)
 				sizeof(unsigned int));
 	}
 }
+#endif
 
 static void subdev_balance_lost_next_frame(struct sif_subdev *subdev)
 {
@@ -2808,7 +2812,9 @@ static irqreturn_t sif_isr(int irq, void *data)
 		// sif_hw_dump(sif->base_reg);
 		sif->error_count = 0;
 	}
+#ifdef CONFIG_HOBOT_DIAG
 	sif_diag_report(err_occured, irq_src.sif_frm_int);
+#endif
 	return IRQ_HANDLED;
 }
 
@@ -3699,9 +3705,11 @@ static int x3_sif_probe(struct platform_device *pdev)
 	vio_bind_info_dev_node_init(g_vio_bind_info_dev);
 	sif->vio_bind_info_dev = g_vio_bind_info_dev;
 
+#ifdef CONFIG_HOBOT_DIAG
 	if (diag_register(ModuleDiag_VIO, EventIdVioSifErr,
-					4, 74, 148, NULL) < 0)
+					4, 74, DIAG_MSG_INTERVAL_MAX, NULL) < 0)
 		vio_err("sif diag register fail\n");
+#endif
 
 	vio_info("[FRT:D] %s(%d)\n", __func__, ret);
 
