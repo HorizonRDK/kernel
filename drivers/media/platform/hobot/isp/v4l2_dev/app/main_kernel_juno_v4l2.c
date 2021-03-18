@@ -425,7 +425,7 @@ static int32_t isp_platform_probe( struct platform_device *pdev )
 
 #ifdef CONFIG_HOBOT_DIAG
 	if (diag_register(ModuleDiag_VIO, EventIdVioIspErr,
-				4, 100, 148, NULL) < 0)
+		4, DIAG_MSG_INTERVAL_MIN, DIAG_MSG_INTERVAL_MAX, NULL) < 0)
 	LOG(LOG_ERR, "Failed to register ISP diag.");
 #endif
 
