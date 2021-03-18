@@ -18,7 +18,9 @@
 #include <linux/clk-provider.h>
 #include <linux/regulator/consumer.h>
 #include <linux/dma-mapping.h>
+#ifdef CONFIG_HOBOT_DIAG
 #include <soc/hobot/diag.h>
+#endif
 #include "bpu.h"
 #include "bpu_core.h"
 #include "bpu_ctrl.h"
@@ -27,7 +29,10 @@
 #define CORE_PE_TYPE_OFFSET 4
 
 #define DEFAULT_BURST_LEN (0x80u)
+
+#ifdef CONFIG_HOBOT_DIAG
 static int32_t bpu_err_flag;
+#endif
 
 #define PLL_FREQ_CTRL_FBDIV_BIT 0
 #define PLL_FREQ_CTRL_REFDIV_BIT 12
@@ -419,10 +424,12 @@ static int32_t bpu_core_hw_rst(struct bpu_core *core)
 	return bpu_core_hw_init(core);
 }
 
+#ifdef CONFIG_HOBOT_DIAG
 static void bpu_diag_test(void *p, size_t len)
 {
 	bpu_err_flag = 1;
 }
+#endif
 
 static int32_t bpu_core_hw_enable(struct bpu_core *core)
 {
@@ -476,14 +483,17 @@ static int32_t bpu_core_hw_enable(struct bpu_core *core)
 		dev_err(core->dev, "bpu core hw reset failed\n");
 	}
 
+#ifdef CONFIG_HOBOT_DIAG
 	if ((EventIdBpu0Err + core->index) <= EventIdBpu1Err) {
-		if (diag_register(ModuleDiag_bpu, EventIdBpu0Err + core->index, 5, 100,
-					148, bpu_diag_test) < 0)
+		if (diag_register(ModuleDiag_bpu, EventIdBpu0Err + core->index, 5,
+				DIAG_MSG_INTERVAL_MIN, DIAG_MSG_INTERVAL_MAX,
+				bpu_diag_test) < 0)
 			pr_debug("bpu%d diag register fail\n", core->index);
 	} else {
 		dev_err(core->dev, "bpu event id overun: max = 2,but now is:%d\n",
 			EventIdBpu0Err + core->index);
 	}
+#endif
 
 	(void)check_start();
 
@@ -665,6 +675,7 @@ static int32_t bpu_core_hw_write_fc(const struct bpu_core *core,
 	return (int32_t)fc_num;
 }
 
+#ifdef CONFIG_HOBOT_DIAG
 static void report_bpu_diagnose_msg(u32 err, int core_index)
 {
 	u32 ret;
@@ -688,6 +699,7 @@ static void report_bpu_diagnose_msg(u32 err, int core_index)
 					bpu_event, DiagEventStaSuccess);
 	}
 }
+#endif
 
 static int32_t bpu_core_hw_read_fc(const struct bpu_core *core,
 		uint32_t *tmp_id, uint32_t *err)
@@ -713,6 +725,7 @@ static int32_t bpu_core_hw_read_fc(const struct bpu_core *core,
 		*err = 0;
 	}
 
+#ifdef CONFIG_HOBOT_DIAG
 	if (bpu_err_flag == 1) {
 		report_bpu_diagnose_msg(0x1000, core->index);
 		check_record |= 0x2;
@@ -720,6 +733,7 @@ static int32_t bpu_core_hw_read_fc(const struct bpu_core *core,
 		return 1;
 	}
 	report_bpu_diagnose_msg(*err, core->index);
+#endif
 
 	return 1;
 }
