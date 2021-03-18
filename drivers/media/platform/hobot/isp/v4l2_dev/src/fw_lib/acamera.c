@@ -1034,7 +1034,7 @@ int sif_isp_ctx_sync_func(int ctx_id)
 	mutex_lock(&g_firmware.ctx_chg_lock);
 	p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[ctx_id];
 	if (p_ctx->initialized == 0) {
-		pr_err("pipe[%d] has closed!!!\n", ctx_id);
+		pr_err("[s%d] has closed.\n", ctx_id);
 		mutex_unlock(&g_firmware.ctx_chg_lock);
 		return -1;
 	}
@@ -1181,6 +1181,10 @@ int acamera_dma_alarms_error_occur(void)
     acamera_isp_isp_global_monitor_output_dma_clr_alarm_write(0, 0);
     acamera_isp_isp_global_monitor_temper_dma_clr_alarm_write(0, 0);
 
+    if (dma_monitor_sts) {
+        pr_err("dma alarms %x\n", dma_monitor_sts);
+    }
+
     if (dma_alarms_sts & 1 << ISP_TEMPER_LSB_DMA_FRAME_DROPPED) {
         isp_error_sts = 1;
         temper_drop_cnt = 2;
@@ -1287,11 +1291,13 @@ int32_t acamera_interrupt_handler()
         }
         if (irq_mask & 1 << ISP_INTERRUPT_EVENT_MULTICTX_ERROR) {
             p_ctx->sts.context_manage_error++;
-            pr_err("[s%d] isp context manage error\n", cur_ctx_id);
+            pr_err("[s%d] isp context manage error, manage mode %d\n", cur_ctx_id,
+                    acamera_isp_isp_global_multi_context_mode_read(0));
         }
         if (irq_mask & 1 << ISP_INTERRUPT_EVENT_WATCHDOG_EXP) {
             p_ctx->sts.watchdog_timeout++;
-            pr_err("[s%d] isp watchdog timeout error\n", cur_ctx_id);
+            pr_err("[s%d] isp watchdog timeout error, watchdog timer cnt %u\n", cur_ctx_id,
+                    acamera_isp_isp_global_watchdog_timer_max_count_read(0));
         }
         if (irq_mask & 1 << ISP_INTERRUPT_EVENT_FRAME_COLLISION) {
             p_ctx->sts.frame_collision++;

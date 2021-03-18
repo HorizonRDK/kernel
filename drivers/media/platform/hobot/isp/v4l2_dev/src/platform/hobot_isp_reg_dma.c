@@ -232,6 +232,8 @@ irqreturn_t hobot_dma_interrupt(int irq, void *data)
     return IRQ_HANDLED;
 }
 
+static int idma_reg_dump = 1;
+module_param(idma_reg_dump, int, S_IRUGO|S_IWUSR);
 void hobot_idma_try_restore(void *data)
 {
     hobot_dma_t *hobot_dma = (hobot_dma_t*) data;
@@ -239,6 +241,8 @@ void hobot_idma_try_restore(void *data)
 
     pr_debug("+\n");
 
+    if (idma_reg_dump)
+        dump_dma();
     dma_isp_reg_start_dma_write(0);         // disable dma
     dma_isp_reg_mask_int_write(DMA_INT_DISABLE);  //mask dma irq
     dma_isp_reg_dma_sram_ch_en_write(0);    // cpu can control sram now

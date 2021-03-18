@@ -87,7 +87,7 @@ uint8_t isp_safe_stop( uint32_t base )
         // we set the timeout as 100 ms here in case the system_timer is not implemented correctly.
         count++;
         if ( count > 50 ) {
-            LOG( LOG_ERR, "stop fsm_mgr failed, timeout: %u.", (unsigned int)count * sleep_in_us );
+            pr_info("stop fsm_mgr failed, timeout: %u.", (unsigned int)count * sleep_in_us);
             rc = 1;
             break;
         }

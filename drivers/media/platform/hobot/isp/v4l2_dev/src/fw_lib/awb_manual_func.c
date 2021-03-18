@@ -242,7 +242,7 @@ void awb_read_statistics( AWB_fsm_t *p_fsm )
     }
 
     p_sbuf_awb_stats = (sbuf_awb_t *)sbuf.buf_base;
-    LOG( LOG_DEBUG, "Get sbuf ok, idx: %u, status: %u, addr: %p.", sbuf.buf_idx, sbuf.buf_status, sbuf.buf_base );
+    pr_debug("Get sbuf ok, idx: %u, status: %u, addr: %p.", sbuf.buf_idx, sbuf.buf_status, sbuf.buf_base );
 
     fsm_param_mon_alg_flow_t awb_flow;
 
@@ -446,7 +446,8 @@ void awb_normalise( AWB_fsm_t *p_fsm )
 void awb_set_new_param( AWB_fsm_ptr_t p_fsm, sbuf_awb_t *p_sbuf_awb )
 {
     if ( p_sbuf_awb->frame_id == p_fsm->cur_result_gain_frame_id ) {
-        pr_info("Same frame used twice, frame_id: %u.", p_sbuf_awb->frame_id);
+        pr_info("Same frame used twice, frame_id: %u. hw frmid %u", p_sbuf_awb->frame_id,
+                acamera_fsm_util_get_cur_frame_id(&p_fsm->cmn));
         return;
     }
 
