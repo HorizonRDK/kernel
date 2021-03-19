@@ -574,15 +574,12 @@ pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
 	printk("lumvar w/h %x\n", system_hw_read_32(0x1b274));
     }
 #endif
-    pr_info("broken frame status = 0x%x\n", acamera_isp_isp_global_monitor_broken_frame_status_read(0));
-    pr_info("active width min/max/sum/num = %d/%d/%d/%d\n", system_hw_read_32(0xb4),system_hw_read_32(0xb8),system_hw_read_32(0xbc),system_hw_read_32(0xc0));
-    pr_info("active high min/max/sum/num = %d/%d/%d/%d\n", system_hw_read_32(0xc4),system_hw_read_32(0xc8),system_hw_read_32(0xcc),system_hw_read_32(0xd0));
-    pr_info("hblank min/max/sum/num = %d/%d/%d/%d\n", system_hw_read_32(0xd4),system_hw_read_32(0xd8),system_hw_read_32(0xdc),system_hw_read_32(0xe0));
-    pr_info("vblank min/max/sum/num = %d/%d/%d/%d\n", system_hw_read_32(0xe4),system_hw_read_32(0xe8),system_hw_read_32(0xec),system_hw_read_32(0xf0));
-
-    pr_info("dma alarms sts %x\n", system_hw_read_32(0x00054));
-
-    pr_info("input port w/h %x, ping w/h %x, pong w/h %x\n", system_hw_read_32(0x98L), system_hw_read_32(0x18e88L), system_hw_read_32(0x30e48L));
+    pr_err("broken frame status = 0x%x\n", acamera_isp_isp_global_monitor_broken_frame_status_read(0));
+    pr_err("active width min/max/sum/num = %d/%d/%d/%d\n", system_hw_read_32(0xb4),system_hw_read_32(0xb8),system_hw_read_32(0xbc),system_hw_read_32(0xc0));
+    pr_err("active high min/max/sum/num = %d/%d/%d/%d\n", system_hw_read_32(0xc4),system_hw_read_32(0xc8),system_hw_read_32(0xcc),system_hw_read_32(0xd0));
+    pr_err("hblank min/max/sum/num = %d/%d/%d/%d\n", system_hw_read_32(0xd4),system_hw_read_32(0xd8),system_hw_read_32(0xdc),system_hw_read_32(0xe0));
+    pr_err("vblank min/max/sum/num = %d/%d/%d/%d\n", system_hw_read_32(0xe4),system_hw_read_32(0xe8),system_hw_read_32(0xec),system_hw_read_32(0xf0));
+    pr_err("input port w/h %x, ping w/h %x, pong w/h %x\n", system_hw_read_32(0x98L), system_hw_read_32(0x18e88L), system_hw_read_32(0x30e48L));
 }
 
 // dma writer status debug
@@ -1304,6 +1301,15 @@ int32_t acamera_interrupt_handler()
             pr_err("[s%d] isp frame collision error\n", cur_ctx_id);
         }
 
+        if (p_ctx->sts.broken_frame || p_ctx->sts.context_manage_error
+            || p_ctx->sts.watchdog_timeout || p_ctx->sts.frame_collision) {
+            p_ctx->sts.broken_frame = 0;
+            p_ctx->sts.context_manage_error = 0;
+            p_ctx->sts.watchdog_timeout = 0;
+            p_ctx->sts.frame_collision = 0;
+            input_port_status();
+        }
+
         if ( ( irq_mask & 1 << ISP_INTERRUPT_EVENT_BROKEN_FRAME ) ||
              ( irq_mask & 1 << ISP_INTERRUPT_EVENT_MULTICTX_ERROR ) ||
              ( irq_mask & 1 << ISP_INTERRUPT_EVENT_DMA_ERROR ) ||
@@ -1367,14 +1373,12 @@ int32_t acamera_interrupt_handler()
                     }
 
                     if ( g_firmware.dma_flag_isp_metering_completed == 0 || g_firmware.dma_flag_isp_config_completed == 0 ) {
-                        static uint32_t idma_error = 0;
                         p_ctx->sts.ispctx_dma_error++;
 
                         pr_err("DMA is not finished, cfg: %d, meter: %d.\n", g_firmware.dma_flag_isp_config_completed, g_firmware.dma_flag_isp_metering_completed );
 
-                        idma_error = p_ctx->sts.ispctx_dma_error;
-                        if (idma_error >= 5) {
-                            idma_error = 0;
+                        if (p_ctx->sts.ispctx_dma_error >= 5) {
+                            p_ctx->sts.ispctx_dma_error = 0;
                             g_firmware.dma_flag_isp_metering_completed = 1;
                             g_firmware.dma_flag_isp_config_completed = 1;
                             hobot_idma_try_restore(&g_hobot_dma);
@@ -1447,8 +1451,6 @@ int32_t acamera_interrupt_handler()
                     pr_debug("frame done, ctx id %d\n", cur_ctx_id);
                     acamera_dma_alarms_error_occur();
                     p_ctx->sts.fe_irq_cnt++;
-                    if (ip_sts_dbg)
-                        input_port_status();
                     if (p_ctx->p_gfw->sif_isp_offline) {
                         atomic_set(&g_firmware.frame_done, 1);
                         if (p_ctx->fsm_mgr.reserved) { //sif m2m isp m2m ipu
