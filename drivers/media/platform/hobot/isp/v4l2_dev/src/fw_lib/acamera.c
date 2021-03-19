@@ -1451,6 +1451,8 @@ int32_t acamera_interrupt_handler()
                     pr_debug("frame done, ctx id %d\n", cur_ctx_id);
                     acamera_dma_alarms_error_occur();
                     p_ctx->sts.fe_irq_cnt++;
+					if (ip_sts_dbg)
+                        input_port_status();
                     if (p_ctx->p_gfw->sif_isp_offline) {
                         atomic_set(&g_firmware.frame_done, 1);
                         if (p_ctx->fsm_mgr.reserved) { //sif m2m isp m2m ipu

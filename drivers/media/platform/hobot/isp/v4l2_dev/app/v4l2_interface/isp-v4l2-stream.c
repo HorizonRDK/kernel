@@ -1156,18 +1156,17 @@ int isp_v4l2_stream_set_format( isp_v4l2_stream_t *pstream, struct v4l2_format *
     if (sensor_info_check_exist(pstream->ctx_id, f) == 0)
         sensor_info_fill(pstream->ctx_id, f);
 
+	 /* update format */
+    rc = fw_intf_stream_set_output_format( pstream->ctx_id, pstream->stream_type, f->fmt.pix_mp.pixelformat );
+    if ( rc < 0 ) {
+        LOG( LOG_ERR, "set format failed ! (rc = %d)", rc );
+        return rc;
+    }
     /* update resolution */
     rc = fw_intf_stream_set_resolution( pstream->ctx_id, &pstream->stream_common->sensor_info,
                                         pstream->stream_type, f );
     if ( rc < 0 ) {
         LOG( LOG_ERR, "set resolution failed ! (rc = %d)", rc );
-        return rc;
-    }
-
-    /* update format */
-    rc = fw_intf_stream_set_output_format( pstream->ctx_id, pstream->stream_type, f->fmt.pix_mp.pixelformat );
-    if ( rc < 0 ) {
-        LOG( LOG_ERR, "set format failed ! (rc = %d)", rc );
         return rc;
     }
 
