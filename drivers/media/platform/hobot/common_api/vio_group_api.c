@@ -283,13 +283,14 @@ int vio_init_chain(int instance)
 {
 	struct vio_chain *ischain;
 	struct vio_group *group;
+	unsigned long flags;
 	int i = 0;
 
 	ischain = &iscore.chain[instance];
 
 	for (i = 0; i < GROUP_ID_NUMBER; i++) {
 		group = &ischain->group[i];
-		spin_lock(&group->slock);
+		spin_lock_irqsave(&group->slock, flags);
 		if (!test_bit(VIO_GROUP_INIT, &group->state)) {
 			group->chain = ischain;
 			group->instance= instance;
@@ -297,7 +298,7 @@ int vio_init_chain(int instance)
 			vio_group_init(group);
 			set_bit(VIO_GROUP_INIT, &group->state);
 		}
-		spin_unlock(&group->slock);
+		spin_unlock_irqrestore(&group->slock, flags);
 	}
 
 	return 0;

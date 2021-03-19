@@ -2386,9 +2386,7 @@ static int ddr_monitor_probe(struct platform_device *pdev)
 	}
 
 	axibus_reg = ioremap_nocache(0xa4000038, 4);
-	mutex_lock(&ddr_mo_mutex);
 	writel(0x10000000, axibus_reg);
-	mutex_unlock(&ddr_mo_mutex);
 	iounmap(axibus_reg);
 #endif
 

@@ -652,6 +652,7 @@ int pym_bind_chain_group(struct pym_video_ctx *pym_ctx, int instance,
 	struct vio_group *group;
 	struct x3_pym_dev *pym;
 	struct pym_subdev *subdev;
+	unsigned long flags;
 
 	if (!(pym_ctx->state & BIT(VIO_VIDEO_OPEN))) {
 		vio_err("[%s]invalid BIND is requested(%lX)",
@@ -680,7 +681,7 @@ int pym_bind_chain_group(struct pym_video_ctx *pym_ctx, int instance,
 	subdev->pym_dev = pym;
 	subdev->group = group;
 
-	spin_lock(&subdev->slock);
+	spin_lock_irqsave(&subdev->slock, flags);
 	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
 		if(!test_bit(i, &subdev->val_ctx_mask)) {
 			subdev->ctx[i] = pym_ctx;
@@ -689,7 +690,7 @@ int pym_bind_chain_group(struct pym_video_ctx *pym_ctx, int instance,
 			break;
 		}
 	}
-	spin_unlock(&subdev->slock);
+	spin_unlock_irqrestore(&subdev->slock, flags);
 	if (i == VIO_MAX_SUB_PROCESS) {
 		vio_err("alreay open too much for one pipeline\n");
 		return -EFAULT;
@@ -1906,7 +1907,7 @@ void pym_frame_done(struct pym_subdev *subdev)
 	 *check process frame to skip wakeup twice
 	 */
 	if (frame) {
-		spin_lock(&subdev->slock);
+		spin_lock_irqsave(&subdev->slock, flags);
 		/*
 		 * bit 1 represent main process
 		 * always set event and wakeup main process
@@ -1926,7 +1927,7 @@ void pym_frame_done(struct pym_subdev *subdev)
 				}
 			}
 		}
-		spin_unlock(&subdev->slock);
+		spin_unlock_irqrestore(&subdev->slock, flags);
 	}
 }
 
@@ -1962,7 +1963,7 @@ void pym_frame_ndone(struct pym_subdev *subdev)
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
-	spin_lock(&subdev->slock);
+	spin_lock_irqsave(&subdev->slock, flags);
 	vio_dbg("pym ndone subdev ctx mask:%lu", subdev->val_ctx_mask);
 	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
 		if (test_bit(i, &subdev->val_ctx_mask)) {
@@ -1973,7 +1974,7 @@ void pym_frame_ndone(struct pym_subdev *subdev)
 			}
 		}
 	}
-	spin_unlock(&subdev->slock);
+	spin_unlock_irqrestore(&subdev->slock, flags);
 }
 
 static irqreturn_t pym_isr(int irq, void *data)
