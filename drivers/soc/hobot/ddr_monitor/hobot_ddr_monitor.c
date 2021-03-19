@@ -107,6 +107,7 @@ struct ddr_ecc_s {
 
 struct ddr_monitor_dev_s* g_ddr_monitor_dev = NULL;
 int rd_cmd_bytes = 64;
+int wr_cmd_bytes = 64;
 
 struct ddr_portdata_s {
 	unsigned int waddr_num;
@@ -306,10 +307,10 @@ static int hobot_dfi_get_event(struct devfreq_event_dev *edev,
 	read_cnt = cur_info->rd_cmd_num * rd_cmd_bytes *
 			(1000000 / g_monitor_period) >> 20;
 
-	write_cnt = cur_info->wr_cmd_num * 64 *
+	write_cnt = cur_info->wr_cmd_num * wr_cmd_bytes *
 			(1000000 / g_monitor_period) >> 20;
 
-	mwrite_cnt = cur_info->mwr_cmd_num * 64 *
+	mwrite_cnt = cur_info->mwr_cmd_num * wr_cmd_bytes *
 			(1000000 / g_monitor_period) >> 20;
 
 	edata->load_count = read_cnt + write_cnt + mwrite_cnt;
@@ -417,9 +418,9 @@ static int get_monitor_data(char* buf)
 				}
 			}
 			write_bw = ((unsigned long) ddr_info[cur].wr_cmd_num) *
-				    64 * (1000000 / g_monitor_period) >> 20;
+				    wr_cmd_bytes * (1000000 / g_monitor_period) >> 20;
 			mask_bw = ((unsigned int) ddr_info[cur].mwr_cmd_num) *
-				   64 * (1000000 / g_monitor_period) >> 20;
+				    wr_cmd_bytes * (1000000 / g_monitor_period) >> 20;
 			length += sprintf(buf + length, "ddrc %lu MB/s, mask %lu MB/s\n", write_bw, mask_bw);
 			length += sprintf(buf + length, "\n");
 
@@ -2371,10 +2372,15 @@ static int ddr_monitor_probe(struct platform_device *pdev)
 	reg_val = readl(ddrc_base);
 	if (reg_val & 0x10) {
 		pr_info("DDR4 detected\n");
+		/* on ddr4, rd and wr cmd bytes could be different according to ddr params
+		 * currently it's 32 byte on two ddr4 modules
+		 * */
 		rd_cmd_bytes = 32;
+		wr_cmd_bytes = 32;
 	} else if (reg_val & 0x20) {
 		pr_info("LPDDR4 detected\n");
 		rd_cmd_bytes = 64;
+		wr_cmd_bytes = 64;
 	} else {
 		pr_err("Can't detected DDR type\n");
 	}
