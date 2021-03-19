@@ -32,6 +32,7 @@
 #define ID_LOOP_GAP		10
 #define ID_MASK			(0xFFFFFFFFu)
 #define STATE_SHIFT		(32u)
+#define BYTE_MASK		(0xFFu)
 
 /* tasklet just to do statistics work */
 static void bpu_core_tasklet(unsigned long data)/*PRQA S ALL*/
@@ -185,7 +186,7 @@ static long bpu_core_ioctl(struct file *filp,/*PRQA S ALL*/
 	uint16_t cap;
 	int16_t level;
 	uint32_t limit;
-	uint64_t clock;
+	uint64_t clock, tmp_type;
 	uint8_t type;
 
 	int32_t ret = 0;
@@ -285,7 +286,7 @@ static long bpu_core_ioctl(struct file *filp,/*PRQA S ALL*/
 			return -EFAULT;
 		}
 		mutex_lock(&core->mutex_lock);
-		ret = bpu_core_set_clk(core, clock);
+		ret = bpu_core_ext_ctrl(core, SET_CLK, &clock);
 		mutex_unlock(&core->mutex_lock);
 		if (ret != 0) {
 			dev_err(core->dev, "Set BPU core%d clock(%lld)failed\n",
@@ -294,7 +295,12 @@ static long bpu_core_ioctl(struct file *filp,/*PRQA S ALL*/
 		}
 		break;
 	case BPU_GET_CLK:/*PRQA S ALL*/
-		clock = bpu_core_get_clk(core);
+		ret = bpu_core_ext_ctrl(core, GET_CLK, &clock);
+		if (ret != 0) {
+			dev_err(core->dev, "Get BPU core%d clock failed\n",
+					core->index);
+			return ret;
+		}
 		if (copy_to_user((void __user *)arg, &clock, _IOC_SIZE(cmd)) != 0) {/*PRQA S ALL*/
 			dev_err(core->dev, "copy data to userspace failed\n");
 			return -EFAULT;
@@ -316,7 +322,13 @@ static long bpu_core_ioctl(struct file *filp,/*PRQA S ALL*/
 		}
 		break;
 	case BPU_CORE_TYPE:
-		type = bpu_core_type(core);
+		ret = bpu_core_ext_ctrl(core, CORE_TYPE, &tmp_type);
+		if (ret != 0) {
+			dev_err(core->dev, "Get BPU core%d type failed\n",
+					core->index);
+			return ret;
+		}
+		type = (uint8_t) (tmp_type & BYTE_MASK);
 		if (copy_to_user((void __user *)arg, &type, _IOC_SIZE(cmd)) != 0) {/*PRQA S ALL*/
 			dev_err(core->dev, "copy data to userspace failed\n");
 			return -EFAULT;
