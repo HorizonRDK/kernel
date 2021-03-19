@@ -42,7 +42,7 @@ static int soc_is_x3e(void)
 	return 0;
 }
 
-uint8_t bpu_core_type(struct bpu_core *core)
+static uint8_t bpu_core_type(struct bpu_core *core)
 {
 	if (core == NULL) {
 		pr_err("BPY Core TYPE on invalid core!\n");/*PRQA S ALL*/
@@ -55,7 +55,6 @@ uint8_t bpu_core_type(struct bpu_core *core)
 		return CORE_TYPE_ANY;
 	}
 }
-EXPORT_SYMBOL(bpu_core_type);/*PRQA S ALL*/
 
 static int32_t bpu_core_pend_on(struct bpu_core *core)
 {
@@ -576,7 +575,7 @@ static int32_t bpu_core_raw_set_clk(const struct bpu_core *core, uint64_t rate)
 	return ret;
 }
 
-int32_t bpu_core_set_clk(struct bpu_core *core, uint64_t rate)
+static int32_t bpu_core_set_clk(struct bpu_core *core, uint64_t rate)
 {
 	int32_t err, ret = 0;
 
@@ -608,11 +607,8 @@ int32_t bpu_core_set_clk(struct bpu_core *core, uint64_t rate)
 
 	return ret;
 }
-// PRQA S ALL ++
-EXPORT_SYMBOL(bpu_core_set_clk);
-// PRQA S ALL --
 
-uint64_t bpu_core_get_clk(struct bpu_core *core)
+static uint64_t bpu_core_get_clk(struct bpu_core *core)
 {
 	uint64_t rate;
 
@@ -625,8 +621,34 @@ uint64_t bpu_core_get_clk(struct bpu_core *core)
 
 	return rate;
 }
+
+int32_t bpu_core_ext_ctrl(struct bpu_core *core, ctrl_cmd_t cmd, uint64_t *data)
+{
+	if ((core == NULL) || (data == NULL)) {
+		pr_err("Invalid core/data!\n");/*PRQA S ALL*/
+		return -EINVAL;
+	}
+
+	if (cmd == CORE_TYPE) {
+		*data = bpu_core_type(core);
+		return 0;
+	}
+
+	if (cmd == SET_CLK) {
+		return bpu_core_set_clk(core, *data);
+	}
+
+	if (cmd == GET_CLK) {
+		*data = bpu_core_get_clk(core);
+		return 0;
+	}
+
+	pr_err("Invalid core cmd!\n");/*PRQA S ALL*/
+
+	return -EINVAL;
+}
 // PRQA S ALL ++
-EXPORT_SYMBOL(bpu_core_get_clk);
+EXPORT_SYMBOL(bpu_core_ext_ctrl);
 // PRQA S ALL --
 
 #if defined(CONFIG_PM_DEVFREQ) && defined(CONFIG_DEVFREQ_THERMAL)
