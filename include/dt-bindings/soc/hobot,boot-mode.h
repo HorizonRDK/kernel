@@ -6,16 +6,16 @@
 #define REBOOT_FLAG		0x5242C300
 /* normal boot */
 #define BOOT_NORMAL		(REBOOT_FLAG + 0)
-/* enter bootloader rockusb mode */
+/* enter bootloader dfu mode */
 #define BOOT_BL_DOWNLOAD	(REBOOT_FLAG + 1)
 /* enter recovery */
 #define BOOT_RECOVERY		(REBOOT_FLAG + 3)
 /* enter fastboot mode */
 #define BOOT_FASTBOOT		(REBOOT_FLAG + 9)
-/* enter charging mode */
-#define BOOT_CHARGING		(REBOOT_FLAG + 11)
 /* enter usb mass storage mode */
-#define BOOT_UMS		(REBOOT_FLAG + 12)
+#define BOOT_UMS		(REBOOT_FLAG + 11)
+/* enter device firmware upgrade mode */
+#define BOOT_DFU		(REBOOT_FLAG + 12)
 /* enter usb fimrware upgrade mode */
 #define BOOT_UFU		(REBOOT_FLAG + 13)
 
