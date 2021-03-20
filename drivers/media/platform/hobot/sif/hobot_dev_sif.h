@@ -55,10 +55,10 @@
 #define BIT2CHN(chns, chn) (chns & (1 << chn))
 
 struct sif_irq_src {
-	u32 sif_frm_int;
-	u32 sif_out_int;
+	u32 sif_frm_int; 	 // out FS status
+	u32 sif_out_int; 	 // sif to isp irq status
 	u32 sif_err_status;
-	u32 sif_in_buf_overflow;
+	u32 sif_in_buf_overflow; 	 // overflow irq status
 };
 
 struct sif_multi_frame {
@@ -98,7 +98,7 @@ struct sif_status_statistic {
 
 enum sif_format{
 	SIF_FORMAT_RAW,
-	SIF_FORMAT_YUV_RAW8 = 1,
+	SIF_FORMAT_YUV_RAW8 = 1,  // Yuv422-8 received by raw8
 	HW_FORMAT_YUV422 = 8
 };
 
@@ -139,8 +139,8 @@ enum sif_frame_interrupt_map{
 	INTR_SIF_MIPI_TX_IPI2_FS,
 	INTR_SIF_MIPI_TX_IPI3_FS,
 	INTR_SIF_OUT_BUF_ERROR = 27,
-	INTR_SIF_IN_SIZE_MISMATCH = 28,
-	INTR_SIF_IN_OVERFLOW = 29,
+	INTR_SIF_IN_SIZE_MISMATCH = 28,  // The width and height received by SIF are inconsistent with the actual configuration
+	INTR_SIF_IN_OVERFLOW = 29,  // An interrupt error occurred for overflow
 	INTR_SIF_MULTI_FRAME_ID = 31,
 };
 
@@ -177,14 +177,14 @@ struct x3_vio_mp_dev {
 
 struct sif_video_ctx{
 	wait_queue_head_t		done_wq;
-	struct vio_framemgr 	*framemgr;
+	struct vio_framemgr 	*framemgr;  // Responsible for buff rotation
 	struct vio_group		*group;
 	unsigned long			state;
 	u32 event;
-	u32 id;
+	u32 id;    	// 0:out node 1:ddrin node
 	u32 ctx_index;
 
-	struct x3_sif_dev 	*sif_dev;
+	struct x3_sif_dev 	*sif_dev;   // SIF hardware architecture
 	struct sif_subdev	*subdev;
 };
 
@@ -196,7 +196,7 @@ enum sif_state {
 	SIF_DOL2_MODE,
 	SIF_HW_RUN = 20,
 	SIF_HW_FORCE_STOP,
-	SIF_SPLICE_OP,
+	SIF_SPLICE_OP,  // For splicing
 };
 
 enum sif_subdev_state {
@@ -216,15 +216,15 @@ typedef struct fps_ctrl_s {
 }fps_ctrl_t;
 
 struct splice_info {
-	u32 splice_enable;
-	u32 splice_mode;
-	u32 pipe_num;
+	u32 splice_enable;		// Is splicing enabled
+	u32 splice_mode;		// 0:Vertical spelling 1:Horizontal spelling
+	u32 pipe_num;			// How many pipes spliced
 	u32 splice_done;
 	u32 frame_done;
-	u32 mux_index[SPLICE_PIPE_NUM];
-	u32 splice_rx_index[SPLICE_PIPE_NUM];
-	u8	splice_vc_index[SPLICE_PIPE_NUM];
-	u32 splice_ipi_index[SPLICE_PIPE_NUM];
+	u32 mux_index[SPLICE_PIPE_NUM]; 	// mux occupied by splicing
+	u32 splice_rx_index[SPLICE_PIPE_NUM];	// mipi_rx occupied by splicing
+	u8	splice_vc_index[SPLICE_PIPE_NUM];	// vc_index occupied by splicing
+	u32 splice_ipi_index[SPLICE_PIPE_NUM];	// ipi_index occupied by splicing
 };
 
 struct sif_subdev {
@@ -307,7 +307,7 @@ struct x3_sif_dev {
 	atomic_t			instance;
 	atomic_t			rsccount;
 	atomic_t			isp_init_cnt;
-	atomic_t			open_cnt;
+	atomic_t			open_cnt;  //
 	struct mutex			shared_mutex;
 	u32 				error_count;
 	u32					hblank;
@@ -326,7 +326,7 @@ struct x3_sif_dev {
 	struct vio_work sifout_work[VIO_MAX_STREAM][VIO_MP_MAX_FRAMES];
 	struct vio_work sifin_work[VIO_MAX_STREAM][VIO_MP_MAX_FRAMES];
 
-	struct sif2isp_seq      seq_task;
+	struct sif2isp_seq      seq_task;	// ddrin nodes enter ISP processing in order
 	struct frame_list frame_queue[VIO_MAX_STREAM];
 	struct frame_node frame_nodes[VIO_MAX_STREAM][VIO_MP_MAX_FRAMES];
 };

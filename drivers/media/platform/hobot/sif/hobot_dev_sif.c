@@ -150,7 +150,13 @@ void sif_config_rdma_cfg(struct sif_subdev *subdev, u8 index,
 			group->instance, width, height, stride);
 }
 
-
+/*
+  * @brief
+  * When SIF offline ISP, this interface is called to configure the read address of ddrin.
+  * At the same time, the callback function of ISP module is called to configure context.
+  * The interrupt of ddrin node is triggered by Q buf of Hal layer.
+  * If Hal does not have Q buf, the ddrin node will not read memory
+  */
 void sif_read_frame_work(struct vio_group *group)
 {
 	unsigned long flags;
@@ -216,6 +222,12 @@ void sif_read_frame_work(struct vio_group *group)
 	vio_ldc_access_mutex_unlock();
 }
 
+/*
+  * @brief
+  * SIF out node, each mux FE writes DDR,
+  * this function mainly configures the address and buff of each buff_index,
+  * because one mux corresponds to four buffs
+  */
 void sif_write_frame_work(struct vio_group *group)
 {
 	u32 instance = 0, i;
@@ -284,7 +296,6 @@ void sif_write_frame_work(struct vio_group *group)
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 	vio_dbg("[S%d]%s:done", group->instance, __func__);
 }
-
 
 static int x3_sif_open(struct inode *inode, struct file *file)
 {
@@ -1084,6 +1095,12 @@ int sif_get_stride(u32 pixel_length, u32 width)
 	return stride;
 }
 
+/*
+  * @brief assign mux to each path
+  * YUV sensor allocates two mux
+  * If the width exceeds 2688, two muxs are allocated for FIFO merging
+  * 8M yuv sensor, alloc 8 mux
+  */
 int get_free_mux(struct x3_sif_dev *sif, u32 index, int format, u32 dol_num,
 		u32 width, u32 *mux_numbers, u32 splice_enable, u32 pipe_num)
 {
@@ -1225,6 +1242,14 @@ int get_free_mux(struct x3_sif_dev *sif, u32 index, int format, u32 dol_num,
 
 	return ret;
 }
+
+/*
+  * @brief initialization of sif module
+  * assign mux to each path
+  * set the properties of the corresponding mipi path
+  * configure ddr output
+  * subdev there is a subdev on every road
+  */
 int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 {
 	int ret = 0;
@@ -1433,6 +1458,9 @@ void sif_fps_ctrl_deinit(struct sif_subdev *subdev)
 	return;
 }
 
+/*
+  * @brief initialization of sif module
+  */
 int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 {
 	int ret = 0;
@@ -1494,6 +1522,10 @@ int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 	return ret;
 }
 
+/*
+  * @brief
+  *Only one group can be bound all the way. If you repeat the binding, you will report an error
+  */
 int sif_bind_chain_group(struct sif_video_ctx *sif_ctx, int instance)
 {
 	int ret = 0;
@@ -1582,6 +1614,12 @@ p_err:
 	return ret;
 }
 
+/*
+  * @brief
+  * Configure common register
+  * enable SIF hardware
+  * enable each interrupt
+  */
 int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 {
 	int ret = 0;
@@ -1655,6 +1693,12 @@ p_inc:
 	return ret;
 }
 
+/*
+  * @brief
+  * disable common register
+  * disable SIF hardware
+  * disable each interrupt
+  */
 int sif_video_streamoff(struct sif_video_ctx *sif_ctx)
 {
 	int ret = 0;
@@ -1738,6 +1782,10 @@ int sif_video_s_stream(struct sif_video_ctx *sif_ctx, bool enable)
 	return ret;
 }
 
+/*
+  * @brief
+  * The total number of buffs required by SIF during initialization
+  */
 int sif_video_reqbufs(struct sif_video_ctx *sif_ctx, u32 buffers)
 {
 	int ret = 0;
@@ -1790,6 +1838,12 @@ int sif_video_reqbufs(struct sif_video_ctx *sif_ctx, u32 buffers)
 	return ret;
 }
 
+/*
+  * @brief
+  * Hal layer is driven by q buf, and out/ddrin node is the interface
+  * Insert this buff into the kernel thread queue.
+  * The out node has eight kernel threads and the ddrin node has one kernel thread
+  */
 int sif_video_qbuf(struct sif_video_ctx *sif_ctx,
 			struct frame_info *frameinfo)
 {
@@ -1846,7 +1900,11 @@ int sif_video_qbuf(struct sif_video_ctx *sif_ctx,
 	return ret;
 
 }
-
+/*
+  * @brief
+  * After processing, the driver puts it into the complete queue,
+  * wakes up the poll, and the user takes the data
+  */
 int sif_video_dqbuf(struct sif_video_ctx *sif_ctx,
 			struct frame_info *frameinfo)
 {
@@ -1890,6 +1948,10 @@ int sif_video_dqbuf(struct sif_video_ctx *sif_ctx,
 	return ret;
 }
 
+/*
+  * @brief
+  * SIF enables the bypass function
+  */
 int sif_enable_bypass(struct sif_video_ctx *sif_ctx, unsigned long arg)
 {
 	int ret = 0;
@@ -1908,6 +1970,11 @@ int sif_enable_bypass(struct sif_video_ctx *sif_ctx, unsigned long arg)
 
 	return 0;
 }
+
+/*
+  * @brief
+  * SIF enables MotionDect function
+  */
 int sif_set_mot_start(struct sif_video_ctx *sif_ctx)
 {
 	int ret = 0;
@@ -1921,6 +1988,10 @@ int sif_set_mot_start(struct sif_video_ctx *sif_ctx)
 	return ret;
 }
 
+/*
+  * @brief
+  * SIF disenable MotionDect function
+  */
 int sif_set_mot_stop(struct sif_video_ctx *sif_ctx)
 {
 	int ret = 0;
@@ -1934,6 +2005,10 @@ int sif_set_mot_stop(struct sif_video_ctx *sif_ctx)
 	return ret;
 }
 
+/*
+  * @brief
+  * SIF config MotionDect function
+  */
 int sif_set_mot_cfg(struct sif_video_ctx *sif_ctx, unsigned long arg)
 {
 	int ret = 0;
@@ -2188,6 +2263,11 @@ void sif_get_timestamps(struct vio_group *group, struct frame_id *info){
 	info = &subdev->info;
 }
 
+/*
+  * @brief
+  * SIF frame loss processing, when overflow occurs, frame loss is needed
+  * Put the buff in the process queue back into the request queue and reset the trigger
+  */
 void sif_frame_ndone(struct sif_subdev *subdev)
 {
 	struct vio_framemgr *framemgr;
@@ -2236,6 +2316,11 @@ void sif_frame_ndone(struct sif_subdev *subdev)
 	spin_unlock_irqrestore(&subdev->slock, flags);
 }
 
+/*
+  * @brief
+  * SIF frame done
+  * Put the buff in the complete queue
+  */
 void sif_frame_done(struct sif_subdev *subdev)
 {
 	struct vio_framemgr *framemgr;
