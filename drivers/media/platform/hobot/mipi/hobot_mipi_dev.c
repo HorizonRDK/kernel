@@ -146,6 +146,10 @@ module_param(init_num, uint, 0644);
 #define DEV_DPHY_RSTZ				(0x02)
 #define DEV_DPHY_ENABLEZ			(0x04)
 #define DEV_DPHY_FORCEPOLL			(0x08)
+#define DEV_DPHY_CAL_EN_MHZ			(1500)
+#define DEV_DPHY_CAL_DISABLE		(0x0)
+#define DEV_DPHY_CAL_ENABLE			(0x1)
+#define DEV_DPHY_CAL_DELAY_US		(50)
 
 #define MIPI_CSI2_DT_YUV420_8	(0x18)
 #define MIPI_CSI2_DT_YUV420_10	(0x19)
@@ -1375,6 +1379,7 @@ static int32_t mipi_dev_start(mipi_ddev_t *ddev)
 	struct device *dev = ddev->dev;
 	mipi_dev_t *mdev = &ddev->mdev;
 	mipi_dev_param_t *param = &mdev->param;
+	mipi_dev_cfg_t *cfg = &mdev->cfg;
 	void __iomem *iomem = mdev->iomem;
 
 	if (!ddev || !iomem)
@@ -1383,6 +1388,12 @@ static int32_t mipi_dev_start(mipi_ddev_t *ddev)
 	if (param->power_instart) {
 		/*Wake up DWC_mipicsi2_device*/
 		mipi_putreg(iomem + REG_MIPI_DEV_CSI2_RESETN, MIPI_DEV_CSI2_RAISE);
+
+		if ((cfg->mipiclk / cfg->lane) > DEV_DPHY_CAL_EN_MHZ) {
+			mipi_putreg(iomem + REG_MIPI_DEV_PHY_CAL, DEV_DPHY_CAL_ENABLE);
+			udelay(DEV_DPHY_CAL_DELAY_US);
+			mipi_putreg(iomem + REG_MIPI_DEV_PHY_CAL, DEV_DPHY_CAL_DISABLE);
+		}
 
 		if (!param->nocheck) {
 			if (0 != mipi_dev_wait_phy_powerup(ddev, &mdev->cfg)) {
@@ -1545,6 +1556,12 @@ init_retry:
 	if (!param->power_instart) {
 		/*Wake up DWC_mipicsi2_device*/
 		mipi_putreg(iomem + REG_MIPI_DEV_CSI2_RESETN, MIPI_DEV_CSI2_RAISE);
+
+		if ((cfg->mipiclk / cfg->lane) > DEV_DPHY_CAL_EN_MHZ) {
+			mipi_putreg(iomem + REG_MIPI_DEV_PHY_CAL, DEV_DPHY_CAL_ENABLE);
+			udelay(DEV_DPHY_CAL_DELAY_US);
+			mipi_putreg(iomem + REG_MIPI_DEV_PHY_CAL, DEV_DPHY_CAL_DISABLE);
+		}
 
 		if (!param->nocheck) {
 			if (0 != mipi_dev_wait_phy_powerup(ddev, cfg)) {
