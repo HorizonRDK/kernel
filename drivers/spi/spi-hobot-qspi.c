@@ -42,8 +42,7 @@
 #include "./spi-hobot-qspi.h"
 
 #ifdef CONFIG_HOBOT_DIAG
-static int first_time;
-static int last_err;
+static void hb_qspiflash_diag_report(uint8_t errsta, uint32_t sta_reg);
 #endif
 
 struct hb_qspi;
@@ -403,9 +402,10 @@ static void hb_qspi_hw_init(struct hb_qspi *hbqspi)
 	hb_qspi_wr_reg(hbqspi, HB_QSPI_TTL_REG, HB_QSPI_TRIG_LEVEL);
 	hb_qspi_wr_reg(hbqspi, HB_QSPI_RTL_REG, HB_QSPI_TRIG_LEVEL);
 
+	reg_val = 0;
+#ifndef HB_QSPI_WORK_POLL
 	/* init interrupt */
 	reg_val = HB_QSPI_ERR_INT;
-#ifndef HB_QSPI_WORK_POLL
 	reg_val |= (HB_QSPI_RBC_INT | HB_QSPI_TBC_INT);
 #endif
 	hb_qspi_wr_reg(hbqspi, HB_QSPI_CTL2_REG, reg_val);
@@ -902,6 +902,8 @@ exec_end:
 	if (ret)
 		dev_err(hbqspi->dev, "Exec op failed! cmd:%#02x err: %d\n",
 				op->cmd.opcode, ret);
+
+	hb_qspiflash_diag_report(ret, op->cmd.opcode);
 #if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
 	mutex_unlock(&(hbqspi->xfer_lock));
 #endif
@@ -980,7 +982,7 @@ static void hb_qspiflash_diag_report(uint8_t errsta, uint32_t sta_reg)
 #ifdef CONFIG_HOBOT_DIAG
 static void hb_qspiflash_callback(void *p, size_t len)
 {
-	first_time = 0;
+	return;
 }
 #endif
 
@@ -1018,24 +1020,17 @@ static irqreturn_t hb_qspi_irq_handler(int irq, void *dev_id)
 		complete(&hbqspi->xfer_complete);
 		return IRQ_HANDLED;
 	}
-#endif
-	err_status = hb_qspi_rd_reg(hbqspi, HB_QSPI_ST2_REG);
-	hb_qspi_wr_reg(hbqspi, HB_QSPI_ST2_REG,
-			HB_QSPI_RXWR_FULL | HB_QSPI_TXRD_EMPTY);
 
 	if (err_status & (HB_QSPI_RXWR_FULL | HB_QSPI_TXRD_EMPTY))
 		err = 1;
 
 #ifdef CONFIG_HOBOT_DIAG
-	if (first_time == 0) {
-		first_time = 1;
-		last_err = err;
-		hb_qspiflash_diag_report(err, err_status);
-	} else if (last_err != err) {
-		last_err = err;
-		hb_qspiflash_diag_report(err, err_status);
-	}
-#endif
+	hb_qspiflash_diag_report(err, err_status);
+#endif /* CONFIG_HOBOT_DIAG */
+#endif /* HB_QSPI_WORK_POLL */
+	err_status = hb_qspi_rd_reg(hbqspi, HB_QSPI_ST2_REG);
+	hb_qspi_wr_reg(hbqspi, HB_QSPI_ST2_REG,
+			HB_QSPI_RXWR_FULL | HB_QSPI_TXRD_EMPTY);
 	return IRQ_HANDLED;
 }
 
