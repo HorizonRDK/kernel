@@ -395,7 +395,7 @@ static int ddr_monitor_mod_open(struct inode *pinode, struct file *pfile)
 				sizeof(struct ddr_monitor_result_s) * TOTAL_RECORD_NUM);
 			return -ENOMEM;
 		}
-		result_buf = ddrmon->res_vaddr;//vmalloc(1024*80);
+		result_buf = ddrmon->res_vaddr;
 		cur_idx = 0;
 		g_record_num = 0;
 	}
@@ -592,7 +592,7 @@ int ddr_monitor_start(void)
 
 		writel(0xFFF, ddrmon->regaddr + PERF_MONITOR_ENABLE);
 		writel(0x1, ddrmon->regaddr + PERF_MONITOR_ENABLE_UNMASK);
-		ddr_info = vmalloc(sizeof(struct ddr_mon) * TOTAL_RECORD_NUM);
+		ddr_info = vmalloc(sizeof(struct ddr_monitor_result_s) * TOTAL_RECORD_NUM);
 		result_buf = ddrmon->res_vaddr;
 		cur_idx = 0;
 		g_record_num = 0;
@@ -620,11 +620,9 @@ int ddr_monitor_stop(void)
 int ddr_get_port_status(void)
 {
 	int i = 0;
-	ktime_t ktime;
 	int step;
 
-	ktime = ktime_sub(ktime_get(), g_ktime_start);
-	ddr_info[cur_idx].curtime = ktime_to_us(ktime);
+	ddr_info[cur_idx].curtime = ktime_to_ms(ktime_get());
 
 	for (i = 0; i < PORT_NUM; i++) {
 		step = i * MP_REG_OFFSET;
