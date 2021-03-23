@@ -241,9 +241,9 @@ function all()
     }
 
     if [ "$TARGET_MODE" = "debug" ];then
-        [ -f ko_debug.tgz ] && tar xvf ko_debug.tgz
+        [ -d ${TOPDIR}/ko/ko_debug/ ] && cp -raf  ${TOPDIR}/ko_debug/* _install/
     else
-        [ -f ko_release.tgz ] && tar xvf ko_release.tgz
+        [ -d ${TOPDIR}/ko/ko_release/ ] && cp -raf  ${TOPDIR}/ko_release/* _install/
     fi
 
     # make modules_install to INSTALL_MOD_PATH for debug ko (default: /)
