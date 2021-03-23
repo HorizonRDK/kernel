@@ -46,8 +46,7 @@
 #include "dw_mmc-hobot.h"
 
 #ifdef CONFIG_HOBOT_DIAG
-static int last_err;
-static int first_time;
+static int init_done;
 #endif
 
 #define INDEX_ID_EMMC	(0)
@@ -2866,15 +2865,10 @@ static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
 	}
 
 #ifdef CONFIG_HOBOT_DIAG
-	if ((first_time == 0) && (slot->mmc->index == INDEX_ID_EMMC)) {
-		first_time = 1;
-		last_err = err;
+	if ((init_done != 0) && (slot->mmc->index == INDEX_ID_EMMC))
 		hb_emmc_diag_process(err, pending);
-	} else if ((last_err != err) && (slot->mmc->index == INDEX_ID_EMMC)) {
-		last_err = err;
-		hb_emmc_diag_process(err, pending);
-	}
 #endif
+
 	if (host->use_dma != TRANS_MODE_IDMAC)
 		return IRQ_HANDLED;
 
@@ -3341,6 +3335,8 @@ int dw_mci_probe(struct dw_mci *host)
 	int width, i, ret = 0;
 	u32 fifo_size;
 
+	/* Do not report any error before init is properly done */
+	init_done = 0;
 	if (!host->pdata) {
 		host->pdata = dw_mci_parse_dt(host);
 		if (PTR_ERR(host->pdata) == -EPROBE_DEFER) {
@@ -3536,6 +3532,8 @@ int dw_mci_probe(struct dw_mci *host)
 							4, 50, DIAG_MSG_INTERVAL_MAX, NULL) < 0)
 			pr_err("emmc diag register fail\n");
 	}
+
+	init_done = 1;
 #endif
 
 	return 0;
