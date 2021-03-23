@@ -13,9 +13,16 @@
 
 #define SPINAND_MFR_XTX			0x0B
 
-#define XTX_STATUS_ECC_1TO3_BITFLIPS	(1 << 4)
-#define XTX_STATUS_ECC_4TO6_BITFLIPS	(3 << 4)
-#define XTX_STATUS_ECC_7TO8_BITFLIPS   (5 << 4)
+#define XTX_STATUS_ECC_MASK		GENMASK(7, 4)
+#define XTX_STATUS_ECC_1_BITFLIPS 	(1 << 4)
+#define XTX_STATUS_ECC_2_BITFLIPS 	(2 << 4)
+#define XTX_STATUS_ECC_3_BITFLIPS 	(3 << 4)
+#define XTX_STATUS_ECC_4_BITFLIPS 	(4 << 4)
+#define XTX_STATUS_ECC_5_BITFLIPS 	(5 << 4)
+#define XTX_STATUS_ECC_6_BITFLIPS 	(6 << 4)
+#define XTX_STATUS_ECC_7_BITFLIPS 	(7 << 4)
+#define XTX_STATUS_ECC_8_BITFLIPS 	(8 << 4)
+#define XTX_STATUS_ECC_UNCOR_ERROR  (0xF << 4)
 
 static SPINAND_OP_VARIANTS(read_cache_variants,
 		/* SPINAND_PAGE_READ_FROM_CACHE_QUADIO_OP(0, 2, NULL, 0), */
@@ -61,25 +68,41 @@ static int xt26q04c_ooblayout_free(struct mtd_info *mtd, int section,
 static int xt26q04c_ecc_get_status(struct spinand_device *spinand,
 									u8 status)
 {
-	switch (status & STATUS_ECC_MASK) {
-	case STATUS_ECC_NO_BITFLIPS:
-		return 0;
+    switch (status & XTX_STATUS_ECC_MASK)
+    {
+		case STATUS_ECC_NO_BITFLIPS:
+			return 0;
 
-	case XTX_STATUS_ECC_1TO3_BITFLIPS:
-		return 3;
+		case XTX_STATUS_ECC_1_BITFLIPS:
+			return 1;
 
-    case XTX_STATUS_ECC_4TO6_BITFLIPS:
-		return 6;
+		case XTX_STATUS_ECC_2_BITFLIPS:
+			return 2;
 
-	case XTX_STATUS_ECC_7TO8_BITFLIPS:
-		return 8;
+		case XTX_STATUS_ECC_3_BITFLIPS:
+			return 3;
 
-	case STATUS_ECC_UNCOR_ERROR:
-		return -EBADMSG;
+		case XTX_STATUS_ECC_4_BITFLIPS:
+			return 4;
 
-	default:
-		break;
-	}
+		case XTX_STATUS_ECC_5_BITFLIPS:
+			return 5;
+
+		case XTX_STATUS_ECC_6_BITFLIPS:
+			return 6;
+
+		case XTX_STATUS_ECC_7_BITFLIPS:
+			return 7;
+
+		case XTX_STATUS_ECC_8_BITFLIPS:
+			return 8;
+
+		case XTX_STATUS_ECC_UNCOR_ERROR:
+			return -EBADMSG;
+
+		default:
+			break;
+    }
 
 	return -EINVAL;
 }
