@@ -16,6 +16,7 @@
 #include <linux/list.h>
 #include <linux/wait.h>
 #include <linux/module.h>
+#include <linux/platform_device.h>
 #include <linux/miscdevice.h>
 #include <uapi/hobot/bpu.h>
 
@@ -183,8 +184,11 @@ static inline uint32_t bpu_group_user(uint32_t raw_id)
 }
 
 /* register core apis */
+int32_t bpu_core_parse_dts(struct platform_device *pdev, struct bpu_core *core);
 int32_t bpu_core_register(struct bpu_core *core);
 void bpu_core_unregister(struct bpu_core *core);
+int32_t bpu_core_driver_register(struct platform_driver *driver);
+void bpu_core_driver_unregister(struct platform_driver *driver);
 int32_t bpu_write_fc_to_core(struct bpu_core *core,
 		struct bpu_fc *bpu_fc, uint32_t offpos);
 bool bpu_core_is_online(struct bpu_core *core);
@@ -205,6 +209,8 @@ void bpu_sched_seed_update(void);
 int32_t bpu_stat_reset(struct bpu *bpu);
 
 /* sys apis */
+int32_t bpu_device_add_group(struct device *dev, const struct attribute_group *grp);
+void bpu_device_remove_group(struct device *dev, const struct attribute_group *grp);
 int32_t bpu_sys_system_init(struct bpu *bpu);
 void bpu_sys_system_exit(struct bpu *bpu);
 int32_t bpu_core_create_sys(struct bpu_core *core);

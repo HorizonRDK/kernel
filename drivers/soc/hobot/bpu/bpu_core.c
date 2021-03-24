@@ -18,11 +18,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/interrupt.h>
 #include <linux/device.h>
-#include <linux/reset.h>
 #include <asm/irq.h>
-#include <linux/clk.h>
-#include <linux/clk-provider.h>
-#include <linux/regulator/consumer.h>
 #include <linux/platform_device.h>
 #include "bpu.h"
 #include "bpu_core.h"
@@ -395,9 +391,6 @@ static int bpu_core_open(struct inode *inode, struct file *filp)/*PRQA S ALL*/
 			dev_err(core->dev, "Init bpu core prio sched failed\n");
 			return -EINVAL;
 		}
-#ifdef CONFIG_X3_BPU
-		pm_qos_add_request(&core->pm_qos_req, PM_QOS_DEVFREQ, 10000);
-#endif
 		ret = bpu_core_enable(core);
 		if (ret != 0) {
 			mutex_unlock(&core->mutex_lock);
@@ -501,9 +494,6 @@ static int bpu_core_release(struct inode *inode, struct file *filp)/*PRQA S ALL*
 		if (ret != 0) {
 			dev_err(core->dev, "BPU core disable failed\n");
 		}
-#ifdef CONFIG_X3_BPU
-		pm_qos_remove_request(&core->pm_qos_req);
-#endif
 
 		spin_lock_irqsave(&core->spin_lock, flags);/*PRQA S ALL*/
 		core->p_run_time = 0;
@@ -597,94 +587,6 @@ static SIMPLE_DEV_PM_OPS(bpu_core_pm_ops,/*PRQA S ALL*/
 			 bpu_core_suspend, bpu_core_resume);
 #endif
 
-static int32_t bpu_core_parse_dts(struct platform_device *pdev, struct bpu_core *core)
-{
-	struct device_node *np;
-	struct resource *resource;
-	int32_t ret;
-
-	if (core == NULL) {
-		pr_err("NO BPU Core parse DeviceTree\n");/*PRQA S ALL*/
-		return -ENODEV;
-	}
-
-	if (pdev == NULL) {
-		pr_err("BPU Core not Bind Device\n");/*PRQA S ALL*/
-		return -ENODEV;
-	}
-
-	np = pdev->dev.of_node;
-	core->dev = &pdev->dev;
-
-	resource = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if (resource == NULL) {
-		dev_err(&pdev->dev, "Can't get bpu core resource error\n");
-		return -ENODEV;
-	}
-
-	core->base = devm_ioremap_resource(&pdev->dev, resource);
-	if (IS_ERR(core->base)) {/*PRQA S ALL*/
-		dev_err(&pdev->dev, "Can't get bpu core resource failed\n");
-		return PTR_ERR(core->base);/*PRQA S ALL*/
-	}
-
-	/* try to get the extra mem resorece */
-	resource = platform_get_resource(pdev, IORESOURCE_MEM, 1);
-	if (resource != NULL) {
-		core->reserved_base = devm_ioremap(&pdev->dev,
-			resource->start, resource_size(resource));
-		if (IS_ERR(core->reserved_base)) {/*PRQA S ALL*/
-			dev_err(&pdev->dev, "Can't get bpu core extra resource failed[%ld]\n",
-					PTR_ERR(core->reserved_base));
-			core->reserved_base = NULL;
-		}
-	} else {
-		core->reserved_base = NULL;
-	}
-
-	ret = of_property_read_u32(np, "cnn-id", &core->index);/*PRQA S ALL*/
-	if (ret < 0) {
-		dev_err(&pdev->dev, "Can't get bpu core index\n");
-		return ret;
-	}
-
-	core->regulator = devm_regulator_get(&pdev->dev, "cnn");
-	if (IS_ERR(core->regulator)) {/*PRQA S ALL*/
-		/* some platform not has regulator, so just report error info */
-		core->regulator = NULL;
-		dev_err(&pdev->dev, "Can't get bpu core regulator\n");
-	}
-
-	core->aclk = devm_clk_get(&pdev->dev, "cnn_aclk");
-	if (IS_ERR(core->aclk) || (core->aclk == NULL)) {/*PRQA S ALL*/
-		/* some platform not has aclk, so just report error info */
-		core->aclk = NULL;
-		dev_err(&pdev->dev, "Can't get bpu core aclk\n");
-	}
-
-	core->mclk = devm_clk_get(&pdev->dev, "cnn_mclk");
-	if (IS_ERR(core->mclk) || (core->mclk == NULL)) {/*PRQA S ALL*/
-		/* some platform not has mclk, so just report error info */
-		core->mclk = NULL;
-		dev_err(&pdev->dev, "Can't get bpu core mclk\n");
-	}
-
-	core->rst = devm_reset_control_get(&pdev->dev, "cnn_rst");
-	if (IS_ERR(core->rst)) {/*PRQA S ALL*/
-		/* some platform not has rst, so just report error info */
-		core->rst = NULL;
-		dev_err(&pdev->dev, "Can't get bpu core rst\n");
-	}
-
-	core->irq = irq_of_parse_and_map(np, 0);
-	if (core->irq <= 0u) {
-		dev_err(&pdev->dev, "Can't find bpu core irq\n");
-		return -EFAULT;
-	}
-
-	return 0;
-}
-
 static int32_t bpu_core_alloc_fifos(struct bpu_core *core)
 {
 	uint32_t i, j;
@@ -748,7 +650,7 @@ static int bpu_core_probe(struct platform_device *pdev)/*PRQA S ALL*/
 	char name[NAME_LEN];
 	int32_t ret;
 
-	core = (struct bpu_core *)devm_kzalloc(&pdev->dev, sizeof(struct bpu_core), GFP_KERNEL);/*PRQA S ALL*/
+	core = (struct bpu_core *)kzalloc(sizeof(struct bpu_core), GFP_KERNEL);/*PRQA S ALL*/
 	if (core == NULL) {
 		dev_err(&pdev->dev, "Can't alloc bpu core mem\n");
 		return -ENOMEM;
@@ -762,12 +664,14 @@ static int bpu_core_probe(struct platform_device *pdev)/*PRQA S ALL*/
 
 	ret = bpu_core_parse_dts(pdev, core);
 	if (ret != 0) {
+		kfree(core);
 		dev_err(&pdev->dev, "BPU Core parse dts failed\n");
 		return ret;
 	}
 
 	ret = bpu_core_alloc_fifos(core);
 	if (ret != 0) {
+		kfree(core);
 		dev_err(&pdev->dev, "BPU Core alloc fifos failed\n");
 		return ret;
 	}
@@ -776,6 +680,7 @@ static int bpu_core_probe(struct platform_device *pdev)/*PRQA S ALL*/
 			0, NULL, core);/*PRQA S ALL*/
 	if (ret != 0) {
 		bpu_core_free_fifos(core);
+		kfree(core);
 		dev_err(&pdev->dev, "request '%d' for bpu core failed with %d\n",
 			core->irq, ret);
 		return ret;
@@ -795,6 +700,7 @@ static int bpu_core_probe(struct platform_device *pdev)/*PRQA S ALL*/
 	ret = misc_register(&core->miscdev);
 	if (ret != 0) {
 		bpu_core_free_fifos(core);
+		kfree(core);
 		dev_err(&pdev->dev, "Register bpu core device failed\n");
 		return ret;
 	}
@@ -811,6 +717,7 @@ static int bpu_core_probe(struct platform_device *pdev)/*PRQA S ALL*/
 	if (ret != 0) {
 		misc_deregister(&core->miscdev);
 		bpu_core_free_fifos(core);
+		kfree(core);
 		dev_err(&pdev->dev, "Register bpu core to bpu failed\n");
 		return ret;
 	}
@@ -820,6 +727,7 @@ static int bpu_core_probe(struct platform_device *pdev)/*PRQA S ALL*/
 		bpu_core_unregister(core);
 		misc_deregister(&core->miscdev);
 		bpu_core_free_fifos(core);
+		kfree(core);
 		dev_err(&pdev->dev, "No bpu core hardware ops\n");
 		return ret;
 	}
@@ -828,6 +736,7 @@ static int bpu_core_probe(struct platform_device *pdev)/*PRQA S ALL*/
 		bpu_core_unregister(core);
 		misc_deregister(&core->miscdev);
 		bpu_core_free_fifos(core);
+		kfree(core);
 		dev_err(&pdev->dev, "No bpu core hardware fc ops\n");
 		return ret;
 	}
@@ -862,6 +771,7 @@ static int bpu_core_remove(struct platform_device *pdev)/*PRQA S ALL*/
 	misc_deregister(&core->miscdev);
 
 	bpu_core_unregister(core);
+	kfree(core);
 
 	return 0;
 }
@@ -888,7 +798,7 @@ static int __init bpu_core_init(void)/*PRQA S ALL*/
 {
 	int32_t ret;
 
-	ret = platform_driver_register(&bpu_core_platform_driver);  /* PRQA S ALL */
+	ret = bpu_core_driver_register(&bpu_core_platform_driver);  /* PRQA S ALL */
 	if (ret != 0) {
 		pr_err("BPU Core driver register failed\n");/*PRQA S ALL*/
 	}
@@ -898,7 +808,7 @@ static int __init bpu_core_init(void)/*PRQA S ALL*/
 
 static void __exit bpu_core_exit(void)
 {
-	platform_driver_unregister(&bpu_core_platform_driver);
+	bpu_core_driver_register(&bpu_core_platform_driver);
 }
 
 // PRQA S ALL ++
@@ -906,5 +816,5 @@ module_init(bpu_core_init);
 module_exit(bpu_core_exit);
 MODULE_DESCRIPTION("Driver for Horizon BPU Process Core");
 MODULE_AUTHOR("Zhang Guoying<guoying.zhang@horizon.ai>");
-MODULE_LICENSE("GPL v2");
+MODULE_LICENSE("Proprietary");
 // PRQA S ALL ++

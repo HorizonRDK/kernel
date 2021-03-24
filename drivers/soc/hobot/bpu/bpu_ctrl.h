@@ -29,6 +29,9 @@ int32_t bpu_core_reset(struct bpu_core *core);
 int32_t bpu_core_process_recover(struct bpu_core *core);
 int32_t bpu_core_set_limit(struct bpu_core *core, int32_t limit);
 int32_t bpu_core_ext_ctrl(struct bpu_core *core, ctrl_cmd_t cmd, uint64_t *data);
+uint64_t bpu_clk_get_rate(struct clk *clk);
+int32_t bpu_clk_set_rate(struct clk *clk, uint64_t rate);
+int32_t bpu_reset_ctrl(struct reset_control *rstc, uint16_t val);
 
 #if defined(CONFIG_PM_DEVFREQ) && defined(CONFIG_DEVFREQ_THERMAL)
 int32_t bpu_core_dvfs_register(struct bpu_core *core, const char *name);
