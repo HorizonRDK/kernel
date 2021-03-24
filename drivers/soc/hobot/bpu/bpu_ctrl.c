@@ -16,41 +16,22 @@
 #endif
 #include "bpu_ctrl.h"
 
-enum core_pe_type {
-    CORE_TYPE_UNKNOWN,
-    CORE_TYPE_4PE,
-    CORE_TYPE_1PE,
-    CORE_TYPE_2PE,
-    CORE_TYPE_ANY,
-    CORE_TYPE_INVALID,
-};
-
-#define CORE_PE_TYPE_OFFSET 4
-
-static int soc_is_x3e(void)
-{
-	int32_t chipid;
-
-	void __iomem *chipid_reg = ioremap_nocache(0xa6008070, 4);
-	chipid = readl(chipid_reg);
-	iounmap(chipid_reg);
-
-	if (((chipid>>12)&0x1) == 0x1) {
-		return 1;
-	}
-
-	return 0;
-}
-
 static uint8_t bpu_core_type(struct bpu_core *core)
 {
+	int32_t ret;
+
 	if (core == NULL) {
 		pr_err("BPY Core TYPE on invalid core!\n");/*PRQA S ALL*/
 		return 0;
 	}
 
-	if (soc_is_x3e()) {
-		return (1u << CORE_PE_TYPE_OFFSET) | CORE_TYPE_4PE;
+	if (core->hw_ops->status != NULL) {
+		ret = core->hw_ops->status(core, TYPE_STATE);
+		if (ret < 0) {
+			dev_err(core->dev, "Get Invalid Core Type!\n");
+				return 0;
+		}
+		return (uint8_t)ret;
 	} else {
 		return CORE_TYPE_ANY;
 	}
@@ -259,6 +240,10 @@ int32_t bpu_core_enable(struct bpu_core *core)
 		return 0;
 	}
 
+#ifdef CONFIG_X3_BPU
+	pm_qos_add_request(&core->pm_qos_req, PM_QOS_DEVFREQ, 10000);
+#endif
+
 	if (core->hw_ops->enable != NULL) {
 		ret = core->hw_ops->enable(core);
 	} else {
@@ -354,6 +339,9 @@ int32_t bpu_core_disable(struct bpu_core *core)
 		dev_err(core->dev, "Pend off for Disable core failed!\n");
 		return err;
 	}
+#ifdef CONFIG_X3_BPU
+	pm_qos_remove_request(&core->pm_qos_req);
+#endif
 
 	return ret;
 }
@@ -531,50 +519,6 @@ static int32_t bpu_core_set_volt(struct bpu_core *core, int32_t volt)
 	return ret;
 }
 
-static int32_t bpu_core_raw_set_clk(const struct bpu_core *core, uint64_t rate)
-{
-	uint64_t last_rate;
-	int32_t ret = 0;
-
-	if (soc_is_x3e() == 1) {
-		if (rate > 600000000) {
-			rate = 600000000;
-		}
-	}
-
-	if (core == NULL) {
-		pr_err("Set invalid bpu core clk!\n");/*PRQA S ALL*/
-		return -ENODEV;
-	}
-
-	if (core->mclk == NULL) {
-		return ret;
-	}
-
-	last_rate = clk_get_rate(core->mclk);
-
-	if (last_rate == rate) {
-		return 0;
-	}
-
-	ret = clk_set_rate(core->mclk, rate);
-	if (ret != 0) {
-		dev_err(core->dev, "Cannot set frequency %llu (%d)\n",
-				rate, ret);
-		return ret;
-	}
-
-	/* check if rate set success, when not, user need recover volt */
-	if (clk_get_rate(core->mclk) != rate) {
-		dev_err(core->dev,
-				"Get wrong frequency, Request %llu, Current %lu\n",
-				rate, clk_get_rate(core->mclk));
-		return -EINVAL;
-	}
-
-	return ret;
-}
-
 static int32_t bpu_core_set_clk(struct bpu_core *core, uint64_t rate)
 {
 	int32_t err, ret = 0;
@@ -590,10 +534,14 @@ static int32_t bpu_core_set_clk(struct bpu_core *core, uint64_t rate)
 		return ret;
 	}
 
+	/*
+	 * set clock must use special timing and step
+	 * or else some unknown exceptions will appear
+	 */
 	if (core->hw_ops->set_clk != NULL) {
 		ret = core->hw_ops->set_clk(core, rate);
 	} else {
-		ret = bpu_core_raw_set_clk(core, rate);
+		ret = -ENODEV;
 	}
 	if (ret != 0) {
 		dev_err(core->dev, "BPU Core set clk to %lld failed!\n", rate);
@@ -976,3 +924,28 @@ int32_t bpu_core_set_limit(struct bpu_core *core, int32_t limit)
 // PRQA S ALL ++
 EXPORT_SYMBOL(bpu_core_set_limit);
 // PRQA S ALL --
+
+uint64_t bpu_clk_get_rate(struct clk *clk)
+{
+	return clk_get_rate(clk);
+}
+// PRQA S ALL ++
+EXPORT_SYMBOL(bpu_clk_get_rate);
+// PRQA S ALL --
+
+int32_t bpu_clk_set_rate(struct clk *clk, uint64_t rate)
+{
+	return clk_set_rate(clk, rate);
+}
+// PRQA S ALL ++
+EXPORT_SYMBOL(bpu_clk_set_rate);
+// PRQA S ALL --
+int32_t bpu_reset_ctrl(struct reset_control *rstc, uint16_t val)
+{
+	if (val > 0u) {
+		return reset_control_assert(rstc);
+	}
+
+	return reset_control_deassert(rstc);
+}
+EXPORT_SYMBOL(bpu_reset_ctrl);

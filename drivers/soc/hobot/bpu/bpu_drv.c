@@ -12,6 +12,14 @@
 #include <linux/slab.h>
 #include <linux/device.h>
 #include <asm/cacheflush.h>
+#include <linux/interrupt.h>
+#include <linux/reset.h>
+#include <linux/of.h>
+#include <linux/of_irq.h>
+#include <asm/irq.h>
+#include <linux/clk.h>
+#include <linux/clk-provider.h>
+#include <linux/regulator/consumer.h>
 #include "bpu.h"
 #include "bpu_core.h"
 #include "bpu_ctrl.h"
@@ -744,6 +752,97 @@ static const struct file_operations bpu_fops = {/*PRQA S ALL*/
 	.compat_ioctl = bpu_ioctl,
 };
 
+int32_t bpu_core_parse_dts(struct platform_device *pdev, struct bpu_core *core)
+{
+	struct device_node *np;
+	struct resource *resource;
+	int32_t ret;
+
+	if (core == NULL) {
+		pr_err("NO BPU Core parse DeviceTree\n");/*PRQA S ALL*/
+		return -ENODEV;
+	}
+
+	if (pdev == NULL) {
+		pr_err("BPU Core not Bind Device\n");/*PRQA S ALL*/
+		return -ENODEV;
+	}
+
+	np = pdev->dev.of_node;
+	core->dev = &pdev->dev;
+
+	resource = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (resource == NULL) {
+		dev_err(&pdev->dev, "Can't get bpu core resource error\n");
+		return -ENODEV;
+	}
+
+	core->base = devm_ioremap_resource(&pdev->dev, resource);
+	if (IS_ERR(core->base)) {/*PRQA S ALL*/
+		dev_err(&pdev->dev, "Can't get bpu core resource failed\n");
+		return PTR_ERR(core->base);/*PRQA S ALL*/
+	}
+
+	/* try to get the extra mem resorece */
+	resource = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	if (resource != NULL) {
+		core->reserved_base = devm_ioremap(&pdev->dev,
+			resource->start, resource_size(resource));
+		if (IS_ERR(core->reserved_base)) {/*PRQA S ALL*/
+			dev_err(&pdev->dev, "Can't get bpu core extra resource failed[%ld]\n",
+					PTR_ERR(core->reserved_base));
+			core->reserved_base = NULL;
+		}
+	} else {
+		core->reserved_base = NULL;
+	}
+
+	ret = of_property_read_u32(np, "cnn-id", &core->index);/*PRQA S ALL*/
+	if (ret < 0) {
+		dev_err(&pdev->dev, "Can't get bpu core index\n");
+		return ret;
+	}
+
+	core->regulator = devm_regulator_get(&pdev->dev, "cnn");
+	if (IS_ERR(core->regulator)) {/*PRQA S ALL*/
+		/* some platform not has regulator, so just report error info */
+		core->regulator = NULL;
+		dev_err(&pdev->dev, "Can't get bpu core regulator\n");
+	}
+
+	core->aclk = devm_clk_get(&pdev->dev, "cnn_aclk");
+	if (IS_ERR(core->aclk) || (core->aclk == NULL)) {/*PRQA S ALL*/
+		/* some platform not has aclk, so just report error info */
+		core->aclk = NULL;
+		dev_err(&pdev->dev, "Can't get bpu core aclk\n");
+	}
+
+	core->mclk = devm_clk_get(&pdev->dev, "cnn_mclk");
+	if (IS_ERR(core->mclk) || (core->mclk == NULL)) {/*PRQA S ALL*/
+		/* some platform not has mclk, so just report error info */
+		core->mclk = NULL;
+		dev_err(&pdev->dev, "Can't get bpu core mclk\n");
+	}
+
+	core->rst = devm_reset_control_get(&pdev->dev, "cnn_rst");
+	if (IS_ERR(core->rst)) {/*PRQA S ALL*/
+		/* some platform not has rst, so just report error info */
+		core->rst = NULL;
+		dev_err(&pdev->dev, "Can't get bpu core rst\n");
+	}
+
+	core->irq = irq_of_parse_and_map(np, 0);
+	if (core->irq <= 0u) {
+		dev_err(&pdev->dev, "Can't find bpu core irq\n");
+		return -EFAULT;
+	}
+
+	return 0;
+}
+// PRQA S ALL ++
+EXPORT_SYMBOL(bpu_core_parse_dts);
+// PRQA S ALL --
+
 int32_t bpu_core_register(struct bpu_core *core)
 {
 	if (g_bpu == NULL) {
@@ -788,6 +887,22 @@ void bpu_core_unregister(struct bpu_core *core)
 }
 // PRQA S ALL ++
 EXPORT_SYMBOL(bpu_core_unregister);
+// PRQA S ALL --
+
+int32_t bpu_core_driver_register(struct platform_driver *driver)
+{
+	return platform_driver_register(driver);
+}
+// PRQA S ALL ++
+EXPORT_SYMBOL(bpu_core_driver_register);
+// PRQA S ALL --
+
+void bpu_core_driver_unregister(struct platform_driver *driver)
+{
+	platform_driver_unregister(driver);
+}
+// PRQA S ALL ++
+EXPORT_SYMBOL(bpu_core_driver_unregister);
 // PRQA S ALL --
 
 static int __init bpu_init(void)/*PRQA S ALL*/

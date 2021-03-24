@@ -31,7 +31,18 @@ enum bpu_core_status_cmd {
 	WORK_STATE,
 	/* To update some val for state check */
 	UPDATE_STATE,
+	/* To get bpu core type(as pe type)*/
+	TYPE_STATE,
 	STATUS_CMD_MAX,
+};
+
+enum core_pe_type {
+    CORE_TYPE_UNKNOWN,
+    CORE_TYPE_4PE,
+    CORE_TYPE_1PE,
+    CORE_TYPE_2PE,
+    CORE_TYPE_ANY,
+    CORE_TYPE_INVALID,
 };
 
 struct bpu_core_hw_ops;

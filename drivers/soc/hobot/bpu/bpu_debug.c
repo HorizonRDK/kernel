@@ -301,6 +301,22 @@ static ssize_t bpu_group_show(struct kobject *kobj, struct kobj_attribute *attr,
 	return ret;
 }
 
+int32_t bpu_device_add_group(struct device *dev, const struct attribute_group *grp)
+{
+	return device_add_group(dev, grp);
+}
+// PRQA S ALL ++
+EXPORT_SYMBOL(bpu_device_add_group);
+// PRQA S ALL --
+
+void bpu_device_remove_group(struct device *dev, const struct attribute_group *grp)
+{
+	device_remove_group(dev, grp);
+}
+// PRQA S ALL ++
+EXPORT_SYMBOL(bpu_device_remove_group);
+// PRQA S ALL --
+
 static ssize_t bpu_users_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)/*PRQA S ALL*/
 {
 	struct bpu_user *tmp_user;

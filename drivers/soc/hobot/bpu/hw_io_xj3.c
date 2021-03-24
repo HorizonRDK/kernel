@@ -24,8 +24,25 @@
 #include "bpu_ctrl.h"
 #include "hw_io.h"
 
+#define CORE_PE_TYPE_OFFSET 4
+
 #define DEFAULT_BURST_LEN (0x80u)
 static int32_t bpu_err_flag;
+
+static int soc_is_x3e(void)
+{
+	int32_t chipid;
+
+	void __iomem *chipid_reg = ioremap_nocache(0xa6008070, 4);
+	chipid = readl(chipid_reg);
+	iounmap(chipid_reg);
+
+	if (((chipid>>12)&0x1) == 0x1) {
+		return 1;
+	}
+
+	return 0;
+}
 
 static void cnnbus_wm_set(struct bpu_core *core, uint32_t reg_off,
 	uint32_t wd_maxlen, uint32_t wd_endian, uint32_t wd_priority)
@@ -124,7 +141,7 @@ static int32_t bpu_core_iso_clear(struct bpu_core *core)
 	udelay(5);
 
 	if (core->rst != NULL) {
-		ret = reset_control_deassert(core->rst);
+		ret = bpu_reset_ctrl(core->rst, 0);
 		if (ret < 0) {
 			dev_err(core->dev, "bpu core reset deassert failed\n");
 		}
@@ -152,9 +169,9 @@ static int32_t bpu_core_iso_set(struct bpu_core *core)
 	udelay(5);
 
 	if (core->rst != NULL) {
-		ret = reset_control_assert(core->rst);
+		ret = bpu_reset_ctrl(core->rst, 1);
 		if (ret < 0) {
-			dev_err(core->dev, "bpu core reset deassert failed\n");
+			dev_err(core->dev, "bpu core reset assert failed\n");
 		}
 	}
 
@@ -204,7 +221,7 @@ static int32_t bpu_core_hw_enable(struct bpu_core *core)
 	}
 
 	if (core->rst != NULL) {
-		ret = reset_control_assert(core->rst);
+		ret = bpu_reset_ctrl(core->rst, 1);
 		if (ret < 0) {
 			dev_err(core->dev, "bpu core reset assert failed\n");
 		}
@@ -478,6 +495,50 @@ static int32_t bpu_core_hw_read_fc(const struct bpu_core *core,
 	return 1;
 }
 
+static int32_t bpu_core_hw_set_clk(const struct bpu_core *core, uint64_t rate)
+{
+	uint64_t last_rate;
+	int32_t ret = 0;
+
+	if (soc_is_x3e() == 1) {
+		if (rate > 600000000) {
+			rate = 600000000;
+		}
+	}
+
+	if (core == NULL) {
+		pr_err("Set invalid bpu core clk!\n");/*PRQA S ALL*/
+		return -ENODEV;
+	}
+
+	if (core->mclk == NULL) {
+		return ret;
+	}
+
+	last_rate = bpu_clk_get_rate(core->mclk);
+
+	if (last_rate == rate) {
+		return 0;
+	}
+
+	ret = bpu_clk_set_rate(core->mclk, rate);
+	if (ret != 0) {
+		dev_err(core->dev, "Cannot set frequency %llu (%d)\n",
+				rate, ret);
+		return ret;
+	}
+
+	/* check if rate set success, when not, user need recover volt */
+	if (bpu_clk_get_rate(core->mclk) != rate) {
+		dev_err(core->dev,
+				"Get wrong frequency, Request %llu, Current %llu\n",
+				rate, bpu_clk_get_rate(core->mclk));
+		return -EINVAL;
+	}
+
+	return ret;
+}
+
 /* bpu preread 4 fc in fifo, +2 for margin */
 #define LAG_FC_NUM	6
 static int32_t bpu_core_hw_status(struct bpu_core *core, uint32_t cmd)
@@ -540,6 +601,13 @@ static int32_t bpu_core_hw_status(struct bpu_core *core, uint32_t cmd)
 		break;
 	case (uint32_t)UPDATE_STATE:/*PRQA S ALL*/
 		/* do nothing just update regs*/
+		break;
+	case (uint32_t)TYPE_STATE:
+		if (soc_is_x3e()) {
+			ret = (1u << CORE_PE_TYPE_OFFSET) | CORE_TYPE_4PE;
+		} else {
+			ret = CORE_TYPE_4PE;
+		}
 		break;
 	default:
 		pr_err("Invalid bpu state cmd[%d]\n", cmd);/*PRQA S ALL*/
@@ -611,6 +679,7 @@ static struct attribute_group bpu_core_hw_attr_group = {
 	.attrs = bpu_core_hw_attrs,
 };
 // PRQA S ALL --
+
 static int32_t bpu_core_hw_debug(const struct bpu_core *core, int32_t state)
 {
 	int32_t ret;
@@ -621,7 +690,7 @@ static int32_t bpu_core_hw_debug(const struct bpu_core *core, int32_t state)
 	}
 
 	if (state == 1) {
-		ret = device_add_group(core->dev, &bpu_core_hw_attr_group);
+		ret = bpu_device_add_group(core->dev, &bpu_core_hw_attr_group);
 		if (ret < 0) {
 			dev_err(core->dev, "Create bpu core%d hw debug group failed\n",
 				core->index);
@@ -629,7 +698,7 @@ static int32_t bpu_core_hw_debug(const struct bpu_core *core, int32_t state)
 	}
 
 	if (state == 0) {
-		device_remove_group(core->dev, &bpu_core_hw_attr_group);
+		bpu_device_remove_group(core->dev, &bpu_core_hw_attr_group);
 	}
 
 	return 0;
@@ -639,7 +708,7 @@ struct bpu_core_hw_ops hw_ops = {
 	.enable		= bpu_core_hw_enable,
 	.disable	= bpu_core_hw_disable,
 	.reset		= bpu_core_hw_rst,
-	.set_clk	= NULL,
+	.set_clk	= bpu_core_hw_set_clk,
 	.set_volt	= NULL,
 	.write_fc	= bpu_core_hw_write_fc,
 	.read_fc	= bpu_core_hw_read_fc,
@@ -650,5 +719,4 @@ struct bpu_core_hw_ops hw_ops = {
 // PRQA S ALL ++
 MODULE_DESCRIPTION("Driver for Horizon XJ3/XJ2 SOC BPU");
 MODULE_AUTHOR("Zhang Guoying <guoying.zhang@horizon.ai>");
-MODULE_LICENSE("GPL v2");
 // PRQA S ALL --

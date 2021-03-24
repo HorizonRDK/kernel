@@ -81,13 +81,13 @@ int32_t bpu_core_hw_reset(const struct bpu_core *core, uint32_t delay_time)
 		return 0;
 	}
 
-	ret = reset_control_assert(core->rst);
+	ret = bpu_reset_ctrl(core->rst, 1);
 	if (ret < 0) {
 		pr_err("reset assert failed\n");/*PRQA S ALL*/
 		return ret;
 	}
 	udelay(delay_time);/*PRQA S ALL*/
-	ret = reset_control_deassert(core->rst);
+	ret = bpu_reset_ctrl(core->rst, 0);
 	if (ret < 0) {
 		pr_err("reset deassert failed\n");/*PRQA S ALL*/
 		return ret;

@@ -129,7 +129,7 @@ static int32_t bpu_core_hw_enable(struct bpu_core *core)
 	}
 
 	if (core->rst != NULL) {
-		ret = reset_control_assert(core->rst);
+		ret = bpu_reset_ctrl(core->rst, 1);
 		if (ret < 0) {
 			dev_err(core->dev, "bpu core reset assert failed\n");
 		}
@@ -364,7 +364,7 @@ static int32_t bpu_core_hw_read_fc(const struct bpu_core *core,
 
 	/* the status just need read on J5 */
 	irq_status = bpu_core_reg_read(core, CNNINT_STATUS);
-	pr_debug("BPU Core irq status = 0x%x\n", irq_status);/*PRQA S ALL*/
+	dev_dbg(core->dev, "BPU Core irq status = 0x%x\n", irq_status);/*PRQA S ALL*/
 
 	bpu_core_reg_write(core, CNNINT_MASK, 0x1);
 	*tmp_id = bpu_core_reg_read(core, CNNINT_NUM);
@@ -372,7 +372,7 @@ static int32_t bpu_core_hw_read_fc(const struct bpu_core *core,
 
 	ret_fc_num = bpu_core_reg_read(core, CNN_ALL_INT_CNT);
 	if (ret_fc_num > 1u) {
-		pr_debug("BPU Core%d postpone get %d fcs\n",/*PRQA S ALL*/
+		dev_dbg(core->dev, "BPU Core%d postpone get %d fcs\n",/*PRQA S ALL*/
 				core->index, ret_fc_num);
 	}
 
@@ -446,6 +446,7 @@ static struct attribute_group bpu_core_hw_attr_group = {
 	.attrs = bpu_core_hw_attrs,
 };
 // PRQA S ALL --
+
 static int32_t bpu_core_hw_debug(const struct bpu_core *core, int32_t state)
 {
 	int32_t ret;
@@ -456,7 +457,7 @@ static int32_t bpu_core_hw_debug(const struct bpu_core *core, int32_t state)
 	}
 
 	if (state == 1) {
-		ret = device_add_group(core->dev, &bpu_core_hw_attr_group);
+		ret = bpu_device_add_group(core->dev, &bpu_core_hw_attr_group);
 		if (ret < 0) {
 			dev_err(core->dev, "Create bpu core%d hw debug group failed\n",
 				core->index);
@@ -464,7 +465,7 @@ static int32_t bpu_core_hw_debug(const struct bpu_core *core, int32_t state)
 	}
 
 	if (state == 0) {
-		device_remove_group(core->dev, &bpu_core_hw_attr_group);
+		bpu_device_remove_group(core->dev, &bpu_core_hw_attr_group);
 	}
 
 	return 0;
@@ -485,5 +486,4 @@ struct bpu_core_hw_ops hw_ops = {
 // PRQA S ALL ++
 MODULE_DESCRIPTION("Driver for Horizon J5 SOC BPU");
 MODULE_AUTHOR("Zhang Guoying <guoying.zhang@horizon.ai>");
-MODULE_LICENSE("GPL v2");
 // PRQA S ALL --
