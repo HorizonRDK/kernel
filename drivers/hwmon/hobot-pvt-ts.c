@@ -26,6 +26,7 @@
 #include <linux/delay.h>
 #include <linux/io.h>
 #include <linux/clk.h>
+#include <linux/hrtimer.h>
 #include "hobot-pvt.h"
 
 #define HOBOT_PVT_NAME "pvt"
@@ -45,6 +46,9 @@ module_param(max_diff, int, 0644);
 static int force_calib = 0;
 module_param(force_calib, int, 0644);
 
+static int interval_ms = 300;
+module_param(interval_ms, int, 0644);
+
 /* TS0: CNN0 TS1:CPU TS2:CNN1 TS3: DDR */
 static char *ts_map[] = {
 	"CNN0",
@@ -61,7 +65,7 @@ struct pvt_device {
 	long ref_clk;
 	struct device *dev;
 	struct clk *clk;
-	struct timer_list irq_unmask_timer;
+	struct hrtimer irq_unmask_timer;
 	void __iomem *reg_base;
 	void __iomem *efuse_base;
 	int updated;
@@ -390,16 +394,19 @@ static void pvt_init_hw(struct pvt_device *pvt_dev)
 	return;
 }
 
-static void irq_unmask_timer_func(unsigned long data)
+static enum hrtimer_restart irq_unmask_timer_func(struct hrtimer *hrt)
 {
-	struct pvt_device *pvt_dev = (struct pvt_device *)data;
+	struct pvt_device *pvt_dev =
+		container_of(hrt, struct pvt_device, irq_unmask_timer);
 
 	/* unmake ts irq to get samples */
 	pvt_reg_wr(pvt_dev, IRQ_TS_MASK_ADDR, 0);
 
-	mod_timer(&pvt_dev->irq_unmask_timer,
-			jiffies + msecs_to_jiffies(PVT_SAMPLE_INTERVAL_MS));
+	hrtimer_forward_now(hrt, ms_to_ktime(interval_ms));
+
+	return HRTIMER_RESTART;
 }
+
 
 static int pvt_probe(struct platform_device *pdev)
 {
@@ -466,11 +473,11 @@ static int pvt_probe(struct platform_device *pdev)
 
 	dev_dbg(pvt_dev->dev, "PVT input clk: %lu\n", clk_get_rate(pvt_dev->clk));
 
-	init_timer(&pvt_dev->irq_unmask_timer);
-	pvt_dev->irq_unmask_timer.data = (unsigned long)pvt_dev;
+	hrtimer_init(&pvt_dev->irq_unmask_timer, CLOCK_MONOTONIC,
+			HRTIMER_MODE_REL | HRTIMER_MODE_PINNED);
 	pvt_dev->irq_unmask_timer.function = irq_unmask_timer_func;
-	pvt_dev->irq_unmask_timer.expires = jiffies + msecs_to_jiffies(PVT_SAMPLE_INTERVAL_MS);
-	add_timer(&pvt_dev->irq_unmask_timer);
+	hrtimer_cancel(&pvt_dev->irq_unmask_timer);
+	hrtimer_start(&pvt_dev->irq_unmask_timer, ms_to_ktime(interval_ms), HRTIMER_MODE_REL);
 
 	/* use uncalibrated mode by default */
 	pvt_dev->ts_mode = 1;
