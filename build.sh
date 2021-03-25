@@ -240,10 +240,12 @@ function all()
         exit 1
     }
 
+    [ ! -d _install/ ] && mkdir _install/
+
     if [ "$TARGET_MODE" = "debug" ];then
-        [ -d ${TOPDIR}/ko/ko_debug/ ] && cp -raf  ${TOPDIR}/ko/ko_debug/* _install/
+        [ -d ${TOPDIR}/ko/ko_debug/ ] && cp -raf ${TOPDIR}/ko/ko_debug/* _install/
     else
-        [ -d ${TOPDIR}/ko/ko_release/ ] && cp -raf  ${TOPDIR}/ko/ko_release/* _install/
+        [ -d ${TOPDIR}/ko/ko_release/ ] && cp -raf ${TOPDIR}/ko/ko_release/* _install/
     fi
 
     # make modules_install to INSTALL_MOD_PATH for debug ko (default: /)
