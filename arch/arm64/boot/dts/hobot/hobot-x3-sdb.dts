@@ -74,7 +74,7 @@
 	};
 
 	chosen {
-		bootargs = "earlycon loglevel=8 console=ttyS0 clk_ignore_unused video=hobot:hdmi";
+		bootargs = "earlycon loglevel=8 kgdboc=ttyS0 video=hobot:hdmi ";
 		stdout-path = "serial0";
 	};
 
