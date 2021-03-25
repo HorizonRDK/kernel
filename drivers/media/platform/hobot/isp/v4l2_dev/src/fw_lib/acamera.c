@@ -867,16 +867,14 @@ void isp_ctx_transfer(int ctx_pre, int ctx_next, int ppf)
 {
     pr_debug("chn_pre %d, chn_next %d, ppf %d\n", ctx_pre, ctx_next, ppf);
 #if FW_USE_HOBOT_DMA
-	dma_cmd cmd[2];
-	// if (ctx_pre == ctx_next) {
-	if (0) {
-		set_dma_cmd_queue(cmd, ppf);
-		system_dma_copy_multi_sg(cmd, 2);
-	} else {
+
+	if (g_firmware.sif_isp_offline) //offline isp
 		system_dma_copy_sg(g_firmware.dma_chan_isp_metering, !ppf, SYS_DMA_FROM_DEVICE, dma_complete_metering_func, ctx_pre);
-		system_dma_copy_sg(g_firmware.dma_chan_isp_config, ppf, SYS_DMA_TO_DEVICE, dma_complete_context_func, ctx_next);
-		isp_idma_start_transfer(&g_hobot_dma);
-	}
+	else
+		system_dma_copy_sg(g_firmware.dma_chan_isp_metering, ppf, SYS_DMA_FROM_DEVICE, dma_complete_metering_func, ctx_pre);
+
+    system_dma_copy_sg(g_firmware.dma_chan_isp_config, ppf, SYS_DMA_TO_DEVICE, dma_complete_context_func, ctx_next);
+    isp_idma_start_transfer(&g_hobot_dma);
 #else
 	system_dma_copy_sg(g_firmware.dma_chan_isp_metering, !ppf, SYS_DMA_FROM_DEVICE, dma_complete_metering_func, ctx_pre);
 	system_dma_copy_sg(g_firmware.dma_chan_isp_config, ppf, SYS_DMA_TO_DEVICE, dma_complete_context_func, ctx_next);
@@ -1443,10 +1441,12 @@ int32_t acamera_interrupt_handler()
 
                         if ( acamera_isp_isp_global_ping_pong_config_select_read( 0 ) == ISP_CONFIG_PONG ) {
                             // use ping for the next frame
+                            pr_debug("[s%d] pong in using now.\n", cur_ctx_id);
                             acamera_isp_isp_global_mcu_ping_pong_config_select_write( 0, ISP_CONFIG_PING );
                             isp_ctx_transfer(0, 0, ISP_CONFIG_PING);
                         } else {
                             // use pong for the next frame
+                            pr_debug("[s%d] ping in using now.\n", cur_ctx_id);
                             acamera_isp_isp_global_mcu_ping_pong_config_select_write( 0, ISP_CONFIG_PONG );
                             isp_ctx_transfer(0, 0, ISP_CONFIG_PONG);
                         }

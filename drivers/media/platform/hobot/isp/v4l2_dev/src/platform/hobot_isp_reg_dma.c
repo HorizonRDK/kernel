@@ -29,8 +29,12 @@
 #include <asm/io.h>
 #include <linux/time.h>
 #include <linux/list.h>
+#include "acamera_fw.h"
 #include "system_dma.h"
 #include "system_sw_io.h"
+#include "acamera_isp_config.h"
+#include "acamera_isp_core_nomem_settings.h"
+#include "acamera_decompander0_mem_config.h"
 #include "hobot_isp_reg_dma.h"
 #include "vio_config.h"
 
@@ -133,11 +137,16 @@ int list_count(struct list_head *list)
 	return k;
 }
 
+extern int isp_stream_onoff_check(void);
+extern acamera_firmware_t *acamera_get_firmware_ptr(void);
 void isp_idma_start_transfer(hobot_dma_t *hobot_dma)
 {
+    uint8_t ppf = 0;
     int ret = 0;
+    bool meet_condition = false;
 	unsigned long flags;
 	idma_descriptor_t *desc = NULL;
+    acamera_firmware_t *fw = acamera_get_firmware_ptr();
 
 	pr_debug("start\n");
 	spin_lock_irqsave( hobot_dma->dma_ctrl_lock, flags );
@@ -147,13 +156,49 @@ void isp_idma_start_transfer(hobot_dma_t *hobot_dma)
 		return;
 	}
 
+    pr_debug("pending list count %d\n", list_count(&hobot_dma->pending_list));
+
 	desc = list_first_entry(&hobot_dma->pending_list, idma_descriptor_t, node);
 	if (desc) {
+        /*
+          prevent a case like:
+          oom-killer be triggered, CPU is irqoff and prempt is also disabled.
+          tasklet will be pending, after a while, tasklet schedule again, it may write to isp,
+          at the same time isp is processing, so we need drop this kind of transfer.
+          an invalid transfer is: ping in using now, transfer is going to write to ping.
+        */
+        if (fw->sif_isp_offline) {
+            meet_condition = (fw->sw_frame_counter > 1 && isp_stream_onoff_check() > 0);
+        } else {
+            meet_condition = (isp_stream_onoff_check() > 0);
+        }
+        if (meet_condition && desc->direction == HOBOT_DMA_DIR_WRITE_ISP) {
+            hobot_dma->hobot_dma_cmds[0].isp_sram_addr = sg_dma_address(desc->isp_sram_sg);
+            if (hobot_dma->hobot_dma_cmds[0].isp_sram_addr == 0xb3000000 + ACAMERA_DECOMPANDER0_MEM_BASE_ADDR)
+                ppf = ISP_CONFIG_PING;
+            else
+                ppf = ISP_CONFIG_PONG;
+
+            pr_debug("isp addr is %x\n", hobot_dma->hobot_dma_cmds[0].isp_sram_addr);
+
+            if (ppf == acamera_isp_isp_global_ping_pong_config_select_read(0)) {
+                pr_err("ppf %d, invalid xfer, drop it.\n", ppf);
+                if (desc->callback.cb)
+                    desc->callback.cb(desc->callback.cb_data);
+                list_move_tail(&desc->node, &hobot_dma->free_list);
+                pr_debug("after drop, free list count %d\n", list_count(&hobot_dma->free_list));
+                goto out;
+            }
+        }
+
 		ret = hobot_dma_submit_cmd(hobot_dma, desc, 1);
         if (ret < 0) {  //submit failed, give back to pending list
+            pr_err("xfer submit failed, back to pending queue.\n");
             list_add_tail(&desc->node, &hobot_dma->pending_list);
         }
     }
+
+out:
 	spin_unlock_irqrestore(hobot_dma->dma_ctrl_lock, flags);
 	pr_debug("end\n");
 }
@@ -168,9 +213,12 @@ static void isp_idma_tasklet(unsigned long data)
 
 	spin_lock_irqsave( hobot_dma->dma_ctrl_lock, flags );
 	// process each callback
+
 	if (!list_empty(&hobot_dma->done_list)) {
 		list_for_each_entry_safe(desc, next, &hobot_dma->done_list, node) {
-			list_move_tail(&desc->node, &hobot_dma->free_list);
+            pr_debug("dir %d, node add to free list\n", desc->direction);
+            list_move_tail(&desc->node, &hobot_dma->free_list);
+            pr_debug("free list count %d\n", list_count(&hobot_dma->free_list));
             if (desc->callback.cb) {
 			    desc->callback.cb(desc->callback.cb_data);
             } else {
