@@ -51,7 +51,6 @@ static irqreturn_t ddr_ecc_isr(int this_irq, void *data)
 		pr_debug("3+ bits ecc error hits %llu\n", ddr_ecc.uncorr_corr_cnt);
 	} else if (ecc_stat & ECC_STAT_CORR_ERR) {
 		ddr_ecc.corr_cnt += ecc_cnt & 0xFFFF;
-		printk_once("1 bit corrected ecc error detected\n");
 		pr_debug("1 bit ecc error hits %llu\n", ddr_ecc.corr_cnt);
 	} else if (ecc_stat & ECC_STAT_UNCORR_ERR) {
 		ddr_ecc.uncorr_cnt += ecc_cnt >> 16;
