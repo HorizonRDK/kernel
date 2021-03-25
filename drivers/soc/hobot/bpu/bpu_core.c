@@ -808,7 +808,7 @@ static int __init bpu_core_init(void)/*PRQA S ALL*/
 
 static void __exit bpu_core_exit(void)
 {
-	bpu_core_driver_register(&bpu_core_platform_driver);
+	bpu_core_driver_unregister(&bpu_core_platform_driver);
 }
 
 // PRQA S ALL ++
