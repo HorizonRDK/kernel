@@ -587,7 +587,11 @@ int32_t bpu_core_ext_ctrl(struct bpu_core *core, ctrl_cmd_t cmd, uint64_t *data)
 	}
 
 	if (cmd == GET_CLK) {
-		*data = bpu_core_get_clk(core);
+		if (core->hw_enabled == 0u) {
+			*data = 0u;
+		} else {
+			*data = bpu_core_get_clk(core);
+		}
 		return 0;
 	}
 
