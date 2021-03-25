@@ -1622,10 +1622,11 @@ p_err:
   */
 int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 {
-	int ret = 0;
+	int ret = 0, i;
 	struct x3_sif_dev *sif_dev;
 	struct sif_subdev *subdev;
 	u32 isp_enable, ipi_mode;
+	u32 splice_enable, pipe_num;
 	sif_input_mipi_t *p_mipi = NULL;
 
 	if (!(sif_ctx->state & (BIT(VIO_VIDEO_STOP)
@@ -1650,12 +1651,19 @@ int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 	ipi_mode = p_mipi->ipi_mode;
 
 	isp_enable = subdev->sif_cfg.output.isp.enable;
+	splice_enable = subdev->splice_info.splice_enable;
+	pipe_num = subdev->splice_info.pipe_num;
 	mutex_lock(&sif_dev->shared_mutex);
 	if (sif_ctx->id == 0) {
 		vio_info("[S%d][V%d]%s mux_index %d \n",
 			sif_ctx->group->instance, sif_ctx->id, __func__,
 			subdev->mux_index);
 		sif_enable_frame_intr(sif_dev->base_reg, subdev->mux_index, true);
+		if(splice_enable) {
+			for (i = 0; i < pipe_num; i++) {
+				sif_enable_frame_intr(sif_dev->base_reg, subdev->mux_index + 1 + i, true);
+			}
+		}
 		if(subdev->ddr_mux_index != subdev->mux_index) {
 			sif_enable_frame_intr(sif_dev->base_reg, subdev->ddr_mux_index, true);
 		}

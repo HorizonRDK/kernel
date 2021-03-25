@@ -3562,8 +3562,8 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	if (size_err || err_status) {
 		ipu_clear_size_err(ipu->base_reg, 1);
 		ipu_clear_size_err(ipu->base_reg, 0);
-		vio_warn("IPU size error detection(0x%x)\n", size_err);
-		vio_warn("IPU size error status(0x%x)\n", err_status);
+		vio_dbg("IPU size error detection(0x%x)\n", size_err);
+		vio_dbg("IPU size error status(0x%x)\n", err_status);
 		err_occured = 1;
 	}
 

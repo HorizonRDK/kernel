@@ -974,7 +974,7 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
 						ipi_index_start + ipi_index,
 						lines);
 			/* Frame Done Interrupt */
-			sif_enable_frame_intr(base_reg, mux_out_index, true);
+			// sif_enable_frame_intr(base_reg, mux_out_index, true);
 		}
 	}
 	/*bypass enable*/
