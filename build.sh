@@ -240,12 +240,14 @@ function all()
         exit 1
     }
 
+    [ ! -d _install/ ] && mkdir _install/
+
     if [ "$TARGET_MODE" = "debug" ];then
-        [ -d ${TOPDIR}/ko/ko_debug/ ] && cp -raf  ${TOPDIR}/ko/ko_debug/* _install/
+        [ -d ${TOPDIR}/ko/ko_debug/ ] && cp -raf ${TOPDIR}/ko/ko_debug/* _install/
     elif [ "$TARGET_MODE" = "release" ];then
-        [ -d ${TOPDIR}/ko/ko_release/ ] && cp -raf  ${TOPDIR}/ko/ko_release/* _install/
+        [ -d ${TOPDIR}/ko/ko_release/ ] && cp -raf ${TOPDIR}/ko/ko_release/* _install/
     elif [ "$TARGET_MODE" = "docker" ];then
-        [ -d ${TOPDIR}/ko/ko_docker/ ] && cp -raf  ${TOPDIR}/ko/ko_docker/* _install/
+        [ -d ${TOPDIR}/ko/ko_docker/ ] && cp -raf ${TOPDIR}/ko/ko_docker/* _install/
     else
         echo "TARGET_MODE:$TARGET_MODE has not support yet"
         exit 1
