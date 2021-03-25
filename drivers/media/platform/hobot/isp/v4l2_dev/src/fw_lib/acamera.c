@@ -482,6 +482,7 @@ int32_t acamera_init( acamera_settings *settings, uint32_t ctx_num )
 
 void acamera_update_cur_settings_to_isp( uint32_t fw_ctx_id )
 {
+    pr_debug("[s%d] sram update to isp hw\n", fw_ctx_id);
     system_dma_copy_sg( g_firmware.dma_chan_isp_config, ISP_CONFIG_PING, SYS_DMA_TO_DEVICE, NULL, fw_ctx_id );
 #if FW_USE_HOBOT_DMA
     isp_idma_start_transfer(&g_hobot_dma);
@@ -575,22 +576,29 @@ pr_info("hcs1 %d, hcs2 %d, vc %d\n", hcs1, hcs2, vc);
     }
 #endif
     pr_err("broken frame status = 0x%x\n", acamera_isp_isp_global_monitor_broken_frame_status_read(0));
-    pr_err("active width min/max/sum/num = %d/%d/%d/%d\n", system_hw_read_32(0xb4),system_hw_read_32(0xb8),system_hw_read_32(0xbc),system_hw_read_32(0xc0));
-    pr_err("active high min/max/sum/num = %d/%d/%d/%d\n", system_hw_read_32(0xc4),system_hw_read_32(0xc8),system_hw_read_32(0xcc),system_hw_read_32(0xd0));
-    pr_err("hblank min/max/sum/num = %d/%d/%d/%d\n", system_hw_read_32(0xd4),system_hw_read_32(0xd8),system_hw_read_32(0xdc),system_hw_read_32(0xe0));
-    pr_err("vblank min/max/sum/num = %d/%d/%d/%d\n", system_hw_read_32(0xe4),system_hw_read_32(0xe8),system_hw_read_32(0xec),system_hw_read_32(0xf0));
+    pr_err("active width min/max/sum/num = %u/%u/%u/%u\n", system_hw_read_32(0xb4),system_hw_read_32(0xb8),system_hw_read_32(0xbc),system_hw_read_32(0xc0));
+    pr_err("active high min/max/sum/num = %u/%u/%u/%u\n", system_hw_read_32(0xc4),system_hw_read_32(0xc8),system_hw_read_32(0xcc),system_hw_read_32(0xd0));
+    pr_err("hblank min/max/sum/num = %u/%u/%u/%u\n", system_hw_read_32(0xd4),system_hw_read_32(0xd8),system_hw_read_32(0xdc),system_hw_read_32(0xe0));
+    pr_err("vblank min/max/sum/num = %u/%u/%u/%u\n", system_hw_read_32(0xe4),system_hw_read_32(0xe8),system_hw_read_32(0xec),system_hw_read_32(0xf0));
     pr_err("input port w/h %x, ping w/h %x, pong w/h %x\n", system_hw_read_32(0x98L), system_hw_read_32(0x18e88L), system_hw_read_32(0x30e48L));
 }
 
 // dma writer status debug
 void dma_writer_status(acamera_context_ptr_t p_ctx)
 {
-    uint16_t v = 0;
+    uint32_t v = 0;
 
     v = system_hw_read_32(0x00054);
     pr_info("dma alarms sts %x\n", v);
 
+    v = system_hw_read_32(0x00030);
+    pr_info("isp irq mask %x\n", v);
+
     pr_info("==ping==\n");
+    v = system_hw_read_32(0x1c0ec);
+    pr_info("y ctrl %x\n", v);
+    v = system_hw_read_32(0x1c0f0);
+    pr_info("y w/h %x\n", v);
     v = system_hw_read_32(0x1c110);
     pr_info("y wbank sts %x\n", v);
     v = system_hw_read_32(0x1c11c);
@@ -600,6 +608,10 @@ void dma_writer_status(acamera_context_ptr_t p_ctx)
     v = system_hw_read_32(0x1c128);
     pr_info("y blk sts %x\n", v);
 
+    v = system_hw_read_32(0x1c144);
+    pr_info("uv ctrl %x\n", v);
+    v = system_hw_read_32(0x1c148);
+    pr_info("uv w/h %x\n", v);
     v = system_hw_read_32(0x1c168);
     pr_info("uv wbank sts %x\n", v);
     v = system_hw_read_32(0x1c174);
@@ -610,6 +622,10 @@ void dma_writer_status(acamera_context_ptr_t p_ctx)
     pr_info("uv blk sts %x\n", v);
 
     pr_info("==pong==\n");
+    v = system_hw_read_32(0x1c0ec + ISP_CONFIG_PING_SIZE);
+    pr_info("y ctrl %x\n", v);
+    v = system_hw_read_32(0x1c0f0 + ISP_CONFIG_PING_SIZE);
+    pr_info("y w/h %x\n", v);
     v = system_hw_read_32(0x1c110 + ISP_CONFIG_PING_SIZE);
     pr_info("y wbank sts %x\n", v);
     v = system_hw_read_32(0x1c11c + ISP_CONFIG_PING_SIZE);
@@ -619,6 +635,10 @@ void dma_writer_status(acamera_context_ptr_t p_ctx)
     v = system_hw_read_32(0x1c128 + ISP_CONFIG_PING_SIZE);
     pr_info("y blk sts %x\n", v);
 
+    v = system_hw_read_32(0x1c144 + ISP_CONFIG_PING_SIZE);
+    pr_info("uv ctrl %x\n", v);
+    v = system_hw_read_32(0x1c148 + ISP_CONFIG_PING_SIZE);
+    pr_info("uv w/h %x\n", v);
     v = system_hw_read_32(0x1c168 + ISP_CONFIG_PING_SIZE);
     pr_info("uv wbank sts %x\n", v);
     v = system_hw_read_32(0x1c174 + ISP_CONFIG_PING_SIZE);
@@ -927,12 +947,21 @@ void _ctx_chn_idx_update(int ctx_id)
             p_ctx->p_gfw->sw_frame_counter, swap_ctx_id, last_ctx_id);
     pr_debug("last chn id %d, cur ctx id %d, cur chn id %d\n",
             last_chn_id, cur_ctx_id, cur_chn_id);
-    for (i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++)
-        pr_debug("%d ", frame_list[i]);
+    for (i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++) {
+        int k = frame_list[i];
+
+        if (k >= FIRMWARE_CONTEXT_NUMBER)
+            continue;
+
+        p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[k];
+        if (p_ctx->initialized)
+            pr_debug("%d - %s", k, p_ctx->content_side == SIDE_DDR ? "ddr" : "sram");
+    }
 
     //record ctx id, according to frame comming sequence
     for (i = 1; i < FIRMWARE_CONTEXT_NUMBER; i++)
         frame_list[i-1] = frame_list[i];
+
     frame_list[FIRMWARE_CONTEXT_NUMBER-1] = cur_ctx_id;
 }
 
@@ -1025,9 +1054,9 @@ int sif_isp_ctx_sync_func(int ctx_id)
     int ret = 0;
 	acamera_context_ptr_t p_ctx;
     acamera_fsm_mgr_t *instance;
-    // struct timeval tv1, tv2;
+    struct timeval tv1, tv2;
 
-    // do_gettimeofday(&tv1);
+    do_gettimeofday(&tv1);
 	mutex_lock(&g_firmware.ctx_chg_lock);
 	p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[ctx_id];
 	if (p_ctx->initialized == 0) {
@@ -1153,8 +1182,8 @@ int sif_isp_ctx_sync_func(int ctx_id)
 out:
     mutex_unlock(&g_firmware.ctx_chg_lock);
 
-    // do_gettimeofday(&tv2);
-    // pr_debug("cost %ld.%06ld\n", tv2.tv_sec - tv1.tv_sec, tv2.tv_usec - tv1.tv_usec);
+    do_gettimeofday(&tv2);
+    pr_debug("[s%d] cost %ld.%06ld\n", ctx_id, tv2.tv_sec - tv1.tv_sec, tv2.tv_usec - tv1.tv_usec);
 
 	return 0;
 }
@@ -1382,6 +1411,7 @@ int32_t acamera_interrupt_handler()
                             g_firmware.dma_flag_isp_metering_completed = 1;
                             g_firmware.dma_flag_isp_config_completed = 1;
                             hobot_idma_try_restore(&g_hobot_dma);
+                            system_dma_desc_flush();
                             pr_err("idma restored\n");
                         }
 
@@ -1475,7 +1505,7 @@ int32_t acamera_interrupt_handler()
                         g_isp_idx[cur_ctx_id] = 0;
                     }
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_FR_Y_WRITE_DONE ) {
-                    pr_debug("frame write to ddr done\n");
+                    pr_debug("y write to ddr done\n");
                     acamera_dma_alarms_error_occur();
                     p_ctx->sts.frame_write_done_irq_cnt++;
 
@@ -1494,6 +1524,7 @@ int32_t acamera_interrupt_handler()
                     acamera_buffer_done(p_ctx);
 
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_FR_UV_WRITE_DONE ) {
+                    pr_debug("uv write to ddr done\n");
                     //isp m2m ipu
                     if (p_ctx->p_gfw->sif_isp_offline) {
                         atomic_set(&g_firmware.uv_dma_done, 1);

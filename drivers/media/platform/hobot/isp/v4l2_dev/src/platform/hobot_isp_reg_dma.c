@@ -255,10 +255,6 @@ void hobot_idma_try_restore(void *data)
         dma_isp_reg_clr_int_write(0);           // clear dma int
     }
 
-    if (!list_empty(&hobot_dma->active_list)) {
-        list_splice_tail_init(&hobot_dma->active_list, &hobot_dma->free_list);
-    }
-
     hobot_dma->nents_total = 0;
     hobot_dma->is_busy = 0;
 
@@ -449,7 +445,7 @@ static void hobot_dma_start(        hobot_dma_cmd_t *hobot_dma_cmds,
 
     // 2. set command queue for ch0~ch3
     for ( i = 0; i < nents; i++ ) {
-        HOBOT_DMA_LOG("%s : [%d] - size=%d, sram=0x%x, isp=0x%x, %s\n",
+        HOBOT_DMA_LOG("%s : [%d] - size=%x, sram=0x%x, isp=0x%x, %s\n",
             __FUNCTION__, i, hobot_dma_cmds[i].size,
             hobot_dma_cmds[i].dma_sram_addr,hobot_dma_cmds[i].isp_sram_addr,
             (hobot_dma_cmds[i].direction == HOBOT_DMA_DIR_WRITE_ISP)?"write ISP":"write sram");
