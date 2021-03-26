@@ -14,7 +14,7 @@
 #if defined(CONFIG_PM_DEVFREQ) && defined(CONFIG_DEVFREQ_THERMAL)
 #include <linux/devfreq.h>
 #endif
-#ifdef CONFIG_X3_BPU
+#ifdef CONFIG_HOBOT_XJ3
 #include <linux/pm_qos.h>
 #endif
 #include "bpu.h"
@@ -129,7 +129,7 @@ struct bpu_core {
 #else
 	void *dvfs;
 #endif
-#ifdef CONFIG_X3_BPU
+#ifdef CONFIG_HOBOT_XJ3
 	struct pm_qos_request pm_qos_req;
 #endif
 	/* bpu core ctrl */
