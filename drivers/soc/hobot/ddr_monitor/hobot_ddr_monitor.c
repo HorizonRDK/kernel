@@ -53,6 +53,7 @@ struct ddr_mon {
 	dev_t dev_num;
 	struct class *ddr_mon_cls;
 	wait_queue_head_t wq_head;
+	int refcnt;
 	spinlock_t lock;
 	struct clk *ddr_mclk;
 	struct devfreq_event_desc *desc;
@@ -127,7 +128,6 @@ typedef struct ddr_monitor_sample_s {
 
 #define TOTAL_RECORD_NUM 400
 #define TOTAL_RESULT_SIZE (400*1024)
-ktime_t g_ktime_start;
 
 struct ddr_monitor_result_s* ddr_info = NULL;
 char * result_buf = NULL;
@@ -138,7 +138,6 @@ unsigned int g_sample_number = 0;
 unsigned int g_extra_rd_info = 0;
 
 module_param(cur_idx, uint, 0644);
-//module_param(g_record_num, uint, 0644);
 module_param(g_monitor_period, uint, 0644);
 module_param(g_extra_rd_info, uint, 0644);
 
@@ -416,12 +415,18 @@ static ssize_t ddr_monitor_mod_read(struct file *pfile, char *puser_buf, size_t 
 {
 	int result_len = 0;
 
+	/* When reading in multiple processes, g_record_num could be 0 after
+	 * wakeup, retry to wait for refilling ddr_info buffer
+	 */
+retry:
 	wait_event_interruptible(ddrmon->wq_head,
 					g_record_num >= g_sample_number);
 
 	spin_lock_irq(&ddrmon->lock);
 	result_len = get_monitor_data(result_buf);
 	spin_unlock_irq(&ddrmon->lock);
+	if (result_len == 0)
+		goto retry;
 
 	return result_len;
 }
@@ -503,13 +508,9 @@ static long ddr_monitor_mod_ioctl(struct file *pfile, unsigned int cmd, unsigned
 		/* sample_period's unit is ms */
 		temp = sample_config.sample_period;
 		g_sample_number = sample_config.sample_number;
-		writel(temp * (SYS_PCLK_HZ / 1000),
-			ddrmon->regaddr + PERF_MONITOR_PERIOD);
 		g_monitor_period = temp * 1000;
+		ddr_monitor_start();
 
-		writel(0x1, ddrmon->regaddr + PERF_MONITOR_ENABLE_UNMASK);
-		writel(0xfff, ddrmon->regaddr + PERF_MONITOR_ENABLE);
-		g_ktime_start = ktime_get();
 		break;
 	default:
 
@@ -586,35 +587,47 @@ void ddr_monitor_dev_remove(void)
 
 int ddr_monitor_start(void)
 {
-	pr_debug("\n");
+	pr_debug("%s: ddrmon->refcnt :%d\n", __func__, ddrmon->refcnt);
 
-	if (ddrmon && !ddr_info) {
-
-		writel(0xFFF, ddrmon->regaddr + PERF_MONITOR_ENABLE);
-		writel(0x1, ddrmon->regaddr + PERF_MONITOR_ENABLE_UNMASK);
+	if (!ddr_info) {
 		ddr_info = vmalloc(sizeof(struct ddr_monitor_result_s) * TOTAL_RECORD_NUM);
 		result_buf = ddrmon->res_vaddr;
 		cur_idx = 0;
 		g_record_num = 0;
-		pr_info("PERF_MONITOR_PERIOD is %dms\n", g_monitor_period/1000);
-		writel((SYS_PCLK_HZ /1000000) * g_monitor_period, ddrmon->regaddr + PERF_MONITOR_PERIOD);
-
 	}
+
+	writel(0xFFF, ddrmon->regaddr + PERF_MONITOR_ENABLE);
+	writel(0x1, ddrmon->regaddr + PERF_MONITOR_ENABLE_UNMASK);
+	pr_info("set PERF_MONITOR_PERIOD to %dms\n", g_monitor_period/1000);
+	writel((SYS_PCLK_HZ /1000000) * g_monitor_period, ddrmon->regaddr + PERF_MONITOR_PERIOD);
+	ddrmon->refcnt++;
 
 	return 0;
 }
 
 int ddr_monitor_stop(void)
 {
-	pr_debug("\n");
+	pr_debug("%s: ddrmon->refcnt :%d\n", __func__, ddrmon->refcnt);
+
+	ddrmon->refcnt--;
+	if (ddrmon->refcnt > 0) {
+		return 0;
+	} else if (ddrmon->refcnt < 0) {
+		pr_err("ddr monitor start and stop unpaired: %d\n", ddrmon->refcnt);
+		return -1;
+	}
+
 	if (ddrmon && ddr_info) {
 		writel(0, ddrmon->regaddr + PERF_MONITOR_ENABLE);
 		writel(0x1, ddrmon->regaddr + PERF_MONITOR_ENABLE_SETMASK);
 		vfree(ddr_info);
 		result_buf = NULL;
 		ddr_info = NULL;
+		return 0;
+	} else {
+		pr_err("%s:device not ready!\n", __func__);
+		return -1;
 	}
-	return 0;
 }
 
 int ddr_get_port_status(void)
@@ -627,10 +640,8 @@ int ddr_get_port_status(void)
 	for (i = 0; i < PORT_NUM; i++) {
 		step = i * MP_REG_OFFSET;
 #ifdef CONFIG_HOBOT_XJ3
-		if (i >= 6) {
-			pr_debug("i:%d step: %08x\n", i, step);
+		if (i >= 6)
 			step += MP_REG_OFFSET;
-		}
 #endif
 
 		ddr_info[cur_idx].portdata[i].raddr_num = readl(ddrmon->regaddr + MP_BASE_RADDR_TX_NUM + step);
