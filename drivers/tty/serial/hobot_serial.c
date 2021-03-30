@@ -112,6 +112,7 @@ struct hobot_uart {
 	int uart_id;
 	atomic_t uart_start;
 #endif
+	u32 uartoutcnt;
 };
 
 enum uart_mode {
@@ -383,14 +384,13 @@ static void hobot_uart_dma_rxdone(void *dev_id, unsigned int irqstatus)
 								   hobot_port->rx_off)),
 						count1);
 		if (copied != count1) {
-			if(uartoutcnt == 100) {
+			if(hobot_port->uartoutcnt == 100) {
 				spin_unlock(&port->lock);
-				WARN_ON(1);
 				dev_err(port->dev, "first, rxdata copy to tty layer failed\n");
 				spin_lock(&port->lock);
-				uartoutcnt = 0;
+				hobot_port->uartoutcnt = 0;
 			}
-			uartoutcnt++;
+			hobot_port->uartoutcnt++;
 			port->icount.rx += copied;
 		} else {
 			port->icount.rx += count1;
@@ -405,15 +405,14 @@ static void hobot_uart_dma_rxdone(void *dev_id, unsigned int irqstatus)
 								     hobot_port->rx_off)),
 								count2);
 				if (copied != count2) {
-					if(uartoutcnt == 100) {
+					if(hobot_port->uartoutcnt == 100) {
 						spin_unlock(&port->lock);
-						WARN_ON(1);
 						dev_err(port->dev,
 							"second, rxdata copy to tty layer failed\n");
 						spin_lock(&port->lock);
-						uartoutcnt = 0;
+						hobot_port->uartoutcnt = 0;
 					}
-					uartoutcnt++;
+					hobot_port->uartoutcnt++;
 					port->icount.rx += copied;
 				} else {
 					port->icount.rx += count2;
@@ -1724,7 +1723,8 @@ static int hobot_uart_probe(struct platform_device *pdev)
 	if (match && match->data) {
 		/* Nothing to do, maybe can be used in future */
 	}
-
+	/*Initialize the uartoutcnt */
+	hobot_uart_data->uartoutcnt = 0;
 	hobot_uart_data->uartclk = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(hobot_uart_data->uartclk)) {
 		dev_err(&pdev->dev, "uart_clk clock not found.\n");
