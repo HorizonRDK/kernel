@@ -46,6 +46,8 @@
 #define IPU_IOC_SET_FRAME_SKIP_PARAM    _IOWR(IPU_IOC_MAGIC, 18, int)
 #define IPU_IOC_SET_FRAME_RATE_CTRL    _IOWR(IPU_IOC_MAGIC, 19, int)
 #define IPU_IOC_KERNEL_ION_CONTINOUS    _IOWR(IPU_IOC_MAGIC, 20, kernel_ion_t)
+#define IPU_IOC_WAIT_INIT    	 _IOW(IPU_IOC_MAGIC, 21, int)
+
 
 
 #define	IOCTL_RET_VAL_BASE	1
@@ -121,6 +123,8 @@ struct ipu_video_ctx {
 	struct ipu_subdev	*subdev;
 
 	int belong_pipe;
+
+	int wait_init_index;
 };
 
 enum ipu_group_state {
@@ -200,6 +204,11 @@ enum frame_rate_strategy {
 	BALANCE_SKIP_MODE
 };
 
+struct ipu_wait_init_info {
+	u32 instance;
+	int pid;
+};
+
 struct ipu_subdev {
 	spinlock_t 		slock;
 	struct ipu_video_ctx	*ctx[VIO_MAX_SUB_PROCESS];
@@ -232,6 +241,8 @@ struct ipu_subdev {
 	unsigned int frame_skip_num;
 
 	bool frame_is_skipped;
+
+	int	wait_init_pid[VIO_MAX_SUB_PROCESS];
 };
 
 struct x3_ipu_dev {

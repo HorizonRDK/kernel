@@ -27,6 +27,7 @@
 #include <soc/hobot/diag.h>
 #include <linux/ion.h>
 #include <linux/pm_qos.h>
+#include <linux/sched/signal.h>
 
 #include "hobot_dev_ipu.h"
 #include "ipu_hw_api.h"
@@ -290,6 +291,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	u32 ctx_index;
 	u32 id, i;
 	unsigned long flags;
+	int wait_init_index;
 
 	ipu_ctx = file->private_data;
 	ipu = ipu_ctx->ipu_dev;
@@ -313,7 +315,16 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	if (ipu_ctx->state & BIT(VIO_VIDEO_OPEN)) {
 		vio_info("[S%d][V%d] %s: only open.\n", ipu_ctx->belong_pipe,
 					ipu_ctx->id, __func__);
-		atomic_dec(&ipu->open_cnt);
+		if (atomic_dec_return(&ipu->open_cnt) == 0) {
+			pm_qos_remove_request(&ipu_pm_qos_req);
+		}
+		subdev = &ipu->subdev[instance][ipu_ctx->id];
+		spin_lock_irqsave(&subdev->slock, flags);
+		wait_init_index = ipu_ctx->wait_init_index;
+		if (wait_init_index >= 0) {
+			subdev->wait_init_pid[wait_init_index] = 0;
+		}
+		spin_unlock_irqrestore(&subdev->slock, flags);
 		kfree(ipu_ctx);
 		return 0;
 	}
@@ -490,7 +501,6 @@ static u32 x3_ipu_poll(struct file *file, struct poll_table_struct *wait)
 			[ipu_ctx->id]++;
 		ret =  POLLERR;
 	}
-
 	return ret;
 }
 int ipu_check_phyaddr(struct frame_info *frameinfo)
@@ -3044,6 +3054,112 @@ ion_cleanup:
 	return -ENOMEM;
 }
 
+int ipu_wait_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
+{
+	int id = 0;
+	unsigned long flags;
+	struct x3_ipu_dev *ipu;
+	struct ipu_subdev *subdev;
+	int i;
+	int instance;
+	struct ipu_wait_init_info wait_init_info;
+	int ret;
+
+	ret = copy_from_user((void *)&wait_init_info, (u32 __user *) arg,
+		sizeof(struct ipu_wait_init_info));
+	if (ret) {
+		return ret;
+	}
+
+	id = ipu_ctx->id;
+	if (id != GROUP_ID_SRC) {
+		vio_err("%s wrong ctx id %d\n", __func__, id);
+		return -EFAULT;
+	}
+	ipu = ipu_ctx->ipu_dev;
+	instance = wait_init_info.instance;
+	subdev = &ipu->subdev[instance][id];
+	ipu_ctx->subdev = subdev;
+
+	if (test_bit(IPU_SUBDEV_INIT, &subdev->state)) {
+		return 1;
+	}
+
+	spin_lock_irqsave(&subdev->slock, flags);
+	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
+		if(subdev->wait_init_pid[i] == 0) {
+			subdev->wait_init_pid[i] = wait_init_info.pid;
+			ipu_ctx->wait_init_index = i;
+			break;
+		}
+	}
+	spin_unlock_irqrestore(&subdev->slock, flags);
+
+	if (i == VIO_MAX_SUB_PROCESS) {
+		vio_err("alreay open too much node to wait init for one pipeline\n");
+		ipu_ctx->wait_init_index = -1;
+		return -EFAULT;
+	}
+
+	return 0;
+}
+
+int ipu_init_end(struct ipu_video_ctx *ipu_ctx, int instance)
+{
+	int ret = 0;
+	int id = 0;
+	struct vio_group *group;
+	struct x3_ipu_dev *ipu;
+	struct ipu_subdev *subdev;
+	int i;
+	unsigned long flags;
+	struct siginfo info;
+	struct task_struct *current_task;
+
+	if (instance < 0 || instance >= VIO_MAX_STREAM) {
+		vio_err("wrong instance id(%d)\n", instance);
+		return -EFAULT;
+	}
+
+	id = ipu_ctx->id;
+	if (id != GROUP_ID_SRC) {
+		vio_err("%s wrong ctx id %d\n", __func__, id);
+		return -EFAULT;
+	}
+	ipu = ipu_ctx->ipu_dev;
+	subdev = &ipu->subdev[instance][id];
+
+	memset(&info, 0, sizeof(struct siginfo));
+	info.si_signo = SIGPOLL;
+	info.si_code = SI_KERNEL;
+
+	spin_lock_irqsave(&subdev->slock, flags);
+	/*
+	 * when main process init end, wakeup sub process
+	 */
+	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
+		/*
+		 * wake up sub process when already poll
+		 */
+		if (subdev->wait_init_pid[i] > 0) {
+			current_task =
+				pid_task(find_vpid(subdev->wait_init_pid[i]), PIDTYPE_PID);
+			if (current_task) {
+				ret = send_sig_info(SIGPOLL, &info, current_task);
+				if (ret < 0) {
+					vio_err("[S%d][V%d] %s error\n", instance, id, __func__);
+				}
+			}
+			subdev->wait_init_pid[i] = 0;
+		}
+	}
+	spin_unlock_irqrestore(&subdev->slock, flags);
+
+	vio_info("[S%d][V%d] %s done\n", instance, id, __func__);
+
+	return ret;
+}
+
 static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 			  unsigned long arg)
 {
@@ -3146,6 +3262,7 @@ static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 		if (ret)
 			return -EFAULT;
 		vio_bind_group_done(instance);
+		ipu_init_end(ipu_ctx, instance);
 		break;
 	case IPU_IOC_USER_STATS:
 		ret = copy_from_user((char *) &stats, (u32 __user *) arg,
@@ -3195,6 +3312,9 @@ static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 			return -EFAULT;
 		ret = subdev_set_frame_skip_param(ipu_ctx, frame_rate_ctrl.src_frame_rate,
 					frame_rate_ctrl.dst_frame_rate, BALANCE_SKIP_MODE);
+		break;
+	case IPU_IOC_WAIT_INIT:
+		ret = ipu_wait_init(ipu_ctx, arg);
 		break;
 	default:
 		vio_err("wrong ioctl command\n");
