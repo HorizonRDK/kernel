@@ -127,6 +127,7 @@ enum uart_mode {
 static unsigned int dbg_tx_cnt[1024];
 static unsigned int dbg_tx_index = 0;
 #endif /* HOBOT_UART_DBG */
+static u32 uartoutcnt = 0;
 
 #ifdef CONFIG_HOBOT_TTY_DMA_MODE
 
@@ -382,10 +383,14 @@ static void hobot_uart_dma_rxdone(void *dev_id, unsigned int irqstatus)
 								   hobot_port->rx_off)),
 						count1);
 		if (copied != count1) {
-			spin_unlock(&port->lock);
-			WARN_ON(1);
-			dev_err(port->dev, "first, rxdata copy to tty layer failed\n");
-			spin_lock(&port->lock);
+			if(uartoutcnt == 100) {
+				spin_unlock(&port->lock);
+				WARN_ON(1);
+				dev_err(port->dev, "first, rxdata copy to tty layer failed\n");
+				spin_lock(&port->lock);
+				uartoutcnt = 0;
+			}
+			uartoutcnt++;
 			port->icount.rx += copied;
 		} else {
 			port->icount.rx += count1;
@@ -400,11 +405,15 @@ static void hobot_uart_dma_rxdone(void *dev_id, unsigned int irqstatus)
 								     hobot_port->rx_off)),
 								count2);
 				if (copied != count2) {
-					spin_unlock(&port->lock);
-					WARN_ON(1);
-					dev_err(port->dev,
-						"second, rxdata copy to tty layer failed\n");
-					spin_lock(&port->lock);
+					if(uartoutcnt == 100) {
+						spin_unlock(&port->lock);
+						WARN_ON(1);
+						dev_err(port->dev,
+							"second, rxdata copy to tty layer failed\n");
+						spin_lock(&port->lock);
+						uartoutcnt = 0;
+					}
+					uartoutcnt++;
 					port->icount.rx += copied;
 				} else {
 					port->icount.rx += count2;
