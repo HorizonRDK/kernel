@@ -93,8 +93,9 @@ static int32_t is_send_condition_ready(struct diag_event_id *event_id,
 
 	/* TODO need to add spinlock? */
 	if ((diff > event_id->id_handle.max_snd_ms) ||
-			((diff > event_id->id_handle.min_snd_ms)
-			&& (event_id->last_sta != event->event_sta))){
+			(event_id->last_sta != event->event_sta) ||
+			((event_id->last_sta == event->event_sta) &&
+			 (diff >= event_id->id_handle.min_snd_ms))) {
 		event_id->last_snd_time = jiffies_to_msecs(get_jiffies_64());
 		event_id->last_sta = event->event_sta;
 		ret = 1;
