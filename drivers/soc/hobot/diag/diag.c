@@ -138,28 +138,27 @@ static int32_t module_event_add_to_list(struct diag_event *event)
 	}
 
 	/* insert to priority queue */
+	spin_lock_irqsave(&g_diag_info->prio_lock, flags);
 	switch (event->event_prio) {
 		case (uint8_t)DiagMsgPrioLow:
-			spin_lock_irqsave(&g_diag_info->low_spinlock, flags); /* PRQA S ALL */
 			list_add_tail(&module_event->list,
 					&g_diag_info->low_prio_list);
-			spin_unlock_irqrestore(&g_diag_info->low_spinlock, flags);
+			spin_unlock_irqrestore(&g_diag_info->prio_lock, flags);
 			break;
 		case (uint8_t)DiagMsgPrioMid:
-			spin_lock_irqsave(&g_diag_info->mid_spinlock, flags); /* PRQA S ALL */
 			list_add_tail(&module_event->list,
 					&g_diag_info->mid_prio_list);
-			spin_unlock_irqrestore(&g_diag_info->mid_spinlock, flags);
+			spin_unlock_irqrestore(&g_diag_info->prio_lock, flags);
 			break;
 		case (uint8_t)DiagMsgPrioHigh:
-			spin_lock_irqsave(&g_diag_info->hig_spinlock, flags); /* PRQA S ALL */
 			list_add_tail(&module_event->list,
 					&g_diag_info->hig_prio_list);
-			spin_unlock_irqrestore(&g_diag_info->hig_spinlock, flags);
+			spin_unlock_irqrestore(&g_diag_info->prio_lock, flags);
 			break;
 		default: /* PRQA S 2024 */
 			pr_err("It's a bug\n"); /* PRQA S ALL */
 
+			spin_unlock_irqrestore(&g_diag_info->prio_lock, flags);
 			spin_lock_irqsave(&g_diag_info->empty_spinlock, flags); /* PRQA S ALL */
 			list_add_tail(&module_event->list, &g_diag_info->empty_list);
 			spin_unlock_irqrestore(&g_diag_info->empty_spinlock, flags);
@@ -299,21 +298,17 @@ struct netlink_kernel_cfg netlink_cfg = {
 	.input = netlink_recv_msg,
 };
 
-static void handle_and_move(struct list_head *prio_list, spinlock_t lock)
+static int32_t handle_and_move(struct list_head *prio_list)
 {
 	struct diag_module_event *module_event;
 	struct diag_module_event *next;
 	unsigned long flags;
-	int32_t ret;
+	int32_t ret = 0;
 
-	spin_lock_irqsave(&lock, flags); /* PRQA S 0515, 0602 */
+	spin_lock_irqsave(&g_diag_info->prio_lock, flags); /* PRQA S 0515, 0602 */
 	list_for_each_entry_safe(module_event, next, prio_list, list) { /* PRQA S 0497, 0602, 2471 */
-		/* fetch one node from the list */
-		module_event = list_first_entry(prio_list, /* PRQA S 0497, 0602 */
-				struct diag_module_event, list);
 		list_del(&module_event->list);
-
-		spin_unlock_irqrestore(&lock, flags);
+		spin_unlock_irqrestore(&g_diag_info->prio_lock, flags);
 
 		ret = netlink_snd_msg(module_event);
 		if (ret < 0) {
@@ -325,9 +320,22 @@ static void handle_and_move(struct list_head *prio_list, spinlock_t lock)
 		list_add_tail(&module_event->list, &g_diag_info->empty_list);
 		spin_unlock_irqrestore(&g_diag_info->empty_spinlock, flags);
 
-		spin_lock_irqsave(&lock, flags); /* PRQA S 0515, 0602 */
+		/* note that new events may tailed to higher prio_list during message send */
+		spin_lock_irqsave(&g_diag_info->prio_lock, flags); /* PRQA S 0515, 0602 */
+		if (!list_empty(&g_diag_info->hig_prio_list) &&
+				(prio_list != &g_diag_info->hig_prio_list)) {
+			ret = 1U;
+			break;
+		}
+		if (!list_empty(&g_diag_info->mid_prio_list) &&
+				(prio_list == &g_diag_info->low_prio_list)) {
+			ret = 2U;
+			break;
+		}
 	}
-	spin_unlock_irqrestore(&lock, flags);
+	spin_unlock_irqrestore(&g_diag_info->prio_lock, flags);
+
+	return ret;
 }
 
 static void diag_work_handler(struct work_struct *work) /* PRQA S ALL */
@@ -339,14 +347,22 @@ static void diag_work_handler(struct work_struct *work) /* PRQA S ALL */
 		return;
 	}
 
+again1:
 	/* process high priority list */
-	handle_and_move(&g_diag_info->hig_prio_list, g_diag_info->hig_spinlock);
+	handle_and_move(&g_diag_info->hig_prio_list);
 
+again2:
 	/* process middle priority list */
-	handle_and_move(&g_diag_info->mid_prio_list, g_diag_info->mid_spinlock);
+	ret = handle_and_move(&g_diag_info->mid_prio_list);
+	if (ret == 1U)
+		goto again1;
 
 	/* process low priority list */
-	handle_and_move(&g_diag_info->low_prio_list, g_diag_info->low_spinlock);
+	ret = handle_and_move(&g_diag_info->low_prio_list);
+	if (ret == 1U)
+		goto again1;
+	else if (ret == 2U)
+		goto again2;
 }
 
 /* other drivers use this interface to send event */
@@ -754,9 +770,7 @@ static int32_t __init diag_init(void)
 
 	mutex_init(&g_diag_info->module_list_mutex); /* PRQA S ALL */
 	mutex_init(&g_diag_info->netlink_mutex); /* PRQA S ALL */
-	spin_lock_init(&g_diag_info->low_spinlock);
-	spin_lock_init(&g_diag_info->mid_spinlock);
-	spin_lock_init(&g_diag_info->hig_spinlock);
+	spin_lock_init(&g_diag_info->prio_lock);
 	spin_lock_init(&g_diag_info->empty_spinlock);
 
 	/* initialize a work item */

@@ -67,9 +67,7 @@ struct diag {
 	struct list_head low_prio_list;
 	struct list_head mid_prio_list;
 	struct list_head hig_prio_list;
-	spinlock_t low_spinlock;
-	spinlock_t mid_spinlock;
-	spinlock_t hig_spinlock;
+	spinlock_t prio_lock;
 
 	/* list for netlink send */
 	//struct list_head netlink_snd_list;
