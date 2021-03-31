@@ -15,6 +15,7 @@
 #include <linux/platform_device.h>
 #include <linux/pwm.h>
 #include <linux/irq.h>
+#include <linux/hrtimer.h>
 #include <linux/interrupt.h>
 #include <linux/of_irq.h>
 #include <linux/slab.h>
@@ -37,6 +38,9 @@
 #define LPWM_PPS  4
 #define LPWM_NPIN 5
 
+unsigned int swtrig_period = 0;
+module_param(swtrig_period, uint, 0644);
+
 struct hobot_lpwm_chip {
 	struct pwm_chip chip;
 	int irq;
@@ -44,6 +48,7 @@ struct hobot_lpwm_chip {
 	struct clk *clk;
 	void __iomem *base;
 	int offset[LPWM_NPWM];
+	struct hrtimer swtrig_timer;
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *pins[LPWM_NPIN];
 };
@@ -109,6 +114,19 @@ static int hobot_lpwm_config(struct pwm_chip *chip, struct pwm_device *pwm,
 	return 0;
 }
 
+static enum hrtimer_restart swtig_timer_func(struct hrtimer *hrt)
+{
+	struct hobot_lpwm_chip *lpwm =
+		container_of(hrt, struct hobot_lpwm_chip, swtrig_timer);
+
+	hobot_lpwm_wr(lpwm, LPWM_SW_TRIG, 1);
+
+	hrtimer_forward_now(hrt, ms_to_ktime(swtrig_period));
+
+	pr_debug("swtrig_period %d\n", swtrig_period);
+	return HRTIMER_RESTART;
+}
+
 static int hobot_lpwm_enable(struct pwm_chip *chip, struct pwm_device *pwm)
 {
 	struct hobot_lpwm_chip *lpwm = to_hobot_lpwm_chip(chip);
@@ -145,6 +163,8 @@ static void hobot_lpwm_disable(struct pwm_chip *chip, struct pwm_device *pwm)
 	val = hobot_lpwm_rd(lpwm, LPWM_EN);
 	val &= (~(1 << pwm->hwpwm));
 
+	if (hrtimer_active(&lpwm->swtrig_timer))
+		hrtimer_cancel(&lpwm->swtrig_timer);
 	hobot_lpwm_wr(lpwm, LPWM_EN, val);
 
 	if (__clk_is_enabled(lpwm->clk))
@@ -219,8 +239,10 @@ static ssize_t lpwm_swtrig_store(struct device *dev,
 	pr_info("trigger lpwms, val:%d\n", val);
 	val = (val == 0) ? 1 : val;
 
+	if (swtrig_period) {
+		hrtimer_start(&lpwm->swtrig_timer, ms_to_ktime(swtrig_period), HRTIMER_MODE_REL);
+	}
 	hobot_lpwm_wr(lpwm, LPWM_SW_TRIG, val);
-
 	return count;
 }
 static DEVICE_ATTR_WO(lpwm_swtrig);
@@ -282,6 +304,9 @@ static int hobot_lpwm_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
+	hrtimer_init(&lpwm->swtrig_timer, CLOCK_MONOTONIC,
+			HRTIMER_MODE_REL | HRTIMER_MODE_PINNED);
+	lpwm->swtrig_timer.function = swtig_timer_func;
 	for (i = 0; i < LPWM_NPWM; i++) {
 		memset(buf, 0, sizeof(buf));
 		snprintf(buf, sizeof(buf), "lpwm%d", i);
@@ -352,7 +377,8 @@ static int hobot_lpwm_remove(struct platform_device *pdev)
 		pwm_disable(&lpwm->chip.pwms[i]);
 
 	sysfs_remove_file(&pdev->dev.kobj, &dev_attr_lpwm_offset.attr);
-
+	sysfs_remove_file(&pdev->dev.kobj, &dev_attr_lpwm_swtrig.attr);
+	sysfs_remove_file(&pdev->dev.kobj, &dev_attr_lpwm_ppstrig.attr);
 	return pwmchip_remove(&lpwm->chip);
 }
 
