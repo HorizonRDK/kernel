@@ -904,6 +904,7 @@ err_scd:
 	spin_unlock(&sif->seq_task.slock);
 	kthread_stop(sif->seq_task.seq_kthread);
 	sif->seq_task.seq_kthread = NULL;
+	sif->seq_task.wait_mask = 0;
 err_kth:
 	frame_queue->enable = 0;
 	frame_queue->pipeline_id = -1;
@@ -934,6 +935,7 @@ static int seq_kthread_stop(struct sif_video_ctx *sif_ctx)
 		spin_unlock(&sif->seq_task.slock);
 		kthread_stop(sif->seq_task.seq_kthread);
 		sif->seq_task.seq_kthread = NULL;
+		sif->seq_task.wait_mask = 0;
 		vio_info("[S%d][V1] %s: seq-kthread exit\n", pipeid,
 				__func__);
 	}
