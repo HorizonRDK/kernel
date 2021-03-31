@@ -24,24 +24,245 @@
 #include "bpu_ctrl.h"
 #include "hw_io.h"
 
-#define CORE_PE_TYPE_OFFSET 4
-
 #define DEFAULT_BURST_LEN (0x80u)
 static int32_t bpu_err_flag;
 
-static int soc_is_x3e(void)
+#define PLL_FREQ_CTRL_FBDIV_BIT 0
+#define PLL_FREQ_CTRL_REFDIV_BIT 12
+#define PLL_FREQ_CTRL_POSTDIV1_BIT 20
+#define PLL_FREQ_CTRL_POSTDIV2_BIT 24
+
+#define PLL_FREQ_CTRL_FBDIV_FIELD 0xFFF
+#define PLL_FREQ_CTRL_REFDIV_FIELD 0x3F
+#define PLL_FREQ_CTRL_POSTDIV1_FIELD 0x7
+#define PLL_FREQ_CTRL_POSTDIV2_FIELD 0x7
+
+#define PLL_PD_CTRL_PD_BIT 0
+#define PLL_PD_CTRL_DSMPD_BIT 4
+#define PLL_PD_CTRL_DACPD_BIT 5
+#define PLL_PD_CTRL_FOUTPOSTDIVPD_BIT 8
+#define PLL_PD_CTRL_FOUTVCOPD_BIT 12
+#define PLL_PD_CTRL_FOUT4OHASEPD_BIT 13
+#define PLL_PD_CTRL_BYPASS_BIT 16
+
+#define PLL_FRAC_BIT 0
+#define PLL_FRAC_FIELD 0xFFFFFF
+
+#define PLL_BYPASS_MODE 0x1
+#define PLL_FRAC_MODE 0x0
+
+#define PLL_FRAC_REFDIV_MIN 1
+#define PLL_FRAC_REFDIV_MAX 63
+#define PLL_FRAC_FBDIV_MIN 20
+#define PLL_FRAC_FBDIV_MAX 320
+#define PLL_FRAC_FBDIV_INT_MIN 16
+#define PLL_FRAC_FBDIV_INT_MAX 3200
+#define PLL_FRAC_POSTDIV1_MIN 1
+#define PLL_FRAC_POSTDIV1_MAX 7
+#define PLL_FRAC_POSTDIV2_MIN 1
+#define PLL_FRAC_POSTDIV2_MAX 7
+
+#define PLL_FRAC_MAX_FREQ 3200000000
+#define PARENT_RATE (24000000)
+#define X3EMAX_RATE (600000000)
+
+#define BPU_CLK_BASE	0xA1000000
+#define FREQ_REG_OFFSET	0x20
+#define PD_REG_OFFSET	0x24
+#define FRAC_REG_OFFSET	0x28
+
+struct pll_bestdiv {
+	uint64_t freq;
+	uint32_t refdiv;
+	uint32_t fbdiv;
+	uint32_t postdiv1;
+	uint32_t postdiv2;
+};
+
+static struct pll_bestdiv pll_bestdiv_table[] = {
+	{240000000,  1, 10, 1, 1},
+	{400000000,  1, 100, 6, 1},
+	{600000000,  1, 25, 1, 1},
+};
+
+#define CORE_PE_TYPE_OFFSET 4
+
+static struct timer_list *check_timer = NULL;
+static uint32_t check_start_counter = 0;
+static void __iomem *chipid_reg = NULL;
+static void __iomem *pll_reg = NULL;
+static uint32_t check_record = 0;
+
+static bool soc_is_x3e(void)
 {
 	int32_t chipid;
 
-	void __iomem *chipid_reg = ioremap_nocache(0xa6008070, 4);
-	chipid = readl(chipid_reg);
-	iounmap(chipid_reg);
-
-	if (((chipid>>12)&0x1) == 0x1) {
-		return 1;
+	if (chipid_reg == NULL) {
+		return false;
 	}
 
+	chipid = readl(chipid_reg);
+
+	if (((chipid>>12) & 0x1) == 0x1) {
+		return true;
+	}
+
+	return false;
+}
+
+static uint64_t bpu_clk_raw_get_rate(void)
+{
+	uint32_t fbdiv, refdiv, postdiv1, postdiv2;
+	uint32_t dsmpd, bypass;
+	uint32_t val, frac;
+	uint64_t rate;
+
+	uint64_t parent_rate = PARENT_RATE;
+
+	if (pll_reg == NULL) {
+		return 0;
+	}
+
+	val = readl(pll_reg + PD_REG_OFFSET);
+	bypass = (val & (1 << PLL_PD_CTRL_BYPASS_BIT)) >> PLL_PD_CTRL_BYPASS_BIT;
+	if(bypass){
+		return parent_rate;
+	}
+
+	dsmpd = (val & (1 << PLL_PD_CTRL_DSMPD_BIT)) >> PLL_PD_CTRL_DSMPD_BIT;
+
+	val = readl(pll_reg + FREQ_REG_OFFSET);
+	fbdiv = (val & (PLL_FREQ_CTRL_FBDIV_FIELD << PLL_FREQ_CTRL_FBDIV_BIT)) >> PLL_FREQ_CTRL_FBDIV_BIT;
+	refdiv = (val & (PLL_FREQ_CTRL_REFDIV_FIELD << PLL_FREQ_CTRL_REFDIV_BIT)) >> PLL_FREQ_CTRL_REFDIV_BIT;
+	postdiv1 = (val & (PLL_FREQ_CTRL_POSTDIV1_FIELD << PLL_FREQ_CTRL_POSTDIV1_BIT)) >> PLL_FREQ_CTRL_POSTDIV1_BIT;
+	postdiv2 = (val & (PLL_FREQ_CTRL_POSTDIV2_FIELD << PLL_FREQ_CTRL_POSTDIV2_BIT)) >> PLL_FREQ_CTRL_POSTDIV2_BIT;
+
+	if(dsmpd){
+		rate = (parent_rate / refdiv) * fbdiv / postdiv1 /postdiv2;
+	}else{
+		val = readl(pll_reg + FRAC_REG_OFFSET);
+		frac = (val & (PLL_FRAC_FIELD) << PLL_FRAC_BIT) >> PLL_FRAC_BIT;
+		rate = (parent_rate / refdiv) * (fbdiv + frac / 0x1000000) / postdiv1 / postdiv2;
+	}
+
+	return rate;
+}
+
+static void bpu_clk_raw_set_rate(uint64_t rate)
+{
+	uint64_t new_rate;
+	uint32_t val, dsmpd;
+	uint32_t fbdiv = 0, refdiv = 0, postdiv1 = 0, postdiv2 = 0;
+	uint64_t parent_rate = PARENT_RATE;
+	struct pll_bestdiv *bestdiv;
+	uint32_t i;
+
+	if (pll_reg == NULL) {
+		return;
+	}
+
+	for (i = 0; i < sizeof(pll_bestdiv_table)/sizeof(pll_bestdiv_table[0]); i++) {
+		if (rate == pll_bestdiv_table[i].freq) {
+			bestdiv = &pll_bestdiv_table[i];
+			refdiv = bestdiv->refdiv;
+			fbdiv  = bestdiv->fbdiv;
+			postdiv1 = bestdiv->postdiv1;
+			postdiv2 = bestdiv->postdiv2;
+		}
+	}
+
+	val = readl(pll_reg + PD_REG_OFFSET);
+	dsmpd = (val & (1 << PLL_PD_CTRL_DSMPD_BIT)) >> PLL_PD_CTRL_DSMPD_BIT;
+	if(!dsmpd){
+		return;
+	}
+
+	new_rate = (parent_rate / refdiv) * fbdiv / postdiv1 / postdiv2;
+	if(new_rate != rate){
+		return;
+	}
+	val = readl(pll_reg + PD_REG_OFFSET);
+	val &= ~(1 << PLL_PD_CTRL_BYPASS_BIT);
+	writel(val, pll_reg + PD_REG_OFFSET);
+
+	val = (refdiv & PLL_FREQ_CTRL_REFDIV_FIELD) << PLL_FREQ_CTRL_REFDIV_BIT;
+	val |= ((fbdiv & PLL_FREQ_CTRL_FBDIV_FIELD) << PLL_FREQ_CTRL_FBDIV_BIT);
+	val |= ((postdiv1 & PLL_FREQ_CTRL_POSTDIV1_FIELD) << PLL_FREQ_CTRL_POSTDIV1_BIT);
+	val |= ((postdiv2 & PLL_FREQ_CTRL_POSTDIV2_FIELD) << PLL_FREQ_CTRL_POSTDIV2_BIT);
+	writel(val, pll_reg + FREQ_REG_OFFSET);
+}
+
+static void check_and_correct(void)
+{
+	uint64_t tmp_clk;
+
+	if (soc_is_x3e()) {
+		tmp_clk = bpu_clk_raw_get_rate();
+		if (tmp_clk > X3EMAX_RATE) {
+			check_record |= 0x4;
+			bpu_clk_raw_set_rate(X3EMAX_RATE);
+		}
+	}
+}
+
+static void check_worker(unsigned long arg) /*PRQA S ALL*/
+{
+	check_and_correct();
+	check_timer->expires = jiffies + HZ;
+	add_timer(check_timer);
+}
+
+static int32_t check_start(void)
+{
+	if (check_timer != NULL) {
+		check_start_counter++;
+		return 0;
+	}
+	check_record = 0;
+
+	if (chipid_reg == NULL) {
+		chipid_reg = ioremap_nocache(0xa6008070, 4);
+	}
+
+	if (pll_reg == NULL) {
+		pll_reg = ioremap_nocache(BPU_CLK_BASE, 0x100);
+	}
+
+	check_timer = (struct timer_list *)kmalloc(sizeof(struct timer_list), GFP_KERNEL);/*PRQA S ALL*/
+	if (check_timer == NULL) {
+		return -ENOMEM;
+	}
+
+	init_timer(check_timer);/*PRQA S ALL*/
+	check_timer->function = &check_worker;
+	check_timer->data = 0;/*PRQA S ALL*/
+	check_timer->expires = jiffies + HZ;
+	add_timer(check_timer);
+	check_start_counter++;
+
 	return 0;
+}
+
+static int32_t check_stop(void)
+{
+	int32_t ret;
+
+	check_start_counter--;
+	if (check_start_counter > 0) {
+		return 0;
+	}
+	if (check_record != 0) {
+		pr_err("BPU: May be process anomaly[0x%x]!\n", check_record);
+	}
+	ret = del_timer_sync(check_timer);
+	kfree((void *)check_timer);/*PRQA S ALL*/
+	check_timer = NULL;
+	iounmap(chipid_reg);
+	chipid_reg = NULL;
+	iounmap(pll_reg);
+	pll_reg = NULL;
+
+	return ret;
 }
 
 static void cnnbus_wm_set(struct bpu_core *core, uint32_t reg_off,
@@ -262,6 +483,8 @@ static int32_t bpu_core_hw_enable(struct bpu_core *core)
 			EventIdBpu0Err + core->index);
 	}
 
+	(void)check_start();
+
 	return 0;
 }
 
@@ -277,6 +500,8 @@ static int32_t bpu_core_hw_disable(struct bpu_core *core)
 		dev_err(core->dev, "bpu core already disabled\n");
 		return 0;
 	}
+
+	(void)check_stop();
 
 	/*TODO: block write and wait run fifo process done */
 
@@ -406,6 +631,7 @@ static int32_t bpu_core_hw_write_fc(const struct bpu_core *core,
 		dev_err(core->dev, "bpu fc write invalid offset, \
 				offpos = %d, slice_num = %d\n",
 				offpos, fc->info.slice_num);
+		check_record |= 0x1;
 		return -EINVAL;
 	}
 
@@ -487,6 +713,7 @@ static int32_t bpu_core_hw_read_fc(const struct bpu_core *core,
 
 	if (bpu_err_flag == 1) {
 		report_bpu_diagnose_msg(0x1000, core->index);
+		check_record |= 0x2;
 		bpu_err_flag = 0;
 		return 1;
 	}
@@ -500,9 +727,9 @@ static int32_t bpu_core_hw_set_clk(const struct bpu_core *core, uint64_t rate)
 	uint64_t last_rate;
 	int32_t ret = 0;
 
-	if (soc_is_x3e() == 1) {
-		if (rate > 600000000) {
-			rate = 600000000;
+	if (soc_is_x3e()) {
+		if (rate > X3EMAX_RATE) {
+			rate = X3EMAX_RATE;
 		}
 	}
 
@@ -535,6 +762,8 @@ static int32_t bpu_core_hw_set_clk(const struct bpu_core *core, uint64_t rate)
 				rate, bpu_clk_get_rate(core->mclk));
 		return -EINVAL;
 	}
+
+	check_and_correct();
 
 	return ret;
 }
