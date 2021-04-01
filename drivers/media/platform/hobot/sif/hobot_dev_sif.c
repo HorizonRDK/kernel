@@ -2293,37 +2293,81 @@ void sif_frame_ndone(struct sif_subdev *subdev)
 	group = subdev->group;
 	sif = subdev->sif_dev;
 	framemgr = &subdev->framemgr;
-	framemgr_e_barrier_irqs(framemgr, 0, flags);
-	frame = peek_frame(framemgr, FS_PROCESS);
-	if (frame) {
-        vio_dbg("[S%d][V%d] bidx%d fid%d, proc->req.",
-				group->instance,
-				subdev->id,
-               frame->frameinfo.bufferindex,
-               frame->frameinfo.frame_id);
-		trans_frame(framemgr, frame, FS_REQUEST);
-		vio_group_start_trigger_mp(group, frame);
-	} else {
-		vio_err("[S%d][V%d] NDONE [FRM](%d %d %d %d %d)\n",
-			group->instance,
-			subdev->id,
-			framemgr->queued_count[FS_FREE],
-			framemgr->queued_count[FS_REQUEST],
-			framemgr->queued_count[FS_PROCESS],
-			framemgr->queued_count[FS_COMPLETE],
-			framemgr->queued_count[FS_USED]);
-	}
-	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
-	spin_lock_irqsave(&subdev->slock, flags);
 	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
 		if (test_bit(i, &subdev->val_ctx_mask)) {
 			sif_ctx = subdev->ctx[i];
-			sif_ctx->event = VIO_FRAME_DONE;
-			wake_up(&sif_ctx->done_wq);
 		}
 	}
-	spin_unlock_irqrestore(&subdev->slock, flags);
+	if(subdev->splice_info.splice_enable && sif_ctx->id == 0) {
+		if (subdev->splice_info.splice_done && subdev->splice_info.frame_done) {
+			framemgr_e_barrier_irqs(framemgr, 0, flags);
+			frame = peek_frame(framemgr, FS_PROCESS);
+			if (frame) {
+		        vio_dbg("[S%d][V%d] bidx%d fid%d, proc->req.",
+						group->instance,
+						subdev->id,
+		               frame->frameinfo.bufferindex,
+		               frame->frameinfo.frame_id);
+				trans_frame(framemgr, frame, FS_REQUEST);
+				vio_group_start_trigger_mp(group, frame);
+			} else {
+				vio_err("[S%d][V%d] NDONE [FRM](%d %d %d %d %d)\n",
+					group->instance,
+					subdev->id,
+					framemgr->queued_count[FS_FREE],
+					framemgr->queued_count[FS_REQUEST],
+					framemgr->queued_count[FS_PROCESS],
+					framemgr->queued_count[FS_COMPLETE],
+					framemgr->queued_count[FS_USED]);
+			}
+			framemgr_x_barrier_irqr(framemgr, 0, flags);
+
+			spin_lock_irqsave(&subdev->slock, flags);
+			for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
+				if (test_bit(i, &subdev->val_ctx_mask)) {
+					sif_ctx = subdev->ctx[i];
+					sif_ctx->event = VIO_FRAME_DONE;
+					wake_up(&sif_ctx->done_wq);
+				}
+			}
+			spin_unlock_irqrestore(&subdev->slock, flags);
+			vio_dbg("%s: splice_enable mux_index = %d\n", __func__, subdev->mux_index);
+	} else {
+		framemgr_e_barrier_irqs(framemgr, 0, flags);
+		frame = peek_frame(framemgr, FS_PROCESS);
+		if (frame) {
+	        vio_dbg("[S%d][V%d] bidx%d fid%d, proc->req.",
+					group->instance,
+					subdev->id,
+	               frame->frameinfo.bufferindex,
+	               frame->frameinfo.frame_id);
+			trans_frame(framemgr, frame, FS_REQUEST);
+			vio_group_start_trigger_mp(group, frame);
+		} else {
+			vio_err("[S%d][V%d] NDONE [FRM](%d %d %d %d %d)\n",
+				group->instance,
+				subdev->id,
+				framemgr->queued_count[FS_FREE],
+				framemgr->queued_count[FS_REQUEST],
+				framemgr->queued_count[FS_PROCESS],
+				framemgr->queued_count[FS_COMPLETE],
+				framemgr->queued_count[FS_USED]);
+		}
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
+
+		spin_lock_irqsave(&subdev->slock, flags);
+		for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
+			if (test_bit(i, &subdev->val_ctx_mask)) {
+				sif_ctx = subdev->ctx[i];
+				sif_ctx->event = VIO_FRAME_DONE;
+				wake_up(&sif_ctx->done_wq);
+			}
+		}
+		spin_unlock_irqrestore(&subdev->slock, flags);
+		vio_dbg("%s: mux_index = %d\n", __func__, subdev->mux_index);
+	}
+  }
 }
 
 /*
@@ -2567,35 +2611,46 @@ static irqreturn_t sif_isr(int irq, void *data)
 				group = sif->sif_mux[mux_index];
 				subdev = group->sub_ctx[0];
 				if(subdev->dol_num > 1) {
-					if((BIT2CHN(temp, mux_index)) || (BIT2CHN(temp, subdev->mux_index1)))
+					if ((BIT2CHN(temp, mux_index)) || (BIT2CHN(temp, subdev->mux_index1)))
 						subdev->overflow = ((0x1 << mux_index) | (0x1 << subdev->mux_index1));
 				} else if (subdev->dol_num > 2) {
-					if((BIT2CHN(temp, mux_index)) || (BIT2CHN(temp, subdev->mux_index1)) ||
+					if ((BIT2CHN(temp, mux_index)) || (BIT2CHN(temp, subdev->mux_index1)) ||
 						(BIT2CHN(temp, subdev->mux_index2)))
 						subdev->overflow = ((0x1 << mux_index) | (0x1 << subdev->mux_index1) |
 							(0x1 << subdev->mux_index2));
 				} else if (subdev->format == HW_FORMAT_YUV422) {
-					if((BIT2CHN(temp, mux_index)) || (BIT2CHN(temp, subdev->mux_index1)))
+					if ((BIT2CHN(temp, mux_index)) || (BIT2CHN(temp, subdev->mux_index1)))
+						subdev->overflow = ((0x1 << mux_index) | (0x1 << subdev->mux_index1));
+				} else if (subdev->splice_info.splice_enable) {
+					if ((BIT2CHN(temp, mux_index)) || (BIT2CHN(temp, subdev->mux_index1)))
 						subdev->overflow = ((0x1 << mux_index) | (0x1 << subdev->mux_index1));
 				} else {
-					if(BIT2CHN(temp, mux_index)) {
+					if (BIT2CHN(temp, mux_index)) {
 						vio_err("overflow FE mux_index %d\n", mux_index);
 						subdev->overflow = (0x1 << mux_index);
 					}
 				}
 				temp &= ~(subdev->overflow);
-				if(subdev->splice_info.splice_enable) {
+				if (subdev->splice_info.splice_enable) {
 					if (test_bit(mux_index + SIF_SPLICE_OP, &sif->state)) {
 						subdev->splice_info.splice_done = 1;
 					} else {
 						subdev->splice_info.frame_done = 1;
 					}
 				}
-				if(subdev->overflow != 0) {
+				if (subdev->overflow != 0) {
 					vio_err("FE overflow %d mux_index %d temp 0x%x\n",
 							subdev->overflow, mux_index, temp);
 					sif_frame_ndone(subdev);
-					subdev->overflow = 0;
+					if (subdev->splice_info.splice_enable) {
+						if (subdev->splice_info.splice_done && subdev->splice_info.frame_done) {
+							subdev->splice_info.splice_done = 0;
+							subdev->splice_info.frame_done = 0;
+							subdev->overflow = 0;
+						}
+					} else {
+						subdev->overflow = 0;
+					}
 				} else {
 					sif_frame_done(subdev);
 				}
