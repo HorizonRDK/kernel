@@ -572,7 +572,7 @@ static int wave_sleep_wake(hb_vpu_dev_t *dev, u32 core, int mode)
 static int wave_close_instance(hb_vpu_dev_t *dev, u32 core, u32 inst)
 {
 	int ret;
-	u32 error_reason = 0;
+	u32 error_reason = 0, intr_reason;
 	unsigned long timeout = jiffies + VPU_DEC_TIMEOUT;
 
 	vpu_debug(5, "[+] core=%d, inst=%d\n", core, inst);
@@ -581,6 +581,21 @@ static int wave_close_instance(hb_vpu_dev_t *dev, u32 core, u32 inst)
 		ret = vpuapi_dec_clr_all_disp_flag(dev, core, inst);
 	}
 	while ((ret = vpuapi_close(dev, core, inst)) == VPUAPI_RET_STILL_RUNNING) {
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+		vdi_lock(dev, core, VPUDRV_MUTEX_VPU);
+#else
+		vdi_lock(dev, VPUDRV_MUTEX_VPU);
+#endif
+		intr_reason = VPU_READL(W5_VPU_INT_REASON);
+		VPU_WRITEL(W5_VPU_INT_REASON_CLEAR, intr_reason);
+		VPU_WRITEL(W5_VPU_VINT_CLEAR, 0x1);
+		vpu_debug(5, "Clear interrupt(reason %x)\n", intr_reason);
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+		vdi_unlock(dev, core, VPUDRV_MUTEX_VPU);
+#else
+		vdi_unlock(dev, VPUDRV_MUTEX_VPU);
+#endif
+
 		ret = vpuapi_get_output_info(dev, core, inst, &error_reason);
 		vpu_debug(5, "core=%d, inst=%d, ret=%d, error_reason=0x%x\n",
 			core, inst,  ret, error_reason);
@@ -931,7 +946,6 @@ static int wave_issue_command(hb_vpu_dev_t *dev, u32 core, u32 inst,
 	// indicates codecMode in CodecInst structure in vpuapifunc.h
 	codec_inst = codec_inst + (sizeof(u32) * 3);
 	memcpy(&codec_mode, codec_inst, 4);
-
 	VPU_WRITEL(W5_CMD_INSTANCE_INFO, (codec_mode << 16)|(inst&0xffff));
 	VPU_WRITEL(W5_VPU_BUSY_STATUS, 1);
 	VPU_WRITEL(W5_COMMAND, cmd);
@@ -1254,6 +1268,7 @@ static int vpu_free_instances(struct file *filp)
 	hb_vpu_instance_pool_t *vip;
 	void *vip_base;
 	int instance_pool_size_per_core;
+	unsigned long flags_mp;
 #ifdef USE_MUTEX_IN_KERNEL_SPACE
 	int j = 0;
 #elif defined(USE_SHARE_SEM_BT_KERNEL_AND_USER)
@@ -1290,11 +1305,13 @@ static int vpu_free_instances(struct file *filp)
 			vip_base = (void *)(dev->instance_pool.base +
 					    (instance_pool_size_per_core *
 					     vil->core_idx));
-			vpu_debug(5,
+			vpu_info(
 				  "vpu_free_instances detect instance crash instIdx=%d, "
-				  "coreIdx=%d, vip_base=%p, instance_pool_size_per_core=%d\n",
+				  "coreIdx=%d, vip_base=%p, instance_pool_size_per_core=%d, "
+				  "interrupt_flag=%d\n",
 				  (int)vil->inst_idx, (int)vil->core_idx,
-				  vip_base, (int)instance_pool_size_per_core);
+				  vip_base, (int)instance_pool_size_per_core,
+				  dev->interrupt_flag[vil->inst_idx]);
 #ifdef USE_VPU_CLOSE_INSTANCE_ONCE_ABNORMAL_RELEASE
 #else
 			core = vil->core_idx;
@@ -1359,7 +1376,7 @@ static int vpu_free_instances(struct file *filp)
 				    (vip_base +
 				     (instance_pool_size_per_core -
 				      PTHREAD_MUTEX_T_HANDLE_SIZE * VDI_NUM_LOCK_HANDLES));
-				vpu_debug(5,
+				vpu_info(
 					  "vpu_free_instances : force to destroy "
 					  "vdi_mutexes_base=%p in userspace \n",
 					  vdi_mutexes_base);
@@ -1386,6 +1403,16 @@ static int vpu_free_instances(struct file *filp)
 				sizeof(dev->vpu_ctx[vil->inst_idx]));
 			memset(&dev->vpu_status[vil->inst_idx], 0x00,
 				sizeof(dev->vpu_status[vil->inst_idx]));
+			if (dev->interrupt_flag[vil->inst_idx] == 1) {
+				spin_lock_irqsave(&dev->irq_spinlock, flags_mp);
+				if (dev->irq_trigger == 1) {
+					enable_irq(dev->irq);
+					dev->irq_trigger = 0;
+				}
+				dev->interrupt_flag[vil->inst_idx] = 0;
+				spin_unlock_irqrestore(&dev->irq_spinlock, flags_mp);
+			}
+
 			kfree(vil);
 		}
 	}
@@ -1682,8 +1709,8 @@ static irqreturn_t vpu_irq_handler(int irq, void *dev_id)
 			continue;
 		}
 #ifdef SUPPORT_MULTI_INST_INTR
-		vpu_debug(7, "product: 0x%08x intr_reason: 0x%08x\n\n",
-			  product_code, intr_reason);
+		vpu_debug(7, "product: 0x%08x intr_reason: 0x%08x intr_inst_index %d\n\n",
+			  product_code, intr_reason, intr_inst_index);
 #else
 		vpu_debug(7, "product: 0x%08x intr_reason: 0x%08x\n",
 			  product_code, dev->interrupt_reason);
@@ -1997,13 +2024,13 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 			}
 #endif
 #ifdef SUPPORT_MULTI_INST_INTR
-			//vpu_debug(5, "inst_index(%d), s_interrupt_flag(%d),"
-			//	  "reason(0x%08lx)\n", intr_inst_index,
-			//	  dev->interrupt_flag[intr_inst_index],
-			//	  dev->interrupt_reason[intr_inst_index]);
+			vpu_debug(7, "inst_index(%d), s_interrupt_flag(%d),"
+				  "reason(0x%08lx)\n", intr_inst_index,
+				  dev->interrupt_flag[intr_inst_index],
+				  dev->interrupt_reason[intr_inst_index]);
 #else
-			//vpu_debug(5, "s_interrupt_flag(%d), reason(0x%08lx)\n",
-			//	  dev->interrupt_flag, dev->interrupt_reason);
+			vpu_debug(7, "s_interrupt_flag(%d), reason(0x%08lx)\n",
+				  dev->interrupt_flag, dev->interrupt_reason);
 #endif
 
 #ifdef SUPPORT_MULTI_INST_INTR
@@ -4392,6 +4419,7 @@ static int vpu_remove(struct platform_device *pdev)
 	cdev_del(&dev->cdev);
 	unregister_chrdev_region(dev->vpu_dev_num, 1);
 	class_destroy(dev->vpu_class);
+	irq_set_affinity_hint(dev->irq, NULL);
 	free_irq(dev->irq, dev);
 	iounmap(dev->regs_base);
 	release_mem_region(dev->vpu_mem->start, resource_size(dev->vpu_mem));

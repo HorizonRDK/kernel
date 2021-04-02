@@ -16,7 +16,10 @@ extern int vpu_debug_flag;
 #define vpu_debug(level, fmt, args...)				\
 	do {							\
 		if (vpu_debug_flag >= level)				\
-			printk(KERN_DEBUG "[VPUDRV]%s:%d: " fmt,	\
+			pr_info("[VPUDRV]%s:%d: " fmt,	\
+				__func__, __LINE__, ##args);	\
+		else								\
+			pr_debug("[VPUDRV]%s:%d: " fmt,	\
 				__func__, __LINE__, ##args);	\
 	} while (0)
 #else
@@ -28,20 +31,26 @@ extern int vpu_debug_flag;
 
 #define vpu_err(fmt, args...)				\
 	do {						\
-		printk(KERN_ERR "[VPUDRV]%s:%d: " fmt,		\
+		pr_err("[VPUDRV]%s:%d: " fmt,		\
 		       __func__, __LINE__, ##args);	\
 	} while (0)
 
 #define vpu_err_dev(fmt, args...)			\
 	do {						\
-		printk(KERN_ERR "[VPUDRV][d:%d] %s:%d: " fmt,	\
+		pr_err("[VPUDRV][d:%d] %s:%d: " fmt,	\
 			dev->id,			\
 		       __func__, __LINE__, ##args);	\
 	} while (0)
 
+#define vpu_info(fmt, args...)				\
+		do {						\
+			pr_info("[VPUDRV]%s:%d: " fmt,		\
+				   __func__, __LINE__, ##args); \
+		} while (0)
+
 #define vpu_info_dev(fmt, args...)			\
 	do {						\
-		printk(KERN_INFO "[VPUDRV][d:%d] %s:%d: " fmt,	\
+		pr_info(KERN_INFO "[VPUDRV][d:%d] %s:%d: " fmt,	\
 			dev->id,			\
 			__func__, __LINE__, ##args);	\
 	} while (0)
