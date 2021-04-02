@@ -5,12 +5,17 @@
 
 # Object files in subdirectories
 
+obj-$(CONFIG_USB_COMMON)	+= common/
 obj-$(CONFIG_USB)		+= core/
 obj-$(CONFIG_USB_SUPPORT)	+= phy/
 
 obj-$(CONFIG_USB_DWC3)		+= dwc3/
 obj-$(CONFIG_USB_DWC2)		+= dwc2/
 obj-$(CONFIG_USB_ISP1760)	+= isp1760/
+
+obj-$(CONFIG_USB_CDNS_SUPPORT)	+= cdns3/
+obj-$(CONFIG_USB_CDNS3)		+= cdns3/
+obj-$(CONFIG_USB_CDNSP_PCI)	+= cdns3/
 
 obj-$(CONFIG_USB_MON)		+= mon/
 obj-$(CONFIG_USB_MTU3)		+= mtu3/
@@ -60,8 +65,8 @@ obj-$(CONFIG_USB_CHIPIDEA)	+= chipidea/
 obj-$(CONFIG_USB_RENESAS_USBHS)	+= renesas_usbhs/
 obj-$(CONFIG_USB_GADGET)	+= gadget/
 
-obj-$(CONFIG_USB_COMMON)	+= common/
-
 obj-$(CONFIG_USBIP_CORE)	+= usbip/
 
 obj-$(CONFIG_TYPEC)		+= typec/
+
+obj-$(CONFIG_USB_ROLE_SWITCH)	+= roles/
