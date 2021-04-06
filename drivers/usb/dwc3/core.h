@@ -166,20 +166,9 @@
 #define DWC3_OSTS		0xcc10
 
 /* Hobot Sysctl Register */
-#define USB3_CTRL_REG0			0x5b0
-#define BUS_FILTER_BYPASS_MASK		0xf
-#define BUS_FILTER_BYPASS_DEVICE	0x8
-#define BUS_FILTER_BYPASS_HOST		0xf
-
-#define USB3_PHY_REG0		0x5b4
-#define RX_LOS_LFPSFILT		BIT(30)
-#define USB3_PHY_REG1		0x5b8
-#define USB3_PHY_REG2		0x5bc
-#define PHY_RESET		BIT(31)
-#define PHY_RESET_MASK		BIT(31)
-
 #define CPUSYS_SW_RSTEN		0x400
 #define SYS_USB_RSTEN		BIT(12)
+
 /* Bit fields */
 
 /* Global SoC Bus Configuration INCRx Register 0 */
@@ -969,6 +958,7 @@ struct dwc3_scratchpad_array {
  * @xhci_resources: struct resources for our @xhci child
  * @ev_buf: struct dwc3_event_buffer pointer
  * @eps: endpoint array
+ * @mapping_ep: mapping endpoint(According to "Flexible Endpoint Mapping")
  * @gadget: device side representation of the peripheral controller
  * @gadget_driver: pointer to the gadget driver
  * @clks: array of clocks
@@ -1119,9 +1109,9 @@ struct dwc3 {
 	struct usb_gadget	*gadget;
 	struct usb_gadget_driver *gadget_driver;
 
-	struct regulator	*regulator;
 	struct clk_bulk_data	*clks;
 	int			num_clks;
+
 	struct reset_control	*reset;
 
 	struct usb_phy		*usb2_phy;
@@ -1294,11 +1284,6 @@ struct dwc3 {
 	unsigned		dis_split_quirk:1;
 
 	u16			imod_interval;
-
-	/* ddr freq notifier */
-	struct notifier_block	ddrfreq_nb;
-	/* notify usb suspend & resume event */
-	struct notifier_block	powersave_nb;
 };
 
 #define INCRX_BURST_MODE 0

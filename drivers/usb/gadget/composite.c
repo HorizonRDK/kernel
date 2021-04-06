@@ -354,9 +354,9 @@ int usb_function_deactivate(struct usb_function *function)
 	spin_lock_irqsave(&cdev->lock, flags);
 
 	if (cdev->deactivations == 0) {
-		if (cdev->config)
-			reset_config(cdev);
+		spin_unlock_irqrestore(&cdev->lock, flags);
 		status = usb_gadget_deactivate(cdev->gadget);
+		spin_lock_irqsave(&cdev->lock, flags);
 	}
 
 	if (status == 0)
@@ -663,7 +663,7 @@ static int bos_desc(struct usb_composite_dev *cdev)
 		/* Get Controller configuration */
 		if (cdev->gadget->ops->get_config_params) {
 			cdev->gadget->ops->get_config_params(cdev->gadget,
-							&dcd_config_params);
+							     &dcd_config_params);
 		} else {
 			dcd_config_params.bU1devExitLat =
 				USB_DEFAULT_U1_DEV_EXIT_LAT;

@@ -20,7 +20,7 @@
 
 
 /**
- * usb_gadget_get_string - fill out a string descriptor 
+ * usb_gadget_get_string - fill out a string descriptor
  * @table: of c strings encoded using UTF-8
  * @id: string id, from low byte of wValue in get string descriptor
  * @buf: at least 256 bytes, must be 16-bit aligned
@@ -37,7 +37,7 @@
  * characters (which are also widely used in C strings).
  */
 int
-usb_gadget_get_string (struct usb_gadget_strings *table, int id, u8 *buf)
+usb_gadget_get_string (const struct usb_gadget_strings *table, int id, u8 *buf)
 {
 	struct usb_string	*s;
 	int			len;

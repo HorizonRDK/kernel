@@ -121,6 +121,14 @@ enum usb_dr_mode {
 };
 
 /**
+ * usb_role_string - Returns role string for the dr_mode.
+ * @role: The role to return a human-readable role for. If it's not
+ *	any of the states devices in usb_dr_modes enum, the string "unknown"
+ *	will be returned.
+ */
+extern const char *usb_role_string(enum usb_dr_mode role);
+
+/**
  * usb_get_dr_mode - Get dual role mode for given device
  * @dev: Pointer to the given device
  *

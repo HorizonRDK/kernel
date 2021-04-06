@@ -61,7 +61,7 @@ DECLARE_EVENT_CLASS(dwc3_log_event,
 		__entry->ep0state = dwc->ep0state;
 	),
 	TP_printk("event (%08x): %s", __entry->event,
-			dwc3_decode_event(__get_str(str), DWC3_MSG_MAX,
+			dwc3_decode_event(__entry->dwc, __get_str(str), DWC3_MSG_MAX,
 					__entry->event, __entry->ep0state))
 );
 

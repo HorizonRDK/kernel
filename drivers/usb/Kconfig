@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 #
 # USB device configuration
 #
@@ -38,7 +37,8 @@ menuconfig USB_SUPPORT
 
 if USB_SUPPORT
 
-source "drivers/usb/common/Kconfig"
+config USB_COMMON
+	tristate
 
 config USB_ARCH_HAS_HCD
 	def_bool y

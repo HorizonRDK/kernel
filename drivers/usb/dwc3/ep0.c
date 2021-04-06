@@ -831,9 +831,12 @@ static void dwc3_ep0_complete_data(struct dwc3 *dwc,
 	u32			transferred = 0;
 	u32			status;
 	u32			length;
-	int			epnum;
+	u8			epnum;
 
-	epnum = event->endpoint_number;
+	epnum = dwc3_gadget_physical_to_mapping_endpoint(dwc, event->endpoint_number);
+	if (epnum < 0)
+		return;
+
 	ep0 = dwc->eps[0];
 
 	dwc->ep0_next_event = DWC3_EP0_NRDY_STATUS;

@@ -190,10 +190,13 @@
 
 };
 
-&usb {
+&usbdrd3_0 {
 	usb_0v8-supply = <&vdd_usb_0v8>;
 };
 
+&dwc3_powersave {
+	status = "okay";
+};
 
 &cnn_opp_table {
 	opp00 {

@@ -904,7 +904,7 @@ static void dwc3_debugfs_create_endpoint_dirs(struct dwc3 *dwc,
 {
 	int			i;
 
-	for (i = 0; i < dwc->num_eps; i++) {
+	for (i = 0; i < 2 * dwc->num_eps; i++) {
 		struct dwc3_ep	*dep = dwc->eps[i];
 
 		if (!dep)

@@ -36,7 +36,8 @@
 		spi0	= &spi0;
 		spi1	= &spi1;
 		spi2	= &spi2;
-		usb	= &usb;
+		usbdrd3_0 = &usbdrd3_0;
+		usbdrd_dwc3_0 = &usbdrd_dwc3_0;
 		bifspi	= &bifspi;
 		bifsd   = &bifsd;
 		mmc1	= &sdio0;
@@ -244,7 +245,11 @@
 	pinctrl-0 = <&uart1_func_rtscts>; /* <&uart1_func>;  uart 1 connect to bt with rtscts*/
 };
 
-&usb {
+&usbdrd3_0 {
+	status = "okay";
+};
+
+&usbdrd_dwc3_0 {
 	status = "okay";
 };
 

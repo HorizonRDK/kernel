@@ -358,10 +358,8 @@ static int dwc3_qcom_suspend(struct dwc3_qcom *qcom)
 	if (ret)
 		dev_warn(qcom->dev, "failed to disable interconnect: %d\n", ret);
 
-	if (device_may_wakeup(qcom->dev))
-		dwc3_qcom_enable_interrupts(qcom);
-
 	qcom->is_suspended = true;
+	dwc3_qcom_enable_interrupts(qcom);
 
 	return 0;
 }
@@ -374,8 +372,7 @@ static int dwc3_qcom_resume(struct dwc3_qcom *qcom)
 	if (!qcom->is_suspended)
 		return 0;
 
-	if (device_may_wakeup(qcom->dev))
-		dwc3_qcom_disable_interrupts(qcom);
+	dwc3_qcom_disable_interrupts(qcom);
 
 	for (i = 0; i < qcom->num_clocks; i++) {
 		ret = clk_prepare_enable(qcom->clks[i]);
@@ -653,19 +650,16 @@ static int dwc3_qcom_of_register_core(struct platform_device *pdev)
 	ret = of_platform_populate(np, NULL, NULL, dev);
 	if (ret) {
 		dev_err(dev, "failed to register dwc3 core - %d\n", ret);
-		goto node_put;
+		return ret;
 	}
 
 	qcom->dwc3 = of_find_device_by_node(dwc3_np);
 	if (!qcom->dwc3) {
-		ret = -ENODEV;
 		dev_err(dev, "failed to get dwc3 platform device\n");
+		return -ENODEV;
 	}
 
-node_put:
-	of_node_put(dwc3_np);
-
-	return ret;
+	return 0;
 }
 
 static struct platform_device *
@@ -944,8 +938,6 @@ static const struct dwc3_acpi_pdata sdm845_acpi_urs_pdata = {
 static const struct acpi_device_id dwc3_qcom_acpi_match[] = {
 	{ "QCOM2430", (unsigned long)&sdm845_acpi_pdata },
 	{ "QCOM0304", (unsigned long)&sdm845_acpi_urs_pdata },
-	{ "QCOM0497", (unsigned long)&sdm845_acpi_urs_pdata },
-	{ "QCOM04A6", (unsigned long)&sdm845_acpi_pdata },
 	{ },
 };
 MODULE_DEVICE_TABLE(acpi, dwc3_qcom_acpi_match);

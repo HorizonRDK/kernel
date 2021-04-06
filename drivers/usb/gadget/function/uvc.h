@@ -105,6 +105,8 @@ extern unsigned int uvc_gadget_trace_param;
 struct uvc_video {
 	struct usb_ep *ep;
 
+	struct work_struct pump;
+
 	/* Frame parameters */
 	u8 bpp;
 	u32 fcc;

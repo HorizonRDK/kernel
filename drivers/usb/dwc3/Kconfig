@@ -126,26 +126,6 @@ config USB_DWC3_ST
 	  inside (i.e. STiH407).
 	  Say 'Y' or 'M' if you have one such device.
 
-config USB_DWC3_POWERSAVE
-	tristate "Hobot DWC3 Power Save Feature"
-	depends on OF
-	default n
-	help
-	  Hobot SoCs with one DesignWare Core USB3 IP inside.
-	  And this feature is for dwc3 ip power on/off control for power 
-	  save freature.
-	  Say 'Y' or 'M' if you need power save feature for dwc3 controller
-	  in hobot platform.
-
-config USB_EXTCON_VBUS_GPIO
-        tristate "Hobot DWC3 Extcon Vbus GPIO Detect Freature"
-        depends on GPIOLIB
-        default n
-        help
-          When Hobot USB as device, vbus-gpio used to detect usb plug/unplug.
-	  unplug need to reset gadget, otherwise usb device not work.
-          Say 'Y' or 'M' here to enable GPIO based USB cable detection extcon support.
-
 config USB_DWC3_QCOM
 	tristate "Qualcomm Platform"
 	depends on ARCH_QCOM || COMPILE_TEST
@@ -169,4 +149,23 @@ config USB_DWC3_IMX8MP
 	  functionality.
 	  Say 'Y' or 'M' if you have one such device.
 
+config USB_DWC3_POWERSAVE
+	tristate "Hobot DWC3 Power Save Feature"
+	depends on OF
+	default n
+	help
+	  Hobot SoCs with one DesignWare Core USB3 IP inside.
+	  And this feature is for dwc3 ip power on/off control for power 
+	  save freature.
+	  Say 'Y' or 'M' if you need power save feature for dwc3 controller
+	  in hobot platform.
+
+config USB_EXTCON_VBUS_GPIO
+	tristate "Hobot DWC3 Extcon Vbus GPIO Detect Freature"
+	depends on GPIOLIB
+	default n
+	help
+	  When Hobot USB as device, vbus-gpio used to detect usb plug/unplug.
+	  unplug need to reset gadget, otherwise usb device not work.
+	  Say 'Y' or 'M' here to enable GPIO based USB cable detection extcon support.
 endif
