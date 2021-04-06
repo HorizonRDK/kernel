@@ -107,10 +107,10 @@ vbus_soft_reset(struct vbus_extcon_info * info, struct device *dev)
 		return -EOPNOTSUPP;
 
 	dwc = dev_get_drvdata(dev);
-	if (!dwc || !dwc->gadget.dev.driver)
+	if (!dwc || !dwc->gadget->dev.driver)
 		return -EOPNOTSUPP;
 
-	udc = (struct vbus_usb_udc *)(dwc->gadget.udc);
+	udc = (struct vbus_usb_udc *)(dwc->gadget->udc);
 	if (!udc || !udc->driver)
 		return -EOPNOTSUPP;
 
