@@ -184,9 +184,11 @@ static void dwc3_gadget_del_and_unmap_request(struct dwc3_ep *dep,
 	if (req->request.status == -EINPROGRESS)
 		req->request.status = status;
 
-	if (req->trb)
-		usb_gadget_unmap_request_by_dev(dwc->sysdev,
-				&req->request, req->direction);
+	if (req->trb) {
+		if (!req->request.hb_direct_dma)
+			usb_gadget_unmap_request_by_dev(dwc->sysdev,
+					&req->request, req->direction);
+	}
 
 	req->trb = NULL;
 	trace_dwc3_gadget_giveback(req);
@@ -1308,10 +1310,12 @@ static int dwc3_prepare_trbs(struct dwc3_ep *dep)
 	list_for_each_entry_safe(req, n, &dep->pending_list, list) {
 		struct dwc3	*dwc = dep->dwc;
 
-		ret = usb_gadget_map_request_by_dev(dwc->sysdev, &req->request,
-						    dep->direction);
-		if (ret)
-			return ret;
+		if (!req->request.hb_direct_dma) {
+			ret = usb_gadget_map_request_by_dev(dwc->sysdev, &req->request,
+							    dep->direction);
+			if (ret)
+				return ret;
+		}
 
 		req->sg			= req->request.sg;
 		req->start_sg		= req->sg;
