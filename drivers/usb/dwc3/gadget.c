@@ -184,12 +184,9 @@ static void dwc3_gadget_del_and_unmap_request(struct dwc3_ep *dep,
 	if (req->request.status == -EINPROGRESS)
 		req->request.status = status;
 
-	if (req->trb) {
-		if (!req->request.hb_direct_dma) {
-			usb_gadget_unmap_request_by_dev(dwc->sysdev,
+	if (req->trb)
+		usb_gadget_unmap_request_by_dev(dwc->sysdev,
 				&req->request, req->direction);
-		}
-	}
 
 	req->trb = NULL;
 	trace_dwc3_gadget_giveback(req);
@@ -786,6 +783,8 @@ static int __dwc3_gadget_ep_disable(struct dwc3_ep *dep)
 
 	trace_dwc3_gadget_ep_disable(dep);
 
+	dwc3_remove_requests(dwc, dep);
+
 	/* make sure HW endpoint isn't stalled */
 	if (dep->flags & DWC3_EP_STALL)
 		__dwc3_gadget_ep_set_halt(dep, 0, false);
@@ -803,8 +802,6 @@ static int __dwc3_gadget_ep_disable(struct dwc3_ep *dep)
 		dep->endpoint.comp_desc = NULL;
 		dep->endpoint.desc = NULL;
 	}
-
-	dwc3_remove_requests(dwc, dep);
 
 	return 0;
 }
@@ -1311,12 +1308,10 @@ static int dwc3_prepare_trbs(struct dwc3_ep *dep)
 	list_for_each_entry_safe(req, n, &dep->pending_list, list) {
 		struct dwc3	*dwc = dep->dwc;
 
-		if (!req->request.hb_direct_dma) {
-			ret = usb_gadget_map_request_by_dev(dwc->sysdev, &req->request,
+		ret = usb_gadget_map_request_by_dev(dwc->sysdev, &req->request,
 						    dep->direction);
-			if (ret)
-				return ret;
-		}
+		if (ret)
+			return ret;
 
 		req->sg			= req->request.sg;
 		req->start_sg		= req->sg;
@@ -1622,7 +1617,7 @@ static int __dwc3_gadget_ep_queue(struct dwc3_ep *dep, struct dwc3_request *req)
 {
 	struct dwc3		*dwc = dep->dwc;
 
-	if (!dep->endpoint.desc || !dwc->pullups_connected || !dwc->connected) {
+	if (!dep->endpoint.desc || !dwc->pullups_connected) {
 		dev_err(dwc->dev, "%s: can't queue to disabled endpoint\n",
 				dep->name);
 		return -ESHUTDOWN;
@@ -1754,6 +1749,7 @@ static int dwc3_gadget_ep_dequeue(struct usb_ep *ep,
 	int				ret = 0;
 
 	trace_dwc3_ep_dequeue(req);
+
 	spin_lock_irqsave(&dwc->lock, flags);
 
 	list_for_each_entry(r, &dep->cancelled_list, list) {
@@ -1805,10 +1801,6 @@ int __dwc3_gadget_ep_set_halt(struct dwc3_ep *dep, int value, int protocol)
 	struct dwc3_request			*tmp;
 	int					ret;
 
-	if (!dep || !dep->endpoint.desc)
-		return -EINVAL;
-
-	dwc = dep->dwc;
 	if (usb_endpoint_xfer_isoc(dep->endpoint.desc)) {
 		dev_err(dwc->dev, "%s is of Isochronous type\n", dep->name);
 		return -EINVAL;
@@ -1887,16 +1879,12 @@ int __dwc3_gadget_ep_set_halt(struct dwc3_ep *dep, int value, int protocol)
 static int dwc3_gadget_ep_set_halt(struct usb_ep *ep, int value)
 {
 	struct dwc3_ep			*dep = to_dwc3_ep(ep);
-	struct dwc3			*dwc;
+	struct dwc3			*dwc = dep->dwc;
 
 	unsigned long			flags;
 
 	int				ret;
 
-	if (!dep)
-		return -EINVAL;
-
-	dwc = dep->dwc;
 	spin_lock_irqsave(&dwc->lock, flags);
 	ret = __dwc3_gadget_ep_set_halt(dep, value, false);
 	spin_unlock_irqrestore(&dwc->lock, flags);
@@ -2054,7 +2042,7 @@ static void dwc3_stop_active_transfers(struct dwc3 *dwc)
 {
 	u32 epnum;
 
-	for (epnum = 2; epnum < dwc->num_eps; epnum++) {
+	for (epnum = 2; epnum < 2 * dwc->num_eps; epnum++) {
 		struct dwc3_ep *dep;
 
 		dep = dwc->eps[epnum];
@@ -2201,11 +2189,8 @@ static int dwc3_gadget_run_stop(struct dwc3 *dwc, int is_on, int suspend)
 		reg &= DWC3_DSTS_DEVCTRLHLT;
 	} while (--timeout && !(!is_on ^ !reg));
 
-	if (!timeout) {
-		// uvc-ecm still meet some timeout case, ignore it temporarily
-		// return -ETIMEDOUT;
-		return 0;
-	}
+	if (!timeout)
+		return -ETIMEDOUT;
 
 	return 0;
 }
@@ -2262,7 +2247,6 @@ static int dwc3_gadget_pullup(struct usb_gadget *g, int is_on)
 	if (!is_on) {
 		u32 count;
 
-		dwc->connected = false;
 		/*
 		 * In the Synopsis DesignWare Cores USB3 Databook Rev. 3.30a
 		 * Section 4.1.8 Table 4-7, it states that for a device-initiated
@@ -2287,6 +2271,7 @@ static int dwc3_gadget_pullup(struct usb_gadget *g, int is_on)
 			dwc->ev_buf->lpos = (dwc->ev_buf->lpos + count) %
 						dwc->ev_buf->length;
 		}
+		dwc->connected = false;
 	} else {
 		__dwc3_gadget_start(dwc);
 	}
@@ -2446,7 +2431,7 @@ static int dwc3_gadget_start(struct usb_gadget *g,
 
 	irq = dwc->irq_gadget;
 	ret = request_threaded_irq(irq, dwc3_interrupt, dwc3_thread_interrupt,
-			IRQF_SHARED, "usb", dwc->ev_buf);
+			IRQF_SHARED, "dwc3", dwc->ev_buf);
 	if (ret) {
 		dev_err(dwc->dev, "failed to request irq #%d --> %d\n",
 				irq, ret);
@@ -2566,178 +2551,176 @@ static const struct usb_gadget_ops dwc3_gadget_ops = {
 };
 
 /* -------------------------------------------------------------------------- */
-static int dwc3_gadget_init_control_endpoint(struct dwc3_ep *dep)
+int dwc3_gadget_physical_to_mapping_endpoint(struct dwc3 *dwc, u8 phy_epnum)
 {
-	struct dwc3 *dwc = dep->dwc;
+	if (!dwc || !dwc->mapping_ep)
+		return -1;
 
-	usb_ep_set_maxpacket_limit(&dep->endpoint, 512);
-	dep->endpoint.maxburst = 1;
-	dep->endpoint.ops = &dwc3_gadget_ep0_ops;
-	if (!dep->direction)
-		dwc->gadget->ep0 = &dep->endpoint;
-
-	dep->endpoint.caps.type_control = true;
-
-	return 0;
-}
-
-static int dwc3_gadget_init_in_endpoint(struct dwc3_ep *dep)
-{
-	struct dwc3 *dwc = dep->dwc;
-	int mdwidth;
-	int size;
-
-	mdwidth = DWC3_MDWIDTH(dwc->hwparams.hwparams0);
-	if (DWC3_IP_IS(DWC32))
-		mdwidth += DWC3_GHWPARAMS6_MDWIDTH(dwc->hwparams.hwparams6);
-
-	/* MDWIDTH is represented in bits, we need it in bytes */
-	mdwidth /= 8;
-
-	size = dwc3_readl(dwc->regs, DWC3_GTXFIFOSIZ(dep->number >> 1));
-	if (DWC3_IP_IS(DWC3))
-		size = DWC3_GTXFIFOSIZ_TXFDEP(size);
-	else
-		size = DWC31_GTXFIFOSIZ_TXFDEP(size);
-
-	/* FIFO Depth is in MDWDITH bytes. Multiply */
-	size *= mdwidth;
-
-	/*
-	 * To meet performance requirement, a minimum TxFIFO size of 3x
-	 * MaxPacketSize is recommended for endpoints that support burst and a
-	 * minimum TxFIFO size of 2x MaxPacketSize for endpoints that don't
-	 * support burst. Use those numbers and we can calculate the max packet
-	 * limit as below.
-	 */
-	if (dwc->maximum_speed >= USB_SPEED_SUPER)
-		size /= 3;
-	else
-		size /= 2;
-
-	usb_ep_set_maxpacket_limit(&dep->endpoint, size);
-
-	dep->endpoint.max_streams = 16;
-	dep->endpoint.ops = &dwc3_gadget_ep_ops;
-	list_add_tail(&dep->endpoint.ep_list,
-			&dwc->gadget->ep_list);
-	dep->endpoint.caps.type_iso = true;
-	dep->endpoint.caps.type_bulk = true;
-	dep->endpoint.caps.type_int = true;
-
-	return dwc3_alloc_trb_pool(dep);
-}
-
-static int dwc3_gadget_init_out_endpoint(struct dwc3_ep *dep)
-{
-	struct dwc3 *dwc = dep->dwc;
-	int mdwidth;
-	int size;
-
-	mdwidth = DWC3_MDWIDTH(dwc->hwparams.hwparams0);
-	if (DWC3_IP_IS(DWC32))
-		mdwidth += DWC3_GHWPARAMS6_MDWIDTH(dwc->hwparams.hwparams6);
-
-	/* MDWIDTH is represented in bits, convert to bytes */
-	mdwidth /= 8;
-
-	/* All OUT endpoints share a single RxFIFO space */
-	size = dwc3_readl(dwc->regs, DWC3_GRXFIFOSIZ(0));
-	if (DWC3_IP_IS(DWC3))
-		size = DWC3_GRXFIFOSIZ_RXFDEP(size);
-	else
-		size = DWC31_GRXFIFOSIZ_RXFDEP(size);
-
-	/* FIFO depth is in MDWDITH bytes */
-	size *= mdwidth;
-
-	/*
-	 * To meet performance requirement, a minimum recommended RxFIFO size
-	 * is defined as follow:
-	 * RxFIFO size >= (3 x MaxPacketSize) +
-	 * (3 x 8 bytes setup packets size) + (16 bytes clock crossing margin)
-	 *
-	 * Then calculate the max packet limit as below.
-	 */
-	size -= (3 * 8) + 16;
-	if (size < 0)
-		size = 0;
-	else
-		size /= 3;
-
-	usb_ep_set_maxpacket_limit(&dep->endpoint, size);
-	dep->endpoint.max_streams = 16;
-	dep->endpoint.ops = &dwc3_gadget_ep_ops;
-	list_add_tail(&dep->endpoint.ep_list,
-			&dwc->gadget->ep_list);
-	dep->endpoint.caps.type_iso = true;
-	dep->endpoint.caps.type_bulk = true;
-	dep->endpoint.caps.type_int = true;
-
-	return dwc3_alloc_trb_pool(dep);
-}
-
-static int dwc3_gadget_init_endpoint(struct dwc3 *dwc, u8 epnum)
-{
-	struct dwc3_ep			*dep;
-	bool				direction = epnum & 1;
-	int				ret;
-	u8				num = epnum >> 1;
-
-	dep = kzalloc(sizeof(*dep), GFP_KERNEL);
-	if (!dep)
-		return -ENOMEM;
-
-	dep->dwc = dwc;
-	dep->number = epnum;
-	dep->direction = direction;
-	dep->regs = dwc->regs + DWC3_DEP_BASE(epnum);
-	dwc->eps[epnum] = dep;
-	dep->combo_num = 0;
-	dep->start_cmd_status = 0;
-
-	snprintf(dep->name, sizeof(dep->name), "ep%u%s", num,
-			direction ? "in" : "out");
-
-	dep->endpoint.name = dep->name;
-
-	if (!(dep->number > 1)) {
-		dep->endpoint.desc = &dwc3_gadget_ep0_desc;
-		dep->endpoint.comp_desc = NULL;
+	if (phy_epnum >= dwc->num_eps) {
+		dev_err(dwc->dev, "phyical epnum(%u) exceed total num_eps(%u)\n",
+				phy_epnum, dwc->num_eps);
+		return -1;
 	}
 
-	if (num == 0)
-		ret = dwc3_gadget_init_control_endpoint(dep);
-	else if (direction)
-		ret = dwc3_gadget_init_in_endpoint(dep);
-	else
-		ret = dwc3_gadget_init_out_endpoint(dep);
+	return dwc->mapping_ep[phy_epnum];
+}
 
-	if (ret)
-		return ret;
+static int dwc3_gadget_init_hw_endpoints(struct dwc3 *dwc,
+		u8 num, u32 direction)
+{
+	struct dwc3_ep		*dep;
+	u8			epnum, phy_epnum;
+	u8			base;
+	u8			i;
 
-	dep->endpoint.caps.dir_in = direction;
-	dep->endpoint.caps.dir_out = !direction;
+	if (direction && num > dwc->num_in_eps) {
+		dev_err(dwc->dev, "No enough IN eps resource."
+			"request: %d, max: %d\n", num, dwc->num_in_eps);
+		return -EINVAL;
+	}
 
-	INIT_LIST_HEAD(&dep->pending_list);
-	INIT_LIST_HEAD(&dep->started_list);
-	INIT_LIST_HEAD(&dep->cancelled_list);
+	/* Flexible Endpoints Mapping, 1 example like below:
+	 * ep0out->ep0in->ep1out->ep2out->ep3out->ep1in->ep2in->ep3in->ep4in
+	 *
+	 * mapping table as below:
+	 * 4 out eps: physical [ 0, 2, 3, 4 ] >>> logic [ 0, 2, 4, 6 ]
+	 * 5 in eps: physical [ 1, 5, 6, 7, 8 ] >>> logic [ 1, 3, 5, 7, 9 ]
+	 */
+	base = direction ? dwc->config_out_eps : 1;
+	for (i = 0; i < num; i++) {
+		epnum = (i << 1) | (direction ? 1 : 0);
+		if (i == 0)
+			phy_epnum = epnum;
+		else
+			phy_epnum = base + i;
+
+		dep = kzalloc(sizeof(*dep), GFP_KERNEL);
+		if (!dep)
+			return -ENOMEM;
+
+		dep->dwc = dwc;
+		dep->number = epnum;
+		dep->phy_epnum = phy_epnum;
+		dep->direction = direction;
+		dep->regs = dwc->regs + DWC3_DEP_BASE(phy_epnum);
+		dwc->eps[epnum] = dep;
+		dwc->mapping_ep[phy_epnum] = epnum;
+		dep->combo_num = 0;
+		dep->start_cmd_status = 0;
+
+		snprintf(dep->name, sizeof(dep->name), "ep%u%s", epnum >> 1,
+				direction ? "in" : "out");
+
+		dep->endpoint.name = dep->name;
+		dev_info(dwc->dev, "initializing [%s] epnum(%d) phy_epnum(%d), "
+				"offset(0x%x)",
+				dep->name, epnum, phy_epnum,
+				DWC3_DEP_BASE(phy_epnum));
+
+		if (!(dep->number > 1)) {
+			dep->endpoint.desc = &dwc3_gadget_ep0_desc;
+			dep->endpoint.comp_desc = NULL;
+		}
+
+		if (epnum == 0 || epnum == 1) {
+			usb_ep_set_maxpacket_limit(&dep->endpoint, 512);
+			dep->endpoint.maxburst = 1;
+			dep->endpoint.ops = &dwc3_gadget_ep0_ops;
+			if (!direction)
+				dwc->gadget->ep0 = &dep->endpoint;
+		} else if (direction) {
+			int mdwidth;
+			int kbytes;
+			int size;
+			int ret;
+
+			mdwidth = DWC3_MDWIDTH(dwc->hwparams.hwparams0);
+			/* MDWIDTH is represented in bits, we need it in bytes */
+			mdwidth /= 8;
+
+			size = dwc3_readl(dwc->regs, DWC3_GTXFIFOSIZ(epnum >> 1));
+			size = DWC3_GTXFIFOSIZ_TXFDEP(size);
+
+			/* FIFO Depth is in MDWDITH bytes. Multiply */
+			size *= mdwidth;
+
+			kbytes = size / 1024;
+			if (kbytes == 0)
+				kbytes = 1;
+
+			/*
+			 * FIFO sizes account an extra MDWIDTH * (kbytes + 1) bytes for
+			 * internal overhead. We don't really know how these are used,
+			 * but documentation say it exists.
+			 */
+			size -= mdwidth * (kbytes + 1);
+			size /= kbytes;
+
+			usb_ep_set_maxpacket_limit(&dep->endpoint, size);
+
+			dep->endpoint.max_streams = 15;
+			dep->endpoint.ops = &dwc3_gadget_ep_ops;
+			list_add_tail(&dep->endpoint.ep_list,
+					&dwc->gadget->ep_list);
+
+			ret = dwc3_alloc_trb_pool(dep);
+			if (ret)
+				return ret;
+		} else {
+			int		ret;
+
+			usb_ep_set_maxpacket_limit(&dep->endpoint, 1024);
+			dep->endpoint.max_streams = 15;
+			dep->endpoint.ops = &dwc3_gadget_ep_ops;
+			list_add_tail(&dep->endpoint.ep_list,
+					&dwc->gadget->ep_list);
+
+			ret = dwc3_alloc_trb_pool(dep);
+			if (ret)
+				return ret;
+		}
+
+		if (epnum == 0 || epnum == 1) {
+			dep->endpoint.caps.type_control = true;
+		} else {
+			dep->endpoint.caps.type_iso = true;
+			dep->endpoint.caps.type_bulk = true;
+			dep->endpoint.caps.type_int = true;
+		}
+
+		dep->endpoint.caps.dir_in = direction;
+		dep->endpoint.caps.dir_out = !direction;
+
+		INIT_LIST_HEAD(&dep->pending_list);
+		INIT_LIST_HEAD(&dep->started_list);
+		INIT_LIST_HEAD(&dep->cancelled_list);
+	}
 
 	return 0;
 }
 
-static int dwc3_gadget_init_endpoints(struct dwc3 *dwc, u8 total)
+static int dwc3_gadget_init_endpoints(struct dwc3 *dwc)
 {
-	u8				epnum;
+	int		ret;
 
 	INIT_LIST_HEAD(&dwc->gadget->ep_list);
 
-	for (epnum = 0; epnum < total; epnum++) {
-		int			ret;
+	/* hobot xj3 soc endpoint physical resources' limitations as below:
+	 * totally 9 eps, 6 IN eps at most.
+	 * init endpoint with 5 IN + 4 OUT configuration.
+	 */
+	dwc->config_in_eps = 5;
+	dwc->config_out_eps = 4;
+	ret = dwc3_gadget_init_hw_endpoints(dwc, 4, 0);
+	if (ret < 0) {
+		dev_err(dwc->dev, "failed to allocate OUT endpoints");
+		return ret;
+	}
 
-		ret = dwc3_gadget_init_endpoint(dwc, epnum);
-		if (ret)
-			return ret;
+	ret = dwc3_gadget_init_hw_endpoints(dwc, 5, 1);
+	if (ret < 0) {
+		dev_err(dwc->dev, "failed to allocate IN endpoints");
+		return ret;
 	}
 
 	return 0;
@@ -3150,7 +3133,11 @@ static void dwc3_endpoint_interrupt(struct dwc3 *dwc,
 		const struct dwc3_event_depevt *event)
 {
 	struct dwc3_ep		*dep;
-	u8			epnum = event->endpoint_number;
+	u8			epnum;
+
+	epnum = dwc3_gadget_physical_to_mapping_endpoint(dwc, event->endpoint_number);
+	if (epnum < 0)
+		return;
 
 	dep = dwc->eps[epnum];
 
@@ -3335,6 +3322,8 @@ static void dwc3_gadget_reset_interrupt(struct dwc3 *dwc)
 {
 	u32			reg;
 
+	dwc->connected = true;
+
 	/*
 	 * WORKAROUND: DWC3 revisions <1.88a have an issue which
 	 * would cause a missing Disconnect Event if there's a
@@ -3374,7 +3363,6 @@ static void dwc3_gadget_reset_interrupt(struct dwc3 *dwc)
 	 * transfers."
 	 */
 	dwc3_stop_active_transfers(dwc);
-	dwc->connected = true;
 
 	reg = dwc3_readl(dwc->regs, DWC3_DCTL);
 	reg &= ~DWC3_DCTL_TSTCTRL_MASK;
@@ -3864,7 +3852,7 @@ static int dwc3_gadget_get_irq(struct dwc3 *dwc)
 	if (irq == -EPROBE_DEFER)
 		goto out;
 
-	irq = platform_get_irq_byname(dwc3_pdev, "usb");
+	irq = platform_get_irq_byname(dwc3_pdev, "dwc_usb3");
 	if (irq > 0)
 		goto out;
 
@@ -3978,7 +3966,7 @@ int dwc3_gadget_init(struct dwc3 *dwc)
 	 * sure we're starting from a well known location.
 	 */
 
-	ret = dwc3_gadget_init_endpoints(dwc, dwc->num_eps);
+	ret = dwc3_gadget_init_endpoints(dwc);
 	if (ret)
 		goto err4;
 

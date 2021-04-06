@@ -273,21 +273,31 @@
 			status = "disabled";
 		};
 
-		usb: usb@0xB2000000 {
-			compatible = "hobot,usb";
+		usbdrd3_0: usb@0xB2000000 {
+			compatible = "hobot,sunrise3-dwc3";
+			#address-cells = <2>;
+			#size-cells = <2>;
+			ranges;
 			reg = <0 0xB2000000 0 0x10000>,
 			  <0 0xA1000000 0 0x1000>;
-			interrupt-parent = <&gic>;
-			interrupts = <0 26 4>;
 			clocks = <&usb_aclk>;
 			clock-names = "usb_aclk";
-			/* dr_mode: {peripheral, host, otg} */
-			dr_mode = "otg";
-			/* phy_type: {utmi, utmi_wide, ulpi, serial, hsic} */
-			snps,dis_u2_susphy_quirk;
-			/* snps,dis_u3_susphy_quirk; */
-			extcon = <&usb_id>;
+
 			status = "disabled";
+			usbdrd_dwc3_0: dwc3 {
+				compatible = "snps,dwc3";
+				reg = <0 0xB2000000 0 0x10000>,
+				  <0 0xA1000000 0 0x1000>;
+				interrupt-parent = <&gic>;
+				interrupts = <0 26 4>;
+				/* dr_mode: {peripheral, host, otg} */
+				dr_mode = "otg";
+				/* phy_type: {utmi, utmi_wide, ulpi, serial, hsic} */
+				snps,dis_u2_susphy_quirk;
+				/* snps,dis_u3_susphy_quirk; */
+				extcon = <&usb_id>;
+				status = "disabled";
+			};
 		};
 
 		usb_id: usb-id {
@@ -298,7 +308,9 @@
 
 		dwc3_powersave: dwc3-powersave {
 			compatible = "hobot,dwc3-powersave";
-			dwc3 = <&usb>;
+			usb = <&usbdrd3_0>;
+
+			status = "disabled";
 		};
 
 		i2s0: i2s@0xA5007000 {

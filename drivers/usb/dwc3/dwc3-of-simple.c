@@ -21,6 +21,7 @@
 #include <linux/of_platform.h>
 #include <linux/pm_runtime.h>
 #include <linux/reset.h>
+#include <linux/regulator/consumer.h>
 
 struct dwc3_of_simple {
 	struct device		*dev;
@@ -28,6 +29,7 @@ struct dwc3_of_simple {
 	int			num_clocks;
 	struct reset_control	*resets;
 	bool			need_reset;
+	struct regulator	*vdd08;		/* usb 0v8 */
 };
 
 static int dwc3_of_simple_probe(struct platform_device *pdev)
@@ -44,6 +46,26 @@ static int dwc3_of_simple_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, simple);
 	simple->dev = dev;
+
+	if (of_device_is_compatible(np, "hobot,sunrise3-dwc3")) {
+		/* get & enable regulator */
+		simple->vdd08 = devm_regulator_get(dev, "usb_0v8");
+
+		if (IS_ERR(simple->vdd08)) { /* PRQA S ALL */
+			dev_info(dev, "failed to get usb regulator.\n");
+
+			simple->vdd08 = NULL;
+			ret = -EPROBE_DEFER;	/* add to deferred list for retry */
+			goto regulator_fail;
+		}
+
+		ret = regulator_enable(simple->vdd08);
+		if (ret) {
+			dev_err(dev, "usb regulator enable error\n");
+			goto regulator_fail;
+		}
+		dev_info(dev, "usb regulator enable succeed\n");
+	}
 
 	/*
 	 * Some controllers need to toggle the usb3-otg reset before trying to
@@ -91,6 +113,8 @@ err_resetc_assert:
 
 err_resetc_put:
 	reset_control_put(simple->resets);
+
+regulator_fail:
 	return ret;
 }
 
@@ -109,6 +133,11 @@ static void __dwc3_of_simple_teardown(struct dwc3_of_simple *simple)
 	pm_runtime_disable(simple->dev);
 	pm_runtime_put_noidle(simple->dev);
 	pm_runtime_set_suspended(simple->dev);
+
+	if (simple->vdd08) {
+		if (regulator_disable(simple->vdd08))
+			dev_err(simple->dev, "usb regulator disable error\n");
+	}
 }
 
 static int dwc3_of_simple_remove(struct platform_device *pdev)
@@ -177,6 +206,7 @@ static const struct of_device_id of_dwc3_simple_match[] = {
 	{ .compatible = "allwinner,sun50i-h6-dwc3" },
 	{ .compatible = "hisilicon,hi3670-dwc3" },
 	{ .compatible = "intel,keembay-dwc3" },
+	{ .compatible = "hobot,sunrise3-dwc3"  },
 	{ /* Sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, of_dwc3_simple_match);
@@ -184,7 +214,8 @@ MODULE_DEVICE_TABLE(of, of_dwc3_simple_match);
 static struct platform_driver dwc3_of_simple_driver = {
 	.probe		= dwc3_of_simple_probe,
 	.remove		= dwc3_of_simple_remove,
-	.shutdown	= dwc3_of_simple_shutdown,
+	// .shutdown	= dwc3_of_simple_shutdown,	/* not ready, otherwise */
+				/* uboot fastboot not work for regulator issue */
 	.driver		= {
 		.name	= "dwc3-of-simple",
 		.of_match_table = of_dwc3_simple_match,

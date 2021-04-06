@@ -37,7 +37,8 @@
 		spi0	= &spi0;
 		spi1	= &spi1;
 		spi2	= &spi2;
-		usb	= &usb;
+		usbdrd3_0 = &usbdrd3_0;
+		usbdrd_dwc3_0 = &usbdrd_dwc3_0;
 		bifspi	= &bifspi;
 		bifsd   = &bifsd;
 		mmc1	= &sdio0;
@@ -209,7 +210,11 @@
 	status = "okay";
 };
 
-&usb {
+&usbdrd3_0 {
+	status = "okay";
+};
+
+&usbdrd_dwc3_0 {
 	status = "okay";
 };
 

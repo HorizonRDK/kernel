@@ -274,19 +274,19 @@ static int handle_test_mode(struct mtu3 *mtu, struct usb_ctrlrequest *setup)
 	int handled = 1;
 
 	switch (le16_to_cpu(setup->wIndex) >> 8) {
-	case TEST_J:
+	case USB_TEST_J:
 		dev_dbg(mtu->dev, "TEST_J\n");
 		mtu->test_mode_nr = TEST_J_MODE;
 		break;
-	case TEST_K:
+	case USB_TEST_K:
 		dev_dbg(mtu->dev, "TEST_K\n");
 		mtu->test_mode_nr = TEST_K_MODE;
 		break;
-	case TEST_SE0_NAK:
+	case USB_TEST_SE0_NAK:
 		dev_dbg(mtu->dev, "TEST_SE0_NAK\n");
 		mtu->test_mode_nr = TEST_SE0_NAK_MODE;
 		break;
-	case TEST_PACKET:
+	case USB_TEST_PACKET:
 		dev_dbg(mtu->dev, "TEST_PACKET\n");
 		mtu->test_mode_nr = TEST_PACKET_MODE;
 		break;

@@ -78,6 +78,7 @@ struct usb_ep;
  *	Note that for writes (IN transfers) some data bytes may still
  *	reside in a device-side FIFO when the request is reported as
  *	complete.
+ * @hb_direct_dma: for hobot direct dma feature
  *
  * These are allocated/freed through the endpoint they're used with.  The
  * hardware's driver can add extra per-request data to the memory it returns,
@@ -806,7 +807,7 @@ struct usb_gadget_string_container {
 };
 
 /* put descriptor for string with that id into buf (buflen >= 256) */
-int usb_gadget_get_string(struct usb_gadget_strings *table, int id, u8 *buf);
+int usb_gadget_get_string(const struct usb_gadget_strings *table, int id, u8 *buf);
 
 /* check if the given language identifier is valid */
 bool usb_validate_langid(u16 langid);

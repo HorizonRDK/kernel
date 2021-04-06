@@ -144,6 +144,15 @@ static const char *const usb_dr_modes[] = {
 	[USB_DR_MODE_OTG]		= "otg",
 };
 
+const char *usb_role_string(enum usb_dr_mode role)
+{
+	if (role < 0 || role >= ARRAY_SIZE(usb_dr_modes))
+		return "unknown";
+
+	return usb_dr_modes[role];
+}
+EXPORT_SYMBOL_GPL(usb_role_string);
+
 static enum usb_dr_mode usb_get_dr_mode_from_string(const char *str)
 {
 	int ret;
