@@ -842,6 +842,8 @@ static void memcopy_func( unsigned long p_task )
     int32_t buff_loc = system_dma_device->buff_loc;
     uint32_t direction = system_dma_device->direction;
 
+    pr_debug("+\n");
+
     if ( direction == SYS_DMA_TO_DEVICE ) {
         src_mem = mem_addr->fw_addr;
         dst_mem = mem_addr->dev_addr;
@@ -855,6 +857,8 @@ static void memcopy_func( unsigned long p_task )
     LOG( LOG_DEBUG, "(%d:%d) d:%p s:%p l:%ld", buff_loc, direction, dst_mem, src_mem, mem_addr->size );
 
     dma_complete_func( mem_addr->sys_back_ptr );
+
+    pr_debug("-\n");
 
     return;
 }

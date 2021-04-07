@@ -214,15 +214,15 @@ static int32_t dma_channel_addresses_setup( void *isp_chan, void *metering_chan,
     int32_t result = 0;
     //PING ISP
     {
-        dma_addr_pair_t isp_dma_addr_pair[3] = {
+        dma_addr_pair_t isp_dma_addr_pair[SYSTEM_DMA_MAX_CHANNEL] = {
             {hw_isp_addr + ACAMERA_DECOMPANDER0_MEM_BASE_ADDR, ACAMERA_LUMVAR_STATS_MEM_BASE_ADDR - ACAMERA_DECOMPANDER0_MEM_BASE_ADDR},
             {hw_isp_addr + ACAMERA_ISP1_BASE_ADDR, ACAMERA_ISP1_SIZE},
             {hw_isp_addr + ACAMERA_LUT3D_MEM_BASE_ADDR, ACAMERA_LUT3D_MEM_SIZE}};
-        if ( system_dma_sg_device_setup( isp_chan, ISP_CONFIG_PING, isp_dma_addr_pair, 3, idx ) ) {
+        if ( system_dma_sg_device_setup( isp_chan, ISP_CONFIG_PING, isp_dma_addr_pair, SYSTEM_DMA_MAX_CHANNEL, idx ) ) {
             LOG( LOG_CRIT, "ISP device channel address setup for PING ctx:%d failed", idx );
             result = -1;
         }
-        fwmem_addr_pair_t fwmem_add_pair[3] = {
+        fwmem_addr_pair_t fwmem_add_pair[SYSTEM_DMA_MAX_CHANNEL] = {
             {(void *)( (uintptr_t)sw_context_map + ACAMERA_DECOMPANDER0_MEM_BASE_ADDR ),
             ACAMERA_LUMVAR_STATS_MEM_BASE_ADDR - ACAMERA_DECOMPANDER0_MEM_BASE_ADDR,
             sw_isp_phy_addr + ACAMERA_DECOMPANDER0_MEM_BASE_ADDR},
@@ -230,23 +230,23 @@ static int32_t dma_channel_addresses_setup( void *isp_chan, void *metering_chan,
             ACAMERA_ISP1_SIZE,
             sw_isp_phy_addr + ACAMERA_ISP1_BASE_ADDR   },
             {(void *)((uintptr_t)sw_context_map + ACAMERA_LUT3D_MEM_BASE_ADDR), ACAMERA_LUT3D_MEM_SIZE, sw_isp_phy_addr + ACAMERA_LUT3D_MEM_BASE_ADDR}};
-        if ( system_dma_sg_fwmem_setup( isp_chan, ISP_CONFIG_PING, fwmem_add_pair, 3, idx ) ) {
+        if ( system_dma_sg_fwmem_setup( isp_chan, ISP_CONFIG_PING, fwmem_add_pair, SYSTEM_DMA_MAX_CHANNEL, idx ) ) {
             LOG( LOG_CRIT, "ISP memory channel address setup for PING ctx:%d failed", idx );
             result = -1;
         }
     }
     //PONG ISP
     {
-        dma_addr_pair_t isp_dma_addr_pair[3] = {
+        dma_addr_pair_t isp_dma_addr_pair[SYSTEM_DMA_MAX_CHANNEL] = {
             {hw_isp_addr + ACAMERA_DECOMPANDER0_MEM_BASE_ADDR + ISP_CONFIG_PING_SIZE, ACAMERA_LUMVAR_STATS_MEM_BASE_ADDR - ACAMERA_DECOMPANDER0_MEM_BASE_ADDR},
             {hw_isp_addr + ACAMERA_ISP1_BASE_ADDR + ISP_CONFIG_PING_SIZE, ACAMERA_ISP1_SIZE},
             {hw_isp_addr + ACAMERA_LUT3D_MEM_BASE_ADDR, ACAMERA_LUT3D_MEM_SIZE}};
-        if ( system_dma_sg_device_setup( isp_chan, ISP_CONFIG_PONG, isp_dma_addr_pair, 3, idx ) ) {
+        if ( system_dma_sg_device_setup( isp_chan, ISP_CONFIG_PONG, isp_dma_addr_pair, SYSTEM_DMA_MAX_CHANNEL, idx ) ) {
             LOG( LOG_CRIT, "ISP device channel address setup for PONG ctx:%d failed", idx );
             result = -1;
         }
 
-        fwmem_addr_pair_t fwmem_add_pair[3] = {
+        fwmem_addr_pair_t fwmem_add_pair[SYSTEM_DMA_MAX_CHANNEL] = {
             {(void *)( (uintptr_t)sw_context_map + ACAMERA_DECOMPANDER0_MEM_BASE_ADDR ),
             ACAMERA_LUMVAR_STATS_MEM_BASE_ADDR - ACAMERA_DECOMPANDER0_MEM_BASE_ADDR,
             sw_isp_phy_addr + ACAMERA_DECOMPANDER0_MEM_BASE_ADDR},
@@ -256,23 +256,23 @@ static int32_t dma_channel_addresses_setup( void *isp_chan, void *metering_chan,
             {(void *)((uintptr_t)sw_context_map + ACAMERA_LUT3D_MEM_BASE_ADDR),
 	    ACAMERA_LUT3D_MEM_SIZE,
 	    sw_isp_phy_addr + ACAMERA_LUT3D_MEM_BASE_ADDR}};
-        if ( system_dma_sg_fwmem_setup( isp_chan, ISP_CONFIG_PONG, fwmem_add_pair, 3, idx ) ) {
+        if ( system_dma_sg_fwmem_setup( isp_chan, ISP_CONFIG_PONG, fwmem_add_pair, SYSTEM_DMA_MAX_CHANNEL, idx ) ) {
             LOG( LOG_CRIT, "ISP memory channel address setup for PONG ctx:%d failed", idx );
             result = -1;
         }
     }
     //PING METERING
     {
-        dma_addr_pair_t isp_dma_addr_pair[3] = {
+        dma_addr_pair_t isp_dma_addr_pair[SYSTEM_DMA_MAX_CHANNEL] = {
             {hw_isp_addr + ACAMERA_AEXP_HIST_STATS_MEM_BASE_ADDR, ACAMERA_AEXP_HIST_STATS_MEM_SIZE + ACAMERA_IHIST_STATS_MEM_SIZE},
             {hw_isp_addr + ACAMERA_METERING_STATS_MEM_BASE_ADDR, ACAMERA_METERING_STATS_MEM_SIZE},
             {hw_isp_addr + ACAMERA_LUMVAR_STATS_MEM_BASE_ADDR, ACAMERA_LUMVAR_STATS_MEM_SIZE}};
-        if ( system_dma_sg_device_setup( metering_chan, ISP_CONFIG_PING, isp_dma_addr_pair, 3, idx ) ) {
+        if ( system_dma_sg_device_setup( metering_chan, ISP_CONFIG_PING, isp_dma_addr_pair, SYSTEM_DMA_MAX_CHANNEL, idx ) ) {
             LOG( LOG_CRIT, "Metering device channel address setup for PING ctx:%d failed", idx );
             result = -1;
         }
 
-        fwmem_addr_pair_t fwmem_add_pair[3] = {
+        fwmem_addr_pair_t fwmem_add_pair[SYSTEM_DMA_MAX_CHANNEL] = {
             {(void *)( (uintptr_t)sw_context_map + ACAMERA_AEXP_HIST_STATS_MEM_BASE_ADDR ),
             ACAMERA_AEXP_HIST_STATS_MEM_SIZE + ACAMERA_IHIST_STATS_MEM_SIZE,
             sw_isp_phy_addr + ACAMERA_AEXP_HIST_STATS_MEM_BASE_ADDR},
@@ -282,23 +282,23 @@ static int32_t dma_channel_addresses_setup( void *isp_chan, void *metering_chan,
             {(void *)((uintptr_t)sw_context_map + ACAMERA_LUMVAR_STATS_MEM_BASE_ADDR),
 	    ACAMERA_LUMVAR_STATS_MEM_SIZE,
 	    sw_isp_phy_addr + ACAMERA_LUMVAR_STATS_MEM_BASE_ADDR}};
-        if ( system_dma_sg_fwmem_setup( metering_chan, ISP_CONFIG_PING, fwmem_add_pair, 3, idx ) ) {
+        if ( system_dma_sg_fwmem_setup( metering_chan, ISP_CONFIG_PING, fwmem_add_pair, SYSTEM_DMA_MAX_CHANNEL, idx ) ) {
             LOG( LOG_CRIT, "Metering memory channel address setup for PING ctx:%d failed", idx );
             result = -1;
         }
     }
     //PONG METERING
     {
-        dma_addr_pair_t isp_dma_addr_pair[3] = {
+        dma_addr_pair_t isp_dma_addr_pair[SYSTEM_DMA_MAX_CHANNEL] = {
             {hw_isp_addr + ACAMERA_AEXP_HIST_STATS_MEM_BASE_ADDR, ACAMERA_AEXP_HIST_STATS_MEM_SIZE + ACAMERA_IHIST_STATS_MEM_SIZE},
             {hw_isp_addr + ACAMERA_METERING_STATS_MEM_BASE_ADDR + ISP_CONFIG_PING_SIZE, ACAMERA_METERING_STATS_MEM_SIZE},
 	    {hw_isp_addr + ACAMERA_LUMVAR_STATS_MEM_BASE_ADDR + ISP_CONFIG_PING_SIZE, ACAMERA_LUMVAR_STATS_MEM_SIZE}};
-        if ( system_dma_sg_device_setup( metering_chan, ISP_CONFIG_PONG, isp_dma_addr_pair, 3, idx ) ) {
+        if ( system_dma_sg_device_setup( metering_chan, ISP_CONFIG_PONG, isp_dma_addr_pair, SYSTEM_DMA_MAX_CHANNEL, idx ) ) {
             LOG( LOG_CRIT, "Metering device channel address setup for PONG ctx:%d failed", idx );
             result = -1;
         }
 
-        fwmem_addr_pair_t fwmem_add_pair[3] = {
+        fwmem_addr_pair_t fwmem_add_pair[SYSTEM_DMA_MAX_CHANNEL] = {
             {(void *)( (uintptr_t)sw_context_map + ACAMERA_AEXP_HIST_STATS_MEM_BASE_ADDR ),
             ACAMERA_AEXP_HIST_STATS_MEM_SIZE + ACAMERA_IHIST_STATS_MEM_SIZE,
             sw_isp_phy_addr + ACAMERA_AEXP_HIST_STATS_MEM_BASE_ADDR},
@@ -308,7 +308,7 @@ static int32_t dma_channel_addresses_setup( void *isp_chan, void *metering_chan,
             {(void *)((uintptr_t)sw_context_map + ACAMERA_LUMVAR_STATS_MEM_BASE_ADDR),
 	    ACAMERA_LUMVAR_STATS_MEM_SIZE,
 	    sw_isp_phy_addr + ACAMERA_LUMVAR_STATS_MEM_BASE_ADDR}};
-        if ( system_dma_sg_fwmem_setup( metering_chan, ISP_CONFIG_PONG, fwmem_add_pair, 3, idx ) ) {
+        if ( system_dma_sg_fwmem_setup( metering_chan, ISP_CONFIG_PONG, fwmem_add_pair, SYSTEM_DMA_MAX_CHANNEL, idx ) ) {
             LOG( LOG_CRIT, "Metering memory channel address setup for PONG  ctx:%d failed", idx );
             result = -1;
         }
@@ -866,7 +866,6 @@ static void set_dma_cmd_queue(dma_cmd *cmd, uint32_t ping_pong_sel)
 void isp_ctx_transfer(int ctx_pre, int ctx_next, int ppf)
 {
     pr_debug("chn_pre %d, chn_next %d, ppf %d\n", ctx_pre, ctx_next, ppf);
-#if FW_USE_HOBOT_DMA
 
 	if (g_firmware.sif_isp_offline) //offline isp
 		system_dma_copy_sg(g_firmware.dma_chan_isp_metering, !ppf, SYS_DMA_FROM_DEVICE, dma_complete_metering_func, ctx_pre);
@@ -874,10 +873,9 @@ void isp_ctx_transfer(int ctx_pre, int ctx_next, int ppf)
 		system_dma_copy_sg(g_firmware.dma_chan_isp_metering, ppf, SYS_DMA_FROM_DEVICE, dma_complete_metering_func, ctx_pre);
 
     system_dma_copy_sg(g_firmware.dma_chan_isp_config, ppf, SYS_DMA_TO_DEVICE, dma_complete_context_func, ctx_next);
+
+#if FW_USE_HOBOT_DMA
     isp_idma_start_transfer(&g_hobot_dma);
-#else
-	system_dma_copy_sg(g_firmware.dma_chan_isp_metering, !ppf, SYS_DMA_FROM_DEVICE, dma_complete_metering_func, ctx_pre);
-	system_dma_copy_sg(g_firmware.dma_chan_isp_config, ppf, SYS_DMA_TO_DEVICE, dma_complete_context_func, ctx_next);
 #endif
 }
 
@@ -1408,8 +1406,10 @@ int32_t acamera_interrupt_handler()
                             p_ctx->sts.ispctx_dma_error = 0;
                             g_firmware.dma_flag_isp_metering_completed = 1;
                             g_firmware.dma_flag_isp_config_completed = 1;
+#if FW_USE_HOBOT_DMA
                             hobot_idma_try_restore(&g_hobot_dma);
                             system_dma_desc_flush();
+#endif
                             pr_err("idma restored\n");
                         }
 

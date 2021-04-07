@@ -291,12 +291,12 @@ void hobot_idma_try_restore(void *data)
 
     if (idma_reg_dump)
         dump_dma();
+
     dma_isp_reg_start_dma_write(0);         // disable dma
     dma_isp_reg_mask_int_write(DMA_INT_DISABLE);  //mask dma irq
     dma_isp_reg_dma_sram_ch_en_write(0);    // cpu can control sram now
 
     spin_lock_irqsave( hobot_dma->dma_ctrl_lock, flags );
-
     // check int status
     if(dma_isp_dma_int_read()) {
         dma_isp_reg_clr_int_write(1);           // clear dma int

@@ -24,7 +24,7 @@
 #include "system_stdlib.h"
 
 #define SYSTEM_DMA_TOGGLE_COUNT 2
-#define SYSTEM_DMA_MAX_CHANNEL 2
+#define SYSTEM_DMA_MAX_CHANNEL 3
 
 #define SYS_DMA_TO_DEVICE 0
 #define SYS_DMA_FROM_DEVICE 1
