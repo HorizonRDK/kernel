@@ -199,9 +199,14 @@ void sif_read_frame_work(struct vio_group *group)
 				group->frameid.frame_id = frameinfo->frame_id;
 				group->frameid.timestamps = frameinfo->timestamps;
 				group->frameid.tv = frameinfo->tv;
-				sif_frame_info[instance].frame_id = frameinfo->frame_id;
-				sif_frame_info[instance].timestamps = frameinfo->timestamps;
-				sif_frame_info[instance].tv = frameinfo->tv;
+				if (frameinfo->timestamps != 0) {
+					sif_frame_info[instance].frame_id = frameinfo->frame_id;
+					sif_frame_info[instance].timestamps = frameinfo->timestamps;
+					sif_frame_info[instance].tv = frameinfo->tv;
+				} else {   /*raw feedback*/
+					sif_frame_info[instance].frame_id++;
+				}
+
 				vio_dbg("sif_read_frame_work frame_id %d pipe_id %d",
 						frameinfo->frame_id, instance);
 				sif_config_rdma_cfg(subdev, 0, frameinfo);
