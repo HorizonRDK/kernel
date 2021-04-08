@@ -356,5 +356,14 @@ static __inline uint32_t dma_isp_reg_load_ahb_addr_read_ch3(void) {
     return (dma_isp_read_32(DMA_LOAD_AHB_ADDR_CH3));
 }
 
+static inline int hobot_idma_is_busy(void)
+{
+    int ret = 0;
+
+    ret = (dma_isp_reg_start_dma_read() == 1) && (dma_isp_dma_int_read() == 0);
+
+    return ret;
+}
+
 #endif      /* _HOBOT_ISP_REG_DMA_REGSET_H_ */
 

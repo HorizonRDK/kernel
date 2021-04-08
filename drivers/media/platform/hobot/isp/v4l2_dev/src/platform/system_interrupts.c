@@ -23,8 +23,6 @@
 #include <linux/interrupt.h>
 #include "acamera_logger.h"
 
-#include "vio_config.h"
-
 //#define ENABLE_BOTTOM_HALF_TASKLET
 
 #ifdef ENABLE_BOTTOM_HALF_TASKLET
@@ -169,7 +167,7 @@ void system_interrupts_init( void )
                               &system_interrupt_handler, interrupt_line_ACAMERA_JUNO_IRQ_FLAGS, "isp", NULL ) ) ) {
         LOG( LOG_ERR, "Could not get interrupt %d (ret=%d)\n", interrupt_line_ACAMERA_JUNO_IRQ, ret );
     } else {
-        irq_set_affinity_hint(interrupt_line_ACAMERA_JUNO_IRQ, get_cpu_mask(VIO_IRQ_CPU_IDX));
+        irq_set_affinity_hint(interrupt_line_ACAMERA_JUNO_IRQ, get_cpu_mask(ISP_IRQ_CPU_IDX));
         system_interrupts_disable();
         LOG( LOG_INFO, "Interrupt %d requested (flags = 0x%x, ret = %d)\n",
              interrupt_line_ACAMERA_JUNO_IRQ, interrupt_line_ACAMERA_JUNO_IRQ_FLAGS, ret );

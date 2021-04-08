@@ -74,6 +74,7 @@
 #include "hobot_isp_reg_dma.h"
 
 #define GET_BYTE_V(v, pos)      (v >> pos % sizeof(v) * 8 & 0xff)
+#define MS_10   10000
 
 static acamera_firmware_t g_firmware;
 
@@ -658,7 +659,12 @@ static void start_processing_frame(int ctx_id)
 	if (p_ctx->initialized != 0) {
 		if ((1 << ctx_id) & isp_debug_mask)
 			do_gettimeofday(&(p_ctx->frame_process_start));
-		acamera_fw_raise_event(p_ctx, event_id_new_frame);
+
+        if (dma_isp_reg_dma_sram_ch_en_read() == 0) {
+		    acamera_fw_raise_event(p_ctx, event_id_new_frame);
+        } else {
+            pr_err("sram is occupied by idma.\n");
+        }
 	}
     // dma_writer_status(p_ctx);
 }
@@ -1269,30 +1275,69 @@ void inline acamera_buffer_done(acamera_context_ptr_t p_ctx)
 int32_t acamera_interrupt_handler()
 {
     int32_t result = 0;
-    int32_t irq_bit = ISP_INTERRUPT_EVENT_NONES_COUNT - 1;
+    uint32_t irq_mask;
+    unsigned long irq_interval;
 	struct vio_frame_id frmid;
-
+    static struct timeval tv1, tv2;
+    int32_t irq_bit = ISP_INTERRUPT_EVENT_NONES_COUNT - 1;
     acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[cur_ctx_id];
 
-    // read the irq vector from isp
-    uint32_t irq_mask = acamera_isp_isp_global_interrupt_status_vector_read( 0 );
+    /*
+      'printk to console' will disable irq, cpu cannot response irq in time.
+      that will result in gic pending several irqs and send irq to cpu out of order.
+      then isp irq jitter may occour. in this situation, idma is busy, cpu cannot access isp.
+    */
+    //isp irq jitter handler - step1
+    if (p_ctx->p_gfw->sif_isp_offline == 0) {
+        if (hobot_idma_is_busy()) {
+            pr_err("idma is busy, accessing isp denied.\n");
+            return 0;
+        }
+    }
 
+    // read the irq vector from isp
+    irq_mask = acamera_isp_isp_global_interrupt_status_vector_read( 0 );
+
+    // clear irq vector
     acamera_isp_isp_global_interrupt_clear_vector_write(0, irq_mask);
+    acamera_isp_isp_global_interrupt_clear_write( 0, 0 );
+    acamera_isp_isp_global_interrupt_clear_write( 0, 1 );
+
+    //isp irq jitter handler - step2
+    if (p_ctx->p_gfw->sif_isp_offline == 0) {
+
+        do_gettimeofday(&tv2);
+
+        if (tv2.tv_usec > tv1.tv_usec)
+            irq_interval = tv2.tv_usec - tv1.tv_usec;
+        else
+            irq_interval = 1000000 + tv2.tv_usec - tv1.tv_usec;
+
+        pr_debug("irq_mask %x, tv1 %ld, tv2 %ld, irq interval %ld\n",
+                irq_mask, tv1.tv_usec, tv2.tv_usec, irq_interval);
+
+        if (irq_interval < MS_10 &&
+            (irq_mask & 1 << ISP_INTERRUPT_EVENT_ISP_START_FRAME_START ||
+            irq_mask & 1 << ISP_INTERRUPT_EVENT_ISP_END_FRAME_END)) {
+
+            pr_err("isp irq jitter occour.\n");
+
+            return 0;
+        }
+    }
+
     // Update frame counter
 	if ( irq_mask & 1 << ISP_INTERRUPT_EVENT_ISP_START_FRAME_START ) {
 		vio_get_sif_frame_info(cur_ctx_id, &frmid);
 		p_ctx->isp_frame_counter = frmid.frame_id;
 		p_ctx->timestamps = frmid.timestamps;
 		p_ctx->tv = frmid.tv;
+        do_gettimeofday(&tv1);
 	}
 
     pr_debug("[s%d] IRQ MASK is 0x%x, frame id %d timestamps %llu ms\n",
 		cur_ctx_id,
 		irq_mask, p_ctx->isp_frame_counter, p_ctx->timestamps);
-
-    // clear irq vector
-    acamera_isp_isp_global_interrupt_clear_write( 0, 0 );
-    acamera_isp_isp_global_interrupt_clear_write( 0, 1 );
 
     if ( irq_mask > 0 ) {
         //check for errors in the interrupt
@@ -1392,17 +1437,13 @@ int32_t acamera_interrupt_handler()
                             p_ctx->isp_frame_counter);
                 }
                 if ( p_ctx->p_gfw->sif_isp_offline == 0 && irq_bit == ISP_INTERRUPT_EVENT_ISP_START_FRAME_START ) {
-                    static uint32_t fs_cnt = 0;
-                    if ( fs_cnt < 10 ) {
-                        LOG( LOG_INFO, "[KeyMsg]: FS interrupt: %d", fs_cnt++ );
-                    }
-
                     if ( g_firmware.dma_flag_isp_metering_completed == 0 || g_firmware.dma_flag_isp_config_completed == 0 ) {
                         p_ctx->sts.ispctx_dma_error++;
 
                         pr_err("DMA is not finished, cfg: %d, meter: %d.\n", g_firmware.dma_flag_isp_config_completed, g_firmware.dma_flag_isp_metering_completed );
 
-                        if (p_ctx->sts.ispctx_dma_error >= 5) {
+                        //idma done miss, the main reason is due to cpu have no time to response irq
+                        if (p_ctx->sts.ispctx_dma_error >= 3) {
                             p_ctx->sts.ispctx_dma_error = 0;
                             g_firmware.dma_flag_isp_metering_completed = 1;
                             g_firmware.dma_flag_isp_config_completed = 1;

@@ -24,6 +24,8 @@
 
 #define ACAMERA_IRQ_COUNT 32
 
+#define ISP_IRQ_CPU_IDX 2
+
 #define ACAMERA_IRQ_MASK( num ) ( 1 << num )
 
 typedef uint32_t system_fw_interrupt_mask_t;

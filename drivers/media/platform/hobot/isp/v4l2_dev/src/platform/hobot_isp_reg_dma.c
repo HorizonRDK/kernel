@@ -36,12 +36,13 @@
 #include "acamera_isp_core_nomem_settings.h"
 #include "acamera_decompander0_mem_config.h"
 #include "hobot_isp_reg_dma.h"
-#include "vio_config.h"
 
 #if FW_USE_HOBOT_DMA
 
 #define HOBOT_DMA_RESULT_CHK     0
 #define HOBOT_DMA_LOG(...)   pr_debug(__VA_ARGS__)
+
+#define IDMA_IRQ_CPU_IDX 3
 
 #define ISP_AREA1       0x1AAF8
 #define ISP_AREA2       0x32AB8
@@ -242,11 +243,12 @@ irqreturn_t hobot_dma_interrupt(int irq, void *data)
     static uint32_t count = 0;
     unsigned long flags;
 
+    spin_lock_irqsave( hobot_dma->dma_ctrl_lock, flags );
+
     dma_isp_reg_start_dma_write(0);         // disable dma
     dma_isp_reg_mask_int_write(DMA_INT_DISABLE);  //mask dma irq
     dma_isp_reg_dma_sram_ch_en_write(0);    // cpu can control sram now
 
-    spin_lock_irqsave( hobot_dma->dma_ctrl_lock, flags );
     // check int status
     if(dma_isp_dma_int_read()) {
         HOBOT_DMA_LOG("%s: receive dma done int (cnt=%d)\n", __FUNCTION__, count);
@@ -280,7 +282,7 @@ irqreturn_t hobot_dma_interrupt(int irq, void *data)
     return IRQ_HANDLED;
 }
 
-static int idma_reg_dump = 1;
+static int idma_reg_dump = 0;
 module_param(idma_reg_dump, int, S_IRUGO|S_IWUSR);
 void hobot_idma_try_restore(void *data)
 {
@@ -289,14 +291,14 @@ void hobot_idma_try_restore(void *data)
 
     pr_debug("+\n");
 
-    if (idma_reg_dump)
-        dump_dma();
+    pr_debug("idma start sts %d, int sts %d\n", dma_isp_reg_start_dma_read(), dma_isp_dma_int_read());
+
+    spin_lock_irqsave( hobot_dma->dma_ctrl_lock, flags );
 
     dma_isp_reg_start_dma_write(0);         // disable dma
     dma_isp_reg_mask_int_write(DMA_INT_DISABLE);  //mask dma irq
     dma_isp_reg_dma_sram_ch_en_write(0);    // cpu can control sram now
 
-    spin_lock_irqsave( hobot_dma->dma_ctrl_lock, flags );
     // check int status
     if(dma_isp_dma_int_read()) {
         dma_isp_reg_clr_int_write(1);           // clear dma int
@@ -307,6 +309,9 @@ void hobot_idma_try_restore(void *data)
     hobot_dma->is_busy = 0;
 
     spin_unlock_irqrestore(hobot_dma->dma_ctrl_lock, flags);
+
+    if (idma_reg_dump)
+        dump_dma();
 
     pr_debug("-\n");
 }
@@ -366,7 +371,7 @@ void hobot_dma_init(hobot_dma_t *hobot_dma)
     if(ret)
         printk(KERN_ERR "ERROR: %s request_irq() failed: %d\n", __FUNCTION__, ret);
 
-    irq_set_affinity_hint(hobot_dma->irq_in_dts, get_cpu_mask(VIO_IRQ_CPU_IDX));
+    irq_set_affinity_hint(hobot_dma->irq_in_dts, get_cpu_mask(IDMA_IRQ_CPU_IDX));
     dma_isp_reg_mask_int_write(DMA_INT_DISABLE);  //mask dma irq
 
     // disable irq after request_irq, if not, it may cause "Unbalanced enable for IRQ" warning log
