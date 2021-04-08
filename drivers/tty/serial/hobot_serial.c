@@ -59,6 +59,10 @@ static int tx_trigger_level = 0;
 module_param(tx_trigger_level, uint, S_IRUGO);
 MODULE_PARM_DESC(tx_trigger_level, "Tx trigger level, 0-15 (uint: 4 bytes)");
 
+static int uarttx_ctrl = 1;
+module_param(uarttx_ctrl, int, 0644);
+MODULE_PARM_DESC(uarttx_ctrl, "uart Tx ctrl, (0:disable tx 1:enable tx)");
+
 #ifdef CONFIG_HOBOT_TTY_POLL_MODE
 #define HOBOT_UART_RX_POLL_TIME	50	/* Unit is ms */
 #endif /* CONFIG_HOBOT_TTY_POLL_MODE */
@@ -272,6 +276,12 @@ static void hobot_uart_dma_tx_start(struct uart_port *port)
 	val |= UART_FCR_TDMA_EN;
 	writel(val, port->membase + HOBOT_UART_FCR);
 
+	/**
+	*close DMA transfer
+	*When uarttx_tx = 0 and the console is uart0
+	*/
+	if(!uarttx_ctrl && !strcmp(hobot_port->name, "hobot-uart0"))
+		return;
 	/*Set Transmit DMA size and Start DMA TX */
 	writel(tx_phys_addr, port->membase + HOBOT_UART_TXADDR);
 	writel(count, port->membase + HOBOT_UART_TXSIZE);
@@ -1400,6 +1410,8 @@ OF_EARLYCON_DECLARE(hobot, "hobot,hobot-uart", hobot_early_console_setup);
 static void hobot_uart_console_write(struct console *co, const char *s,
 				  unsigned int count)
 {
+	if (!uarttx_ctrl)
+		return;
 	struct uart_port *port = &hobot_uart_port[co->index];
 	unsigned long flags;
 	volatile unsigned int ctrl, dma;
@@ -1439,6 +1451,7 @@ static void hobot_uart_console_write(struct console *co, const char *s,
 
 	if (locked)
 		spin_unlock_irqrestore(&port->lock, flags);
+	return;
 }
 
 /**
