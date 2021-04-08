@@ -527,6 +527,8 @@ static void process_api_request( void )
 }
 #endif
 
+extern void *acamera_get_api_ctx_ptr(void);
+extern int isp_open_check(void);
 void acamera_connection_process( void )
 {
 #if ISP_HAS_STREAM_CONNECTION
@@ -537,6 +539,10 @@ void acamera_connection_process( void )
     if (!con.data_read || !con.data_write) {
         return;
     }
+
+    acamera_context_ptr_t context_ptr = (acamera_context_ptr_t)acamera_get_api_ctx_ptr();
+    if (context_ptr->initialized == 0 || isp_open_check() == 0)
+        return;
 
 #if ISP_HAS_CONNECTION_BUFFER
     process_api_request();
