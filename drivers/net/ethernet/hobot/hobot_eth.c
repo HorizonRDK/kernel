@@ -1704,6 +1704,7 @@ static int xj3_dma_reset(void __iomem *ioaddr) {
     int limit;
 
     value |= DMA_BUS_MODE_SFT_RESET;
+    writel(value, ioaddr + DMA_BUS_MODE);
     limit = 10;
     while (limit--) {
         if (!(readl(ioaddr + DMA_BUS_MODE) & DMA_BUS_MODE_SFT_RESET)) break;
