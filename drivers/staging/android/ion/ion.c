@@ -450,6 +450,7 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 	struct ion_device *dev = client->dev;
 	struct ion_buffer *buffer = NULL;
 	struct ion_heap *heap;
+	uint32_t last_heap_id_mask = 0;
 	int ret;
 	int heap_march = 0;
 	int type = 0;
@@ -472,17 +473,17 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 	flags = flags&0xffff;
 	/* bpu default not use cma heap */
 	if ((type >> 12) != 1) {
-		heap_id_mask = ION_HEAP_TYPE_DMA_MASK;
+		heap_id_mask = ION_HEAP_TYPE_CMA_RESERVED_MASK;
 		plist_for_each_entry(heap, &dev->heaps, node) {
 			/* if the caller didn't specify this heap id */
 			if ((1 << heap->type) & heap_id_mask) {
 				heap_march = 1;
 			}
 		}
-		/* if no cma heap, use carveout*/
+		/* if no cma reserved heap, use cma*/
 		if (heap_march == 0) {
-			heap_id_mask &= ~ION_HEAP_TYPE_DMA_MASK;
-			heap_id_mask |= ION_HEAP_CARVEOUT_MASK;
+			heap_id_mask &= ~ION_HEAP_TYPE_CMA_RESERVED_MASK;
+			heap_id_mask |= ION_HEAP_TYPE_DMA_MASK;
 		}
 	} else {
 		plist_for_each_entry(heap, &dev->heaps, node) {
@@ -504,13 +505,21 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 		if (!IS_ERR(buffer))
 			break;
 	}
-	/* if carveout can't alloc the mem, try use cma*/
+	/* if carveout/cma reserved can't alloc the mem, try use cma*/
 	if ((buffer == NULL) || IS_ERR(buffer)) {
 		if ((heap_id_mask & ION_HEAP_CARVEOUT_MASK) > 0) {
+			pr_debug("Retry alloc carveout 0x%xByte from cma heap\n", len);
+			last_heap_id_mask = heap_id_mask;
 			heap_id_mask &= ~ION_HEAP_CARVEOUT_MASK;
 			heap_id_mask |= ION_HEAP_TYPE_DMA_MASK;
+		} else if ((heap_id_mask & ION_HEAP_TYPE_CMA_RESERVED_MASK) > 0) {
+			pr_debug("Retry alloc cma reserved 0x%xByte from cma heap\n", len);
+			last_heap_id_mask = heap_id_mask;
+			heap_id_mask &= ~ION_HEAP_TYPE_CMA_RESERVED_MASK;
+			heap_id_mask |= ION_HEAP_TYPE_DMA_MASK;
 		} else if ((heap_id_mask & ION_HEAP_TYPE_DMA_MASK) > 0) {
-			pr_info("Retry alloc 0x%xByte from carveout heap\n", len);
+			pr_debug("Retry alloc cma  0x%xByte from carveout heap\n", len);
+			last_heap_id_mask = heap_id_mask;
 			heap_id_mask &= ~ION_HEAP_TYPE_DMA_MASK;
 			heap_id_mask |= ION_HEAP_CARVEOUT_MASK;
 		}
@@ -521,6 +530,28 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 			buffer = ion_buffer_create(heap, dev, len, align, flags);
 			if (!IS_ERR(buffer))
 				break;
+		}
+	}
+
+	if ((buffer == NULL) || IS_ERR(buffer)) {
+		if ((heap_id_mask & ION_HEAP_TYPE_DMA_MASK) > 0) {
+			if ((last_heap_id_mask & ION_HEAP_TYPE_CMA_RESERVED_MASK) > 0) {
+				pr_debug("Retry cma reserved alloc 0x%xByte from carveout heap\n", len);
+				heap_id_mask &= ~ION_HEAP_TYPE_DMA_MASK;
+				heap_id_mask |= ION_HEAP_CARVEOUT_MASK;
+			} else if ((last_heap_id_mask & ION_HEAP_CARVEOUT_MASK) > 0) {
+				pr_debug("Retry alloc carveout 0x%xByte from cma carveout heap\n", len);
+				heap_id_mask &= ~ION_HEAP_TYPE_DMA_MASK;
+				heap_id_mask |= ION_HEAP_TYPE_CMA_RESERVED_MASK;
+			}
+			plist_for_each_entry(heap, &dev->heaps, node) {
+				/* if the caller didn't specify this heap id */
+				if (!((1 << heap->type) & heap_id_mask))
+					continue;
+				buffer = ion_buffer_create(heap, dev, len, align, flags);
+				if (!IS_ERR(buffer))
+					break;
+			}
 		}
 	}
 	up_read(&dev->lock);

@@ -189,6 +189,39 @@ struct ion_heap *ion_carveout_heap_create(struct ion_platform_heap *heap_data)
 	return &carveout_heap->heap;
 }
 
+struct ion_heap *ion_cma_reserved_heap_create(struct ion_platform_heap *heap_data)
+{
+        struct ion_carveout_heap *carveout_heap;
+        int ret;
+
+        struct page *page;
+        size_t size;
+
+        page = pfn_to_page(PFN_DOWN(heap_data->base));
+        size = heap_data->size;
+
+        ret = ion_heap_pages_zero(page, size, pgprot_writecombine(PAGE_KERNEL));
+        if (ret)
+                return ERR_PTR(ret);
+
+        carveout_heap = kzalloc(sizeof(*carveout_heap), GFP_KERNEL);
+        if (!carveout_heap)
+                return ERR_PTR(-ENOMEM);
+
+        carveout_heap->pool = gen_pool_create(PAGE_SHIFT, -1);
+        if (!carveout_heap->pool) {
+                kfree(carveout_heap);
+                return ERR_PTR(-ENOMEM);
+        }
+        carveout_heap->base = heap_data->base;
+        gen_pool_add(carveout_heap->pool, carveout_heap->base, heap_data->size,
+                     -1);
+        carveout_heap->heap.ops = &carveout_heap_ops;
+        carveout_heap->heap.type = ION_HEAP_TYPE_CMA_RESERVED;
+
+        return &carveout_heap->heap;
+}
+
 void ion_carveout_heap_destroy(struct ion_heap *heap)
 {
 	struct ion_carveout_heap *carveout_heap =
