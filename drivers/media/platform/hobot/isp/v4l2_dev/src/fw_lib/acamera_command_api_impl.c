@@ -1331,7 +1331,8 @@ uint8_t system_lux_info( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t di
     uint32_t evtolux_lux_lut_len = _GET_LEN(ACAMERA_MGR2CTX_PTR(instance), CALIBRATION_EVTOLUX_LUX_LUT);
     acamera_fsm_mgr_get_param(instance, FSM_PARAM_GET_CMOS_EXPOSURE_LOG2, &type, sizeof(type), &cur_exposure_log2, sizeof(cur_exposure_log2));
 
-    if ((evtolux_ev_lut_len < 1) || (evtolux_lux_lut_len < 1)) {
+    if ((evtolux_ev_lut_len < 1) || (evtolux_lux_lut_len < 1) || (evtolux_ev_lut_len != evtolux_lux_lut_len)) {
+        *ret_value = 0;
 	return NOT_SUPPORTED;
     }
 
@@ -1345,11 +1346,11 @@ uint8_t system_lux_info( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t di
 			if ( cur_exposure_log2 < evtolux_ev_lut[_i] )
 				break;
 		}
-		//return y0+(y1-y0)*(U16_MAX-x*x0)/(x*(x1-x0));
+		//return y0-(-y1+y0)*(U16_MAX-x*x0)/(x*(x1-x0));
 		if (evtolux_ev_lut[_i] == evtolux_ev_lut[_i - 1]) {
 			lux = evtolux_lux_lut[_i - 1];
 		} else {
-			lux = evtolux_lux_lut[_i - 1] + (((evtolux_lux_lut[_i] - evtolux_lux_lut[_i - 1]) *
+			lux = evtolux_lux_lut[_i - 1] - (((evtolux_lux_lut[_i - 1] - evtolux_lux_lut[_i]) *
 				(cur_exposure_log2 - evtolux_ev_lut[_i - 1]) ) / (evtolux_ev_lut[_i] - evtolux_ev_lut[_i - 1]));
 		}
 	}
