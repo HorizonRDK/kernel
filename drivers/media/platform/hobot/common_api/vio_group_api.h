@@ -26,6 +26,11 @@
 #define X3_IAR_INTERFACE
 #define SET_CPU_AFFINITY
 
+#define SIF_OUT_TASK_PRIORITY    80
+#define SIF_DDRIN_TASK_PRIORITY  70
+#define IPU_TASK_PRIORITY        69
+#define PYM_TASK_PRIORITY        68
+
 #define IPU0_IDLE    BIT(12)
 #define PYM_IDLE	BIT(14)
 
