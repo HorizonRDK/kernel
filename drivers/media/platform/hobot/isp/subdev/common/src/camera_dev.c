@@ -83,6 +83,7 @@ static int camera_fop_release(struct inode *pinode, struct file *pfile)
 		camera_i2c_release(camera_cdev->port);
 		memset(&camera_mod[camera_cdev->port]->camera_param, 0,
 			sizeof(sensor_turning_data_t));
+		camera_cdev->start_num = 0;
 	}
 	mutex_unlock(&camera_cdev->slock);
 	pfile->private_data = NULL;
@@ -150,9 +151,11 @@ static long camera_fop_ioctl(struct file *pfile, unsigned int cmd,
 				return -EINVAL;
 			}
 			if (camera_cdev->start_num == 1)
-				pr_info("ioctl sensor start %d\n", __LINE__);
+				pr_info("ioctl sensor start %d start_num %d\n",
+					__LINE__, camera_cdev->start_num);
 			if (camera_cdev->start_num == 0)
-				pr_info("ioctl sensor stop %d\n", __LINE__);
+				pr_info("ioctl sensor stop %d start_num %d\n",
+					__LINE__, camera_cdev->start_num);
 			break;
 		case SENSOR_GET_START_CNT:
 			if (copy_to_user((void __user *)arg,
