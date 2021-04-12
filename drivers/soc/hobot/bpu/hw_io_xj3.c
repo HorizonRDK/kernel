@@ -24,6 +24,8 @@
 #include "bpu_ctrl.h"
 #include "hw_io.h"
 
+#define CORE_PE_TYPE_OFFSET 4
+
 #define DEFAULT_BURST_LEN (0x80u)
 static int32_t bpu_err_flag;
 

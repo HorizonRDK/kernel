@@ -615,7 +615,7 @@ int32_t acamera_init_context( acamera_context_t *p_ctx, acamera_settings *settin
 {
     int32_t result = 0;
     char name[16] = {0};
-    struct sched_param param = { .sched_priority = MAX_RT_PRIO - 21 };
+    struct sched_param param = { .sched_priority = ISP_EVT_PRIORITY };
     // keep the context pointer for debug purposes
     p_ctx->context_ref = (uint32_t *)p_ctx;
     p_ctx->p_gfw = g_fw;

@@ -101,7 +101,17 @@ int vio_group_task_start(struct vio_group_task *group_task)
 {
 	int ret = 0;
 	char name[30];
-	struct sched_param param = { .sched_priority = MAX_RT_PRIO - 21 };
+	struct sched_param param;
+
+	if(group_task->id == GROUP_ID_SIF_OUT) {
+		param.sched_priority = SIF_OUT_TASK_PRIORITY;
+	} else if (group_task->id == GROUP_ID_SIF_IN) {
+		param.sched_priority = SIF_DDRIN_TASK_PRIORITY;
+	} else if (group_task->id == GROUP_ID_IPU) {
+		param.sched_priority = IPU_TASK_PRIORITY;
+	} else if (group_task->id == GROUP_ID_PYM) {
+		param.sched_priority = PYM_TASK_PRIORITY;
+	}
 
 	BUG_ON(!group_task);
 
