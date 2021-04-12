@@ -209,6 +209,7 @@ static int hobot_dfi_get_event(struct devfreq_event_dev *edev,
 		/* set to max load when not ready*/
 		edata->load_count = 9999;
 		edata->total_count = 10000;
+		spin_unlock_irqrestore(&ddrmon->lock, flags);
 		return 0;
 	}
 
@@ -414,6 +415,7 @@ static int ddr_monitor_mod_release(struct inode *pinode, struct file *pfile)
 static ssize_t ddr_monitor_mod_read(struct file *pfile, char *puser_buf, size_t len, loff_t *poff)
 {
 	int result_len = 0;
+	unsigned long flags;
 
 	/* When reading in multiple processes, g_record_num could be 0 after
 	 * wakeup, retry to wait for refilling ddr_info buffer
@@ -422,9 +424,9 @@ retry:
 	wait_event_interruptible(ddrmon->wq_head,
 					g_record_num >= g_sample_number);
 
-	spin_lock_irq(&ddrmon->lock);
+	spin_lock_irqsave(&ddrmon->lock, flags);
 	result_len = get_monitor_data(result_buf);
-	spin_unlock_irq(&ddrmon->lock);
+	spin_unlock_irqrestore(&ddrmon->lock, flags);
 	if (result_len == 0)
 		goto retry;
 
