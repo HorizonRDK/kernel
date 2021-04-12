@@ -58,7 +58,7 @@
 #endif
 
 /* max size */
-#define ISP_V4L2_MAX_WIDTH 4000
+#define ISP_V4L2_MAX_WIDTH 4096
 #define ISP_V4L2_MAX_HEIGHT 3000
 
 /* default size & format */
