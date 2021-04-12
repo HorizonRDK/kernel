@@ -196,6 +196,7 @@ void panic(const char *fmt, ...)
 	 *
 	 * Bypass the panic_cpu check and call __crash_kexec directly.
 	 */
+#ifndef CONFIG_HOBOT_RAMDUMP
 	if (!_crash_kexec_post_notifiers) {
 		printk_safe_flush_on_panic();
 		__crash_kexec(NULL);
@@ -214,6 +215,7 @@ void panic(const char *fmt, ...)
 		 */
 		crash_smp_send_stop();
 	}
+#endif
 
 	/*
 	 * Run any panic handlers, including those that might need to
@@ -248,8 +250,12 @@ void panic(const char *fmt, ...)
 	 * panic() is not being callled from OOPS.
 	 */
 	debug_locks_off();
-	hobot_swinfo_panic();
 	console_flush_on_panic();
+
+#ifdef CONFIG_HOBOT_RAMDUMP
+	hobot_swinfo_panic();
+	printk_safe_flush_on_panic();
+#endif
 
 	if (!panic_blink)
 		panic_blink = no_blink;

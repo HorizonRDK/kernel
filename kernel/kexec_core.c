@@ -935,14 +935,18 @@ void __noclone __crash_kexec(struct pt_regs *regs)
 	 * sufficient.  But since I reuse the memory...
 	 */
 	if (mutex_trylock(&kexec_mutex)) {
+#ifndef CONFIG_HOBOT_RAMDUMP
 		if (kexec_crash_image) {
+#endif
 			struct pt_regs fixed_regs;
 
 			crash_setup_regs(&fixed_regs, regs);
 			crash_save_vmcoreinfo();
 			machine_crash_shutdown(&fixed_regs);
+#ifndef CONFIG_HOBOT_RAMDUMP
 			machine_kexec(kexec_crash_image);
 		}
+#endif
 		mutex_unlock(&kexec_mutex);
 	}
 }
@@ -1065,6 +1069,9 @@ void crash_save_cpu(struct pt_regs *regs, int cpu)
 	buf = append_elf_note(buf, KEXEC_CORE_NOTE_NAME, NT_PRSTATUS,
 			      &prstatus, sizeof(prstatus));
 	final_note(buf);
+#ifdef CONFIG_HOBOT_RAMDUMP
+	__flush_dcache_all();
+#endif
 }
 
 static int __init crash_notes_memory_init(void)

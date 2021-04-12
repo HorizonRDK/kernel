@@ -27,6 +27,13 @@ config HOBOT_CNN_MM
 
 source "drivers/soc/hobot/bpu/Kconfig"
 
+config HOBOT_RAMDUMP
+        bool "hobot ramdump support"
+        default n
+        depends on KEXEC
+        help
+          Enable hobot ramdump support
+
 config HOBOT_DIAG
         bool "hobot diag driver, based on netlink"
         default n

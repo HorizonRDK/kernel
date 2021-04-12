@@ -856,9 +856,11 @@ static void ipi_cpu_crash_stop(unsigned int cpu, struct pt_regs *regs)
 
 	local_irq_disable();
 
+#ifndef CONFIG_HOBOT_RAMDUMP
 #ifdef CONFIG_HOTPLUG_CPU
 	if (cpu_ops[cpu]->cpu_die)
 		cpu_ops[cpu]->cpu_die(cpu);
+#endif
 #endif
 
 	/* just in case */
