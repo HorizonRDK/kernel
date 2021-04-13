@@ -4852,11 +4852,13 @@ static int xj3_poll(struct napi_struct *napi, int budget) {
     }
 
     work_done = xj3_rx_packet(priv, budget, rx_q->queue_index);
-
-    if (work_done < budget) {
-        napi_complete_done(napi, work_done);
+    /* 
+     * we can enable dma irq only if return value of napi_complete_done is true.
+     * if the return value of napi_complete_done is false,we do nothing here and 
+     * the poll will be called later or schduled again.
+     */ 
+    if ((work_done < budget) && napi_complete_done(napi, work_done))
         xj3_enable_dma_irq(priv, chan);
-    }
 
     return work_done;
 }
