@@ -276,12 +276,6 @@ static void hobot_uart_dma_tx_start(struct uart_port *port)
 	val |= UART_FCR_TDMA_EN;
 	writel(val, port->membase + HOBOT_UART_FCR);
 
-	/**
-	*close DMA transfer
-	*When uarttx_tx = 0 and the console is uart0
-	*/
-	if(!uarttx_ctrl && !strcmp(hobot_port->name, "hobot-uart0"))
-		return;
 	/*Set Transmit DMA size and Start DMA TX */
 	writel(tx_phys_addr, port->membase + HOBOT_UART_TXADDR);
 	writel(count, port->membase + HOBOT_UART_TXSIZE);
@@ -730,6 +724,14 @@ static void hobot_uart_start_tx(struct uart_port *port)
 	unsigned int mask = 0;
 	struct hobot_uart *hobot_port = port->private_data;
 
+	/*
+	 *when uarttx_ctrl=0 and the console is hobot-uart0,disable start_tx
+	 *uart_circ_clear the xmit to prevent the xmit from being full
+	*/
+	if(!uarttx_ctrl && !strcmp(hobot_port->name, "hobot-uart0")) {
+		uart_circ_clear(&port->state->xmit);
+		return;
+	}
 	if (uart_tx_stopped(port) || uart_circ_empty(&port->state->xmit)) {
 		return;
 	}
