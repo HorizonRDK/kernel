@@ -38,8 +38,6 @@
 
 #include "debug.h"
 
-#define HOBOT_SOC_USB_RESET
-
 #define DWC3_DEFAULT_AUTOSUSPEND_DELAY	5000 /* ms */
 
 /**
@@ -1573,23 +1571,6 @@ static void dwc3_sysfs_exit(struct dwc3 *dwc)
 	sysfs_remove_group(&dwc->dev->kobj, &dwc3_attr_group);
 }
 
-#ifdef HOBOT_SOC_USB_RESET
-static void hobot_usb_sw_reset(struct dwc3* dwc) {
-	u32 reg;
-
-	reg = readl(dwc->regs_sys + CPUSYS_SW_RSTEN);
-	reg |= SYS_USB_RSTEN;
-	writel(reg, dwc->regs_sys + CPUSYS_SW_RSTEN);
-	reg &= ~SYS_USB_RSTEN;
-	writel(reg, dwc->regs_sys + CPUSYS_SW_RSTEN);
-}
-
-static void hobot_usb_reset(struct dwc3 *dwc)
-{
-	hobot_usb_sw_reset(dwc);
-}
-#endif
-
 static int dwc3_probe(struct platform_device *pdev)
 {
 	struct device		*dev = &pdev->dev;
@@ -1646,10 +1627,6 @@ static int dwc3_probe(struct platform_device *pdev)
 	dwc->regs_size		= resource_size(&dwc_res);
 	dwc->regs_sys		= regs_sys;
 	dwc->regs_sys_size	= resource_size(res_sys);
-
-#ifdef HOBOT_SOC_USB_RESET
-	hobot_usb_reset(dwc);
-#endif
 
 	dwc3_get_properties(dwc);
 

@@ -280,6 +280,8 @@
 			ranges;
 			reg = <0 0xB2000000 0 0x10000>,
 			  <0 0xA1000000 0 0x1000>;
+			resets = <&rst 0x0 12>;
+			reset-names = "usb";
 			clocks = <&usb_aclk>;
 			clock-names = "usb_aclk";
 

@@ -65,6 +65,9 @@ static int dwc3_of_simple_probe(struct platform_device *pdev)
 			goto regulator_fail;
 		}
 		dev_info(dev, "usb regulator enable succeed\n");
+
+		/* need to reset dwc3 controller */
+		simple->need_reset = true;
 	}
 
 	/*
@@ -134,10 +137,16 @@ static void __dwc3_of_simple_teardown(struct dwc3_of_simple *simple)
 	pm_runtime_put_noidle(simple->dev);
 	pm_runtime_set_suspended(simple->dev);
 
+	/*
+	 * uboot regulator not ready, just reset but don't power off.
+	 * otherwise, reboot fastboot/dfu/ufu will be failed.
+	 */
+#if 0
 	if (simple->vdd08) {
 		if (regulator_disable(simple->vdd08))
 			dev_err(simple->dev, "usb regulator disable error\n");
 	}
+#endif
 }
 
 static int dwc3_of_simple_remove(struct platform_device *pdev)
@@ -214,8 +223,7 @@ MODULE_DEVICE_TABLE(of, of_dwc3_simple_match);
 static struct platform_driver dwc3_of_simple_driver = {
 	.probe		= dwc3_of_simple_probe,
 	.remove		= dwc3_of_simple_remove,
-	// .shutdown	= dwc3_of_simple_shutdown,	/* not ready, otherwise */
-				/* uboot fastboot not work for regulator issue */
+	.shutdown	= dwc3_of_simple_shutdown,
 	.driver		= {
 		.name	= "dwc3-of-simple",
 		.of_match_table = of_dwc3_simple_match,
