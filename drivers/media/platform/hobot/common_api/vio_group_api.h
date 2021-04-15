@@ -170,6 +170,8 @@ void vio_ldc_access_mutex_lock(void);
 void vio_ldc_access_mutex_unlock(void);
 void vio_get_ldc_rst_flag(u32 *ldc_rst_flag);
 void vio_set_ldc_rst_flag(u32 ldc_rst_flag);
+void vio_get_sif_exit_flag(u32 *sif_exit);
+void vio_set_sif_exit_flag(u32 sif_exit);
 
 void vio_rst_mutex_init(void);
 void vio_rst_mutex_lock(void);

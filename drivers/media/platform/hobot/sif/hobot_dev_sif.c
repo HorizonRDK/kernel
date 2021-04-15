@@ -1632,7 +1632,7 @@ int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 	int ret = 0, i;
 	struct x3_sif_dev *sif_dev;
 	struct sif_subdev *subdev;
-	u32 isp_enable, ipi_mode;
+	u32 isp_enable, ipi_mode, isp_flyby;
 	u32 splice_enable, pipe_num;
 	sif_input_mipi_t *p_mipi = NULL;
 
@@ -1658,6 +1658,7 @@ int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 	ipi_mode = p_mipi->ipi_mode;
 
 	isp_enable = subdev->sif_cfg.output.isp.enable;
+	isp_flyby = subdev->sif_cfg.output.isp.func.enable_flyby;
 	splice_enable = subdev->splice_info.splice_enable;
 	pipe_num = subdev->splice_info.pipe_num;
 	mutex_lock(&sif_dev->shared_mutex);
@@ -1683,6 +1684,9 @@ int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 	}
 	if (isp_enable && atomic_read(&sif_dev->isp_init_cnt) == 0) {
 		sif_raw_isp_output_config(sif_dev->base_reg, &subdev->sif_cfg.output);
+		if (isp_flyby) {
+			vio_set_sif_exit_flag(0);
+		}
 	}
 	if (atomic_read(&sif_dev->rsccount) > 0) {
 		goto p_inc;
@@ -1721,8 +1725,9 @@ int sif_video_streamoff(struct sif_video_ctx *sif_ctx)
 	struct x3_sif_dev *sif_dev;
 	struct vio_framemgr *framemgr;
 	struct sif_subdev *subdev;
-	u32 isp_enable;
+	u32 isp_enable, isp_flyby;
 	u32 splice_enable, pipe_num;
+
 
 	if (!(sif_ctx->state & BIT(VIO_VIDEO_START))) {
 		vio_err("[%s][V%02d] invalid STREAM OFF is requested(%lX)",
@@ -1739,9 +1744,14 @@ int sif_video_streamoff(struct sif_video_ctx *sif_ctx)
 	}
 	sif_dev = sif_ctx->sif_dev;
 	framemgr = sif_ctx->framemgr;
+	isp_enable = subdev->sif_cfg.output.isp.enable;
+	isp_flyby = subdev->sif_cfg.output.isp.func.enable_flyby;
 
 	mutex_lock(&sif_dev->shared_mutex);
 	if (sif_ctx->id == 0) {
+		if (isp_enable && isp_flyby) {
+			vio_set_sif_exit_flag(1);
+		}
 		sif_enable_frame_intr(sif_dev->base_reg, subdev->mux_index, false);
 		sif_enable_frame_intr(sif_dev->base_reg, subdev->ddr_mux_index, false);
 		for (i = 0; i < subdev->ipi_channels; i++)
@@ -1755,7 +1765,6 @@ int sif_video_streamoff(struct sif_video_ctx *sif_ctx)
 			}
 		}
 	}
-	isp_enable = subdev->sif_cfg.output.isp.enable;
 	if (isp_enable && (atomic_dec_return(&sif_dev->isp_init_cnt) == 0)) {
 		sif_disable_isp_out_config(sif_dev->base_reg);
 		atomic_set(&sif_dev->isp_init_cnt, 0);

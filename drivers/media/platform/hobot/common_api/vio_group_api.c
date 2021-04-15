@@ -12,7 +12,7 @@
 #include "vio_group_api.h"
 
 static struct vio_core iscore;
-u32 ldc_reset_flag;
+u32 ldc_reset_flag, sif_module_exit;
 struct mutex ldc_access_mutex;
 struct mutex rst_mutex;
 
@@ -51,6 +51,18 @@ void vio_set_ldc_rst_flag(u32 ldc_rst_flag)
 	ldc_reset_flag = ldc_rst_flag;
 }
 EXPORT_SYMBOL(vio_set_ldc_rst_flag);
+
+void vio_get_sif_exit_flag(u32 *sif_exit)
+{
+	*sif_exit = sif_module_exit;
+}
+EXPORT_SYMBOL(vio_get_sif_exit_flag);
+
+void vio_set_sif_exit_flag(u32 sif_exit)
+{
+	sif_module_exit = sif_exit;
+}
+EXPORT_SYMBOL(vio_set_sif_exit_flag);
 
 void vio_rst_mutex_init(void)
 {

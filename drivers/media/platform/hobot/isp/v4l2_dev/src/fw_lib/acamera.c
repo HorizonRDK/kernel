@@ -1275,7 +1275,7 @@ void inline acamera_buffer_done(acamera_context_ptr_t p_ctx)
 int32_t acamera_interrupt_handler()
 {
     int32_t result = 0;
-    uint32_t irq_mask;
+    uint32_t irq_mask, sif_exit_flag;
     unsigned long irq_interval;
 	struct vio_frame_id frmid;
     static struct timeval tv1, tv2;
@@ -1294,7 +1294,19 @@ int32_t acamera_interrupt_handler()
             return 0;
         }
     }
+    if (p_ctx->p_gfw->sif_isp_offline == 0) {
+		vio_get_sif_exit_flag(&sif_exit_flag);
+		if (sif_exit_flag == 1) {
+			  // read the irq vector from isp
+		    irq_mask = acamera_isp_isp_global_interrupt_status_vector_read(0);
 
+		    // clear irq vector
+		    acamera_isp_isp_global_interrupt_clear_vector_write(0, irq_mask);
+		    acamera_isp_isp_global_interrupt_clear_write(0, 0);
+		    acamera_isp_isp_global_interrupt_clear_write(0, 1);
+			return 0;
+		}
+	 }
     // read the irq vector from isp
     irq_mask = acamera_isp_isp_global_interrupt_status_vector_read( 0 );
 
