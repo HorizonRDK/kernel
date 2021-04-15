@@ -1503,6 +1503,8 @@ void ipu_hw_set_src_cfg(struct ipu_subdev *subdev, u32 shadow_index)
 	src_cfg = &subdev->src_cfg;
 
 	if (src_cfg->info_update) {
+		memcpy(&subdev->ipu_cfg.ctrl_info, &src_cfg->src_info,
+				sizeof(ipu_src_ctrl_t));
 		ipu_set_input_img_size(base_reg, shadow_index,
 				src_cfg->src_info.src_width,
 				src_cfg->src_info.src_height);
