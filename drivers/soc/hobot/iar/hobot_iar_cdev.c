@@ -73,6 +73,13 @@
 #define DISP_SET_POSITION _IOW(IAR_CDEV_MAGIC, 0x47, struct position_cfg_t)
 #define DISP_SET_CROP _IOW(IAR_CDEV_MAGIC, 0x48, struct position_cfg_t)
 #define DISP_UPDATE_PAR       _IO(IAR_CDEV_MAGIC, 0x49)
+#define DISP_SET_MIPI_DSI_LCP _IOW(IAR_CDEV_MAGIC, 0x50, struct mipi_dsi_lcp)
+#define DISP_SET_MIPI_DSI_S1P _IOW(IAR_CDEV_MAGIC, 0x51, struct mipi_dsi_s1p)
+#define DISP_SET_MIPI_DSI_SNP _IOW(IAR_CDEV_MAGIC, 0x52, uint8_t)
+#define DISP_MIPI_DSI_CORE_INIT \
+	_IOW(IAR_CDEV_MAGIC, 0x53, struct mipi_dsi_core_init_data)
+#define DISP_MIPI_PANEL_INIT_BEGIN _IO(IAR_CDEV_MAGIC, 0x54)
+#define DISP_MIPI_PANEL_INIT_END _IO(IAR_CDEV_MAGIC, 0x55)
 
 unsigned int iar_open_cnt = 0;
 unsigned int iar_start_cnt = 0;
@@ -491,6 +498,59 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 			ret = disp_set_display_crop(&crop);
 			if (ret)
 				pr_err("error user set crop!\n");
+		}
+		break;
+	case DISP_SET_MIPI_DSI_LCP:
+		 {
+			struct mipi_dsi_lcp dsi_lcp;
+
+			if (copy_from_user(&dsi_lcp, arg, sizeof(dsi_lcp)))
+				return -EFAULT;
+			ret = user_set_dsi_panel_long_cmd(dsi_lcp.cmd_len, dsi_lcp.cmd_data);
+			if (ret)
+				pr_err("iar_cdev: error set mipi dsi cmd!\n");
+		}
+		break;
+	case DISP_SET_MIPI_DSI_S1P:
+		 {
+			struct mipi_dsi_s1p dsi_s1p;
+
+			if (copy_from_user(&dsi_s1p, arg, sizeof(dsi_s1p)))
+				return -EFAULT;
+			ret = dsi_panel_write_cmd_poll(dsi_s1p.cmd, dsi_s1p.data, 0x15);
+			if (ret)
+				pr_err("iar_cdev: error set mipi dsi cmd!\n");
+		}
+		break;
+	case DISP_SET_MIPI_DSI_SNP:
+		 {
+			uint8_t dsi_snp;
+
+			if (copy_from_user(&dsi_snp, arg, sizeof(dsi_snp)))
+				return -EFAULT;
+			ret = dsi_panel_write_cmd_poll(dsi_snp, 0x00, 0x05);
+			if (ret)
+				pr_err("iar_cdev: error set mipi dsi cmd!\n");
+		}
+		break;
+	case DISP_MIPI_DSI_CORE_INIT:
+		 {
+			struct mipi_dsi_core_init_data init_data;
+			if (copy_from_user(&init_data, arg, sizeof(init_data)))
+				return -EFAULT;
+			ret = user_init_mipi_dsi_core(&init_data);
+			if (ret)
+				pr_err("iar_cdev: error init mipi dsi core!\n");
+		}
+		break;
+	case DISP_MIPI_PANEL_INIT_BEGIN:
+		 {
+			mipi_dsi_panel_config_begin();
+		}
+		break;
+	case DISP_MIPI_PANEL_INIT_END:
+		 {
+			mipi_dsi_set_mode(0);//video mode
 		}
 		break;
 	case DISP_SET_PIXEL_CLK:

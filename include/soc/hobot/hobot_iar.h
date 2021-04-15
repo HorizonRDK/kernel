@@ -581,6 +581,35 @@ struct display_vio_channel_pipe {
 	uint8_t vio_channel;
 };
 
+struct mipi_dsi_lcp {
+        uint32_t cmd_len;
+        uint8_t *cmd_data;
+};
+
+struct mipi_dsi_s1p {
+        uint8_t cmd;
+        uint8_t data;
+};
+
+struct video_timing {
+        uint32_t vid_pkt_size;
+        uint32_t vid_num_chunks;
+        uint32_t vid_null_size;
+        uint32_t vid_hsa;
+        uint32_t vid_hbp;
+        uint32_t vid_hline_time;
+        uint32_t vid_vsa;
+        uint32_t vid_vbp;
+        uint32_t vid_vfp;
+        uint32_t vid_vactive_line;
+};
+
+struct mipi_dsi_core_init_data {
+        uint32_t width;
+        uint32_t height;
+        struct video_timing timing;
+};
+
 enum {
 	FORMAT_YUV422_UYVY = 0,
 	FORMAT_YUV422_VYUY = 1,
@@ -866,6 +895,11 @@ int disp_set_interlace_mode(void);
 int user_config_display(enum DISPLAY_TYPE d_type);
 int disp_set_display_crop(struct position_cfg_t *crop_cfg);
 int disp_set_display_position(struct position_cfg_t *position_cfg);
+int32_t user_set_dsi_panel_long_cmd(uint32_t len, uint8_t *tx_buf);
+int dsi_panel_write_cmd_poll(uint8_t cmd, uint8_t data, uint8_t header);
+int user_init_mipi_dsi_core(struct mipi_dsi_core_init_data *init);
+int mipi_dsi_set_mode(uint8_t mode);
+void mipi_dsi_panel_config_begin(void);
 // Supported rotation.
 enum RotationMode {
 	kRotate0 = 0,		// No rotation.

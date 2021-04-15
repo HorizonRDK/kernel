@@ -455,7 +455,7 @@ static int mipi_dsi_dpi_config(uint8_t panel_no)
 	return 0;
 }
 
-static int mipi_dsi_set_mode(uint8_t mode)
+int mipi_dsi_set_mode(uint8_t mode)
 {
 	uint32_t value;
 
@@ -464,6 +464,7 @@ static int mipi_dsi_set_mode(uint8_t mode)
 	writel(value, g_iar_dev->mipi_dsi_regaddr + MODE_CFG);
 	return 0;
 }
+EXPORT_SYMBOL_GPL(mipi_dsi_set_mode);
 
 static int mipi_dsi_vid_mode_cfg(uint8_t mode)
 {
@@ -484,19 +485,6 @@ static int mipi_dsi_vid_mode_cfg(uint8_t mode)
 	writel(value, g_iar_dev->mipi_dsi_regaddr + VID_MODE_CFG);//38
 	return 0;
 }
-
-struct video_timing {
-	uint32_t vid_pkt_size;
-	uint32_t vid_num_chunks;
-	uint32_t vid_null_size;
-	uint32_t vid_hsa;
-	uint32_t vid_hbp;
-	uint32_t vid_hline_time;
-	uint32_t vid_vsa;
-	uint32_t vid_vbp;
-	uint32_t vid_vfp;
-	uint32_t vid_vactive_line;
-};
 
 //struct video_timing video_1080_1920 = {
 //	1080, 0, 0, 16, 512, 1736, 4, 4, 100, 1920,
@@ -675,6 +663,48 @@ int dsi_panel_write_cmd_poll(uint8_t cmd, uint8_t data, uint8_t header)
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(dsi_panel_write_cmd_poll);
+
+int32_t user_set_dsi_panel_long_cmd(uint32_t len, uint8_t *tx_buf)
+{
+	int32_t pld_data_bytes = sizeof(uint32_t), ret;
+	int32_t len_tmp = len;
+	uint32_t remainder;
+	uint32_t val;
+
+	if (len < 3) {
+		pr_err("wrong tx buf length %u for long write\n", len);
+		return -EINVAL;
+	}
+
+	while (DIV_ROUND_UP(len, pld_data_bytes)) {
+		if (len < pld_data_bytes) {
+			remainder = 0;
+			if (copy_from_user(&remainder, tx_buf, len))
+				return -EFAULT;
+			writel(remainder, g_iar_dev->mipi_dsi_regaddr + GEN_PLD_DATA);
+			len = 0;
+		} else {
+			if (copy_from_user(&remainder, tx_buf, pld_data_bytes))
+				return -EFAULT;
+			writel(remainder, g_iar_dev->mipi_dsi_regaddr + GEN_PLD_DATA);
+			tx_buf += pld_data_bytes;
+			len -= pld_data_bytes;
+		}
+
+		ret = readl_poll_timeout(g_iar_dev->mipi_dsi_regaddr + CMD_PKT_STATUS,
+				val, !(val & BIT(3)), 1000, 20000);
+		if (ret < 0) {
+			pr_err("failed to get available write payload FIFO\n");
+			return ret;
+		}
+	}
+
+	dsi_panel_write_cmd_poll(len_tmp, 0x00, 0x39);//byte1 byte2 byte0
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(user_set_dsi_panel_long_cmd);
 
 static int32_t dsi_panel_write_long_cmd(uint32_t len, uint8_t *tx_buf)
 {
@@ -732,6 +762,14 @@ void panel_exit_standby(void)
 	dsi_panel_write_cmd(0x29, 0x00, 0x05);
 }
 EXPORT_SYMBOL_GPL(panel_exit_standby);
+
+void mipi_dsi_panel_config_begin(void)
+{
+	mipi_dsi_set_mode(1);//cmd mode
+        writel(0xfffffffc, g_iar_dev->mipi_dsi_regaddr + CMD_MODE_CFG);// 0x68
+        panel_hardware_reset();
+}
+EXPORT_SYMBOL_GPL(mipi_dsi_panel_config_begin);
 
 int mipi_dsi_panel_init(uint8_t panel_no)
 {
@@ -1583,3 +1621,29 @@ int set_mipi_display(uint8_t panel_no)
 }
 EXPORT_SYMBOL_GPL(set_mipi_display);
 
+int user_init_mipi_dsi_core(struct mipi_dsi_core_init_data *init)
+{
+	if (init == NULL) {
+		pr_err("%s: input init data is NULL,exit!!\n", __func__);
+		return -1;
+	}
+
+	pr_debug("%s: user init mipi dsi core begin!\n", __func__);
+	if (init->width == 1080 && init->height == 1920) {
+		mipi_dsi_core_pre_init(0);
+		mipi_dsi_dpi_config(0);
+	} else if (init->width == 720 && init->height == 1280) {
+		mipi_dsi_core_pre_init(1);
+		mipi_dsi_dpi_config(1);
+	} else if (init->width == 1280 && init->height == 720) {
+		mipi_dsi_core_pre_init(1);
+		mipi_dsi_dpi_config(1);
+	} else {
+		pr_err("%s: unsupport panel resolution!!\n", __func__);
+		return -1;
+	}
+	mipi_dsi_video_config(&init->timing);
+	msleep(100);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(user_init_mipi_dsi_core);
