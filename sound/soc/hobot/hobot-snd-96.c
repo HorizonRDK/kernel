@@ -78,9 +78,27 @@ static int hobot_snd_hw_params(struct snd_pcm_substream *substream,
 		}
 	}
 
-	if (!strcmp(rtd->codec_dai->name, "ac101-ic-pcm0")) {
-		ret = snd_soc_dai_set_sysclk(rtd->codec_dai, AC101_MCLK1, clk,
+	if (rtd->codec_dai->driver && rtd->codec_dai->driver->ops->set_sysclk) {
+		ret = snd_soc_dai_set_sysclk(rtd->codec_dai, AC101_MCLK1, mclk,
 			SND_SOC_CLOCK_IN);
+		if (ret < 0) {
+			pr_err("%s, line:%d\n", __func__, __LINE__);
+			return ret;
+		}
+	}
+	if (!strcmp(rtd->codec_dai->name, "ac108-ic-pcm0")) {
+		ret = snd_soc_dai_set_pll(rtd->codec_dai, 0, 0, mclk,
+			FREQ_OUT);
+		if (ret < 0) {
+			pr_err("%s, line:%d\n", __func__, __LINE__);
+			return ret;
+		}
+	}
+
+	if (rtd->codec_dai->component &&
+			rtd->codec_dai->component->driver->set_sysclk) {
+		ret = snd_soc_component_set_sysclk(rtd->codec_dai->component, 0,
+			ADAU1977_SYSCLK_SRC_LRCLK, sample_rate, SND_SOC_CLOCK_IN);
 		if (ret < 0) {
 			pr_err("%s, line:%d\n", __func__, __LINE__);
 			return ret;
