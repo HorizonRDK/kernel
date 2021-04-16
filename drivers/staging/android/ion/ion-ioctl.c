@@ -18,13 +18,14 @@
 #include <linux/fs.h>
 #include <linux/uaccess.h>
 
-#include "ion.h"
+#include <linux/ion.h>
 
 union ion_ioctl_arg {
 	struct ion_allocation_data allocation;
 	struct ion_heap_query query;
 };
 
+#if 0
 static int validate_ioctl_arg(unsigned int cmd, union ion_ioctl_arg *arg)
 {
 	int ret = 0;
@@ -107,3 +108,5 @@ long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	}
 	return ret;
 }
+#endif
+

@@ -1,0 +1,10 @@
+
+all:
+	cp Makefile.sim_cp Makefile
+	make
+	cp Makefile.sim_ap Makefile
+	make
+	cp Makefile.sim Makefile
+clean:
+	rm -rf *.o *.ko *.cmd
+	rm -rf *.order

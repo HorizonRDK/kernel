@@ -1,4 +1,9 @@
 /* SPDX-License-Identifier: GPL-2.0 */
+/*
+ *
+ * Copyright (c) 2020-21
+ *
+ */
 #ifndef _LINUX_VIRTIO_H
 #define _LINUX_VIRTIO_H
 /* Everything a virtio driver needs to work with any particular virtio
@@ -121,6 +126,10 @@ static inline void *virtqueue_get_used(struct virtqueue *vq)
  * @vqs: the list of virtqueues for this device.
  * @features: the features supported by both driver and device.
  * @priv: private pointer for the driver's use.
+ * @buffer_phy_addr: support buffer memory reserved mode.
+ * @buffer_virt_addr: support buffer memory reserved mode.
+ * @buffer_size: support specify buffer size.
+ * @one_level_parent: support allocate dma memory from platform device.
  */
 struct virtio_device {
 	int index;
@@ -135,6 +144,10 @@ struct virtio_device {
 	struct list_head vqs;
 	u64 features;
 	void *priv;
+	ulong buffer_phy_addr;
+	void *buffer_virt_addr;
+	unsigned int buffer_size;
+	int one_level_parent;
 };
 
 static inline struct virtio_device *dev_to_virtio(struct device *_dev)

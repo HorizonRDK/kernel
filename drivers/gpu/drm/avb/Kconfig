@@ -1,0 +1,7 @@
+config DRM_AVB
+	tristate "Video Broadcasting Over TSN"
+	depends on DRM && TSN
+	select DRM_KMS_HELPER
+	select DRM_KMS_CMA_HELPER
+	help
+	  Choose this option to enable video output over TSN.

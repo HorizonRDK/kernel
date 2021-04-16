@@ -1,0 +1,295 @@
+/*
+ * dts file for Hobot X2 FPGA
+ *
+ * (C) Copyright 2018, Horizon, Inc.
+ *
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+ */
+
+/dts-v1/;
+#include "hobot-xj2.dtsi"
+#include "hobot-pinctrl-xj2.dtsi"
+#include "hobot-clk-xj2.dtsi"
+#include "memory-2g.dtsi"
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/phy/phy.h>
+
+/ {
+	model = "Hobot X2 SVB";
+	compatible = "hobot,x2-fpga";
+
+	aliases {
+		serial0 = &uart0;
+		serial1 = &uart1;
+		serial2 = &uart2;
+		serial3 = &uart3;
+		i2c0	= &i2c0;
+		i2c1	= &i2c1;
+		i2c2	= &i2c2;
+		i2c3	= &i2c3;
+		i2s0	= &i2s0;
+		i2s1	= &i2s1;
+		pwm0	= &pwm_0;
+		pwm1	= &pwm_1;
+		pwm2	= &pwm_2;
+		bifsd	= &bifsd;
+		bifspi	= &bifspi;
+		mmc1	= &sdio0;
+		mmc2	= &sdio1;
+	};
+
+	chosen {
+		bootargs = "earlycon loglevel=8 console=ttyS0 clk_ignore_unused";
+		stdout-path = "serial0:115200n8";
+	};
+
+	memory@0 {
+		device_type = "memory";
+		reg = <0x0 0x0 0x0 0x80000000>;
+	};
+
+};
+
+&i2c0 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	x2_camera@0x20 {
+	    compatible = "x2,camera";
+	    reg = <0x20>;
+	};
+};
+
+&i2c1 {
+	status = "okay";
+};
+
+&pinctrl {
+	status = "okay";
+	gpioirq-bank-cfg = <118 0 0 0>;	//svb zu3
+};
+
+&uart0 {
+	status = "okay";
+	clocks = <&uart0_mclk>;
+	clock-names = "uart_mclk";
+};
+
+&ips {
+	pinctrl-names = "bt_func", "dvp_func";
+	pinctrl-0 = <&btin_func &btout_func>;
+	pinctrl-1 = <&dvpin_func &dvpout_func>;
+	status = "okay";
+};
+
+&isp {
+	status = "okay";
+};
+
+&ipu {
+	status = "okay";
+};
+
+&sif {
+	status = "okay";
+};
+&mipi_host {
+	status = "okay";
+};
+
+&mipi_dev {
+	status = "okay";
+};
+
+&dma {
+	status = "okay";
+};
+
+&dmatest {
+	status = "disabled";
+};
+
+&rtc {
+	status = "okay";
+};
+
+&pwm_0 {
+	status = "disabled";
+};
+
+&spi0 {
+	status = "okay";
+};
+
+&ethernet {
+	status = "okay";
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&eth_func>;
+
+	/* local-mac-address = [ 00 11 22 33 44 55 ]; */
+	phy-handle = <&phy1>;
+	phy-mode = "rgmii-id";
+	mdio {
+		#address-cells = <0x1>;
+		#size-cells = <0x0>;
+		phy1: phy@0 {
+			compatible = "marvell,88E1510","ethernet-phy-ieee802.3-c22";
+			reg = <0x0>;
+		};
+	};
+};
+
+&cnn0 {
+	status = "okay";
+};
+
+&cnn1 {
+	status = "okay";
+};
+
+&iar {
+	status = "okay";
+};
+
+&bifspi {
+	status = "okay";
+};
+
+&bifsd {
+	status = "okay";
+	cd-gpio = <91>;
+};
+
+&bifbase {
+	/*x2-soc: GPIO7[8]: 118, GPIO07[7]: 117*/
+	status = "okay";
+	bifbase_irq_pin = <118>;
+	bifbase_tri_pin = <117>;
+};
+
+&bifeth {
+	status = "okay";
+};
+
+&biflite_spi {
+	status = "okay";
+};
+&biflite_sd {
+	status = "okay";
+};
+
+&nor_flash {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	qspi-mode = <4>;
+
+	flash@0 {
+		compatible = "gd256lq256d";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0x0>;
+		spi-tx-bus-width = <4>;
+		spi-rx-bus-width = <4>;
+		spi-max-frequency = <50000000>; /* For FPGA max clk is 20Mhz */
+
+		partition@qspi-uboot {
+			label = "qspi-uboot";
+			reg = <0x200000 0x200000>;
+		};
+		partition@qspi-linux {
+			label = "qspi-linux";
+			reg = <0x400000 0x1000000>;
+		};
+		partition@qspi-device-tree {
+			label = "qspi-device-tree";
+			reg = <0x1400000 0x100000>;
+		};
+		partition@qspi-rootfs {
+			label = "qspi-rootfs";
+			reg = <0x1500000 0x500000>;
+		};
+	};
+};
+
+&nand_flash {
+	status = "disabled";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	qspi-mode = <4>;
+
+	spi-nand@0 {
+		compatible = "spi-nand";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0x0>;
+		spi-tx-bus-width = <4>;
+		spi-rx-bus-width = <4>;
+		spi-max-frequency = <50000000>; /* For FPGA max clk is 20Mhz */
+
+		bootloader@0 {
+			label = "bootloader";
+			reg = <0 0x300000>;
+		};
+		sys@300000 {
+			label = "sys";
+			reg = <0x300000 0xA00000>;
+		};
+		rootfs@D00000 {
+			label = "rootfs";
+			reg = <0xD00000 0>;
+		};
+	};
+};
+
+&sdio0 {
+	status = "okay";
+	bus-width = <8>;
+	clock-freq-min-max = <100000 200000000>;
+	cap-mmc-highspeed;
+	mmc-hs200-1_8v;
+	non-removable;
+	disable-wp;
+};
+
+&sdio1 {
+	status = "okay";
+	bus-width = <4>;
+	no-mmc;
+	no-sdio;
+	cap-sd-highspeed;
+	sd-uhs-sdr12;
+	sd-uhs-sdr25;
+	sd-uhs-sdr50;
+	sd-uhs-sdr104;
+	//powerup-gpio = <85>;
+	//uhs-180v-gpio = <86>;
+	broken-cd;
+	disable-wp;
+};
+
+
+&watchdog {
+	status = "okay";
+};
+
+&i2s0 {
+	status = "disabled";
+};
+
+&i2s1 {
+	status = "disabled";
+};
+
+&ddr_monitor {
+	status = "okay";
+};
+
+&temp {
+	status = "okay";
+};

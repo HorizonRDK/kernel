@@ -1,0 +1,9 @@
+#
+# BT2MIPI BT2RGB configuration
+#
+#
+config HOBOT_MIPI
+	tristate "X2 LT9211 Drivers"
+	default y
+	---help---
+	   Drivers for the BT2MIPI LT9211 chip

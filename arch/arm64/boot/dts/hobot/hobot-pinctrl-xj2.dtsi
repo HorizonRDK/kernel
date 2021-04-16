@@ -1,0 +1,351 @@
+/*
+ * dts file for Hobot X2 FPGA
+ *
+ * (C) Copyright 2018, Horizon, Inc.
+ *
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+ */
+
+ / {
+	soc {
+		pinctrl: pinctrl@0xA6003000 {
+			compatible = "hobot,x2-pinctrl";
+			reg = <0 0xA6003000 0 0x100>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 45 4>;
+			/*specific the gpio of each irq banck, 0 is invalid*/
+/*
+#ifdef CONFIG_HOBOT_FPGA_X2
+			gpioirq-bank-cfg = <85 0 0 0>;
+#else
+			gpioirq-bank-cfg = <95 0 0 0>;	//som
+#endif
+*/
+			status = "disabled";
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			i2c0_func: i2c0_func {
+				pinctrl-x2,pins-muxs = <
+					9	0 /*i2c0 SCL*/
+					10	0 /*i2c0 SDA*/
+				>;
+			};
+			i2c1_func: i2c1_func {
+				pinctrl-x2,pins-muxs = <
+					11	1 /*i2c1 SDA*/
+					12	1 /*i2c1 SCL*/
+				>;
+			};
+			i2c2_func: i2c2_func {
+				pinctrl-x2,pins-muxs = <
+					76	1 /*i2c2 SCL*/
+					77	1 /*i2c2 SDA*/
+				>;
+			};
+			i2c3_func: i2c3_func {
+				pinctrl-x2,pins-muxs = <
+					66	2 /*i2c3 SCL*/
+					67	2 /*i2c3 SDA*/
+				>;
+			};
+			uart0_func: uart0_func {
+				pinctrl-x2,pins-muxs = <
+					59	0 /*uart0 TXD*/
+					60	0 /*uart0 RXD*/
+				>;
+			};
+			uart1_func: uart1_func {
+				pinctrl-x2,pins-muxs = <
+					84	0 /*uart1 TXD*/
+					85	0 /*uart1 RXD*/
+					86	0 /*uart1 RTSN*/
+					87	0 /*uart1 GTSN*/
+				>;
+			};
+			uart2_func_a: uart2_func_a {
+				pinctrl-x2,pins-muxs = <
+					86	1 /*uart2 TXD*/
+					87	1 /*uart2 RXD*/
+				>;
+			};
+			uart2_func_b: uart2_func_b {
+				pinctrl-x2,pins-muxs = <
+					13	1 /*uart2 TXD*/
+					14	1 /*uart2 RXD*/
+				>;
+			};
+			uart3_func: uart3_func {
+				pinctrl-x2,pins-muxs = <
+					64	2 /*uart3 TXD*/
+					65	2 /*uart3 RXD*/
+				>;
+			};
+			i2s0_func: i2s0_func {
+				pinctrl-x2,pins-muxs = <
+					88 0 /*i2s0 MCLK*/
+					89 0 /*i2s0 BGLK*/
+					90 0 /*i2s0 LRGK*/
+					91 0 /*i2s0 SDIO*/
+				>;
+			};
+			i2s1_func: i2s1_func_a {
+				pinctrl-x2,pins-muxs = <
+					5 1 /*i2s1 MCLK*/
+					61 2
+					62 2
+					63 2
+				>;
+			};
+			i2s1_func_b: i2s1_func_b {
+				pinctrl-x2,pins-muxs = <
+					116 1 /*i2s1 MCLK*/
+					61 2
+					62 2
+					63 2
+				>;
+			};
+			btin_func:btin_func {
+				pinctrl-x2,pins-muxs = <
+					61	0
+					62	0
+					63	0
+					64	0
+					65	0
+					66	0
+					67	0
+					68	0
+					69	0
+					70	0
+					71	0
+					72	0
+					73	0
+					74	0
+					75	0
+					76	0
+					77	0
+				>;
+			};
+			btout_func: btout_func {
+				pinctrl-x2,pins-muxs = <
+					93	0
+					94	0
+					95	0
+					96	0
+					97	0
+					98	0
+					99	0
+					100	0
+					101	0
+					102	0
+					103	0
+					104	0
+					105	0
+					106	0
+					107	0
+					108	0
+					109	0
+				>;
+			};
+			dvpin_func: dvpin_func {
+				pinctrl-x2,pins-muxs = <
+					61	1
+					62	1
+					63	1
+					64	1
+					65	1
+					66	1
+					67	1
+					68	1
+					69	1
+					70	1
+					71	1
+					72	1
+					73	1
+					74	1
+					75	1
+				>;
+			};
+			dvpout_func:dvpout_func {
+				pinctrl-x2,pins-muxs = <
+					93	1
+					94	1
+					95	1
+					96	1
+					97	1
+					98	1
+					99	1
+					100	1
+					101	1
+					102	1
+					103	1
+					104	1
+					105	1
+					106	1
+					107	1
+				>;
+			};
+			bifsd_func:bifsd_func {
+				pinctrl-x2,pins-muxs = <
+					15	0
+					16	0
+					17	0
+					18	0
+					19	0
+					20	0
+					21	0
+					22	0
+					23	0
+					24	0
+					25	0
+				>;
+			};
+			bifspi_func:bifspi_func {
+				pinctrl-x2,pins-muxs = <
+					26	0
+					27	0
+					28	0
+					29	0
+					30	3 /*pinmux -> gpio func*/
+				>;
+			};
+			bifspi_func_reset:bifspi_func_reset {
+				pinctrl-x2,pins-muxs = <
+					26	0
+					27	0
+					28	0
+					29	0
+					30	0 /*pinmux -> reset func*/
+				>;
+			};
+			spi0_func:spi0_func {
+				pinctrl-x2,pins-muxs = <
+					11	0
+					12	0
+					13	0
+					14	0
+				>;
+			};
+			spi1_func:spi1_func {
+				pinctrl-x2,pins-muxs = <
+					4	1
+					6	1
+					7	1
+					8	1
+				>;
+			};
+			spi2_func:spi2_func {
+				pinctrl-x2,pins-muxs = <
+					68	2
+					69	2
+					70	2
+					71	2
+				>;
+			};
+			qspi_func:qspi_func {
+				pinctrl-x2,pins-muxs = <
+					110	0
+					111	0
+					112	0
+					113	0
+					114	0
+					115	0
+				>;
+			};
+			sdio0_func:sdio0_func {
+				pinctrl-x2,pins-muxs = <
+					46	0
+					47	0
+					48	0
+					49	0
+					50	0
+					51	0
+					52	0
+					53	0
+					54	0
+					55	0
+					56		0
+					57		0
+					58		0
+				>;
+			};
+			sdio1_func:sdio1_func {
+				pinctrl-x2,pins-muxs = <
+					78	0
+					79	0
+					80	0
+					81	0
+					82	0
+					83	0
+				>;
+			};
+			eth_func:eth_func {
+				pinctrl-x2,pins-muxs = <
+					31	0
+					32	0
+					33	0
+					34	0
+					35	0
+					36	0
+					37	0
+					38	0
+					39	0
+					40	0
+					41	0
+					42	0
+					43	0
+					44	0
+					45	0
+				>;
+			};
+			pwm0:pwm0_func {
+				pinctrl-x2,pins-muxs = <
+					4	2
+				>;
+			};
+			pwm1:pwm1_func {
+				pinctrl-x2,pins-muxs = <
+					5	2
+				>;
+			};
+			pwm2:pwm2_func {
+				pinctrl-x2,pins-muxs = <
+					6	2
+				>;
+			};
+			pwm3:pwm3_func {
+				pinctrl-x2,pins-muxs = <
+					7	2
+				>;
+			};
+			pwm4:pwm4_func {
+				pinctrl-x2,pins-muxs = <
+					8	2
+				>;
+			};
+			pwm5:pwm5_func {
+				pinctrl-x2,pins-muxs = <
+					72	2
+				>;
+			};
+			pwm6:pwm6_func {
+				pinctrl-x2,pins-muxs = <
+					73	2
+				>;
+			};
+			pwm7:pwm7_func {
+				pinctrl-x2,pins-muxs = <
+					74	2
+				>;
+			};
+			pwm8:pwm8_func {
+				pinctrl-x2,pins-muxs = <
+					75	2
+				>;
+			};
+		};
+	};
+};

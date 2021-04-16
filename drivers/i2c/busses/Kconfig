@@ -1326,4 +1326,10 @@ config I2C_ZX2967
 	  This driver can also be built as a module. If so, the module will be
 	  called i2c-zx2967.
 
+config I2C_HOBOT
+	tristate "HOBOT I2C driver"
+	depends on ARCH_HOBOT
+	default n
+	help
+	  Eenbale HOBOT I2C support.
 endmenu

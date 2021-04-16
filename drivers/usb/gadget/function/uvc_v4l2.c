@@ -60,7 +60,10 @@ struct uvc_format {
 
 static struct uvc_format uvc_formats[] = {
 	{ 16, V4L2_PIX_FMT_YUYV  },
+	{ 12, V4L2_PIX_FMT_NV12 },
 	{ 0,  V4L2_PIX_FMT_MJPEG },
+	{ 0,  V4L2_PIX_FMT_H264 },
+	{ 0,  V4L2_PIX_FMT_H265 },
 };
 
 static int
@@ -131,6 +134,13 @@ uvc_v4l2_set_format(struct file *file, void *fh, struct v4l2_format *fmt)
 	video->width = fmt->fmt.pix.width;
 	video->height = fmt->fmt.pix.height;
 	video->imagesize = imagesize;
+	if (video->imagesize > UVC_MAX_TRB_SIZE)
+		video->max_payload_size = UVC_MAX_TRB_SIZE;	// for bulk mode
+	else
+		video->max_payload_size = imagesize;	// for bulk mode
+
+	printk(KERN_INFO "%s, max_payload_size(0x%x), image_size(0x%x)\n",
+			__func__, video->max_payload_size, video->imagesize);
 
 	fmt->fmt.pix.field = V4L2_FIELD_NONE;
 	fmt->fmt.pix.bytesperline = bpl;
@@ -176,7 +186,9 @@ uvc_v4l2_qbuf(struct file *file, void *fh, struct v4l2_buffer *b)
 	if (ret < 0)
 		return ret;
 
-	return uvcg_video_pump(video);
+	schedule_work(&video->pump);
+
+	return ret;
 }
 
 static int
@@ -206,11 +218,21 @@ uvc_v4l2_streamon(struct file *file, void *fh, enum v4l2_buf_type type)
 		return ret;
 
 	/*
-	 * Complete the alternate setting selection setup phase now that
-	 * userspace is ready to provide video frames.
+	 * Alt settings in an interface are supported only
+	 * for ISOC endpoints as there are different alt-
+	 * settings for zero-bandwidth and full-bandwidth
+	 * cases, but the same is not true for BULK endpoints,
+	 * as they have a single alt-setting.
 	 */
-	uvc_function_setup_continue(uvc);
-	uvc->state = UVC_STATE_STREAMING;
+	if (!usb_endpoint_xfer_bulk(video->ep->desc)) {
+		/*
+		 * Complete the alternate setting selection
+		 * setup phase now that userspace is ready
+		 * to provide video frames.
+		 */
+		uvc_function_setup_continue(uvc);
+		uvc->state = UVC_STATE_STREAMING;
+	}
 
 	return 0;
 }

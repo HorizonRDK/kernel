@@ -515,6 +515,11 @@ config PCI_ENDPOINT_TEST
            Enable this configuration option to enable the host side test driver
            for PCI Endpoint.
 
+config HOBOT_EFUSE
+	tristate "HOBOT efuse driver"
+	---help---
+           Enable this configuration option to enable the HOBOT efuse driver.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
@@ -527,4 +532,8 @@ source "drivers/misc/mic/Kconfig"
 source "drivers/misc/genwqe/Kconfig"
 source "drivers/misc/echo/Kconfig"
 source "drivers/misc/cxl/Kconfig"
+source "drivers/misc/bt2hdmi/Kconfig"
+source "drivers/misc/bt2hdmi-lt/Kconfig"
+source "drivers/misc/bt2mipi/Kconfig"
+source "drivers/misc/timesync/Kconfig"
 endmenu

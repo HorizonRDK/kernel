@@ -67,6 +67,7 @@ static DEFINE_RWLOCK(cpufreq_driver_lock);
 
 /* Flag to suspend/resume CPUFreq governors */
 static bool cpufreq_suspended;
+static unsigned int disabled_freq;
 
 static inline bool has_target(void)
 {
@@ -857,6 +858,60 @@ static ssize_t show_scaling_setspeed(struct cpufreq_policy *policy, char *buf)
 	return policy->governor->show_setspeed(policy, buf);
 }
 
+static ssize_t store_scaling_disable_freq(struct cpufreq_policy *policy,
+					const char *buf, size_t count)
+{
+	struct cpufreq_frequency_table *pos, *table;
+	unsigned int freq = 0;
+	unsigned int prev_freq = 0;
+	unsigned int ret;
+
+	ret = kstrtouint(buf, 10, &freq);
+	if (ret)
+		return -EINVAL;
+
+	table = policy->freq_table;
+	if (!table)
+		return -EINVAL;
+
+	if (freq) {
+		if (disabled_freq != 0 && freq != disabled_freq) {
+			pr_err("Only allow disable one freq opp.\n");
+			pr_err("Current disabled freq is %dMhz.\n",
+					disabled_freq / 1000);
+			return -EINVAL;
+		}
+
+		cpufreq_for_each_valid_entry(pos, table) {
+			if (pos->frequency == freq) {
+				disabled_freq = freq;
+				pos->frequency = CPUFREQ_ENTRY_INVALID;
+				break;
+			}
+		}
+	} else {
+		if (disabled_freq == 0)
+			return count;
+
+		cpufreq_for_each_entry(pos, table) {
+			if (pos->frequency == CPUFREQ_ENTRY_INVALID) {
+				pos->frequency = disabled_freq;
+				disabled_freq = freq;
+				break;
+			}
+			prev_freq = pos->frequency;
+		}
+	}
+
+	return count;
+}
+
+static ssize_t show_scaling_disable_freq(struct cpufreq_policy *policy,
+						char *buf)
+{
+	return sprintf(buf, "%u\n", disabled_freq);
+}
+
 /**
  * show_bios_limit - show the current cpufreq HW/BIOS limitation
  */
@@ -886,6 +941,7 @@ cpufreq_freq_attr_rw(scaling_min_freq);
 cpufreq_freq_attr_rw(scaling_max_freq);
 cpufreq_freq_attr_rw(scaling_governor);
 cpufreq_freq_attr_rw(scaling_setspeed);
+cpufreq_freq_attr_rw(scaling_disable_freq);
 
 static struct attribute *default_attrs[] = {
 	&cpuinfo_min_freq.attr,
@@ -899,6 +955,7 @@ static struct attribute *default_attrs[] = {
 	&scaling_driver.attr,
 	&scaling_available_governors.attr,
 	&scaling_setspeed.attr,
+	&scaling_disable_freq.attr,
 	NULL
 };
 

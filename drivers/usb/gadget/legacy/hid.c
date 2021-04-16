@@ -270,7 +270,83 @@ static struct platform_driver hidg_plat_driver = {
 		.name	= "hidg",
 	},
 };
+#if 0
+static struct hidg_func_descriptor my_customized_hid_data = {
+	.subclass		= 0, /* No subclass */
+	.protocol		= 0xff,
+	.report_length		= 64,
+	.report_desc_length	= 32,
+	.report_desc		= {
+		// Global Usage Page
+		0x04 + 2, 0xFF, 0xFF, // Vendor-defined
+		// Collection: Application
+		0x08 + 1, 0xFF, // Vendor-defined
+		0xa0 + 1, 0x01,
+		// Input report: Vendor-defined
+		0x08 + 1, 0xFF, // Vendor-defined usage
+		0x94 + 1, 64,// report count
+		0x74 + 1, 8,  //8
+		0x14 + 1, (unsigned char) -128,
+		0x24 + 1, (unsigned char)  127,
+		0x80 + 1, 0,    // No Modifiers
 
+		// Output report: vendor-defined
+		0x08 + 1, 0xFF, // Vendor-defined usage
+		0x94 + 1, 64,  // report count
+		0x74 + 1, 8,  //8
+		0x14 + 1, (unsigned char) -128,
+		0x24 + 1, (unsigned char)  127,
+		0x90 + 1, 0,    // No Modifiers
+
+		0xc0
+	}
+};
+#else
+static struct hidg_func_descriptor my_customized_hid_data = {
+	.subclass		= 0, /* No subclass */
+	.protocol		= 0xff,
+	.report_length		= 1024,
+	.report_desc_length	= 34,
+	.report_desc		= {
+		// Global Usage Page
+		0x04 + 2, 0xFF, 0xFF, // Vendor-defined
+		// Collection: Application
+		0x08 + 1, 0xFF, // Vendor-defined
+		0xa0 + 1, 0x01,
+		// Input report: Vendor-defined
+		0x08 + 1, 0xFF, // Vendor-defined usage
+		0x94 + 2, 0x00, 0x04,// report count
+		0x74 + 1, 8,  //8
+		0x14 + 1, (unsigned char) -128,
+		0x24 + 1, (unsigned char)  127,
+		0x80 + 1, 0,    // No Modifiers
+
+		// Output report: vendor-defined
+		0x08 + 1, 0xFF, // Vendor-defined usage
+		0x94 + 2, 0x00, 0x04,// report count
+		0x74 + 1, 8,  //8
+		0x14 + 1, (unsigned char) -128,
+		0x24 + 1, (unsigned char)  127,
+		0x90 + 1, 0,    // No Modifiers
+
+		0xc0
+	}
+};
+#endif
+
+void my_hid_dev_release(struct device *dev)
+{
+	dev->platform_data = NULL;
+}
+
+static struct platform_device my_hid = {
+	.name			= "hidg",
+	.id			= 0,
+	.num_resources		= 0,
+	.resource		= 0,
+	.dev.platform_data	= &my_customized_hid_data,
+	.dev.release            = &my_hid_dev_release,
+};
 
 MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_AUTHOR("Fabien Chouteau, Peter Korsgaard");
@@ -279,6 +355,13 @@ MODULE_LICENSE("GPL");
 static int __init hidg_init(void)
 {
 	int status;
+
+	status = platform_device_register(&my_hid);
+	if (status < 0) {
+		printk("____ reg failed\n");
+		platform_device_unregister(&my_hid);
+		return status;
+	}
 
 	status = platform_driver_probe(&hidg_plat_driver,
 				hidg_plat_driver_probe);
@@ -296,6 +379,7 @@ module_init(hidg_init);
 static void __exit hidg_cleanup(void)
 {
 	usb_composite_unregister(&hidg_driver);
+	platform_device_unregister(&my_hid);
 	platform_driver_unregister(&hidg_plat_driver);
 }
 module_exit(hidg_cleanup);

@@ -1,0 +1,10 @@
+obj-y += ov5648_mipi_raw.o
+obj-y += ov10635_dvp_yuv.o
+obj-y += ov10635_mipi_yuv.o
+obj-y += ov10642_dvp_raw.o
+obj-y += ov10640_mipi_yuv.o
+obj-y += ov13855_mipi_raw.o
+obj-y += ds964_mipi_yuv.o
+obj-y += ds964_mipi_raw.o
+obj-y += x2_sensor_dev.o
+obj-y += x2_camera.o

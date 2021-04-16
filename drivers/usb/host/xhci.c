@@ -32,6 +32,7 @@
 #include "xhci.h"
 #include "xhci-trace.h"
 #include "xhci-mtk.h"
+#include "xhci-debugfs.h"
 
 #define DRIVER_AUTHOR "Sarah Sharp"
 #define DRIVER_DESC "'eXtensible' Host Controller (xHC) Driver"
@@ -647,6 +648,9 @@ int xhci_run(struct usb_hcd *hcd)
 	}
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
 			"Finished xhci_run for USB2 roothub");
+
+	xhci_debugfs_init(xhci);
+
 	return 0;
 }
 EXPORT_SYMBOL_GPL(xhci_run);
@@ -669,8 +673,6 @@ static void xhci_stop(struct usb_hcd *hcd)
 
 	/* Only halt host and free memory after both hcds are removed */
 	if (!usb_hcd_is_primary_hcd(hcd)) {
-		/* usb core will free this hcd shortly, unset pointer */
-		xhci->shared_hcd = NULL;
 		mutex_unlock(&xhci->mutex);
 		return;
 	}
@@ -5069,6 +5071,8 @@ static int __init xhci_hcd_init(void)
 	if (usb_disabled())
 		return -ENODEV;
 
+	xhci_debugfs_create_root();
+
 	return 0;
 }
 
@@ -5076,7 +5080,10 @@ static int __init xhci_hcd_init(void)
  * If an init function is provided, an exit function must also be provided
  * to allow module unload.
  */
-static void __exit xhci_hcd_fini(void) { }
+static void __exit xhci_hcd_fini(void)
+{
+	xhci_debugfs_remove_root();
+}
 
 module_init(xhci_hcd_init);
 module_exit(xhci_hcd_fini);

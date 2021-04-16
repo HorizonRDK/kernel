@@ -337,7 +337,14 @@ static int __init topology_init(void)
 
 	for_each_possible_cpu(i) {
 		struct cpu *cpu = &per_cpu(cpu_data.cpu, i);
+#ifdef CONFIG_HOBOT_XJ3
+		if (i == 0)
+			cpu->hotpluggable = 0;
+		else
+			cpu->hotpluggable = 1;
+#else
 		cpu->hotpluggable = 1;
+#endif
 		register_cpu(cpu, i);
 	}
 

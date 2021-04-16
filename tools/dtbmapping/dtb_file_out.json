@@ -1,0 +1,11 @@
+{
+    "imagefile" :   "Image",
+    "imageaddr" :   "200000",
+    "imagesize" :   "900000",
+    "recoveryaddr" :    "700000",
+    "recoverysize" :    "900000",
+    "output0"   :   "dtb-mapping.conf",
+    "output1"   :   "hobot-dtb.img",
+    "output2"   :   "hobot-dtb.gz",
+    "output3"   :   "hobot-xj3-dtb.img"
+}

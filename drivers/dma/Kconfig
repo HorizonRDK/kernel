@@ -600,6 +600,11 @@ config ZX_DMA
 	help
 	  Support the DMA engine for ZTE ZX family platform devices.
 
+config HOBOT_DMA
+	tristate "Hobot DMA controller support"
+	depends on ARCH_HOBOT
+	help
+	  Enable hobot HOBOT DMA controller driver.
 
 # driver files
 source "drivers/dma/bestcomm/Kconfig"

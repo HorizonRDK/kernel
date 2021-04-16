@@ -27,8 +27,9 @@
 #include <linux/slab.h>
 #include <linux/workqueue.h>
 #include <linux/pinctrl/consumer.h>
+#include <linux/delay.h>
 
-#define USB_GPIO_DEBOUNCE_MS	20	/* ms */
+#define USB_GPIO_DEBOUNCE_MS	500	/* ms */
 
 struct usb_extcon_info {
 	struct device *dev;
@@ -38,6 +39,9 @@ struct usb_extcon_info {
 	struct gpio_desc *vbus_gpiod;
 	int id_irq;
 	int vbus_irq;
+
+	struct gpio_desc *usb_host_reset;
+	struct gpio_desc *usb_host_exreset;
 
 	unsigned long debounce_jiffies;
 	struct delayed_work wq_detcable;
@@ -80,12 +84,22 @@ static void usb_extcon_detect_cable(struct work_struct *work)
 		gpiod_get_value_cansleep(info->vbus_gpiod) : id;
 
 	/* at first we clean states which are no longer active */
-	if (id)
+	if (id) {
+		if (info->usb_host_reset)
+			gpiod_set_value_cansleep(info->usb_host_reset, 1);
+		if (info->usb_host_exreset)
+			gpiod_set_value_cansleep(info->usb_host_exreset, 1);
 		extcon_set_state_sync(info->edev, EXTCON_USB_HOST, false);
+	}
+
 	if (!vbus)
 		extcon_set_state_sync(info->edev, EXTCON_USB, false);
 
 	if (!id) {
+		if (info->usb_host_reset)
+			gpiod_set_value_cansleep(info->usb_host_reset, 0);
+		if (info->usb_host_exreset)
+			gpiod_set_value_cansleep(info->usb_host_exreset, 0);
 		extcon_set_state_sync(info->edev, EXTCON_USB_HOST, true);
 	} else {
 		if (vbus)
@@ -145,6 +159,21 @@ static int usb_extcon_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+	info->usb_host_reset = devm_gpiod_get_optional(&pdev->dev, "host-rst", GPIOD_OUT_LOW);
+	if (info->usb_host_reset) {
+		gpiod_set_value(info->usb_host_reset, 0);
+		udelay(5*1000);
+		gpiod_set_value(info->usb_host_reset, 1);
+		udelay(100);
+		gpiod_set_value(info->usb_host_reset, 0);
+	}
+
+	info->usb_host_exreset = devm_gpiod_get_optional(&pdev->dev, "host-exrst", GPIOD_OUT_HIGH);
+	if (info->usb_host_exreset) {
+		gpiod_set_value(info->usb_host_exreset, 0);
+	}
+
+#if 0
 	if (info->id_gpiod)
 		ret = gpiod_set_debounce(info->id_gpiod,
 					 USB_GPIO_DEBOUNCE_MS * 1000);
@@ -153,6 +182,7 @@ static int usb_extcon_probe(struct platform_device *pdev)
 					 USB_GPIO_DEBOUNCE_MS * 1000);
 
 	if (ret < 0)
+#endif
 		info->debounce_jiffies = msecs_to_jiffies(USB_GPIO_DEBOUNCE_MS);
 
 	INIT_DELAYED_WORK(&info->wq_detcable, usb_extcon_detect_cable);

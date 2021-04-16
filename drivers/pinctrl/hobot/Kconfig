@@ -1,0 +1,13 @@
+config PINCTRL_HOBOT_X2
+	bool "Hobot x2 pinctrl driver"
+	depends on ARCH_HOBOT
+	select PINMUX
+	select GENERIC_PINCONF
+	select GPIOLIB_IRQCHIP
+
+config HOBOT_PINCTRL_CDEV
+	bool "Hobot pinctrl cdev driver"
+	depends on ARCH_HOBOT
+	select PINMUX
+	select GENERIC_PINCONF
+	select GPIOLIB_IRQCHIP

@@ -156,6 +156,14 @@ config REGULATOR_AS3722
 	  AS3722 PMIC. This will enable support for all the software
 	  controllable DCDC/LDO regulators.
 
+config REGULATOR_AXP15060
+	tristate "X-Powers AXP15060 regulator driver"
+	depends on I2C
+	select REGMAP_I2C
+	help
+	  Say y here to support the regulators found on the X-Powers
+	  AXP15060 PMIC.
+
 config REGULATOR_AXP20X
 	tristate "X-POWERS AXP20X PMIC Regulators"
 	depends on MFD_AXP20X
@@ -540,6 +548,14 @@ config REGULATOR_MC13892
 	  Say y here to support the regulators found on the Freescale MC13892
 	  PMIC.
 
+config REGULATOR_MPQ7920
+	tristate "MPS mpq7920 voltage regulator"
+	depends on I2C
+	select REGMAP_I2C
+	help
+	  This driver controls a mps mpq7920 and mp5416 voltage output
+	  regulator via I2C bus.
+
 config REGULATOR_MT6311
 	tristate "MediaTek MT6311 PMIC"
 	depends on I2C
@@ -619,6 +635,14 @@ config REGULATOR_PFUZE100
 	help
 	  Say y here to support the regulators found on the Freescale
 	  PFUZE100/200/3000 PMIC.
+
+config REGULATOR_PF5024
+	tristate "NXP PF5024 regulator driver"
+	depends on I2C
+	select REGMAP_I2C
+	help
+	  Say y here to support the regulators found on the NXP
+	  PF5024 PMIC.
 
 config REGULATOR_PV88060
 	tristate "Powerventure Semiconductor PV88060 regulator"

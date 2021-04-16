@@ -1,0 +1,58 @@
+
+3f37c424bdd881334a672f1997731047  ddr_dol2_frm000_2048x1097_nh.yuv
+3f37c424bdd881334a672f1997731047  ddr_dol2_frm000_2048x1097_nh2.yuv
+3f37c424bdd881334a672f1997731047  ddr_dol2_frm000_2048x1097_nl.yuv
+3f37c424bdd881334a672f1997731047  ddr_dol2_frm000_2048x1097_nl2.yuv
+3f37c424bdd881334a672f1997731047  ddr_dol2_frm000_2048x1097_nn.yuv
+3f37c424bdd881334a672f1997731047  ddr_dol2_frm000_2048x1097_nn2.yuv
+
+a057575db4428e43dfe30ef3ac74fef6  ddr_dol2_frm000_2048x1097_hh.yuv
+a057575db4428e43dfe30ef3ac74fef6  ddr_dol2_frm000_2048x1097_hh2.yuv
+a057575db4428e43dfe30ef3ac74fef6  ddr_dol2_frm000_2048x1097_hl.yuv
+a057575db4428e43dfe30ef3ac74fef6  ddr_dol2_frm000_2048x1097_hl2.yuv
+a057575db4428e43dfe30ef3ac74fef6  ddr_dol2_frm000_2048x1097_hn.yuv
+a057575db4428e43dfe30ef3ac74fef6  ddr_dol2_frm000_2048x1097_hn2.yuv
+
+90f77e27643e01928dc545c4e8ef5d6f  ddr_dol2_frm000_2048x1097_ll.yuv
+90f77e27643e01928dc545c4e8ef5d6f  ddr_dol2_frm000_2048x1097_lh.yuv
+90f77e27643e01928dc545c4e8ef5d6f  ddr_dol2_frm000_2048x1097_ln.yuv
+nn -> hn => diff
+
+nn -> nh => same
+nn -> nl => same
+hh -> hn => same
+hh -> hl => same
+ll -> lh => same
+ll -> ln => same
+
+==============================================================================================
+518da828fe4d8a26943ebb5807af857f  ddr-dol3_frm000_2048x1097_hnn.yuv
+518da828fe4d8a26943ebb5807af857f  ddr-dol3_frm000_2048x1097_hnn2.yuv
+
+7667d4abaf9ae76c8fb90fbc72d03e6e  ddr-dol3_frm000_2048x1097_hhn.yuv
+7667d4abaf9ae76c8fb90fbc72d03e6e  ddr-dol3_frm000_2048x1097_hhn2.yuv
+
+978a0ee2bd0b8dabd9a93d5e71f5dc2f  ddr-dol3_frm000_2048x1097_nnn.yuv
+978a0ee2bd0b8dabd9a93d5e71f5dc2f  ddr-dol3_frm000_2048x1097_nnn2.yuv
+
+9be2541e78b9309ad8b79879ef017b59  ddr-dol3_frm000_2048x1097_nhn.yuv
+9be2541e78b9309ad8b79879ef017b59  ddr-dol3_frm000_2048x1097_nhn2.yuv
+
+f5125fc22e92d5274ab807e0f4c065c4  ddr-dol3_frm000_2048x1097_hnh.yuv
+f5125fc22e92d5274ab807e0f4c065c4  ddr-dol3_frm000_2048x1097_hnh2.yuv
+
+fb14703495d18ce1bddc113454f78e1e  ddr-dol3_frm000_2048x1097_hhh.yuv
+fb14703495d18ce1bddc113454f78e1e  ddr-dol3_frm000_2048x1097_hhh2.yuv
+
+fbef942f0bc5a45bd1ba81fc32aa8027  ddr-dol3_frm000_2048x1097_nnh.yuv
+fbef942f0bc5a45bd1ba81fc32aa8027  ddr-dol3_frm000_2048x1097_nnh2.yuv
+
+3ccd08c1cfddab216bab7c13b0b63f97  ddr-dol3_frm000_2048x1097_nhh.yuv
+3ccd08c1cfddab216bab7c13b0b63f97  ddr-dol3_frm000_2048x1097_nhh2.yuv
+
+nnn -> nnh =>diff
+nnn -> nhn =>diff
+nnn -> hnn =>diff
+
+
+

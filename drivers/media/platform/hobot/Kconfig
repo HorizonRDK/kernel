@@ -1,0 +1,22 @@
+#
+# VIO configuration
+#
+
+menu "VIO Configuratio"
+config HOBOT_VIO
+	tristate "HOBOT VIO Drivers"
+	default n
+	---help---
+	   Drivers for the HOBOT VIO
+
+endmenu
+
+source "drivers/media/platform/hobot/isp/Kconfig"
+
+config HOBOT_MIPI_CSI
+	bool "Hobot MIPI CSI Drivers"
+	depends on ARCH_HOBOT || ARCH_ZYNQMP
+	---help---
+	  Drivers for the Hobot MIPI CSI
+
+source "drivers/media/platform/hobot/mipi/Kconfig"

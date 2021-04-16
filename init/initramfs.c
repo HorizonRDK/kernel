@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0
-/*
+/* 
+ * Copyright (C) 2015, Google
+ * 
  * Many of the syscalls used in this file expect some of the arguments
  * to be __user pointers not __kernel pointers.  To limit the sparse
  * noise, turn off sparse checking for this file.
  */
+
 #ifdef __CHECKER__
 #undef __CHECKER__
 #warning "Sparse checking disabled for this file"
@@ -20,6 +23,7 @@
 #include <linux/syscalls.h>
 #include <linux/utime.h>
 #include <linux/file.h>
+#include <linux/initramfs.h>
 
 static ssize_t __init xwrite(int fd, const char *p, size_t count)
 {
@@ -607,10 +611,29 @@ static void __init clean_rootfs(void)
 }
 #endif
 
+static int __initdata do_skip_initramfs;
+
+static int __init skip_initramfs_param(char *str)
+{
+	if (*str)
+		return 0;
+	do_skip_initramfs = 1;
+	return 1;
+}
+__setup("skip_initramfs", skip_initramfs_param);
+
 static int __init populate_rootfs(void)
 {
+	char *err;
+
+	if (do_skip_initramfs) {
+		if (initrd_start)
+			free_initrd();
+		return default_rootfs();
+	}
+
 	/* Load the built in initramfs */
-	char *err = unpack_to_rootfs(__initramfs_start, __initramfs_size);
+	err = unpack_to_rootfs(__initramfs_start, __initramfs_size);
 	if (err)
 		panic("%s", err); /* Failed to decompress INTERNAL initramfs */
 	/* If available load the bootloader supplied initrd */

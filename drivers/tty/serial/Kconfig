@@ -1453,6 +1453,79 @@ config SERIAL_XILINX_PS_UART
 	  This driver supports the Cadence UART. It is found e.g. in Xilinx
 	  Zynq.
 
+config SERIAL_HOBOT_UART
+	tristate "HOBOT UART support"
+	depends on OF
+	select SERIAL_CORE
+	help
+	  This driver supports the HOBOT UART.
+
+config SERIAL_HOBOT_NR_UARTS
+        int "Maximum number of X2 serial ports"
+        depends on SERIAL_HOBOT_UART
+        default "4"
+        help
+          If multiple cards are present, the default limit of 4 ports may
+          need to be increased.
+
+config SERIAL_HOBOT_UART_CONSOLE
+	bool "HOBOT UART console support"
+	depends on SERIAL_HOBOT_UART=y
+	select SERIAL_CORE_CONSOLE
+	select SERIAL_EARLYCON
+	help
+	  Enable a X2 UART port to be the system console.
+
+config HOBOT_TTY_DMA_MODE
+	bool "HOBOT uart DMA MODE Support"
+	depends on SERIAL_HOBOT_UART
+	default n
+	help
+	  HOBOT uart dma mode support
+
+config HOBOT_TTY_IRQ_MODE
+	bool "HOBOT uart non-DMA MODE Support"
+	depends on SERIAL_HOBOT_UART
+	default n
+	help
+	  HOBOT uart non-dma mode support
+
+config HOBOT_TTY_POLL_MODE
+	bool "HOBOT uart poll MODE Support"
+	depends on SERIAL_HOBOT_UART
+	default n
+	help
+	  HOBOT uart poll mode support
+
+config HOBOT_SERIAL_DEBUGFS
+	bool "HOBOT uart debugfs Support"
+	depends on SERIAL_HOBOT_UART
+	default y
+	help
+	  HOBOT uart debugfs support
+
+config UART_LOW_SPEED_MODE
+	bool "HOBOT UART LOW SPEED MODE Support"
+	depends on SERIAL_HOBOT_UART
+	default y
+	help
+	  HOBOT uart low speed mode support
+
+config UART_MID_SPEED_MODE
+	bool "HOBOT UART MID SPEED MODE Support"
+	depends on SERIAL_HOBOT_UART
+	default n
+	help
+	  HOBOT uart middle speed mode support
+
+config UART_HIGH_SPEED_MODE
+	bool "HOBOT UART HIGH SPEED MODE Support"
+	depends on SERIAL_HOBOT_UART
+	default n
+	help
+	  HOBOT uart high speed mode support
+
+
 config SERIAL_XILINX_PS_UART_CONSOLE
 	bool "Cadence UART console support"
 	depends on SERIAL_XILINX_PS_UART=y

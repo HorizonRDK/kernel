@@ -144,6 +144,11 @@ config ST_REMOTEPROC
 config ST_SLIM_REMOTEPROC
 	tristate
 
+config HOBOT_REMOTEPROC
+	tristate "Remoteproc driver on HOBOT SoCs"
+	default y
+	select RPMSG_VIRTIO
+
 endif # REMOTEPROC
 
 endmenu

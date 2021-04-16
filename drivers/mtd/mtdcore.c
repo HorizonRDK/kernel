@@ -210,6 +210,15 @@ static ssize_t mtd_oobsize_show(struct device *dev,
 }
 static DEVICE_ATTR(oobsize, S_IRUGO, mtd_oobsize_show, NULL);
 
+static ssize_t mtd_oobavail_show(struct device *dev,
+				 struct device_attribute *attr, char *buf)
+{
+	struct mtd_info *mtd = dev_get_drvdata(dev);
+
+	return snprintf(buf, PAGE_SIZE, "%u\n", mtd->oobavail);
+}
+static DEVICE_ATTR(oobavail, S_IRUGO, mtd_oobavail_show, NULL);
+
 static ssize_t mtd_numeraseregions_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -327,6 +336,7 @@ static struct attribute *mtd_attrs[] = {
 	&dev_attr_writesize.attr,
 	&dev_attr_subpagesize.attr,
 	&dev_attr_oobsize.attr,
+	&dev_attr_oobavail.attr,
 	&dev_attr_numeraseregions.attr,
 	&dev_attr_name.attr,
 	&dev_attr_ecc_strength.attr,
@@ -503,6 +513,11 @@ int add_mtd_device(struct mtd_info *mtd)
 		return -EEXIST;
 
 	BUG_ON(mtd->writesize == 0);
+
+	if (WARN_ON((!mtd->erasesize || !mtd->_erase) &&
+		    !(mtd->flags & MTD_NO_ERASE)))
+		return -EINVAL;
+
 	mutex_lock(&mtd_table_mutex);
 
 	i = idr_alloc(&mtd_idr, mtd, 0, 0, GFP_KERNEL);
@@ -958,11 +973,9 @@ void __put_mtd_device(struct mtd_info *mtd)
 EXPORT_SYMBOL_GPL(__put_mtd_device);
 
 /*
- * Erase is an asynchronous operation.  Device drivers are supposed
- * to call instr->callback() whenever the operation completes, even
- * if it completes with a failure.
- * Callers are supposed to pass a callback function and wait for it
- * to be called before writing to the block.
+ * Erase is an synchronous operation. Device drivers are epected to return a
+ * negative error code if the operation failed and update instr->fail_addr
+ * to point the portion that was not properly erased.
  */
 int mtd_erase(struct mtd_info *mtd, struct erase_info *instr)
 {
@@ -1046,7 +1059,20 @@ int mtd_read(struct mtd_info *mtd, loff_t from, size_t len, size_t *retlen,
 	 * representing the maximum number of bitflips that were corrected on
 	 * any one ecc region (if applicable; zero otherwise).
 	 */
-	ret_code = mtd->_read(mtd, from, len, retlen, buf);
+	if (mtd->_read) {
+		ret_code = mtd->_read(mtd, from, len, retlen, buf);
+	} else if (mtd->_read_oob) {
+		struct mtd_oob_ops ops = {
+			.len = len,
+			.datbuf = buf,
+		};
+
+		ret_code = mtd->_read_oob(mtd, from, &ops);
+		*retlen = ops.retlen;
+	} else {
+		return -ENOTSUPP;
+	}
+
 	if (unlikely(ret_code < 0))
 		return ret_code;
 	if (mtd->ecc_strength == 0)
@@ -1061,11 +1087,25 @@ int mtd_write(struct mtd_info *mtd, loff_t to, size_t len, size_t *retlen,
 	*retlen = 0;
 	if (to < 0 || to >= mtd->size || len > mtd->size - to)
 		return -EINVAL;
-	if (!mtd->_write || !(mtd->flags & MTD_WRITEABLE))
+	if ((!mtd->_write && !mtd->_write_oob) ||
+	    !(mtd->flags & MTD_WRITEABLE))
 		return -EROFS;
 	if (!len)
 		return 0;
 	ledtrig_mtd_activity();
+
+	if (!mtd->_write) {
+		struct mtd_oob_ops ops = {
+			.len = len,
+			.datbuf = (u8 *)buf,
+		};
+		int ret;
+
+		ret = mtd->_write_oob(mtd, to, &ops);
+		*retlen = ops.retlen;
+		return ret;
+	}
+
 	return mtd->_write(mtd, to, len, retlen, buf);
 }
 EXPORT_SYMBOL_GPL(mtd_write);
@@ -1093,21 +1133,66 @@ int mtd_panic_write(struct mtd_info *mtd, loff_t to, size_t len, size_t *retlen,
 }
 EXPORT_SYMBOL_GPL(mtd_panic_write);
 
+static int mtd_check_oob_ops(struct mtd_info *mtd, loff_t offs,
+			     struct mtd_oob_ops *ops)
+{
+	/*
+	 * Some users are setting ->datbuf or ->oobbuf to NULL, but are leaving
+	 * ->len or ->ooblen uninitialized. Force ->len and ->ooblen to 0 in
+	 *  this case.
+	 */
+	if (!ops->datbuf)
+		ops->len = 0;
+
+	if (!ops->oobbuf)
+		ops->ooblen = 0;
+
+	if (offs < 0 || offs + ops->len > mtd->size)
+		return -EINVAL;
+
+	if (ops->ooblen) {
+		u64 maxooblen;
+
+		if (ops->ooboffs >= mtd_oobavail(mtd, ops))
+			return -EINVAL;
+
+		maxooblen = ((mtd_div_by_ws(mtd->size, mtd) -
+			      mtd_div_by_ws(offs, mtd)) *
+			     mtd_oobavail(mtd, ops)) - ops->ooboffs;
+		if (ops->ooblen > maxooblen)
+			return -EINVAL;
+	}
+
+	return 0;
+}
+
 int mtd_read_oob(struct mtd_info *mtd, loff_t from, struct mtd_oob_ops *ops)
 {
 	int ret_code;
 	ops->retlen = ops->oobretlen = 0;
-	if (!mtd->_read_oob)
-		return -EOPNOTSUPP;
+
+	ret_code = mtd_check_oob_ops(mtd, from, ops);
+	if (ret_code)
+		return ret_code;
 
 	ledtrig_mtd_activity();
+
+	/* Check the validity of a potential fallback on mtd->_read */
+	if (!mtd->_read_oob && (!mtd->_read || ops->oobbuf))
+		return -EOPNOTSUPP;
+
+	if (mtd->_read_oob)
+		ret_code = mtd->_read_oob(mtd, from, ops);
+	else
+		ret_code = mtd->_read(mtd, from, ops->len, &ops->retlen,
+				      ops->datbuf);
+
 	/*
 	 * In cases where ops->datbuf != NULL, mtd->_read_oob() has semantics
 	 * similar to mtd->_read(), returning a non-negative integer
 	 * representing max bitflips. In other cases, mtd->_read_oob() may
 	 * return -EUCLEAN. In all cases, perform similar logic to mtd_read().
 	 */
-	ret_code = mtd->_read_oob(mtd, from, ops);
 	if (unlikely(ret_code < 0))
 		return ret_code;
 	if (mtd->ecc_strength == 0)
@@ -1119,13 +1204,28 @@ EXPORT_SYMBOL_GPL(mtd_read_oob);
 int mtd_write_oob(struct mtd_info *mtd, loff_t to,
 				struct mtd_oob_ops *ops)
 {
+	int ret;
+
 	ops->retlen = ops->oobretlen = 0;
-	if (!mtd->_write_oob)
-		return -EOPNOTSUPP;
+
 	if (!(mtd->flags & MTD_WRITEABLE))
 		return -EROFS;
+
+	ret = mtd_check_oob_ops(mtd, to, ops);
+	if (ret)
+		return ret;
+
 	ledtrig_mtd_activity();
-	return mtd->_write_oob(mtd, to, ops);
+
+	/* Check the validity of a potential fallback on mtd->_write */
+	if (!mtd->_write_oob && (!mtd->_write || ops->oobbuf))
+		return -EOPNOTSUPP;
+
+	if (mtd->_write_oob)
+		return mtd->_write_oob(mtd, to, ops);
+	else
+		return mtd->_write(mtd, to, ops->len, &ops->retlen,
+				   ops->datbuf);
 }
 EXPORT_SYMBOL_GPL(mtd_write_oob);
 

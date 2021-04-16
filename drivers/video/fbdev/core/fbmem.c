@@ -429,7 +429,7 @@ static void fb_do_show_logo(struct fb_info *info, struct fb_image *image,
 
 	if (rotate == FB_ROTATE_UR) {
 		for (x = 0;
-		     x < num && image->dx + image->width <= info->var.xres;
+		     x < 1 && image->dx + image->width <= info->var.xres;
 		     x++) {
 			info->fbops->fb_imageblit(info, image);
 			image->dx += image->width + 8;
@@ -505,6 +505,8 @@ static int fb_show_logo_line(struct fb_info *info, int rotate,
 	image.width = logo->width;
 	image.height = logo->height;
 
+	image.dx = (info->var.xres / 2) - (image.width / 2);
+	image.dy = (info->var.yres / 2) - (image.height / 2);
 	if (rotate) {
 		logo_rotate = kmalloc(logo->width *
 				      logo->height, GFP_KERNEL);

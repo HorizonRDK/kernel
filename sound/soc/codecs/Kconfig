@@ -338,7 +338,8 @@ config SND_SOC_ADAU1781_SPI
 	select REGMAP_SPI
 
 config SND_SOC_ADAU1977
-	tristate
+	tristate "ADAU1977 AudioCodec"
+	depends on I2C
 
 config SND_SOC_ADAU1977_SPI
 	tristate
@@ -346,7 +347,7 @@ config SND_SOC_ADAU1977_SPI
 	select REGMAP_SPI
 
 config SND_SOC_ADAU1977_I2C
-	tristate
+	tristate "ADAU1977_I2C AudioCodec"
 	select SND_SOC_ADAU1977
 	select REGMAP_I2C
 
@@ -1176,5 +1177,21 @@ config SND_SOC_NAU8825
 config SND_SOC_TPA6130A2
 	tristate "Texas Instruments TPA6130A2 headphone amplifier"
 	depends on I2C
-
+config SND_SOC_AC108
+	tristate "AC108 AudioCodec"
+	depends on I2C
+config SND_SOC_AC108_DRIVER
+	tristate "AC108 Audio Codec"
+	depends on I2C
+config SND_SOC_AC101_DRIVER
+	tristate "AC101 Audio Codec"
+	depends on I2C
+config SND_SOC_AC102
+	tristate "AC102 Audio Codec"
+	depends on I2C
+config HOBOT_SOC
+	tristate "CONFIG HOBOT SOC support"
+config SND_SOC_TI1864
+	tristate "TI1864 AudioCodec"
+	depends on I2C
 endmenu

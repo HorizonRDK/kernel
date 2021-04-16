@@ -1,0 +1,6 @@
+config VIDEO_AVB
+	tristate "Video Recording Over TSN"
+	depends on TSN && VIDEO_V4L2
+	select VIDEOBUF2_DMA_CONTIG
+	help
+	  Choose this option to enable video input over TSN.

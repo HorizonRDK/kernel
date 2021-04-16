@@ -1,4 +1,6 @@
 /*
+ * Copyright (C) 2015, Google
+ *
  * Many of the syscalls used in this file expect some of the arguments
  * to be __user pointers not __kernel pointers.  To limit the sparse
  * noise, turn off sparse checking for this file.
@@ -437,7 +439,7 @@ retry:
 out:
 	put_page(page);
 }
- 
+
 #ifdef CONFIG_ROOT_NFS
 
 #define NFSROOT_TIMEOUT_MIN	5
@@ -565,6 +567,7 @@ void __init prepare_namespace(void)
 	wait_for_device_probe();
 
 	md_run_setup();
+	dm_run_setup();
 
 	if (saved_root_name[0]) {
 		root_device_name = saved_root_name;

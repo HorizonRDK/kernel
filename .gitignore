@@ -39,8 +39,12 @@
 *.symtypes
 *.tar
 *.xz
+*.img
 Module.symvers
 modules.builtin
+_install/
+fs/Kconfig.pre.yaffs
+fs/Makefile.pre.yaffs
 
 #
 # Top-level generic files
@@ -122,3 +126,19 @@ all.config
 
 # Kdevelop4
 *.kdev4
+
+# dtb-mapping
+dtb-mapping.conf
+
+# prerootfs
+/usr/prerootfs/
+/tools/ubifs/*.img
+
+# rootfs
+rootfs/
+
+# out
+out/
+
+# pka firmware
+!clp300.elf

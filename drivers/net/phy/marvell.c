@@ -2128,7 +2128,11 @@ static struct phy_driver marvell_drivers[] = {
 		.phy_id = MARVELL_PHY_ID_88E1116R,
 		.phy_id_mask = MARVELL_PHY_ID_MASK,
 		.name = "Marvell 88E1116R",
+#ifdef CONFIG_HOBOT_FPGA_HAPS_X3
+		.features = PHY_BASIC_FEATURES,
+#else
 		.features = PHY_GBIT_FEATURES,
+#endif
 		.flags = PHY_HAS_INTERRUPT,
 		.probe = marvell_probe,
 		.config_init = &m88e1116r_config_init,

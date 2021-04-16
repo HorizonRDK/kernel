@@ -15,8 +15,6 @@
 #ifndef __UVC_VIDEO_H__
 #define __UVC_VIDEO_H__
 
-int uvcg_video_pump(struct uvc_video *video);
-
 int uvcg_video_enable(struct uvc_video *video, int enable);
 
 int uvcg_video_init(struct uvc_video *video);

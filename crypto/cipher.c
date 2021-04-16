@@ -51,6 +51,8 @@ static int setkey(struct crypto_tfm *tfm, const u8 *key, unsigned int keylen)
 	tfm->crt_flags &= ~CRYPTO_TFM_RES_MASK;
 	if (keylen < cia->cia_min_keysize || keylen > cia->cia_max_keysize) {
 		tfm->crt_flags |= CRYPTO_TFM_RES_BAD_KEY_LEN;
+		printk("%s: keylen:%d, cia_min_keysize:%d, cia_max_keysize:%d\n",
+			__func__, keylen, cia->cia_min_keysize, keylen > cia->cia_max_keysize);
 		return -EINVAL;
 	}
 

@@ -266,4 +266,101 @@ config ARCH_ZYNQMP
 	help
 	  This enables support for Xilinx ZynqMP Family
 
+config ARCH_HOBOT
+	bool "Hobot SoC families"
+	select PINCTRL
+	select ARCH_HAS_RESET_CONTROLLER
+	help
+	  Support for Hobot ARM based SoCs
+
+if ARCH_HOBOT
+menu "Select hobot platform configuration"
+
+config HOBOT_FPGA_X2
+	bool "X2 FPGA Support"
+	select PINCTRL_HOBOT_X2
+	help
+	  This enables Hobot X2 FPGA support.
+	  You only need to enable this, if you want to support x2 fpga.
+
+config HOBOT_FPGA_X3
+	bool "X2A/X3 FPGA Support"
+	select PINCTRL_HOBOT_X3
+	help
+	  This enables Hobot X3 FPGA support.
+	  You only need to enable this, if you want to support x2 fpga.
+
+config HOBOT_FPGA_HAPS_X3
+	bool "X2A/X3 HAPS FPGA Support"
+	depends on HOBOT_FPGA_X3
+	help
+	  This enables Hobot X3 FPGA HAPS support.
+	  You only need to enable this, if you want to support x3/x2a HAPS fpga.
+
+config HOBOT_XJ2
+	bool "X2 SOC Support"
+	depends on ARCH_HOBOT
+	select PINCTRL_HOBOT_X2
+	help
+	  This enables Hobot X2 SOC support.
+	  You only need to enable this, if you want to support x2 soc.
+
+config HOBOT_X2
+	bool "X2 only SOC Support"
+	depends on HOBOT_XJ2
+	help
+	  This enables Hobot X2 only SOC feature support.
+	  You only need to enable this, if you want to support x2 soc.
+
+config HOBOT_J2
+	bool "J2 only SOC Support"
+	depends on HOBOT_XJ2
+	help
+	  This enables Hobot J2 only SOC feature support.
+	  You only need to enable this, if you want to support J2 soc.
+
+config HOBOT_XJ3
+	bool "X2A/X3 SOC Support"
+	depends on ARCH_HOBOT
+	select PINCTRL_HOBOT_X3
+	help
+	  This enables Hobot X2A SOC support.
+	  You only need to enable this, if you want to support x2a soc.
+
+config HOBOT_X3
+	bool "X3 only SOC Support"
+	depends on HOBOT_XJ3
+	help
+	  This enables Hobot X3 only SOC feature support.
+	  You only need to enable this, if you want to support x2 soc.
+
+config HOBOT_J3
+	bool "J3 only SOC Support"
+	depends on HOBOT_XJ3
+	help
+	  This enables Hobot J3 only SOC feature support.
+	  You only need to enable this, if you want to support J3 soc.
+
+config HOBOT_XJ3_CV_ADDITION
+	bool "XJ3 CV testing additional options"
+	depends on HOBOT_XJ3
+	help
+	  This enables Hobot XJ3 CV testing additional options.
+	  You only need to enable this, if you want to support XJ3 CV test.
+
+config HOBOT_GCOV_AVIO
+	bool "enable gnu coverage for hobot AVIO modules"
+	help
+	  This enables gcov in Makefiles of hobot modules.
+	  You only need to enable this for gcov test.
+
+config HOBOT_GCOV_BASE
+	bool "enable gnu coverage for hobot BaseSys modules"
+	help
+	  This enables gcov in Makefiles of hobot modules.
+	  You only need to enable this for gcov test.
+
+endmenu
+endif #ARCH_HOBOT
+
 endmenu

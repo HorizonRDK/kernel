@@ -127,10 +127,26 @@ static int smp_spin_table_cpu_boot(unsigned int cpu)
 
 	return 0;
 }
-
+#ifdef CONFIG_HOBOT_PM
+extern void __asm_flush_dcache_all(void);
+static void smp_cpu_die(unsigned int cpu)
+{
+	write_pen_release(INVALID_HWID);
+	__asm_flush_dcache_all();
+	cpu_do_idle();
+}
+static int smp_cpu_kill(unsigned int cpu)
+{
+	return 0;
+}
+#endif
 const struct cpu_operations smp_spin_table_ops = {
 	.name		= "spin-table",
 	.cpu_init	= smp_spin_table_cpu_init,
 	.cpu_prepare	= smp_spin_table_cpu_prepare,
 	.cpu_boot	= smp_spin_table_cpu_boot,
+#ifdef CONFIG_HOBOT_PM
+	.cpu_die	= smp_cpu_die,
+	.cpu_kill	= smp_cpu_kill,
+#endif
 };

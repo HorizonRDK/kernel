@@ -130,7 +130,10 @@ unsigned long divider_recalc_rate(struct clk_hw *hw, unsigned long parent_rate,
 		return parent_rate;
 	}
 
-	return DIV_ROUND_UP_ULL((u64)parent_rate, div);
+	if (flags & CLK_DIVIDER_ROUND_DOWN)
+		return parent_rate / div;
+	else
+		return DIV_ROUND_UP_ULL((u64)parent_rate, div);
 }
 EXPORT_SYMBOL_GPL(divider_recalc_rate);
 
@@ -204,6 +207,20 @@ static int _round_down_table(const struct clk_div_table *table, int div)
 	return down;
 }
 
+static int _div_round_down(const struct clk_div_table *table,
+			 unsigned long parent_rate, unsigned long rate,
+			 unsigned long flags)
+{
+	int div = parent_rate / rate;
+
+	if (flags & CLK_DIVIDER_POWER_OF_TWO)
+		div = __rounddown_pow_of_two(div);
+	if (table)
+		div = _round_down_table(table, div);
+
+	return div;
+}
+
 static int _div_round_up(const struct clk_div_table *table,
 			 unsigned long parent_rate, unsigned long rate,
 			 unsigned long flags)
@@ -248,6 +265,8 @@ static int _div_round(const struct clk_div_table *table,
 {
 	if (flags & CLK_DIVIDER_ROUND_CLOSEST)
 		return _div_round_closest(table, parent_rate, rate, flags);
+	else if (flags & CLK_DIVIDER_ROUND_DOWN)
+		return _div_round_down(table, parent_rate, rate, flags);
 
 	return _div_round_up(table, parent_rate, rate, flags);
 }
@@ -257,6 +276,8 @@ static bool _is_best_div(unsigned long rate, unsigned long now,
 {
 	if (flags & CLK_DIVIDER_ROUND_CLOSEST)
 		return abs(rate - now) < abs(rate - best);
+	else if (flags & CLK_DIVIDER_ROUND_DOWN)
+		return  now >= rate && abs(rate - now) < abs(rate - best);
 
 	return now <= rate && now > best;
 }
@@ -340,7 +361,10 @@ long divider_round_rate_parent(struct clk_hw *hw, struct clk_hw *parent,
 
 	div = clk_divider_bestdiv(hw, parent, rate, prate, table, width, flags);
 
-	return DIV_ROUND_UP_ULL((u64)*prate, div);
+	if (flags & CLK_DIVIDER_ROUND_DOWN)
+		return *prate / div;
+	else
+		return DIV_ROUND_UP_ULL((u64)*prate, div);
 }
 EXPORT_SYMBOL_GPL(divider_round_rate_parent);
 
@@ -369,7 +393,10 @@ int divider_get_val(unsigned long rate, unsigned long parent_rate,
 {
 	unsigned int div, value;
 
-	div = DIV_ROUND_UP_ULL((u64)parent_rate, rate);
+	if (flags & CLK_DIVIDER_ROUND_DOWN)
+		div = parent_rate / rate;
+	else
+		div = DIV_ROUND_UP_ULL((u64)parent_rate, rate);
 
 	if (!_is_valid_div(table, div, flags))
 		return -EINVAL;

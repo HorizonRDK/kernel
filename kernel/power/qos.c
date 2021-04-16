@@ -121,13 +121,75 @@ static struct pm_qos_object memory_bandwidth_pm_qos = {
 	.name = "memory_bandwidth",
 };
 
+static struct blocking_notifier_head cpufreq_min_notifier[NR_CPUS];
 
-static struct pm_qos_object *pm_qos_array[] = {
+static struct pm_qos_constraints cpufreq_min_constraints[NR_CPUS] = {
+	[0 ... (NR_CPUS - 1)] = {
+		.target_value = PM_QOS_CPUFREQ_MIN_DEFAULT_VALUE,
+		.default_value = PM_QOS_CPUFREQ_MIN_DEFAULT_VALUE,
+		.no_constraint_value = PM_QOS_CPUFREQ_MIN_DEFAULT_VALUE,
+		.type = PM_QOS_MIN,
+	},
+};
+
+static char cpufreq_min_pm_qos_name[NR_CPUS][20];
+
+static struct pm_qos_object cpufreq_min_pm_qos[NR_CPUS];
+
+static struct blocking_notifier_head cpufreq_max_notifier[NR_CPUS];
+
+static struct pm_qos_constraints cpufreq_max_constraints[NR_CPUS] = {
+	[0 ... (NR_CPUS - 1)] = {
+		.target_value = PM_QOS_CPUFREQ_MAX_DEFAULT_VALUE,
+		.default_value = PM_QOS_CPUFREQ_MAX_DEFAULT_VALUE,
+		.no_constraint_value = PM_QOS_CPUFREQ_MAX_DEFAULT_VALUE,
+		.type = PM_QOS_MAX,
+	},
+};
+
+static char cpufreq_max_pm_qos_name[NR_CPUS][20];
+
+static struct pm_qos_object cpufreq_max_pm_qos[NR_CPUS];
+
+static BLOCKING_NOTIFIER_HEAD(cpu_online_min_notifier);
+static struct pm_qos_constraints cpu_online_min_constraints = {
+	.list = PLIST_HEAD_INIT(cpu_online_min_constraints.list),
+	.target_value = PM_QOS_CPU_ONLINE_MIN_DEFAULT_VALUE,
+	.default_value = PM_QOS_CPU_ONLINE_MIN_DEFAULT_VALUE,
+	.no_constraint_value = PM_QOS_CPU_ONLINE_MIN_DEFAULT_VALUE,
+	.type = PM_QOS_MIN,
+	.notifiers = &cpu_online_min_notifier,
+};
+static struct pm_qos_object cpu_online_min_pm_qos = {
+	.constraints = &cpu_online_min_constraints,
+	.name = "cpu_online_min",
+};
+
+static BLOCKING_NOTIFIER_HEAD(cpu_online_max_notifier);
+static struct pm_qos_constraints cpu_online_max_constraints = {
+	.list = PLIST_HEAD_INIT(cpu_online_max_constraints.list),
+	.target_value = PM_QOS_CPU_ONLINE_MAX_DEFAULT_VALUE,
+	.default_value = PM_QOS_CPU_ONLINE_MAX_DEFAULT_VALUE,
+	.no_constraint_value = PM_QOS_CPU_ONLINE_MAX_DEFAULT_VALUE,
+	.type = PM_QOS_MAX,
+	.notifiers = &cpu_online_max_notifier,
+};
+static struct pm_qos_object cpu_online_max_pm_qos = {
+	.constraints = &cpu_online_max_constraints,
+	.name = "cpu_online_max",
+};
+
+static DEFINE_MUTEX(qos_idr_mutex);
+static DEFINE_IDR(qos_idr);
+
+static struct pm_qos_object *pm_qos_array[PM_QOS_NUM_CLASSES] = {
 	&null_pm_qos,
 	&cpu_dma_pm_qos,
 	&network_lat_pm_qos,
 	&network_throughput_pm_qos,
 	&memory_bandwidth_pm_qos,
+	[PM_QOS_CPU_ONLINE_MIN] = &cpu_online_min_pm_qos,
+	[PM_QOS_CPU_ONLINE_MAX] = &cpu_online_max_pm_qos,
 };
 
 static ssize_t pm_qos_power_write(struct file *filp, const char __user *buf,
@@ -606,6 +668,9 @@ static int find_pm_qos_object_by_minor(int minor)
 
 	for (pm_qos_class = PM_QOS_CPU_DMA_LATENCY;
 		pm_qos_class < PM_QOS_NUM_CLASSES; pm_qos_class++) {
+		if (!pm_qos_array[pm_qos_class])
+			continue;
+
 		if (minor ==
 			pm_qos_array[pm_qos_class]->pm_qos_power_miscdev.minor)
 			return pm_qos_class;
@@ -685,20 +750,81 @@ static ssize_t pm_qos_power_write(struct file *filp, const char __user *buf,
 	return count;
 }
 
+static struct dentry *get_debugfs_entry(void)
+{
+	static DEFINE_MUTEX(debug_fs_dentry_mutex);
+	static struct dentry *debug_fs_dentry = NULL;
+	static atomic_t inited = ATOMIC_INIT(0);
+
+	struct dentry *d;
+
+	if (atomic_read(&inited))
+		return debug_fs_dentry;
+
+	mutex_lock(&debug_fs_dentry_mutex);
+	d = debugfs_create_dir("pm_qos", NULL);
+	if (IS_ERR_OR_NULL(d))
+		d = NULL;
+	debug_fs_dentry = d;
+	atomic_set(&inited, 1);
+	mutex_unlock(&debug_fs_dentry_mutex);
+
+	return d;
+}
 
 static int __init pm_qos_power_init(void)
 {
 	int ret = 0;
 	int i;
-	struct dentry *d;
+	struct dentry *d = get_debugfs_entry();
 
 	BUILD_BUG_ON(ARRAY_SIZE(pm_qos_array) != PM_QOS_NUM_CLASSES);
 
-	d = debugfs_create_dir("pm_qos", NULL);
-	if (IS_ERR_OR_NULL(d))
-		d = NULL;
 
 	for (i = PM_QOS_CPU_DMA_LATENCY; i < PM_QOS_NUM_CLASSES; i++) {
+		if (i >= PM_QOS_CPU_FREQ_MIN && i <= PM_QOS_CPU_FREQ_MIN_END) {
+			int cpuid = i - PM_QOS_CPU_FREQ_MIN;
+			if (!cpu_present(cpuid)) {
+				pm_qos_array[i] = NULL;
+				continue;
+			}
+
+			plist_head_init(&cpufreq_min_constraints[cpuid].list);
+			cpufreq_min_constraints[cpuid].notifiers = &cpufreq_min_notifier[cpuid];
+			cpufreq_min_pm_qos[cpuid].constraints =
+				&cpufreq_min_constraints[cpuid];
+
+			init_rwsem(&cpufreq_min_pm_qos[cpuid].constraints->notifiers->rwsem);
+			snprintf(cpufreq_min_pm_qos_name[cpuid],
+				sizeof(cpufreq_min_pm_qos_name[cpuid]),
+				"cpu%d_freq_min", cpuid);
+			cpufreq_min_pm_qos[cpuid].name = cpufreq_min_pm_qos_name[cpuid];
+			pm_qos_array[i] = &cpufreq_min_pm_qos[cpuid];
+		}
+
+		if (i >= PM_QOS_CPU_FREQ_MAX && i <= PM_QOS_CPU_FREQ_MAX_END) {
+			int cpuid = i - PM_QOS_CPU_FREQ_MAX;
+			if (!cpu_present(cpuid)) {
+				pm_qos_array[i] = NULL;
+				continue;
+			}
+
+			plist_head_init(&cpufreq_max_constraints[cpuid].list);
+			cpufreq_max_constraints[cpuid].notifiers = &cpufreq_max_notifier[cpuid];
+			cpufreq_max_pm_qos[cpuid].constraints =
+				&cpufreq_max_constraints[cpuid];
+			snprintf(cpufreq_max_pm_qos_name[cpuid],
+				sizeof(cpufreq_max_pm_qos_name[cpuid]),
+				"cpu%d_freq_max", cpuid);
+			cpufreq_max_pm_qos[cpuid].name = cpufreq_max_pm_qos_name[cpuid];
+			pm_qos_array[i] = &cpufreq_max_pm_qos[cpuid];
+		}
+
+		if (i >= PM_QOS_DEVFREQ && i <= PM_QOS_DEVFREQ_END) {
+			pm_qos_array[i] = NULL;
+			continue;
+		}
+
 		ret = register_pm_qos_misc(pm_qos_array[i], d);
 		if (ret < 0) {
 			printk(KERN_ERR "pm_qos_param: %s setup failed\n",
@@ -706,6 +832,45 @@ static int __init pm_qos_power_init(void)
 			return ret;
 		}
 	}
+
+	return ret;
+}
+
+int pm_qos_class_register(const char *name, struct pm_qos_constraints *cons)
+{
+	int ret;
+	struct pm_qos_object *qos_obj;
+	int idx;
+
+	struct dentry *d = get_debugfs_entry();
+
+	qos_obj = kzalloc(sizeof(*qos_obj), GFP_KERNEL);
+	if (!qos_obj)
+		return -ENOMEM;
+
+	idx = idr_alloc(&qos_idr, qos_obj, PM_QOS_DEVFREQ, PM_QOS_DEVFREQ_END,
+			GFP_KERNEL);
+	if (idx < 0) {
+		ret = idx;
+		goto free_qos_obj;
+	}
+
+	plist_head_init(&cons->list);
+	qos_obj->constraints = cons;
+	qos_obj->name = kstrdup(name, GFP_KERNEL);
+	pm_qos_array[idx] = qos_obj;
+
+	ret = register_pm_qos_misc(pm_qos_array[idx], d);
+	if (ret < 0) {
+		printk(KERN_ERR "pm_qos_param: %s setup failed\n",
+			pm_qos_array[idx]->name);
+		goto free_qos_obj;
+	}
+
+	return idx;
+
+free_qos_obj:
+	kfree(qos_obj);
 
 	return ret;
 }

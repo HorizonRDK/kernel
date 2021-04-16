@@ -2496,3 +2496,12 @@ config FB_SM712
 	  This driver is also available as a module. The module will be
 	  called sm712fb. If you want to compile it as a module, say M
 	  here and read <file:Documentation/kbuild/modules.txt>.
+
+config FB_HOBOT
+	tristate "Horizon Robotics framebuffer support"
+	depends on FB && HOBOT_IAR && I2C
+	select FB_CFB_FILLRECT
+	select FB_CFB_COPYAREA
+	select FB_CFB_IMAGEBLIT
+	help
+	  This driver implements support for the Horizon Robitcs IAR display

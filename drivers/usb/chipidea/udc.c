@@ -1010,7 +1010,7 @@ static int otg_a_alt_hnp_support(struct ci_hdrc *ci)
  * isr_setup_packet_handler: setup packet handler
  * @ci: UDC descriptor
  *
- * This function handles setup packet 
+ * This function handles setup packet
  */
 static void isr_setup_packet_handler(struct ci_hdrc *ci)
 __releases(ci->lock)
@@ -1119,11 +1119,11 @@ __acquires(ci->lock)
 			case USB_DEVICE_TEST_MODE:
 				tmode = le16_to_cpu(req.wIndex) >> 8;
 				switch (tmode) {
-				case TEST_J:
-				case TEST_K:
-				case TEST_SE0_NAK:
-				case TEST_PACKET:
-				case TEST_FORCE_EN:
+				case USB_TEST_J:
+				case USB_TEST_K:
+				case USB_TEST_SE0_NAK:
+				case USB_TEST_PACKET:
+				case USB_TEST_FORCE_ENABLE:
 					ci->test_mode = tmode;
 					err = isr_setup_status_phase(
 							ci);

@@ -20,13 +20,19 @@
 #include <linux/usb/video.h>
 
 #define fi_to_f_uvc_opts(f)	container_of(f, struct f_uvc_opts, func_inst)
+#define video_to_uvc(f)		container_of(f, struct uvc_device, video)
+DECLARE_UVC_EXTENSION_UNIT_DESCRIPTOR(1, 2);
 
 struct f_uvc_opts {
 	struct usb_function_instance			func_inst;
+	bool						streaming_bulk;
 	unsigned int					uvc_gadget_trace_param;
 	unsigned int					streaming_interval;
 	unsigned int					streaming_maxpacket;
 	unsigned int					streaming_maxburst;
+
+	unsigned int					control_interface;
+	unsigned int					streaming_interface;
 
 	/*
 	 * Control descriptors array pointers for full-/high-speed and
@@ -51,6 +57,7 @@ struct f_uvc_opts {
 	struct uvc_camera_terminal_descriptor		uvc_camera_terminal;
 	struct uvc_processing_unit_descriptor		uvc_processing;
 	struct uvc_output_terminal_descriptor		uvc_output_terminal;
+	struct UVC_EXTENSION_UNIT_DESCRIPTOR(1, 2)	uvc_extension;
 	struct uvc_color_matching_descriptor		uvc_color_matching;
 
 	/*
@@ -60,8 +67,8 @@ struct f_uvc_opts {
 	 * descriptors. Used by configfs only, must not be touched by legacy
 	 * gadgets.
 	 */
-	struct uvc_descriptor_header			*uvc_fs_control_cls[5];
-	struct uvc_descriptor_header			*uvc_ss_control_cls[5];
+	struct uvc_descriptor_header			*uvc_fs_control_cls[6];
+	struct uvc_descriptor_header			*uvc_ss_control_cls[6];
 
 	/*
 	 * Streaming descriptors for full-speed, high-speed and super-speed.

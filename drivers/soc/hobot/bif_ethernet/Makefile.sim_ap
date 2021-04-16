@@ -1,0 +1,16 @@
+#KERN_DIR = /work/opensource/linux-4.9.y
+KERN_DIR := /lib/modules/`uname -r`/build
+
+obj-m := bifeth_ap.o
+bifeth_ap-objs := bif_ether.o
+ccflags-y =-DCONFIG_HOBOT_BIF_AP -DCONFIG_HOBOT_BIFSD
+#ccflags-y =-DCONFIG_HOBOT_BIF_AP -DCONFIG_HOBOT_BIFSPI
+
+all:
+	rm -fr *.o *.cmd *.bak
+	make -C $(KERN_DIR) M=`pwd` modules
+	rm -fr *.o *.cmd *.bak
+
+clean:
+	make -C $(KERN_DIR) M=`pwd` modules clean
+	rm -rf *.order

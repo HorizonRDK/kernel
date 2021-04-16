@@ -27,6 +27,7 @@
 #include <linux/console.h>
 #include <linux/bug.h>
 #include <linux/ratelimit.h>
+#include <soc/hobot/hobot_bifspi.h>
 
 #define PANIC_TIMER_STEP 100
 #define PANIC_BLINK_SPD 18
@@ -45,6 +46,8 @@ EXPORT_SYMBOL_GPL(panic_timeout);
 ATOMIC_NOTIFIER_HEAD(panic_notifier_list);
 
 EXPORT_SYMBOL(panic_notifier_list);
+
+extern int hobot_swinfo_panic(void);
 
 static long no_blink(int state)
 {
@@ -137,6 +140,10 @@ void panic(const char *fmt, ...)
 	int state = 0;
 	int old_cpu, this_cpu;
 	bool _crash_kexec_post_notifiers = crash_kexec_post_notifiers;
+
+#ifdef CONFIG_HOBOT_BIFSPI_DEV
+	bifspi_write_share_reg(SYS_STATUS_REG, STAGE_PANIC);
+#endif
 
 	/*
 	 * Disable local interrupts. This will prevent panic_smp_self_stop
@@ -241,6 +248,7 @@ void panic(const char *fmt, ...)
 	 * panic() is not being callled from OOPS.
 	 */
 	debug_locks_off();
+	hobot_swinfo_panic();
 	console_flush_on_panic();
 
 	if (!panic_blink)

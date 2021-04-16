@@ -56,6 +56,14 @@ config SENSORS_IR35221
 	  This driver can also be built as a module. If so, the module will
 	  be called ir35521.
 
+config SENSORS_IRPS5401
+	tristate "Infineon IRPS5401"
+	help
+	  If you say yes here you get hardware monitoring support for the
+	  Infineon IRPS5401 controller.
+
+	  This driver can also be built as a module. If so, the module will
+
 config SENSORS_LM25066
 	tristate "National Semiconductor LM25066 and compatibles"
 	default n

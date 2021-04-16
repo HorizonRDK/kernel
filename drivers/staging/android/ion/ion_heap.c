@@ -23,7 +23,9 @@
 #include <uapi/linux/sched/types.h>
 #include <linux/scatterlist.h>
 #include <linux/vmalloc.h>
-#include "ion.h"
+#include <linux/ion.h>
+#include <asm/pgtable.h>
+#include <linux/slab.h>
 
 void *ion_heap_map_kernel(struct ion_heap *heap,
 			  struct ion_buffer *buffer)
@@ -92,10 +94,14 @@ int ion_heap_map_user(struct ion_heap *heap, struct ion_buffer *buffer,
 			offset = 0;
 		}
 		len = min(len, remainder);
+
 		ret = remap_pfn_range(vma, addr, page_to_pfn(page), len,
 				      vma->vm_page_prot);
-		if (ret)
+
+		if (ret) {
+			pr_err("%s: remap pfn range failed[%d]\n", __func__, ret);
 			return ret;
+		}
 		addr += len;
 		if (addr >= vma->vm_end)
 			return 0;
@@ -109,7 +115,7 @@ static int ion_heap_clear_pages(struct page **pages, int num, pgprot_t pgprot)
 
 	if (!addr)
 		return -ENOMEM;
-	memset(addr, 0, PAGE_SIZE * num);
+//	memset(addr, 0, PAGE_SIZE * num);
 	vm_unmap_ram(addr, num);
 
 	return 0;
@@ -121,8 +127,35 @@ static int ion_heap_sglist_zero(struct scatterlist *sgl, unsigned int nents,
 	int p = 0;
 	int ret = 0;
 	struct sg_page_iter piter;
+#ifdef NO_CACHE
+	struct page **page_list;
+#else
 	struct page *pages[32];
+#endif
+#ifdef NO_CACHE
+	u32 nr_pages = 0;
+	size_t size;
 
+	size = sg_dma_len(sgl);
+	nr_pages = size / PAGE_SIZE;
+	page_list = kmalloc_array(nr_pages, sizeof(*page_list), GFP_KERNEL);
+	if (!page_list)
+		return -ENOMEM;
+
+	for_each_sg_page(sgl, &piter, nents, 0) {
+//		pages[p++] = sg_page_iter_page(&piter);
+		page_list[p++] = sg_page_iter_page(&piter);
+		//if (p == ARRAY_SIZE(pages)) {
+		if (p == nr_pages) {
+			//ret = ion_heap_clear_pages(pages, p, pgprot);
+			ret = ion_heap_clear_pages(page_list, p, pgprot);
+			if (ret)
+				return ret;
+			p = 0;
+		}
+	}
+
+#else
 	for_each_sg_page(sgl, &piter, nents, 0) {
 		pages[p++] = sg_page_iter_page(&piter);
 		if (p == ARRAY_SIZE(pages)) {
@@ -132,9 +165,16 @@ static int ion_heap_sglist_zero(struct scatterlist *sgl, unsigned int nents,
 			p = 0;
 		}
 	}
-	if (p)
-		ret = ion_heap_clear_pages(pages, p, pgprot);
+#endif
 
+	if (p)
+#ifdef NO_CACHE
+		ret = ion_heap_clear_pages(page_list, p, pgprot);
+#else
+		ret = ion_heap_clear_pages(pages, p, pgprot);
+#endif
+	//kfree(page_list);
+//	kfree(pages);
 	return ret;
 }
 
@@ -147,6 +187,7 @@ int ion_heap_buffer_zero(struct ion_buffer *buffer)
 		pgprot = PAGE_KERNEL;
 	else
 		pgprot = pgprot_writecombine(PAGE_KERNEL);
+		//pgprot = pgprot_noncached(PAGE_KERNEL);
 
 	return ion_heap_sglist_zero(table->sgl, table->nents, pgprot);
 }
@@ -314,3 +355,63 @@ void ion_heap_init_shrinker(struct ion_heap *heap)
 	heap->shrinker.batch = 0;
 	register_shrinker(&heap->shrinker);
 }
+
+struct ion_heap *ion_heap_create(struct ion_platform_heap *heap_data)
+{
+	struct ion_heap *heap = NULL;
+
+	switch (heap_data->type) {
+	case ION_HEAP_TYPE_SYSTEM_CONTIG:
+		heap = ion_system_contig_heap_create(heap_data);
+		break;
+	case ION_HEAP_TYPE_SYSTEM:
+		heap = ion_system_heap_create(heap_data);
+		break;
+	case ION_HEAP_TYPE_CARVEOUT:
+		heap = ion_carveout_heap_create(heap_data);
+		break;
+	case ION_HEAP_TYPE_CHUNK:
+		heap = ion_chunk_heap_create(heap_data);
+		break;
+	default:
+		pr_err("%s: Invalid heap type %d\n", __func__,
+		       heap_data->type);
+		return ERR_PTR(-EINVAL);
+	}
+
+	if (IS_ERR_OR_NULL(heap)) {
+		pr_err("%s: error creating heap %s type %d base %lld size %zu\n",
+		       __func__, heap_data->name, heap_data->type,
+		       heap_data->base, heap_data->size);
+		return ERR_PTR(-EINVAL);
+	}
+
+	heap->name = heap_data->name;
+	heap->id = heap_data->id;
+	return heap;
+}
+
+void ion_heap_destroy(struct ion_heap *heap)
+{
+	if (!heap)
+		return;
+
+	switch (heap->type) {
+	case ION_HEAP_TYPE_SYSTEM_CONTIG:
+		ion_system_contig_heap_destroy(heap);
+		break;
+	case ION_HEAP_TYPE_SYSTEM:
+		ion_system_heap_destroy(heap);
+		break;
+	case ION_HEAP_TYPE_CARVEOUT:
+		ion_carveout_heap_destroy(heap);
+		break;
+	case ION_HEAP_TYPE_CHUNK:
+		ion_chunk_heap_destroy(heap);
+		break;
+	default:
+		pr_err("%s: Invalid heap type %d\n", __func__,
+		       heap->type);
+	}
+}
+

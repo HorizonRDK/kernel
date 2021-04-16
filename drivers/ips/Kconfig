@@ -1,0 +1,35 @@
+#
+# IPS configuration
+#
+
+menu "IPS Configuratio"
+config HOBOT_IPS_X2
+	tristate "X2 IPS Drivers"
+	default n
+	---help---
+	   Drivers for the X2 IPS
+
+config USRDRV
+	tristate "USRDRV Driver"
+	---help---
+	   Driver for the user mode driver
+
+if HOBOT_IPS_X2
+
+config HOBOT_IPU_X2
+	tristate "X2 IPU Driver"
+	---help---
+	   Driver for the X2 IPU
+
+config HOBOT_SIF_X2
+	tristate "X2 SIF Driver"
+	---help---
+	   Driver for the X2 SIF
+
+config HOBOT_ISP_X2
+	tristate "X2 ISP Driver"
+	---help---
+	   Driver for the X2 ISP
+
+endif
+endmenu

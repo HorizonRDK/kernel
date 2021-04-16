@@ -115,7 +115,9 @@ enum fw_resource_type {
 	RSC_DEVMEM	= 1,
 	RSC_TRACE	= 2,
 	RSC_VDEV	= 3,
-	RSC_LAST	= 4,
+	RSC_RPROC_MEM    = 4,
+	RSC_FW_CHKSUM    = 5,
+	RSC_LAST         = 6,
 };
 
 #define FW_RSC_ADDR_ANY (-1)
@@ -255,6 +257,7 @@ struct fw_rsc_vdev_vring {
 	u32 align;
 	u32 num;
 	u32 notifyid;
+	u32 vring_size;
 	u32 pa;
 } __packed;
 
@@ -298,11 +301,46 @@ struct fw_rsc_vdev {
 	u32 notifyid;
 	u32 dfeatures;
 	u32 gfeatures;
+	u32 buffer_size;
 	u32 config_len;
 	u8 status;
 	u8 num_of_vrings;
 	u8 reserved[2];
 	struct fw_rsc_vdev_vring vring[0];
+} __packed;
+
+/**
+ * struct fw_rsc_rproc_mem - remote processor memory
+ * @da: device address
+ * @pa: physical address
+ * @len: length (in bytes)
+ * @reserved: reserved (must be zero)
+ *
+ * This resource entry tells the host to the remote processor
+ * memory that the host can be used as shared memory.
+ *
+ * These request entries should precede other shared resource entries
+ * such as vdevs, vrings.
+ */
+struct fw_rsc_rproc_mem {
+	u32 da;
+	u32 pa;
+	u32 len;
+	u32 reserved;
+} __packed;
+
+/*
+ * struct fw_rsc_fw_chksum - firmware checksum
+ * @algo: algorithm to generate the cheksum
+ * @chksum: checksum of the firmware loadable sections.
+ *
+ * This resource entry provides checksum for the firmware loadable sections.
+ * It is used to check if the remote already runs with the expected firmware to
+ * decide if it needs to start the remote if the remote is already running.
+ */
+struct fw_rsc_fw_chksum {
+	u8 algo[16];
+	u8 chksum[64];
 } __packed;
 
 /**
@@ -331,12 +369,15 @@ struct rproc;
  * @stop:	power off the device
  * @kick:	kick a virtqueue (virtqueue id given as a parameter)
  * @da_to_va:	optional platform hook to perform address translations
+ * @is_running: check if the remote is running
  */
 struct rproc_ops {
 	int (*start)(struct rproc *rproc);
 	int (*stop)(struct rproc *rproc);
 	void (*kick)(struct rproc *rproc, int vqid);
 	void * (*da_to_va)(struct rproc *rproc, u64 da, int len);
+	bool (*is_running)(struct rproc *rproc);
+	int (*pre_load)(struct rproc *rproc);
 };
 
 /**
@@ -361,7 +402,8 @@ enum rproc_state {
 	RPROC_RUNNING	= 2,
 	RPROC_CRASHED	= 3,
 	RPROC_DELETED	= 4,
-	RPROC_LAST	= 5,
+	RPROC_RUNNING_INDEPENDENT = 5,
+	RPROC_LAST	= 6,
 };
 
 /**
@@ -412,6 +454,8 @@ enum rproc_crash_type {
  * @table_ptr: pointer to the resource table in effect
  * @cached_table: copy of the resource table
  * @has_iommu: flag to indicate if remote processor is behind an MMU
+ * @fix_map_mode: virtio use specified memory
+ * @register_virtio: just register virtio, not load elf
  */
 struct rproc {
 	struct list_head node;
@@ -444,6 +488,8 @@ struct rproc {
 	struct resource_table *cached_table;
 	bool has_iommu;
 	bool auto_boot;
+	int fix_map_mode;
+	int register_virtio;
 };
 
 /**
@@ -481,6 +527,7 @@ struct rproc_vring {
 	u32 da;
 	u32 align;
 	int notifyid;
+	int vring_size;
 	struct rproc_vdev *rvdev;
 	struct virtqueue *vq;
 };
@@ -495,6 +542,7 @@ struct rproc_vring {
  * @vdev: the virio device
  * @vring: the vrings for this vdev
  * @rsc_offset: offset of the vdev's resource entry
+ * @config_wait_complete: mark asynchronous vdev config wait complete
  */
 struct rproc_vdev {
 	struct kref refcount;
@@ -507,6 +555,9 @@ struct rproc_vdev {
 	struct virtio_device vdev;
 	struct rproc_vring vring[RVDEV_NUM_VRINGS];
 	u32 rsc_offset;
+	struct completion config_wait_complete;
+	int buffer_size;
+	ulong buffer_phy_addr;
 };
 
 struct rproc *rproc_get_by_phandle(phandle phandle);

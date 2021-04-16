@@ -1,0 +1,404 @@
+/*
+ * dts file for Hobot X2 SOM
+ *
+ * (C) Copyright 2018, Horizon, Inc.
+ *
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+ */
+
+/dts-v1/;
+#include "hobot-xj2.dtsi"
+#include "hobot-pinctrl-xj2.dtsi"
+#include "hobot-clk-xj2.dtsi"
+#include "memory-1g.dtsi"
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/phy/phy.h>
+#include <dt-bindings/input/input.h>
+/ {
+	model = "Hobot X2 SOM";
+	compatible = "hobot,x2-fpga";
+
+	aliases {
+		serial0 = &uart0;
+		serial1 = &uart1;
+		serial2 = &uart2;
+		serial3 = &uart3;
+		i2c0	= &i2c0;
+		i2c1	= &i2c1;
+		i2c2	= &i2c2;
+		i2c3	= &i2c3;
+		i2s0	= &i2s0;
+		i2s1	= &i2s1;
+		spi0	= &spi0;
+		pwm0	= &pwm_0;
+		pwm1	= &pwm_1;
+		pwm2	= &pwm_2;
+		bifsd	= &bifsd;
+		bifspi	= &bifspi;
+		mmc1	= &sdio0;
+		mmc2	= &sdio1;
+		sndcard0    = &snd0;
+		idma0     = &i2sidma0;
+
+	};
+
+	chosen {
+		bootargs = "earlycon loglevel=8 console=ttyS0 clk_ignore_unused";
+		stdout-path = "serial0:115200n8";
+	};
+	gpio-keys {
+		compatible = "gpio-keys";
+		interrupt-parent = <&tca9534>;
+
+		up {
+			label = "key_up";
+			linux,code = <KEY_UP>;
+			gpios = <&tca9534 0 GPIO_ACTIVE_LOW>;
+			debounce-interval = <30>;
+		};
+
+		down {
+			label = "key_down";
+			linux,code = <KEY_DOWN>;
+			gpios = <&tca9534 1 GPIO_ACTIVE_LOW>;
+			debounce-interval = <30>;
+		};
+
+		left {
+			label = "key_left";
+			linux,code = <KEY_LEFT>;
+			gpios = <&tca9534 2 GPIO_ACTIVE_LOW>;
+			debounce-interval = <30>;
+		};
+		right {
+			label = "key_right";
+			linux,code = <KEY_RIGHT>;
+			gpios = <&tca9534 3 GPIO_ACTIVE_LOW>;
+			debounce-interval = <30>;
+		};
+		center {
+			label = "key_enter";
+			linux,code = <KEY_ENTER>;
+			gpios = <&tca9534 4 GPIO_ACTIVE_LOW>;
+			debounce-interval = <30>;
+		};
+
+		key_A {
+			label = "key_a";
+			linux,code = <KEY_A>;
+			gpios = <&tca9534 5 GPIO_ACTIVE_LOW>;
+			debounce-interval = <30>;
+		};
+		key_S {
+			label = "key_s";
+			linux,code = <KEY_S>;
+			gpios = <&tca9534 6 GPIO_ACTIVE_LOW>;
+			debounce-interval = <30>;
+		};
+		key_D {
+			label = "key_d";
+			linux,code = <KEY_D>;
+			gpios = <&tca9534 7 GPIO_ACTIVE_LOW>;
+			debounce-interval = <30>;
+		};
+	};
+
+};
+
+&i2c0 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	x2_camera@0x7f {
+	    compatible = "x2,camera";
+	    reg = <0x7f>;
+	};
+	x2_lt9211@0x2d {
+		compatible = "x2,lt9211";
+		reg = <0x2d>;
+		x2_lt9211_reset_pin = <85>;
+	};
+	tca9534: gpio@20 {
+		compatible = "ti,tca9534";
+		reg = <0x20>;
+		gpio-controller;
+		interrupt-controller;
+		interrupt-parent = <&pinctrl>;
+		interrupts = <75 IRQ_TYPE_EDGE_FALLING>;
+		#gpio-cells = <2>;
+	};
+	tmp75c@48 {
+		compatible = "ti,tmp75c";
+		reg = <0x48>;
+	};
+	mp5416@69 {
+		compatible = "mps,mp5416";
+		reg = <0x69>;
+		system-power-controller;
+		regulators {
+			vcc_cnn0_reg: DCDC1 {
+				regulator-name = "VCC_CNN0";
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <1000000>;
+				regulator-enable-ramp-delay = <3000>;
+			};
+
+			vdd_core_pd_reg: DCDC2 {
+				regulator-name = "VDD_CORE_PD";
+				regulator-min-microvolt = <900000>;
+				regulator-max-microvolt = <900000>;
+				regulator-always-on;
+				regulator-boot-on;
+			};
+
+			vcc_cnn1_reg: DCDC3 {
+				regulator-name = "VCC_CNN1";
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <1000000>;
+				regulator-enable-ramp-delay = <3000>;
+			};
+
+			vcc_cpu_reg: DCDC4 {
+				regulator-name = "VCC_CPU";
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <1000000>;
+				regulator-always-on;
+				regulator-boot-on;
+			};
+
+			vdd_core_ao_reg: LDO3 {
+				regulator-name = "VDD_CORE_AO";
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+				regulator-boot-on;
+			};
+
+			vdd_1v8_reg: LDO4 {
+				regulator-name = "VDD_1V8";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+				regulator-enable-ramp-delay = <70>;
+				regulator-always-on;
+				regulator-boot-on;
+			};
+
+			vdd_0v9_reg: LDO5 {
+				regulator-name = "VDD_0V9";
+				regulator-min-microvolt = <900000>;
+				regulator-max-microvolt = <900000>;
+				regulator-always-on;
+				regulator-boot-on;
+			};
+		};
+	};
+	siiEDID@0x50 {
+		compatible = "siiEDID";
+		reg = <0x50>;
+	};
+	siiSegEDID@0x30 {
+		compatible = "siiSegEDID";
+		reg = <0x30>;
+	};
+	sii902xA@0x3B {
+		compatible = "sii902xA";
+		reg = <0x3B>;
+		rst_pin = <85>;
+		irq_pin = <2>;
+	};
+
+};
+
+&i2c1 {
+	status = "disabled";
+};
+
+&pinctrl {
+	status = "okay";
+	gpioirq-bank-cfg = <76 118 0 0>;	//x2 som
+};
+
+&uart0 {
+	status = "okay";
+	clocks = <&uart0_mclk>;
+	clock-names = "uart_mclk";
+};
+
+&ips {
+	pinctrl-names = "bt_func", "dvp_func";
+	pinctrl-0 = <&btout_func>;
+	pinctrl-1 = <&dvpin_func &dvpout_func>;
+	status = "okay";
+};
+
+&isp {
+	status = "okay";
+};
+
+&ipu {
+	status = "okay";
+	slot_num = /bits/ 8 <8>;
+	slot_size = <0x1000000>;
+};
+
+&sif {
+	status = "okay";
+};
+&mipi_host {
+	status = "okay";
+};
+
+&mipi_dev {
+	status = "okay";
+};
+
+&dma {
+	status = "okay";
+};
+
+&dmatest {
+	status = "disabled";
+};
+
+&rtc {
+	status = "okay";
+};
+
+&pwm_0 {
+	status = "disabled";
+};
+
+&spi0 {
+	status = "okay";
+};
+
+&ethernet {
+	status = "okay";
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&eth_func>;
+
+	/* local-mac-address = [ 00 11 22 33 44 55 ]; */
+	phy-handle = <&phy1>;
+	phy-mode = "rgmii-id";
+	mdio {
+		#address-cells = <0x1>;
+		#size-cells = <0x0>;
+		phy1: phy@0 {
+			compatible = "marvell,88E1510","ethernet-phy-ieee802.3-c22";
+			reg = <0x0>;
+		};
+	};
+};
+
+&cpu0 {
+	status = "okay";
+	cpu-supply = <&vcc_cpu_reg>;
+};
+&cpu1 {
+	status = "okay";
+	cpu-supply = <&vcc_cpu_reg>;
+};
+
+&cnn0 {
+	status = "okay";
+	cnn-supply = <&vcc_cnn0_reg>;
+};
+
+&cnn1 {
+	status = "okay";
+	cnn-supply = <&vcc_cnn1_reg>;
+};
+
+&iar {
+	status = "okay";
+};
+&fb {
+	status = "okay";
+};
+
+&bifspi {
+	status = "okay";
+};
+
+&bifsd {
+	status = "okay";
+	/*cd-gpio = <91>;*/
+};
+&bifbase {
+	/*x2j2 bifbase: GPIO7[8]: 118, GPIO0[7]: 7*/
+	status = "disabled";
+	bifbase_irq_pin = <118>;
+	bifbase_tri_pin = <7>;
+};
+
+&bifeth {
+	status = "disabled";
+};
+
+&biflite_spi {
+	status = "disabled";
+};
+&biflite_sd {
+	status = "disabled";
+};
+&nor_flash {
+	status = "okay";
+	qspi-mode = <1>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	flash@0 {
+		compatible = "gd25lq128d";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0x0>;
+		spi-tx-bus-width = <4>;
+		spi-rx-bus-width = <4>;
+		spi-max-frequency = <50000000>;
+
+		partition@qspi-uboot {
+			label = "qspi-uboot";
+			reg = <0x200000 0x200000>;
+		};
+	};
+};
+
+&sdio0 {
+	status = "okay";
+	bus-width = <8>;
+	cap-mmc-highspeed;
+	mmc-hs200-1_8v;
+	non-removable;
+	disable-wp;
+};
+
+
+&watchdog {
+	status = "okay";
+};
+
+&i2s0 {
+	status = "okay";
+};
+
+
+&ddr_monitor {
+	status = "okay";
+};
+
+&onewire {
+	status = "okay";
+};
+
+&temp {
+	status = "okay";
+};
+
+&soc_thermal {
+	status = "okay";
+};

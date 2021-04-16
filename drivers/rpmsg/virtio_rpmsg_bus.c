@@ -755,7 +755,7 @@ static int rpmsg_recv_single(struct virtproc_info *vrp, struct device *dev,
 		/* farewell, ept, we don't need you anymore */
 		kref_put(&ept->refcount, __ept_release);
 	} else
-		dev_warn(dev, "msg received with no recipient\n");
+		dev_warn(dev, "msg received with no recipient[%d]\n", msg->dst);
 
 	/* publish the real size of the buffer */
 	rpmsg_sg_init(&sg, msg, vrp->buf_size);
@@ -915,14 +915,32 @@ static int rpmsg_probe(struct virtio_device *vdev)
 	else
 		vrp->num_bufs = MAX_RPMSG_NUM_BUFS;
 
+	if (vdev->buffer_size)
+		vrp->buf_size = vdev->buffer_size;
+	else
 	vrp->buf_size = MAX_RPMSG_BUF_SIZE;
 
 	total_buf_space = vrp->num_bufs * vrp->buf_size;
 
 	/* allocate coherent memory for the buffers */
-	bufs_va = dma_alloc_coherent(vdev->dev.parent->parent,
-				     total_buf_space, &vrp->bufs_dma,
-				     GFP_KERNEL);
+	if (vdev->buffer_phy_addr) {
+		vrp->bufs_dma = vdev->buffer_phy_addr;
+		bufs_va = ioremap_nocache(vrp->bufs_dma, total_buf_space);
+		//bufs_va = ioremap_wc(vrp->bufs_dma, total_buf_space);
+		if (!bufs_va) {
+			pr_err("ioremap_nocache buffer error\n");
+			err = -ENOMEM;
+			goto vqs_del;
+		}
+		vdev->buffer_virt_addr = bufs_va;
+	} else {
+		if (vdev->one_level_parent)
+			bufs_va = dma_alloc_coherent(vdev->dev.parent,
+			total_buf_space, &vrp->bufs_dma, GFP_KERNEL);
+		else
+			bufs_va = dma_alloc_coherent(vdev->dev.parent->parent,
+			total_buf_space, &vrp->bufs_dma, GFP_KERNEL);
+	}
 	if (!bufs_va) {
 		err = -ENOMEM;
 		goto vqs_del;
@@ -988,8 +1006,16 @@ static int rpmsg_probe(struct virtio_device *vdev)
 	return 0;
 
 free_coherent:
-	dma_free_coherent(vdev->dev.parent->parent, total_buf_space,
-			  bufs_va, vrp->bufs_dma);
+	if (!vdev->buffer_phy_addr) {
+		if (vdev->one_level_parent)
+			dma_free_coherent(vdev->dev.parent,
+			total_buf_space, bufs_va, vrp->bufs_dma);
+		else
+			dma_free_coherent(vdev->dev.parent->parent,
+			total_buf_space, bufs_va, vrp->bufs_dma);
+	} else {
+		iounmap(vrp->rbufs);
+	}
 vqs_del:
 	vdev->config->del_vqs(vrp->vdev);
 free_vrp:
@@ -1023,9 +1049,16 @@ static void rpmsg_remove(struct virtio_device *vdev)
 
 	vdev->config->del_vqs(vrp->vdev);
 
-	dma_free_coherent(vdev->dev.parent->parent, total_buf_space,
-			  vrp->rbufs, vrp->bufs_dma);
-
+	if (!vdev->buffer_phy_addr) {
+		if (vdev->one_level_parent)
+			dma_free_coherent(vdev->dev.parent,
+			total_buf_space, vrp->rbufs, vrp->bufs_dma);
+		else
+			dma_free_coherent(vdev->dev.parent->parent,
+			total_buf_space, vrp->rbufs, vrp->bufs_dma);
+	} else {
+		iounmap(vrp->rbufs);
+	}
 	kfree(vrp);
 }
 

@@ -1,0 +1,14 @@
+#KERN_DIR = /work/opensource/linux-4.9.y
+KERN_DIR := /lib/modules/`uname -r`/build
+
+obj-m := bifeth_cp.o
+bifeth_cp-objs := bif_ether.o
+
+all:
+	rm -fr *.o *.cmd *.bak
+	make -C $(KERN_DIR) M=`pwd` modules
+	rm -fr *.o *.cmd *.bak
+
+clean:
+	make -C $(KERN_DIR) M=`pwd` modules clean
+	rm -rf *.order

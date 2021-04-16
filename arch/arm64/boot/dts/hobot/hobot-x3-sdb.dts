@@ -1,0 +1,480 @@
+/*
+ * dtsi file for Hobot XJ3 SDB
+ *
+ * (C) Copyright 2018, Horizon, Inc.
+ *
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+ */
+
+/dts-v1/;
+#include "hobot-xj3.dtsi"
+#include "hobot-pinctrl-xj3.dtsi"
+#include "hobot-clk-xj3.dtsi"
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/phy/phy.h>
+
+/ {
+	model = "Hobot XJ3 SOC SDB";
+
+	aliases {
+		serial0 = &uart0;
+		serial1 = &uart1;
+		serial2 = &uart2;
+		serial3 = &uart3;
+		i2c0	= &i2c0;
+		i2c1	= &i2c1;
+		i2c2	= &i2c2;
+		i2c3	= &i2c3;
+		i2c4	= &i2c4;
+		i2c5	= &i2c5;
+		i2s0	= &i2s0;
+		i2s1	= &i2s1;
+		spi0	= &spi0;
+		spi1	= &spi1;
+		spi2	= &spi2;
+		usbdrd3_0 = &usbdrd3_0;
+		usbdrd_dwc3_0 = &usbdrd_dwc3_0;
+		bifspi	= &bifspi;
+		bifsd   = &bifsd;
+		mmc1	= &sdio0;
+		mmc2	= &sdio1;
+		mmc3	= &sdio2;
+		dma	= &dma;
+		dmatest = &dmatest;
+		mipihost0 = &mipi_host0;
+		mipihost1 = &mipi_host1;
+		mipihost2 = &mipi_host2;
+		mipihost3 = &mipi_host3;
+		mipidev0 = &mipi_dev0;
+
+		pym	= &pym;
+		dwe	= &dwe;
+		ldc	= &ldc;
+		dis0	= &dis0;
+		dis1	= &dis1;
+		gdc0	= &gdc0;
+		gdc1	= &gdc1;
+		isp	= &isp;
+		ipu	= &ipu;
+		sif	= &sif;
+
+		sndcard0 = &snd0;
+		sndcard1 = &snd1;
+		sndcard2 = &snd2;
+		idma0 = &i2sidma0;
+		idma1 = &i2sidma1;
+
+		socinfo = &socinfo;
+
+		gpios = &gpios;
+		usb_id = &usb_id;
+	};
+
+	chosen {
+		bootargs = "earlycon loglevel=8 kgdboc=ttyS0 video=hobot:hdmi ";
+		stdout-path = "serial0";
+	};
+
+	memory@0 {
+		device_type = "memory";
+		reg = <0x0 0x200000 0x0 0x3FE00000>;
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		/*Reserved 256K memory pstore */
+		ramoops@0x3FC0000 {
+			compatible = "ramoops";
+			reg = <0x0 0x3FC0000 0x0 0x40000>;
+			console-size = <0x8000>;
+			pmsg-size = <0x8000>;
+			ftrace-size = <0x8000>;
+			record-size = <0x4000>;
+		};
+
+		/* Reserved 672MB memory for ion cma */
+		ion_cma {
+			compatible = "shared-dma-pool";
+			alloc-ranges = <0x0 0x4000000 0x0 0x2A000000>;
+			alignment = <0x0 0x100000>;
+			size = <0x0 0x2A000000>;
+			reusable;
+		};
+
+		/* 32M */
+/*
+		ion_reserved: ion_reserved@0x2E000000 {
+			compatible = "ion-pool";
+			reg = <0x0 0x2E000000 0x0 0x2000000>;
+		};
+*/
+		/*Reserved 1M memory for CR5*/
+		image_r5_mem: image_r5_mem {
+                        reg = <0x0 0x80000000 0x0 0x10000>;
+                        no-map;
+                };
+
+                msg_r5_mem: msg_r5_mem {
+                        reg = <0x0 0x8000f000 0x0 0x1000>;
+                        no-map;
+                };
+
+		rpmsg_r5_code: rpmsg_r5_code {
+                        reg = <0x0 0x3E00000 0x0 0xFF000>;
+                        no-map;
+                };
+
+                rpmsg_r5_vring: rpmsg_r5_vring {
+                        reg = <0x0 0x3EFF000 0x0 0x1000>;
+                        no-map;
+                };
+	};
+
+	cnn0_pd_reg: cnn0_pd_reg@2 {
+		status = "okay";
+		compatible = "regulator-gpio";
+		regulator-name = "VCC_CNN0";
+		regulator-min-microvolt = <800000>;
+		regulator-max-microvolt = <800000>;
+		enable-gpio = <&gpios 1 0>;
+		states = <800000 0>;
+		startup-delay-us = <3000>;
+		regulator-boot-on;
+		enable-active-high;
+	};
+
+	cnn1_pd_reg: cnn1_pd_reg@3 {
+		status = "okay";
+		compatible = "regulator-gpio";
+		regulator-name = "VCC_CNN1";
+		regulator-min-microvolt = <800000>;
+		regulator-max-microvolt = <800000>;
+		enable-gpio = <&gpios 2 0>;
+		states = <800000 0>;
+		startup-delay-us = <3000>;
+		regulator-boot-on;
+		enable-active-high;
+	};
+};
+
+/*
+&cr5_service {
+	status = "ok";
+};
+*/
+
+&socinfo {
+	board_name = "X3SDB";
+	board_id = "00000000";
+	origin_board_id = "00000000";
+	ddr_vender = "Hynix";
+	ddr_type = "LPDDR4";
+	ddr_freq = "2666";
+	ddr_size = "1GB";
+	som_name = "X3SODIMM";
+	base_board_name = "X3SDB";
+	boot_mode = "0";
+	socuid = "00000000000000000000000000000000";
+};
+
+&pinctrl {
+	btout_func: btout_func {
+		pinctrl-single,pins = <
+			0x138   (MUX_F0 | DRIVE1_33MA | SCHMITT2_ENA | PULL2_DOWN) /*BT1120_OUT_CLK*/
+			0x13c   (MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN) /*BT1120_OUT_DAT0*/
+			0x140   (MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+			0x144   (MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+			0x148   (MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+			0x14c   (MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+			0x150   (MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+			0x154   (MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+			0x158   (MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN) /*BT1120_OUT_DAT7*/
+			0x15c   (MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN) /*BT1120_OUT_DAT8*/
+			0x160   (MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+			0x164   (MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+			0x168   (MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+			0x16c   (MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+			0x170   (MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+			0x174   (MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+			0x178   (MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN) /*BT1120_OUT_DAT15*/
+		>;
+	};
+};
+
+&i2c0 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	/* pcf8563 */
+	pcf8563@0x51 {
+		compatible = "nxp,pcf8563";
+		reg = <0x51>;
+		clock-output-names = "wifi-32k-clk";
+	};
+};
+
+&i2c1 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	lt8618sxb@0x3b {
+		compatible = "lt,lt8618sxb";
+		reg = <0x3b>;
+		rst_pin = <64>; // shared reset with TP!
+	};
+};
+
+&i2c2 {
+	status = "okay";
+};
+
+&uart0 {
+	status = "okay";
+};
+
+&uart1 {
+	status = "okay"; /* 4 wire uart for bt */
+	pinctrl-0 = <&uart1_func_rtscts>; /* <&uart1_func>;  uart 1 connect to bt with rtscts*/
+};
+
+&usbdrd3_0 {
+	status = "okay";
+};
+
+&usbdrd_dwc3_0 {
+	status = "okay";
+};
+
+&usb_id {
+	status = "okay";
+
+	/* vbus-gpio = <>; */
+	id-gpio = <&gpios 65 GPIO_ACTIVE_HIGH>;
+	host-rst-gpio = <&gpios 115 GPIO_ACTIVE_HIGH>;
+	host-exrst-gpio = <&gpios 4 GPIO_ACTIVE_LOW>;
+};
+
+&gpios {
+	status = "okay";
+};
+
+&pinctrl {
+	status = "okay";
+};
+
+&ldc {
+	status = "okay";
+};
+
+&dwe {
+	status = "okay";
+};
+
+&dis0 {
+	status = "okay";
+};
+
+&dis1 {
+	status = "okay";
+};
+
+/* when gdc0 added, boot stucked one time */
+&gdc0 {
+	status = "okay";
+};
+
+&gdc1 {
+	status = "okay";
+};
+
+&pym {
+	status = "okay";
+};
+
+&ips {
+	status = "okay";
+};
+
+&isp {
+	status = "okay";
+};
+
+&ipu {
+	status = "okay";
+};
+
+&sif {
+	status = "okay";
+};
+
+&mipi_host0 {
+	status = "okay";
+};
+
+&mipi_host1 {
+	status = "okay";
+};
+
+&mipi_host2 {
+	status = "okay";
+};
+
+&mipi_host3 {
+	status = "okay";
+};
+
+&mipi_dphy {
+	status = "okay";
+};
+
+&dma {
+	status = "okay";
+};
+
+&rtc {
+	status = "okay";
+};
+
+&pwm_c0 {
+	status = "okay";
+};
+
+&ethernet {
+	status = "okay";
+
+	/* pinctrl-names = "default";
+	pinctrl-0 = <&eth_func>; */
+
+	/* local-mac-address = [ 00 11 22 33 44 55 ]; */
+	phy-mode = "rgmii-id";
+
+	phy-handle = <&eth_phy0>;
+	mdio {
+		#address-cells = <0x1>;
+		#size-cells = <0x0>;
+		eth_phy0: ethernet-phy@0 {
+			reg = <0x0>;
+			max-speed = <1000>;
+		};
+	};
+};
+
+&iar {
+	status = "okay";
+	pinctrl-names = "bt_func", "rgb_func", "rgb_gpio_func", "bt1120_voltage_func";
+	pinctrl-3 = <&bt1120_3_3v_func>;
+	disp_panel_reset_pin = <117>;
+	timing_1920x1080 = <148500000 160 120 24 48 4 5>;
+	timing_720x1280_touch = <64000000 40 40 10 11 16 3>;
+	startup-img = <1>;
+	pwm = <1 1000 200>;
+	default-display-type = <1>;//hdmi
+};
+
+&fb {
+	status = "okay";
+	offset-rgba = <16 8 0 24>;
+};
+
+&sdio0 {
+	status = "okay";
+	bus-width = <8>;
+	cap-mmc-highspeed;
+	mmc-hs200-1_8v;
+	non-removable;
+	disable-wp;
+};
+
+&sdio1 {
+	status = "okay";
+	bus-width = <4>;
+	no-mmc;
+	cap-sdio-irq;
+	broken-cd;
+	disable-wp;
+	max-frequency = <20000000>;
+	mmc-fixed-voltage = <1800>;
+	non-removable;
+	pinctrl-names = "default","voltage_1_8v","voltage_3_3v";
+	pinctrl-0 = <&sdio1_func>;
+	pinctrl-1 = <&sd1_1_8v_func>;
+	pinctrl-2 = <&sd1_3_3v_func>;
+};
+
+&sdio2 {
+	status = "okay";
+	bus-width = <4>;
+	/* no-mmc; */
+	cd-gpios = <&gpios 116 GPIO_ACTIVE_LOW>;
+	/* broken-cd; */
+	disable-wp;
+};
+
+&watchdog {
+	status = "okay";
+};
+
+&timer1 {
+	status = "okay";
+};
+
+
+&jpu {
+	status = "okay";
+};
+
+&vpu {
+	status = "okay";
+};
+
+&ddr_monitor {
+	status = "okay";
+};
+
+&power {
+	status = "okay";
+};
+
+&pvt {
+	status = "okay";
+};
+
+&soc_thermal {
+	status = "okay";
+
+	trips {
+		threshold: trip-point@0 {
+			temperature = <80000>;
+			hysteresis = <0>;
+			type = "passive";
+	        };
+		target: trip-point@1 {
+			temperature = <95000>;
+			hysteresis = <0>;
+			type = "passive";
+		};
+		soc_crit: soc-crit {
+			temperature = <115000>;
+			hysteresis = <0>; /* millicelsius */
+			type = "critical";
+		};
+	};
+};
+
+&cnn0 {
+	cnn-supply = <&cnn0_pd_reg>;
+	governor = "userspace";
+};
+
+&cnn1 {
+	cnn-supply = <&cnn1_pd_reg>;
+	governor = "userspace";
+};

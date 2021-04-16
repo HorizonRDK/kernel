@@ -19,7 +19,9 @@
 #include <linux/dmaengine.h>
 #include <linux/reset.h>
 #include <linux/interrupt.h>
-
+#if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
+#include <soc/hobot/hobot_bus.h>
+#endif
 enum dw_mci_state {
 	STATE_IDLE = 0,
 	STATE_SENDING_CMD,
@@ -164,7 +166,10 @@ struct dw_mci {
 	void __iomem		*fifo_reg;
 	u32			data_addr_override;
 	bool			wm_aligned;
-
+#if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
+	/* The dwmmc dpm struct */
+	struct hobot_dpm dw_hb_dpm;
+#endif
 	struct scatterlist	*sg;
 	struct sg_mapping_iter	sg_miter;
 
@@ -499,6 +504,8 @@ extern void dw_mci_remove(struct dw_mci *host);
 #ifdef CONFIG_PM
 extern int dw_mci_runtime_suspend(struct device *device);
 extern int dw_mci_runtime_resume(struct device *device);
+extern int dw_mci_system_suspend(struct device *device);
+extern int dw_mci_system_resume(struct device *device);
 #endif
 
 /**

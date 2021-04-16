@@ -1,0 +1,33 @@
+Hisilicon System Reset Controller
+======================================
+
+Please also refer to reset.txt in this directory for common reset
+controller binding usage.
+
+The reset controller registers are part of the system-ctl block on hobot SoC.
+
+Required properties:
+- compatible: should be
+		 "hobot,x2-reset"
+- #reset-cells : Specifies the number of cells needed to encode a
+  reset source.  The type shall be a <u32> and the value shall be 2.
+
+	 Cell #1 : offset of the reset assert control
+	           register from the syscon register base
+	 Cell #2 : bit position of the reset in the reset control register
+
+Example:
+	rst: reset-controller {
+		compatible = "hobot,x2-reset";
+		#reset-cells = <2>;
+	};
+
+Specifying reset lines connected to IP modules
+==============================================
+example:
+
+        ips: ips@..... {
+                ...
+		resets = <&rst 0x40 2>; /* offset: 0x40; bit: 2 */
+                ...
+        };

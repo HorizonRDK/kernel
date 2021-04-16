@@ -103,7 +103,7 @@ static struct platform_driver dw_mci_pltfm_driver = {
 	.driver		= {
 		.name		= "dw_mmc",
 		.of_match_table	= dw_mci_pltfm_match,
-		.pm		= &dw_mci_pltfm_pmops,
+		//.pm		= &dw_mci_pltfm_pmops,
 	},
 };
 

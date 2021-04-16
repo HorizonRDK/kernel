@@ -23,7 +23,9 @@
 #include <linux/scatterlist.h>
 #include <linux/highmem.h>
 
-#include "ion.h"
+#include <linux/ion.h>
+
+static struct ion_device *cma_ion_dev = NULL;
 
 struct ion_cma_heap {
 	struct ion_heap heap;
@@ -34,24 +36,34 @@ struct ion_cma_heap {
 
 /* ION CMA heap operations functions */
 static int ion_cma_allocate(struct ion_heap *heap, struct ion_buffer *buffer,
-			    unsigned long len,
-			    unsigned long flags)
+		unsigned long len, unsigned long start_align,
+		unsigned long flags)
 {
 	struct ion_cma_heap *cma_heap = to_cma_heap(heap);
 	struct sg_table *table;
 	struct page *pages;
 	unsigned long size = PAGE_ALIGN(len);
 	unsigned long nr_pages = size >> PAGE_SHIFT;
+#ifndef CONFIG_HOBOT_XJ3
 	unsigned long align = get_order(size);
+#else
+	unsigned long align = 0;	//order 0 i.e. 1 page align
+#endif
 	int ret;
 
+#ifndef CONFIG_HOBOT_XJ3
 	if (align > CONFIG_CMA_ALIGNMENT)
 		align = CONFIG_CMA_ALIGNMENT;
+#endif
 
 	pages = cma_alloc(cma_heap->cma, nr_pages, align, GFP_KERNEL);
 	if (!pages)
 		return -ENOMEM;
 
+	/* the page may used for instruction or data which still cached */
+	flush_icache_range((unsigned long)page_address(pages),
+			(unsigned long)(page_address(pages) + size));
+	__inval_dcache_area(page_address(pages), size);
 	if (PageHighMem(pages)) {
 		unsigned long nr_clear_pages = nr_pages;
 		struct page *page = pages;
@@ -67,6 +79,7 @@ static int ion_cma_allocate(struct ion_heap *heap, struct ion_buffer *buffer,
 	} else {
 		memset(page_address(pages), 0, size);
 	}
+	__flush_dcache_area(page_address(pages), size);
 
 	table = kmalloc(sizeof(*table), GFP_KERNEL);
 	if (!table)
@@ -80,6 +93,7 @@ static int ion_cma_allocate(struct ion_heap *heap, struct ion_buffer *buffer,
 
 	buffer->priv_virt = pages;
 	buffer->sg_table = table;
+
 	return 0;
 
 free_mem:
@@ -102,9 +116,36 @@ static void ion_cma_free(struct ion_buffer *buffer)
 	kfree(buffer->sg_table);
 }
 
+static int ion_cma_heap_phys(struct ion_heap *heap,
+				  struct ion_buffer *buffer,
+				  phys_addr_t *addr, size_t *len)
+{
+	struct sg_table *table = buffer->sg_table;
+	struct page *page = sg_page(table->sgl);
+	phys_addr_t paddr = PFN_PHYS(page_to_pfn(page));
+
+	*addr = paddr;
+	*len = buffer->size;
+	return 0;
+}
+
+static struct sg_table *ion_cma_heap_map_dma(struct ion_heap *heap,
+					     struct ion_buffer *buffer)
+{
+	return buffer->sg_table;
+}
+
+static void ion_cma_heap_unmap_dma(struct ion_heap *heap,
+				   struct ion_buffer *buffer)
+{
+}
+
 static struct ion_heap_ops ion_cma_ops = {
 	.allocate = ion_cma_allocate,
 	.free = ion_cma_free,
+	.phys = ion_cma_heap_phys,
+	.map_dma = ion_cma_heap_map_dma,
+	.unmap_dma = ion_cma_heap_unmap_dma,
 	.map_user = ion_heap_map_user,
 	.map_kernel = ion_heap_map_kernel,
 	.unmap_kernel = ion_heap_unmap_kernel,
@@ -129,9 +170,37 @@ static struct ion_heap *__ion_cma_heap_create(struct cma *cma)
 	return &cma_heap->heap;
 }
 
-static int __ion_add_cma_heaps(struct cma *cma, void *data)
+int ion_cma_get_info(struct ion_device *dev, phys_addr_t *base, size_t *size)
 {
 	struct ion_heap *heap;
+	struct ion_cma_heap *cma_heap;
+
+	down_read(&dev->lock);
+	plist_for_each_entry(heap, &dev->heaps, node) {
+		if (!((1 << heap->type) & ION_HEAP_TYPE_DMA_MASK))
+			continue;
+
+		cma_heap = to_cma_heap(heap);
+		*base = cma_get_base(cma_heap->cma);
+		*size = cma_get_size(cma_heap->cma);
+		break;
+	}
+	up_read(&dev->lock);
+
+	return 0;
+}
+
+static int __ion_add_cma_heaps(struct cma *cma, void *data)
+{
+	const char *name;
+	struct ion_heap *heap;
+
+	if (!cma_ion_dev)
+		return -ENODEV;
+
+	name = cma_get_name(cma);
+	if (strcmp(name, "ion_cma"))
+		return 0;
 
 	heap = __ion_cma_heap_create(cma);
 	if (IS_ERR(heap))
@@ -139,13 +208,51 @@ static int __ion_add_cma_heaps(struct cma *cma, void *data)
 
 	heap->name = cma_get_name(cma);
 
-	ion_device_add_heap(heap);
+	ion_device_add_heap(cma_ion_dev, heap);
+
 	return 0;
 }
 
-static int ion_add_cma_heaps(void)
+static int __ion_del_cma_heaps(struct cma *cma, void *data)
 {
+	const char *name;
+	struct ion_heap *heap;
+	struct ion_cma_heap *cma_heap;
+
+	if (!cma_ion_dev)
+		return -ENODEV;
+
+	name = cma_get_name(cma);
+	if (strcmp(name, "ion_cma"))
+		return 0;
+
+	plist_for_each_entry(heap, &cma_ion_dev->heaps, node) {
+		if (heap->type == ION_HEAP_TYPE_DMA) {
+			plist_del((struct plist_node *)heap, &cma_ion_dev->heaps);
+			break;
+		}
+	}
+
+	cma_heap = to_cma_heap(heap);
+	kfree(cma_heap);
+	cma_ion_dev = NULL;
+
+	return 0;
+}
+
+int ion_add_cma_heaps(struct ion_device *idev)
+{
+	if (!cma_ion_dev)
+		cma_ion_dev = idev;
+	else
+		return 0;
+
 	cma_for_each_area(__ion_add_cma_heaps, NULL);
 	return 0;
 }
-device_initcall(ion_add_cma_heaps);
+
+int ion_del_cma_heaps(struct ion_device *idev)
+{
+	cma_for_each_area(__ion_del_cma_heaps, NULL);
+	return 0;
+}

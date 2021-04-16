@@ -1,0 +1,12 @@
+config HOBOT_TIMESYNC
+	tristate "timesync with MCU"
+	default n
+	help
+	This is the timesync test driver --by zhongzhen.
+
+config TIMESYNC_DEBUG
+	tristate "timesync debug"
+	default n
+	depends on HOBOT_TIMESYNC
+	help
+	This is the for timesync debug.

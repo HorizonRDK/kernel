@@ -24,6 +24,7 @@
 
 #include "u_os_desc.h"
 
+static void reset_config(struct usb_composite_dev *cdev);
 /**
  * struct usb_os_string - represents OS String to be reported by a gadget
  * @bLength: total length of the entire descritor, always 0x12
@@ -271,7 +272,8 @@ int usb_add_function(struct usb_configuration *config,
 	function->config = config;
 	list_add_tail(&function->list, &config->functions);
 
-	if (function->bind_deactivated) {
+	if (function->bind_deactivated &&
+			!config->cdev->gadget->uvc_enabled) {
 		value = usb_function_deactivate(function);
 		if (value)
 			goto done;
@@ -351,8 +353,12 @@ int usb_function_deactivate(struct usb_function *function)
 
 	spin_lock_irqsave(&cdev->lock, flags);
 
-	if (cdev->deactivations == 0)
+	if (cdev->deactivations == 0) {
+		spin_unlock_irqrestore(&cdev->lock, flags);
 		status = usb_gadget_deactivate(cdev->gadget);
+		spin_lock_irqsave(&cdev->lock, flags);
+	}
+
 	if (status == 0)
 		cdev->deactivations++;
 
@@ -656,8 +662,8 @@ static int bos_desc(struct usb_composite_dev *cdev)
 
 		/* Get Controller configuration */
 		if (cdev->gadget->ops->get_config_params) {
-			cdev->gadget->ops->get_config_params(
-				&dcd_config_params);
+			cdev->gadget->ops->get_config_params(cdev->gadget,
+							     &dcd_config_params);
 		} else {
 			dcd_config_params.bU1devExitLat =
 				USB_DEFAULT_U1_DEV_EXIT_LAT;

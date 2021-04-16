@@ -113,7 +113,11 @@ calibrate_xor_blocks(void)
 	void *b1, *b2;
 	struct xor_block_template *f, *fastest;
 
+#ifdef CONFIG_HOBOT_XJ3
+	fastest = XOR_SELECT_TEMPLATE(&xor_block_32regs);
+#else
 	fastest = XOR_SELECT_TEMPLATE(NULL);
+#endif
 
 	if (fastest) {
 		printk(KERN_INFO "xor: automatically using best "

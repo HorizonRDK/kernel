@@ -1,4 +1,4 @@
-#
+
 # SPI driver configuration
 #
 # NOTE:  the reason this doesn't show SPI slave support is mostly that
@@ -50,6 +50,13 @@ config SPI_MASTER
 	  that are connected.
 
 if SPI_MASTER
+
+config SPI_MEM
+	bool "SPI memory extension"
+	help
+	  Enable this option if you want to enable the SPI memory extension.
+	  This extension is meant to simplify interaction with SPI memories
+	  by providing a high-level interface to send memory-like commands.
 
 comment "SPI Master Controller Drivers"
 
@@ -759,6 +766,25 @@ config SPI_ZYNQMP_GQSPI
 	help
 	  Enables Xilinx GQSPI controller driver for Zynq UltraScale+ MPSoC.
 
+config SPI_HOBOT
+	tristate "HOBOT SPI controller"
+	depends on SPI_MASTER
+	help
+	  This selects the hobot SPI controller master driver
+
+config SPI_HOBOT_DFS_PROTECT
+	bool "HOBOT SPI controller protect when ddr freq scailing"
+	depends on SPI_HOBOT && HOBOT_DMC_CLK
+	default n
+	help
+	  This selects the hobot SPI controller protect when ddr freq scailing.
+
+config SPI_HOBOT_QSPI
+	tristate "HOBOT QSPI controller"
+	depends on SPI_MASTER
+	help
+	  This selects the HOBOT QSPI SPI controller master driver
+
 #
 # Add new SPI master controllers in alphabetical order above this line
 #
@@ -824,6 +850,12 @@ config SPI_SLAVE_SYSTEM_CONTROL
 	help
 	  SPI slave handler to allow remote control of system reboot, power
 	  off, halt, and suspend.
+
+config SPI_HOBOT_SPIDEV
+	tristate "User mode Hobot SPI slave device support"
+	depends on SPI_SLAVE
+	help
+	  This supports user mode SPI protocol drivers.
 
 endif # SPI_SLAVE
 

@@ -253,11 +253,13 @@ static int get_set_conduit_method(struct device_node *np)
 
 static void psci_sys_reset(enum reboot_mode reboot_mode, const char *cmd)
 {
+    pr_info("psci_sys_reset(reboot_mode=%d)\n", reboot_mode);
 	invoke_psci_fn(PSCI_0_2_FN_SYSTEM_RESET, 0, 0, 0);
 }
 
 static void psci_sys_poweroff(void)
 {
+    pr_info("psci_sys_poweroff\n");
 	invoke_psci_fn(PSCI_0_2_FN_SYSTEM_OFF, 0, 0, 0);
 }
 
@@ -437,6 +439,7 @@ CPUIDLE_METHOD_OF_DECLARE(psci, "psci", &psci_cpuidle_ops);
 
 static int psci_system_suspend(unsigned long unused)
 {
+    pr_info("psci_system_suspend enter\n");
 	return invoke_psci_fn(PSCI_FN_NATIVE(1_0, SYSTEM_SUSPEND),
 			      __pa_symbol(cpu_resume), 0, 0);
 }

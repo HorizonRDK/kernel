@@ -52,8 +52,6 @@ struct erase_info {
 	u_long retries;
 	unsigned dev;
 	unsigned cell;
-	void (*callback) (struct erase_info *self);
-	u_long priv;
 	u_char state;
 	struct erase_info *next;
 };
@@ -213,6 +211,9 @@ struct module;	/* only needed for owner field in mtd_info */
  */
 struct mtd_debug_info {
 	struct dentry *dfs_dir;
+
+	const char *partname;
+	const char *partid;
 };
 
 struct mtd_info {

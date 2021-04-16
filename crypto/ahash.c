@@ -572,8 +572,11 @@ static int ahash_prepare_alg(struct ahash_alg *alg)
 
 	if (alg->halg.digestsize > PAGE_SIZE / 8 ||
 	    alg->halg.statesize > PAGE_SIZE / 8 ||
-	    alg->halg.statesize == 0)
+	    alg->halg.statesize == 0) {
+		pr_err("%s: digestsize:%d, statesize:%d\n", __func__,
+			alg->halg.digestsize, alg->halg.statesize);
 		return -EINVAL;
+	}
 
 	base->cra_type = &crypto_ahash_type;
 	base->cra_flags &= ~CRYPTO_ALG_TYPE_MASK;

@@ -1,0 +1,15 @@
+#include "memory.dtsi"
+/ {
+	reserved-memory {
+		/*Reserved 8M memory for iar(logo) subsystem*/
+		iar_reserved: iar_reserved@0x1800000 {
+			reg = <0x0 0x1800000 0x0 0x800000>;
+			no-map;
+		};
+		/* Reserved 808MB(isp,ipu,bpu) memory for ion*/
+		ion_reserved: ion_reserved@0x02100000 {
+			compatible = "ion-pool";
+			reg = <0x0 0x02100000 0x0 0x32800000>;
+		};
+	};
+};

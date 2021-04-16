@@ -1,0 +1,51 @@
+#
+# hobot mipi configuration
+#
+
+config HOBOT_MIPI_HOST
+    tristate "Hobot MIPI Host Driver"
+	depends on HOBOT_MIPI_CSI
+	---help---
+      Driver for the HOBOT MIPI Host
+
+config HOBOT_MIPI_HOST_MAX_NUM
+    int "Hobot MIPI host max port num"
+	depends on HOBOT_MIPI_HOST
+	default 4 if HOBOT_XJ3 || HOBOT_J5 || ARCH_ZYNQMP
+	default 1 if HOBOT_XJ2
+	---help---
+      Max num of mipi host devices
+
+config HOBOT_MIPI_DEV
+    tristate "Hobot MIPI Device Driver"
+	depends on HOBOT_MIPI_CSI
+	---help---
+      Driver for the HOBOT MIPI Device
+
+config HOBOT_MIPI_DEV_MAX_NUM
+    int "Hobot MIPI dev max port num"
+	depends on HOBOT_MIPI_DEV
+	default 2 if HOBOT_J5 || ARCH_ZYNQMP
+	default 1 if HOBOT_XJ2 || HOBOT_XJ3
+	---help---
+      Max num of mipi dev devices
+
+config HOBOT_MIPI_PHY
+    tristate "Hobot MIPI DPHY Driver"
+	depends on HOBOT_MIPI_CSI || (HOBOT_XJ3 && HOBOT_IAR)
+	---help---
+      Driver for the HOBOT MIPI DPHY
+
+config HOBOT_MIPI_CLK_RECALCULATION
+    bool "ENABLE CLK ACCURACY IMPROVE"
+	depends on HOBOT_MIPI_CSI
+    default n
+	---help---
+      code for clk accuracy improve
+
+config HOBOT_MIPI_REG_OPERATE
+    bool "ENABLE REG IOCTL OPERATE"
+	depends on HOBOT_MIPI_CSI
+    default n
+	---help---
+      enable mipi devices' reg ioctl opreate

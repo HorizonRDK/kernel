@@ -97,13 +97,15 @@ extern unsigned int uvc_gadget_trace_param;
 #define UVC_NUM_REQUESTS			4
 #define UVC_MAX_REQUEST_SIZE			64
 #define UVC_MAX_EVENTS				4
-
+#define UVC_MAX_TRB_SIZE			0x400000	/* check dwc3/gadget.c */
 /* ------------------------------------------------------------------------
  * Structures
  */
 
 struct uvc_video {
 	struct usb_ep *ep;
+
+	struct work_struct pump;
 
 	/* Frame parameters */
 	u8 bpp;
@@ -138,7 +140,7 @@ enum uvc_state {
 };
 
 struct uvc_device {
-	struct video_device vdev;
+	struct video_device *vdev;
 	struct v4l2_device v4l2_dev;
 	enum uvc_state state;
 	struct usb_function func;

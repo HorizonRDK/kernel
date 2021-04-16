@@ -149,7 +149,7 @@ static void transfer(int fd, uint8_t const *tx, uint8_t const *rx, size_t len)
 		hex_dump(tx, len, 32, "TX");
 
 	if (output_file) {
-		out_fd = open(output_file, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+		out_fd = open(output_file, O_WRONLY | O_CREAT | O_APPEND, 0666);
 		if (out_fd < 0)
 			pabort("could not open output file");
 
@@ -324,6 +324,7 @@ static void transfer_file(int fd, char *filename)
 	int tx_fd;
 	uint8_t *tx;
 	uint8_t *rx;
+	int frame_len = 1024, frame_num = 0, i;
 
 	if (stat(filename, &sb) == -1)
 		pabort("can't stat input file");
@@ -332,19 +333,24 @@ static void transfer_file(int fd, char *filename)
 	if (tx_fd < 0)
 		pabort("can't open input file");
 
-	tx = malloc(sb.st_size);
+	frame_num = sb.st_size / frame_len;
+
+	tx = malloc(frame_len);
 	if (!tx)
 		pabort("can't allocate tx buffer");
 
-	rx = malloc(sb.st_size);
+	rx = malloc(frame_len);
 	if (!rx)
 		pabort("can't allocate rx buffer");
 
-	bytes = read(tx_fd, tx, sb.st_size);
-	if (bytes != sb.st_size)
-		pabort("failed to read input file");
+	for (i = 0; i < frame_num; i++) {
+		bytes = read(tx_fd, tx, frame_len);
+		if (bytes != frame_len)
+			pabort("failed to read input file");
 
-	transfer(fd, tx, rx, sb.st_size);
+		transfer(fd, tx, rx, frame_len);
+	}
+
 	free(rx);
 	free(tx);
 	close(tx_fd);

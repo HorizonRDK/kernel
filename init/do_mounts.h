@@ -1,4 +1,14 @@
 /* SPDX-License-Identifier: GPL-2.0 */
+/*
+ * init/do_mount.h
+ *
+ * Copyright (C) 2015, Google
+ * Rom Lemarchand <romlem@android.com>
+ */
+
+#ifndef X3_BUILD_KERNEL_INIT_DO_MOUNTS_H_
+#define X3_BUILD_KERNEL_INIT_DO_MOUNTS_H_
+
 #include <linux/kernel.h>
 #include <linux/blkdev.h>
 #include <linux/init.h>
@@ -61,3 +71,14 @@ void md_run_setup(void);
 static inline void md_run_setup(void) {}
 
 #endif
+
+#ifdef CONFIG_BLK_DEV_DM
+
+void dm_run_setup(void);
+
+#else
+
+static inline void dm_run_setup(void) {}
+
+#endif
+#endif /* X3_BUILD_KERNEL_INIT_DO_MOUNTS_H_ */

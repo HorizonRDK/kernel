@@ -223,7 +223,7 @@ config NEED_DMA_MAP_STATE
 	def_bool y
 
 config NEED_SG_DMA_LENGTH
-	def_bool y
+	def_bool n
 
 config SMP
 	def_bool y
@@ -1142,6 +1142,21 @@ config DMI
 	  This option is only useful on systems that have UEFI firmware.
 	  However, even with this option, the resultant kernel should
 	  continue to boot on existing non-UEFI platforms.
+
+config UIMAGE_LOADADDR
+	hex "uimage loader base address"
+	default "0"
+	help
+	  The physical address at which the uImage is to be
+	  placed in the target.
+
+	  If UIMAGE_BOOT is not enabled, this has no effect.
+
+config UIMAGE_BOOT
+	bool "uimage enabled"
+	default y
+	help
+	  Say Y here if you intend to execute your compressed kernel uimage ,If unsure, say N.
 
 endmenu
 

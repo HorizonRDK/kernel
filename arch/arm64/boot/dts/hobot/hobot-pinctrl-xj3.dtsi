@@ -1,0 +1,707 @@
+/*
+ * dts file for Hobot XJ3 SOC
+ *
+ * (C) Copyright 2018, Horizon, Inc.
+ *
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+ */
+
+#include <dt-bindings/pinctrl/hobot-xj3.h>
+
+/*
+ * DRIVE1 support driver strength: 3mA 6mA 9mA 12mA 17mA 20mA 22mA 25mA 33mA
+ *                                 35mA 37mA 39mA 41mA 42.5mA 44mA 45mA
+ *
+ * DRIVE2 support driver strength: 6mA 9mA 12mA 15mA 18mA 21mA 24mA 27mA 30mA
+ *                                 33mA 36mA 39mA 41mA 42.5mA 44mA 45mA
+ */
+
+/ {
+	soc {
+		pinctrl_cdev: pinctrl_cdev@0xA6004000 {
+			compatible = "hobot,pinctrl-cdev";
+			reg-info = <0xA6004000 0x200>;
+			gpio-range = <120>;
+		};
+		range: gpio-range {
+			#pinctrl-single,gpio-range-cells = <3>;
+		};
+		/*  pinctrl_voltage used to config X/J3 pin mode, for example,
+		 *  when SD2 external power supply is 3.3v, we need config pin-mode to
+		 *  3.3v, otherwise X/J3 chip will be damaged.
+		 *  when SD2 external power supply is 1.8v, we need config pin-mode to
+		 *  1.8v, otherwise SD2 will not work.
+		 */
+		pinctrl_voltage: pinctrl_voltag@0xA6003000 {
+			compatible = "pinctrl-single";
+			reg = <0x0 0xA6003170 0x0 0x8>;
+			#pinctrl-cells = <2>;
+			#gpio-range-cells = <0x3>;
+			pinctrl-single,bit-per-mux;
+			pinctrl-single,register-width = <32>;
+			pinctrl-single,function-mask = <0x1>;
+			status = "okay";
+			/* sd2 1.8v func */
+			sd2_1_8v_func: sd2_1_8v_func {
+				pinctrl-single,bits = <
+					0x0 MODE_1_8V SD2_MODE
+				>;
+			};
+			/* sd2 3.3v func */
+			sd2_3_3v_func: sd1_3_3v_func {
+				pinctrl-single,bits = <
+					0x0 MODE_3_3V SD2_MODE
+				>;
+			};
+			/* sd1 1.8v func */
+			sd1_1_8v_func: sd1_1_8v_func {
+				pinctrl-single,bits = <
+					0x0 MODE_1_8V SD1_MODE
+				>;
+			};
+			/* sd1 3.3v func */
+			sd1_3_3v_func: sd2_3_3v_func {
+				pinctrl-single,bits = <
+					0x0 MODE_3_3V SD1_MODE
+				>;
+			};
+			/* sd0 1.8v func */
+			sd0_1_8v_func: sd0_1_8v_func {
+				pinctrl-single,bits = <
+					0x0 MODE_1_8V SD0_MODE_P1
+					0x0 MODE_1_8V SD0_MODE_P0
+				>;
+			};
+			/*sd1 3.3v func */
+			sd0_3_3v_func: sd0_3_3v_func {
+				pinctrl-single,bits = <
+					0x0 MODE_3_3V SD0_MODE_P1
+					0x0 MODE_3_3V SD0_MODE_P0
+				>;
+			};
+
+			/* rgmii 1.8v func */
+			rgmii_1_8v_func: rgmii_1_8v_func {
+				pinctrl-single,bits = <
+					0x4 MODE_1_8V RGMII_MODE_P1
+					0x4 MODE_1_8V RGMII_MODE_P0
+				>;
+			};
+			/*rgmii 3.3v func */
+			rgmii_3_3v_func: rgmii_3_3v_func {
+				pinctrl-single,bits = <
+					0x4 MODE_3_3V RGMII_MODE_P1
+					0x4 MODE_3_3V RGMII_MODE_P0
+				>;
+			};
+
+			/* i2c2 1.8v func */
+			i2c2_1_8v_func: i2c2_1_8v_func {
+				pinctrl-single,bits = <
+					0x4 MODE_1_8V I2C2_MODE
+				>;
+			};
+			/*i2c2 3.3v func */
+			i2c2_3_3v_func: i2c2_3_3v_func {
+				pinctrl-single,bits = <
+					0x4 MODE_3_3V I2C2_MODE
+				>;
+			};
+
+			/* i2c0 1.8v func */
+			i2c0_1_8v_func: i2c0_1_8v_func {
+				pinctrl-single,bits = <
+					0x4 MODE_1_8V I2C0_MODE
+				>;
+			};
+			/*i2c2 3.3v func */
+			i2c0_3_3v_func: i2c0_3_3v_func {
+				pinctrl-single,bits = <
+					0x4 MODE_3_3V I2C0_MODE
+				>;
+			};
+
+			/* bt1120 1.8v func */
+			bt1120_1_8v_func: bt1120_1_8v_func {
+				pinctrl-single,bits = <
+				    0x4 MODE_1_8V BT1120_MODE_P2
+					0x4 MODE_1_8V BT1120_MODE_P1
+					0x4 MODE_1_8V BT1120_MODE_P0
+				>;
+			};
+			/* bt1120 3.3v func */
+			bt1120_3_3v_func: bt1120_3_3v_func {
+				pinctrl-single,bits = <
+					0x4 MODE_3_3V BT1120_MODE_P2
+					0x4 MODE_3_3V BT1120_MODE_P1
+					0x4 MODE_3_3V BT1120_MODE_P0
+				>;
+			};
+
+			/* bifsd 1.8v func */
+			bifsd_1_8v_func: bifsd_1_8v_func {
+				pinctrl-single,bits = <
+					0x4 MODE_1_8V BIFSD_MODE_P1
+					0x4 MODE_1_8V BIFSD_MODE_P0
+				>;
+			};
+			/* bifsd 3.3v func */
+			bifsd_3_3v_func: bifsd_3_3v_func {
+				pinctrl-single,bits = <
+					0x4 MODE_3_3V BIFSD_MODE_P1
+					0x4 MODE_3_3V BIFSD_MODE_P0
+				>;
+			};
+
+			/* bifspi 1.8v func */
+			bifspi_1_8v_func: bifspi_1_8v_func {
+				pinctrl-single,bits = <
+					0x4 MODE_1_8V BIFSPI_MODE
+				>;
+			};
+			/* bifspi 3.3v func */
+			bifspi_3_3v_func: bifspi_3_3v_func {
+				pinctrl-single,bits = <
+					0x4 MODE_3_3V BIFSPI_MODE
+				>;
+			};
+
+			/* jtag 1.8v func */
+			jtag_1_8v_func: jtag_1_8v_func {
+				pinctrl-single,bits = <
+					0x4 MODE_1_8V JTAG_MODE
+				>;
+			};
+			/* jtag 3.3v func */
+			jtag_3_3v_func: jtag_3_3v_func {
+				pinctrl-single,bits = <
+					0x4 MODE_3_3V JTAG_MODE
+				>;
+			};
+
+		};
+
+		pinctrl: pinctrl@0xA6004000 {
+			compatible = "pinctrl-single";
+			reg = <0x0 0xA6004000 0x0 0x200>;
+			#pinctrl-cells = <1>;
+			#gpio-range-cells = <0x3>;
+			pinctrl-single,register-width = <32>;
+			pinctrl-single,function-mask = <0x3FF>;
+			/* pin base, nr pins & gpio function */
+			pinctrl-single,gpio-range = <&range 0 120 3>;
+
+			i2c0_func: i2c0_func {
+				pinctrl-single,pins = <
+					0x020	(MUX_F0 | DRIVE2_09MA | SCHMITT2_DIS | PULL2_UP)
+					0x024	(MUX_F0 | DRIVE2_09MA | SCHMITT2_DIS | PULL2_UP)
+				>;
+			};
+
+			i2c1_func: i2c1_func {
+				pinctrl-single,pins = <
+					0x028	(MUX_F0 | DRIVE1_03MA | SCHMITT1_DIS | PULL1_UP) /*i2c1 SCL*/
+					0x02c	(MUX_F0 | DRIVE1_03MA | SCHMITT1_DIS | PULL1_UP) /*i2c1 SDA*/
+				>;
+			};
+
+			i2c2_func: i2c2_func {
+				pinctrl-single,pins = <
+					0x030	(MUX_F0 | DRIVE2_09MA | SCHMITT2_DIS | PULL2_UP) /*i2c2 SCL*/
+					0x034	(MUX_F0 | DRIVE2_09MA | SCHMITT2_DIS | PULL2_UP) /*i2c2 SDA*/
+				>;
+			};
+
+			i2c3_func: i2c3_func {
+				pinctrl-single,pins = <
+					0x038	(MUX_F0 | DRIVE2_09MA | SCHMITT2_DIS | PULL2_UP) /*i2c3 SCL*/
+					0x03C	(MUX_F0 | DRIVE2_09MA | SCHMITT2_DIS | PULL2_UP) /*i2c3 SDA*/
+				>;
+			};
+
+			i2c4_func: i2c4_func {
+				pinctrl-single,pins = <
+					0x040	(MUX_F1 | DRIVE1_03MA | SCHMITT1_DIS | PULL1_UP) /*SPI0_CSN - i2c4 SDA*/
+					0x044	(MUX_F1 | DRIVE1_06MA | SCHMITT1_DIS | PULL1_UP) /*SPI0_SCLK - i2c4 SCL*/
+				>;
+			};
+
+			i2c5_func: i2c5_func {
+				pinctrl-single,pins = <
+					0x048	(MUX_F1 | DRIVE1_06MA | SCHMITT1_DIS | PULL1_UP) /*SPI0_MOSI - i2c5 SDA*/
+					0x04C	(MUX_F1 | DRIVE1_06MA | SCHMITT1_DIS | PULL1_UP) /*SPI0_MISO - i2c5 SCL*/
+				>;
+			};
+
+			uart0_func: uart0_func {
+				pinctrl-single,pins = <
+					0x17c	(MUX_F0 | DRIVE1_03MA | SCHMITT1_DIS | PULL1_UP) /*uart0 TXD*/
+					0x180	(MUX_F0 | DRIVE1_03MA | SCHMITT1_DIS | PULL1_UP) /*uart0 RXD*/
+				>;
+			};
+
+			uart1_func: uart1_func {
+				pinctrl-single,pins = <
+					0x184	(MUX_F0 | DRIVE1_03MA | SCHMITT1_DIS | PULL1_UP) /*uart1 TXD*/
+					0x188	(MUX_F0 | DRIVE1_03MA | SCHMITT1_DIS | PULL1_UP) /*uart1 RXD*/
+				>;
+			};
+
+			uart1_func_rtscts: uart1_func_rtscts {
+				pinctrl-single,pins = <
+					0x184	(MUX_F0 | DRIVE1_03MA | SCHMITT1_DIS | PULL1_UP) /*uart1 TXD*/
+					0x188	(MUX_F0 | DRIVE1_03MA | SCHMITT1_DIS | PULL1_UP) /*uart1 RXD*/
+					0x18c	(MUX_F0 | DRIVE1_03MA | SCHMITT1_DIS | PULL1_UP) /*uart1 RTSN*/
+					0x190	(MUX_F0 | DRIVE1_03MA | SCHMITT1_DIS | PULL1_UP) /*uart1 CTSN*/
+				>;
+			};
+
+			uart2_func: uart2_func {
+				pinctrl-single,pins = <
+					0x18c	(MUX_F1 | DRIVE1_03MA | SCHMITT1_DIS | PULL1_UP) /*uart1 RTSN - uart2 TXD*/
+					0x190	(MUX_F1 | DRIVE1_03MA | SCHMITT1_DIS | PULL1_UP) /*uart1 CTSN - uart2 RXD*/
+				>;
+			};
+
+			uart3_func: uart3_func {
+				pinctrl-single,pins = <
+					0x1bc	(MUX_F1 | DRIVE1_06MA | SCHMITT2_DIS | PULL2_DOWN) /*Sensor2 MCLK - uart3 TXD*/
+					0x1c0	(MUX_F1 | DRIVE1_06MA | SCHMITT2_DIS | PULL2_DOWN) /*Sensor3 MCLK - uart3 RXD*/
+				>;
+			};
+
+			i2s0_func: i2s0_func {
+				pinctrl-single,pins = <
+					0x194 (MUX_F0 | DRIVE1_06MA | SCHMITT1_DIS | PULL1_DOWN) /*i2s0 MCLK*/
+					0x198 (MUX_F0 | DRIVE1_06MA | SCHMITT1_DIS | PULL1_DOWN) /*i2s0 BGLK*/
+					0x19c (MUX_F0 | DRIVE1_06MA | SCHMITT1_DIS | PULL1_DOWN) /*i2s0 LRGK*/
+					0x1a0 (MUX_F0 | DRIVE1_06MA | SCHMITT1_DIS | PULL1_DOWN) /*i2s0 SDIO*/
+				>;
+			};
+
+			i2s1_func: i2s1_func {
+				pinctrl-single,pins = <
+					0x1a4 (MUX_F0 | DRIVE1_06MA | SCHMITT1_DIS | PULL1_DOWN) /*i2s1 MCLK*/
+					0x1a8 (MUX_F0 | DRIVE1_06MA | SCHMITT1_DIS | PULL1_DOWN) /*i2s1 BGLK*/
+					0x1ac (MUX_F0 | DRIVE1_06MA | SCHMITT1_DIS | PULL1_DOWN) /*i2s1 LRGK*/
+					0x1b0 (MUX_F0 | DRIVE1_06MA | SCHMITT1_DIS | PULL1_DOWN) /*i2s1 SDIO*/
+				>;
+			};
+
+			btout_func: btout_func {
+				pinctrl-single,pins = <
+					0x138	(MUX_F0 | DRIVE1_12MA | SCHMITT2_ENA | PULL2_DOWN) /*BT1120_OUT_CLK*/
+					0x13c	(MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN) /*BT1120_OUT_DAT0*/
+					0x140	(MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x144	(MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x148	(MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x14c	(MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x150	(MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x154	(MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x158	(MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN) /*BT1120_OUT_DAT7*/
+					0x15c	(MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN) /*BT1120_OUT_DAT8*/
+					0x160	(MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x164	(MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x168	(MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x16c	(MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x170	(MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x174	(MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x178	(MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN) /*BT1120_OUT_DAT15*/
+				>;
+			};
+
+			dvpin_func: dvpin_func {
+				pinctrl-single,pins = <
+					0x138	(MUX_F1 | DRIVE1_12MA | SCHMITT2_ENA | PULL2_DOWN) /*DVPIN_PCLK*/
+					0x13c	(MUX_F1 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN) /*DVPIN_VSYNC*/
+					0x140	(MUX_F1 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x144	(MUX_F1 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x148	(MUX_F1 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x14c	(MUX_F1 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x150	(MUX_F1 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x154	(MUX_F1 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x158	(MUX_F1 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x15c	(MUX_F1 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x160	(MUX_F1 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x164	(MUX_F1 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x168	(MUX_F1 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x16c	(MUX_F1 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x170	(MUX_F1 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN) /*DVPIN_DATA11*/
+				>;
+			};
+
+			rgb_func: rgb_func {
+				pinctrl-single,pins = <
+					0x050	(MUX_F2 | DRIVE2_09MA | SCHMITT2_ENA | PULL2_DOWN) /*VSYNC*/
+					0x054	(MUX_F2 | DRIVE2_24MA | SCHMITT2_DIS | PULL2_UP) /*HSYNC*/
+					0x068	(MUX_F2 | DRIVE2_09MA | SCHMITT2_ENA | PULL2_UP) /*DE*/
+					0x138	(MUX_F0 | DRIVE1_12MA | SCHMITT2_ENA | PULL2_DOWN) /*CLK*/
+					0x13c	(MUX_F2 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN) /*DAT0*/
+					0x140   (MUX_F2 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x144	(MUX_F2 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x148	(MUX_F2 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x14c	(MUX_F2 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x150	(MUX_F2 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x154	(MUX_F2 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x158	(MUX_F2 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN) /*DAT7*/
+					0x15c	(MUX_F2 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN) /*DAT8*/
+					0x160	(MUX_F2 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x164	(MUX_F2 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x168	(MUX_F2 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x16c	(MUX_F2 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x170	(MUX_F2 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x174	(MUX_F2 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x178	(MUX_F2 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN) /*DAT15*/
+					0x058	(MUX_F2 | DRIVE2_24MA | SCHMITT2_DIS | PULL2_UP) /*DATA16*/
+					0x05c	(MUX_F2 | DRIVE2_24MA | SCHMITT2_DIS | PULL2_UP)
+					0x060	(MUX_F2 | DRIVE2_24MA | SCHMITT2_DIS | PULL2_UP)
+					0x064	(MUX_F2 | DRIVE2_24MA | SCHMITT2_DIS | PULL2_UP) /*DATA19*/
+					0x1d0	(MUX_F2 | DRIVE1_22MA | SCHMITT2_DIS | PULL2_UP) /*DATA20*/
+					0x1d4	(MUX_F2 | DRIVE1_22MA | SCHMITT2_DIS | PULL2_UP)
+					0x1d8	(MUX_F2 | DRIVE1_22MA | SCHMITT2_DIS | PULL2_UP)
+					0x1dc	(MUX_F2 | DRIVE1_22MA | SCHMITT2_DIS | PULL2_UP) /*DATA23*/
+				>;
+			};
+			rgb_gpio_func: rgb_gpio_func {
+				pinctrl-single,pins = <
+					0x050	(MUX_F3 | DRIVE2_09MA | SCHMITT2_ENA | PULL2_DOWN) /*VSYNC*/
+					0x054	(MUX_F3 | DRIVE2_24MA | SCHMITT2_DIS | PULL2_UP) /*HSYNC*/
+					0x068	(MUX_F3 | DRIVE2_09MA | SCHMITT2_ENA | PULL2_UP) /*DE*/
+					0x138	(MUX_F3 | DRIVE1_12MA | SCHMITT2_ENA | PULL2_DOWN) /*CLK*/
+					0x13c	(MUX_F3 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN) /*DAT0*/
+					0x140   (MUX_F3 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x144	(MUX_F3 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x148	(MUX_F3 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x14c	(MUX_F3 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x150	(MUX_F3 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x154	(MUX_F3 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x158	(MUX_F3 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN) /*DAT7*/
+					0x15c	(MUX_F3 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN) /*DAT8*/
+					0x160	(MUX_F3 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x164	(MUX_F3 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x168	(MUX_F3 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x16c	(MUX_F3 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x170	(MUX_F3 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x174	(MUX_F3 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x178	(MUX_F3 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN) /*DAT15*/
+					0x058	(MUX_F3 | DRIVE2_24MA | SCHMITT2_DIS | PULL2_UP) /*DATA16*/
+					0x05c	(MUX_F3 | DRIVE2_24MA | SCHMITT2_DIS | PULL2_UP)
+					0x060	(MUX_F3 | DRIVE2_24MA | SCHMITT2_DIS | PULL2_UP)
+					0x064	(MUX_F3 | DRIVE2_24MA | SCHMITT2_DIS | PULL2_UP) /*DATA19*/
+					0x1d0	(MUX_F3 | DRIVE1_22MA | SCHMITT2_DIS | PULL2_UP) /*DATA20*/
+					0x1d4	(MUX_F3 | DRIVE1_22MA | SCHMITT2_DIS | PULL2_UP)
+					0x1d8	(MUX_F3 | DRIVE1_22MA | SCHMITT2_DIS | PULL2_UP)
+					0x1dc	(MUX_F3 | DRIVE1_22MA | SCHMITT2_DIS | PULL2_UP) /*DATA23*/
+				>;
+			};
+
+			lpwm0_func: lpwm0_func {
+				pinctrl-single,pins = <
+					0x1d0	(MUX_F1 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN) /*LPWM0*/
+				>;
+			};
+
+			lpwm1_func: lpwm1_func {
+				pinctrl-single,pins = <
+					0x1d4	(MUX_F1 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN) /*LPWM1*/
+				>;
+			};
+			lpwm2_func: lpwm2_func {
+				pinctrl-single,pins = <
+					0x1d8	(MUX_F1 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN) /*LPWM2*/
+				>;
+			};
+			lpwm3_func: lpwm3_func {
+				pinctrl-single,pins = <
+					0x1dc	(MUX_F1 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN) /*LPWM3*/
+				>;
+			};
+
+			lpwm_pps: lpwm_pps {
+				pinctrl-single,pins = <
+					0x068	(MUX_F1 | DRIVE2_09MA | SCHMITT2_ENA | PULL2_UP) /*BIFSD_RSTN/PPS_TRIG_IN*/
+				>;
+			};
+
+
+			bifsd_func: bifsd_func {
+				pinctrl-single,pins = <
+					0x050	(MUX_F0 | DRIVE2_09MA | SCHMITT2_ENA | PULL2_DOWN) /*BIFSD_CLK*/
+					0x054	(MUX_F0 | DRIVE2_24MA | SCHMITT2_DIS | PULL2_UP) /*BIFSD_CMD*/
+					0x058	(MUX_F0 | DRIVE2_24MA | SCHMITT2_DIS | PULL2_UP) /*BIFSD_DATA0*/
+					0x05c	(MUX_F0 | DRIVE2_24MA | SCHMITT2_DIS | PULL2_UP)
+					0x060	(MUX_F0 | DRIVE2_24MA | SCHMITT2_DIS | PULL2_UP)
+					0x064	(MUX_F0 | DRIVE2_24MA | SCHMITT2_DIS | PULL2_UP) /*BIFSD_DATA3*/
+					0x068	(MUX_F0 | DRIVE2_09MA | SCHMITT2_ENA | PULL2_UP) /*BIFSD_RSTN*/
+					0x1d0	(MUX_F0 | DRIVE1_22MA | SCHMITT2_DIS | PULL2_UP) /*BIFSD_DATA4*/
+					0x1d4	(MUX_F0 | DRIVE1_22MA | SCHMITT2_DIS | PULL2_UP)
+					0x1d8	(MUX_F0 | DRIVE1_22MA | SCHMITT2_DIS | PULL2_UP)
+					0x1dc	(MUX_F0 | DRIVE1_22MA | SCHMITT2_DIS | PULL2_UP) /*BIFSD_DATA7*/
+				>;
+			};
+
+			bifspi_func: bifspi_func {
+				pinctrl-single,pins = <
+					0x06c	(MUX_F0 | DRIVE2_09MA | SCHMITT2_ENA | PULL2_UP) /*BIFSPI_CSN*/
+					0x078	(MUX_F0 | DRIVE2_09MA | SCHMITT2_DIS | PULL2_UP) /*BIFSPI_MISO*/
+					0x07c	(MUX_F3 | DRIVE2_09MA | SCHMITT2_ENA | PULL2_UP) /*BIFSPI_RSTN*/
+				>;
+			};
+
+			bifspi_funcc: bifspi_funcc {
+				pinctrl-single,pins = <
+					0x070	(MUX_F0 | DRIVE2_09MA | SCHMITT2_ENA | PULL2_UP) /*BIFSPI_SCLK*/
+					0x074	(MUX_F3 | DRIVE2_09MA | SCHMITT2_DIS | PULL2_UP) /*BIFSPI_MOSI*/
+				>;
+			};
+
+			bifspi_func_reset: bifspi_func_reset {
+				pinctrl-single,pins = <
+					0x06c	(MUX_F0 | DRIVE2_09MA | SCHMITT2_ENA | PULL2_UP) /*BIFSPI_CSN*/
+					0x078	(MUX_F0 | DRIVE2_09MA | SCHMITT2_DIS | PULL2_UP) /*BIFSPI_MISO*/
+					0x07c	(MUX_F0 | DRIVE2_09MA | SCHMITT2_ENA | PULL2_UP)/*BIFSPI_RSTN*/
+				>;
+			};
+
+			bifspi_funcc_reset: bifspi_funcc_reset {
+				pinctrl-single,pins = <
+					0x070	(MUX_F0 | DRIVE2_09MA | SCHMITT2_ENA | PULL2_UP) /*BIFSPI_SCLK*/
+					0x074	(MUX_F0 | DRIVE2_09MA | SCHMITT2_DIS | PULL2_UP) /*BIFSPI_MOSI*/
+				>;
+			};
+
+			spi0_func: spi0_func {
+				pinctrl-single,pins = <
+					0x040	(MUX_F0 | DRIVE1_03MA | SCHMITT1_DIS | PULL1_UP) /*SPI0_CSN0*/
+					0x044   (MUX_F0 | DRIVE1_06MA | SCHMITT1_DIS | PULL1_UP) /*SPI0_SCLK*/
+					0x048	(MUX_F0 | DRIVE1_06MA | SCHMITT1_DIS | PULL1_UP) /*SPI0_MOSI*/
+					0x04c	(MUX_F0 | DRIVE1_06MA | SCHMITT1_DIS | PULL1_UP) /*SPI0_MISO*/
+				>;
+			};
+
+			spi0_csn1_func: spi0_csn1_func {
+				pinctrl-single,pins = <
+					0x1e0	(MUX_F1 | DRIVE1_03MA | SCHMITT1_DIS | PULL1_UP) /*QSPI_CSN1/SPI0_CSN1/GPIO7[8]*/
+				>;
+			};
+
+			spi1_func: spi1_func {
+				pinctrl-single,pins = <
+					0x00c	(MUX_F1 | DRIVE2_09MA | SCHMITT2_ENA | PULL2_DOWN) /*SPI1_SCLK*/
+					0x014	(MUX_F1 | DRIVE1_09MA | SCHMITT2_DIS | PULL2_UP) /*SPI1_CSN*/
+					0x018	(MUX_F1 | DRIVE1_09MA | SCHMITT2_DIS | PULL2_UP) /*SPI1_MISO*/
+					0x01c	(MUX_F1 | DRIVE1_09MA | SCHMITT2_DIS | PULL2_UP) /*SPI1_MOSI*/
+				>;
+			};
+
+			spi2_func: spi2_func {
+				pinctrl-single,pins = <
+					0x030	(MUX_F1 | DRIVE2_09MA | SCHMITT2_DIS | PULL2_UP) /*SPI2_MOSI*/
+					0x034	(MUX_F1 | DRIVE2_09MA | SCHMITT2_DIS | PULL2_UP) /*SPI2_MISO*/
+					0x038	(MUX_F1 | DRIVE2_09MA | SCHMITT2_DIS | PULL2_UP) /*SPI2_SCLK*/
+					0x03c	(MUX_F1 | DRIVE2_09MA | SCHMITT2_DIS | PULL2_UP) /*SPI2_CSN*/
+				>;
+			};
+
+			qspi_func: qspi_func {
+				pinctrl-single,pins = <
+					0x080	(MUX_F0 | DRIVE1_03MA | SCHMITT1_DIS | PULL1_UP) /*QSPI_CSN*/
+					0x084	(MUX_F0 | DRIVE1_09MA | SCHMITT1_DIS | PULL1_UP) /*QSPI_SCLK*/
+					0x088	(MUX_F0 | DRIVE1_06MA | SCHMITT1_DIS | PULL1_UP) /*QSPI_MOSI_IO0*/
+					0x08c	(MUX_F0 | DRIVE1_06MA | SCHMITT1_DIS | PULL1_UP) /*QSPI_MOSI_IO1*/
+					0x090	(MUX_F0 | DRIVE1_06MA | SCHMITT1_DIS | PULL1_UP) /*QSPI_MOSI_IO2*/
+					0x094	(MUX_F0 | DRIVE1_06MA | SCHMITT1_DIS | PULL1_UP) /*QSPI_MOSI_IO3*/
+					0x1e0	(MUX_F0 | DRIVE1_03MA | SCHMITT1_DIS | PULL1_UP) /*QSPI_CSN*/
+				>;
+			};
+
+			sdio0_func: sdio0_func {
+				pinctrl-single,pins = <
+					0x0d4	(MUX_F0 | DRIVE2_24MA | SCHMITT2_DIS | PULL2_DOWN)
+					0x0fc	(MUX_F0 | DRIVE1_22MA | SCHMITT2_ENA | PULL2_DOWN)
+					/* 0x104	MUX_F0 */ /* sd wprot - reused by usb id pin */
+				>;
+			};
+
+			sdio0_funcc: sdio0_funcc {
+				pinctrl-single,pins = <
+					0x0d8	(MUX_F0 | DRIVE1_22MA | SCHMITT2_DIS | PULL2_UP)
+					0x0dc	(MUX_F0 | DRIVE1_22MA | SCHMITT2_ENA | PULL2_UP)
+					0x0e0	(MUX_F0 | DRIVE1_22MA | SCHMITT2_ENA | PULL2_UP)
+					0x0e4	(MUX_F0 | DRIVE1_22MA | SCHMITT2_ENA | PULL2_UP)
+					0x0e8	(MUX_F0 | DRIVE1_22MA | SCHMITT2_ENA | PULL2_UP)
+					0x0ec	(MUX_F0 | DRIVE1_22MA | SCHMITT2_ENA | PULL2_UP)
+					0x0f0	(MUX_F0 | DRIVE1_22MA | SCHMITT2_ENA | PULL2_UP)
+					0x0f4	(MUX_F0 | DRIVE1_22MA | SCHMITT2_ENA | PULL2_UP)
+					0x0f8	(MUX_F0 | DRIVE1_22MA | SCHMITT2_ENA | PULL2_UP)
+					/* 0x104	MUX_F0 */ /* sd wprot - reused by usb id pin */
+				>;
+			};
+
+			sd0det_func: sd0det_func {
+				pinctrl-single,pins = <
+					0x100	(MUX_F3 | DRIVE1_03MA | SCHMITT1_ENA | PULL1_UP)
+				>;
+			};
+
+			sdio1_func: sdio1_func {
+				pinctrl-single,pins = <
+					0x10c	(MUX_F0 | DRIVE1_22MA | SCHMITT2_DIS | PULL2_UP) /*SD1_CMD*/
+					0x110	(MUX_F0 | DRIVE1_22MA | SCHMITT2_ENA | PULL2_UP) /*SD1_DATA0*/
+					0x114	(MUX_F0 | DRIVE1_22MA | SCHMITT2_ENA | PULL2_UP) /*SD1_DATA1*/
+					0x118	(MUX_F0 | DRIVE1_22MA | SCHMITT2_ENA | PULL2_UP) /*SD1_DATA2*/
+					0x11c	(MUX_F0 | DRIVE1_22MA | SCHMITT2_ENA | PULL2_UP) /*SD1_DATA3*/
+				>;
+			};
+
+			sdio1_funcc: sdio1_funcc {
+				pinctrl-single,pins = <
+					0x108	(MUX_F0 | DRIVE1_22MA | SCHMITT2_DIS | PULL2_DOWN) /*SD1_CLK*/
+				>;
+			};
+
+			sdio2_func: sdio2_func {
+				pinctrl-single,pins = <
+					0x120	(MUX_F0 | DRIVE1_22MA | SCHMITT2_DIS | PULL2_DOWN) /*SD2_CLK*/
+					0x124	(MUX_F0 | DRIVE1_22MA | SCHMITT2_DIS | PULL2_UP) /*SD2_CMD*/
+					0x128	(MUX_F0 | DRIVE1_22MA | SCHMITT2_ENA | PULL2_UP) /*SD2_DATA0*/
+					0x12c	(MUX_F0 | DRIVE1_22MA | SCHMITT2_ENA | PULL2_UP) /*SD2_DATA1*/
+					0x130	(MUX_F0 | DRIVE1_22MA | SCHMITT2_ENA | PULL2_UP) /*SD2_DATA2*/
+					0x134	(MUX_F0 | DRIVE1_22MA | SCHMITT2_ENA | PULL2_UP) /*SD2_DATA3*/
+				>;
+			};
+
+			eth_func: eth_func {
+				pinctrl-single,pins = <
+					0x098	(MUX_F3 | DRIVE1_06MA | SCHMITT1_DIS | PULL1_DOWN)
+					0x09c	(MUX_F0 | DRIVE1_03MA | SCHMITT1_DIS | PULL1_UP)
+					0x0a0	(MUX_F0 | DRIVE1_03MA | SCHMITT1_DIS | PULL1_UP)
+					0x0a4	(MUX_F0 | DRIVE1_03MA | SCHMITT1_ENA | PULL1_DOWN)
+					0x0a8	(MUX_F0 | DRIVE1_03MA | SCHMITT1_DIS | PULL1_UP)
+					0x0ac	(MUX_F0 | DRIVE1_03MA | SCHMITT1_DIS | PULL1_UP)
+					0x0b0	(MUX_F0 | DRIVE1_03MA | SCHMITT1_DIS | PULL1_UP)
+					0x0b4	(MUX_F0 | DRIVE1_03MA | SCHMITT1_DIS | PULL1_UP)
+					0x0b8	(MUX_F0 | DRIVE1_03MA | SCHMITT1_DIS | PULL1_DOWN)
+					0x0bc	(MUX_F0 | DRIVE1_12MA | SCHMITT1_DIS | PULL1_DIS)
+					0x0c0	(MUX_F0 | DRIVE1_12MA | SCHMITT1_DIS | PULL1_DIS)
+					0x0c4	(MUX_F0 | DRIVE1_12MA | SCHMITT1_DIS | PULL1_DIS)
+					0x0c8	(MUX_F0 | DRIVE1_12MA | SCHMITT1_DIS | PULL1_DIS)
+					0x0cc	(MUX_F0 | DRIVE1_12MA | SCHMITT1_DIS | PULL1_DIS)
+					0x0d0	(MUX_F0 | DRIVE1_12MA | SCHMITT1_DIS | PULL1_DIS)
+				>;
+			};
+
+			pwm0_func: pwm0_func {
+				pinctrl-single,pins = <
+					0x010	(MUX_F2 | DRIVE1_09MA | SCHMITT2_ENA | PULL2_DOWN)
+				>;
+			};
+
+			pwm1_func: pwm1_func {
+				pinctrl-single,pins = <
+					0x058	(MUX_F1 | DRIVE2_24MA | SCHMITT2_DIS | PULL2_UP)
+				>;
+			};
+
+			pwm2_func: pwm2_func {
+				pinctrl-single,pins = <
+					0x05c	(MUX_F1 | DRIVE2_24MA | SCHMITT2_DIS | PULL2_UP)
+				>;
+			};
+
+			pwm3_func: pwm3_func {
+				pinctrl-single,pins = <
+					0x060	(MUX_F1 | DRIVE2_24MA | SCHMITT2_DIS | PULL2_UP)
+				>;
+			};
+
+			pwm4_func: pwm4_func {
+				pinctrl-single,pins = <
+					0x064	(MUX_F1 | DRIVE2_24MA | SCHMITT2_DIS | PULL2_UP)
+				>;
+			};
+
+			pwm5_func: pwm5_func {
+				pinctrl-single,pins = <
+					0x048	(MUX_F2 | DRIVE1_06MA | SCHMITT1_DIS | PULL1_UP)
+				>;
+			};
+
+			pwm6_func: pwm6_func {
+				pinctrl-single,pins = <
+					0x04c	(MUX_F2 | DRIVE1_06MA | SCHMITT1_DIS | PULL1_UP)
+				>;
+			};
+
+			pwm7_func: pwm7_func {
+				pinctrl-single,pins = <
+					0x030	(MUX_F2 | DRIVE2_09MA | SCHMITT2_DIS | PULL2_UP)
+				>;
+			};
+
+			pwm8_func: pwm8_func {
+				pinctrl-single,pins = <
+					0x034	(MUX_F2 | DRIVE2_09MA | SCHMITT2_DIS | PULL2_UP)
+				>;
+			};
+
+			sensor0_func: sensor0_func {
+				pinctrl-single,pins = <
+					0x1b4	(MUX_F0 | DRIVE1_06MA | SCHMITT1_DIS | PULL1_DOWN) /*Sensor0 MCLK*/
+				>;
+			};
+
+			sensor0_gpio_func: sensor0_gpio_func {
+				pinctrl-single,pins = <
+					0x1b4	(MUX_F3 | DRIVE1_06MA | SCHMITT1_DIS | PULL1_DOWN) /*Sensor0 MCLK*/
+				>;
+			};
+
+			sensor1_func: sensor1_func {
+				pinctrl-single,pins = <
+					0x1b8	(MUX_F0 | DRIVE1_06MA | SCHMITT1_DIS | PULL1_DOWN) /*Sensor1 MCLK*/
+				>;
+			};
+
+			sensor1_gpio_func: sensor1_gpio_func {
+				pinctrl-single,pins = <
+					0x1b8	(MUX_F3 | DRIVE1_06MA | SCHMITT1_DIS | PULL1_DOWN) /*Sensor1 MCLK*/
+				>;
+			};
+
+			sensor2_func: sensor2_func {
+				pinctrl-single,pins = <
+					0x1bc	(MUX_F0 | DRIVE1_06MA | SCHMITT2_DIS | PULL2_DOWN) /*Sensor2 MCLK*/
+				>;
+			};
+
+			sensor2_gpio_func: sensor2_gpio_func {
+				pinctrl-single,pins = <
+					0x1bc	(MUX_F3 | DRIVE1_06MA | SCHMITT2_DIS | PULL2_DOWN) /*Sensor2 MCLK*/
+				>;
+			};
+
+			sensor3_func: sensor3_func {
+				pinctrl-single,pins = <
+					0x1c0	(MUX_F0 | DRIVE1_06MA | SCHMITT2_DIS | PULL2_DOWN) /*Sensor3 MCLK*/
+				>;
+			};
+
+			sensor3_gpio_func: sensor3_gpio_func {
+				pinctrl-single,pins = <
+					0x1c0	(MUX_F3 | DRIVE1_06MA | SCHMITT2_DIS | PULL2_DOWN) /*Sensor3 MCLK*/
+				>;
+			};
+
+			usb_id_function: usb_id_function {
+				pinctrl-single,pins = <
+					0x104	 (MUX_F3 | DRIVE1_03MA | SCHMITT1_ENA | PULL1_UP) /* usb id pin */
+				>;
+			};
+		};
+	};
+};

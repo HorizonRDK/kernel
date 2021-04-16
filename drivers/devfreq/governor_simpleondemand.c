@@ -13,11 +13,30 @@
 #include <linux/module.h>
 #include <linux/devfreq.h>
 #include <linux/math64.h>
+#include <linux/delay.h>
 #include "governor.h"
 
 /* Default constants for DevFreq-Simple-Ondemand (DFSO) */
 #define DFSO_UPTHRESHOLD	(90)
 #define DFSO_DOWNDIFFERENCTIAL	(5)
+
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
+static struct devfreq_simple_ondemand_data *so_data;
+/*
+ * Keep devfreq_simple_ondemand_data on static variable so_data since
+ * the devfreq->data could be changed when switching governor.
+ * This function should be called before adding simple_ondemand governor
+ */
+void devfreq_simple_ondemand_func_set_data(
+		struct devfreq_simple_ondemand_data *data)
+{
+	so_data = data;
+}
+
+extern int devfreq_simple_ondemand_event_enable_disable(
+		struct devfreq_simple_ondemand_data *so_data, int enable);
+#endif
+
 static int devfreq_simple_ondemand_func(struct devfreq *df,
 					unsigned long *freq)
 {
@@ -41,6 +60,7 @@ static int devfreq_simple_ondemand_func(struct devfreq *df,
 		if (data->downdifferential)
 			dfso_downdifferential = data->downdifferential;
 	}
+
 	if (dfso_upthreshold > 100 ||
 	    dfso_upthreshold < dfso_downdifferential)
 		return -EINVAL;
@@ -98,11 +118,27 @@ static int devfreq_simple_ondemand_handler(struct devfreq *devfreq,
 {
 	switch (event) {
 	case DEVFREQ_GOV_START:
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
+		/* recover simple_ondemand_data since it could be lost when
+		 * switching from other governor.
+		 */
+		if (so_data != NULL) {
+			devfreq->data = so_data;
+			devfreq_simple_ondemand_event_enable_disable(so_data, 1);
+			msleep(200);
+		}
+#endif
 		devfreq_monitor_start(devfreq);
+
 		break;
 
 	case DEVFREQ_GOV_STOP:
 		devfreq_monitor_stop(devfreq);
+
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
+		if (so_data != NULL)
+			devfreq_simple_ondemand_event_enable_disable(so_data, 0);
+#endif
 		break;
 
 	case DEVFREQ_GOV_INTERVAL:

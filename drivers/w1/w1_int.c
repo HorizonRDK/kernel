@@ -63,7 +63,7 @@ static struct w1_master *w1_alloc_dev(u32 id, int slave_count, int slave_ttl,
 	/* 1 for w1_process to decrement
 	 * 1 for __w1_remove_master_device to decrement
 	 */
-	atomic_set(&dev->refcnt, 2);
+	atomic_set(&dev->refcnt, 1);
 
 	INIT_LIST_HEAD(&dev->slist);
 	INIT_LIST_HEAD(&dev->async_list);
@@ -145,7 +145,7 @@ int w1_add_master_device(struct w1_bus_master *master)
 	memcpy(dev->bus_master, master, sizeof(struct w1_bus_master));
 
 	dev->initialized = 1;
-
+/*
 	dev->thread = kthread_run(&w1_process, dev, "%s", dev->name);
 	if (IS_ERR(dev->thread)) {
 		retval = PTR_ERR(dev->thread);
@@ -155,7 +155,7 @@ int w1_add_master_device(struct w1_bus_master *master)
 		mutex_unlock(&w1_mlock);
 		goto err_out_rm_attr;
 	}
-
+*/
 	list_add(&dev->w1_master_entry, &w1_masters);
 	mutex_unlock(&w1_mlock);
 
@@ -169,10 +169,14 @@ int w1_add_master_device(struct w1_bus_master *master)
 #if 0 /* Thread cleanup code, not required currently. */
 err_out_kill_thread:
 	set_bit(W1_ABORT_SEARCH, &dev->flags);
+	/*
 	kthread_stop(dev->thread);
+	*/
 #endif
+/*
 err_out_rm_attr:
 	w1_destroy_master_attributes(dev);
+*/
 err_out_free_dev:
 	w1_free_dev(dev);
 
@@ -190,7 +194,7 @@ void __w1_remove_master_device(struct w1_master *dev)
 	mutex_unlock(&w1_mlock);
 
 	set_bit(W1_ABORT_SEARCH, &dev->flags);
-	kthread_stop(dev->thread);
+	//kthread_stop(dev->thread);
 
 	mutex_lock(&dev->mutex);
 	mutex_lock(&dev->list_mutex);

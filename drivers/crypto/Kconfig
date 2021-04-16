@@ -728,4 +728,64 @@ config CRYPTO_DEV_ARTPEC6
 
 	  To compile this driver as a module, choose M here.
 
+config CRYPTO_DEV_HOBOT
+	tristate "Support for low level part of HOBOT Secure Engine."
+	depends on ARCH_HOBOT
+	depends on HOBOT_XJ3
+	select CRYPTO_AEAD
+	select CRYPTO_AES
+	select CRYPTO_ALGAPI
+	select CRYPTO_BLKCIPHER
+	select CRYPTO_CTR
+	select CRYPTO_HASH
+	select CRYPTO_SHA1
+	select CRYPTO_SHA256
+	select CRYPTO_SHA512
+	help
+	  Enables the low level part of the on-chip crypto engine of Hobot Soc.
+
+	  To compile this driver as a module, choose M here.
+
+config CRYPTO_DEV_HOBOT_DEV
+	tristate "Support for HOBOT Secure Engine device driver"
+	depends on CRYPTO_DEV_HOBOT
+	help
+	  Enables the low level part of the on-chip crypto engine of Hobot SoC.
+
+	  To compile this driver as a module, choose M here.
+
+config CRYPTO_DEV_HOBOT_EXAMPLE
+	tristate "Support for Hobot Secure Engine example driver"
+	depends on CRYPTO_DEV_HOBOT
+	help
+	  Enables the example driver of the on-chip crypto engine of Hobot Hobot.
+
+	  To compile this driver as a module, choose M here.
+
+config CRYPTO_DEV_HOBOT_CRYPTO
+	tristate "Support for Hobot Secure Engine crypto driver"
+	depends on CRYPTO_DEV_HOBOT
+	help
+	  Enables the low level part of the on-chip crypto engine of Hobot Soc.
+
+	  To compile this driver as a module, choose M here.
+
+config CRYPTO_DEV_HOBOT_RSA
+	depends on CRYPTO_DEV_HOBOT
+	tristate "Support for PKA(RSA) driver of Hobot Secure Engine"
+	depends on CRYPTO_DEV_HOBOT
+	help
+	  Enables the PKA(Public Key Accelerator) driver for the on-chip
+	  crypto accelerator of Hobot SoC.
+
+	  To compile this driver as a module, choose M here.
+
+config CRYPTO_DEV_HOBOT_TRNG
+	tristate "Support for the TRNG driver of Hobot Secure Engine"
+	help
+	  Enables the driver for the on-chip crypto accelerator
+	  of Hobot SOC.
+
+	  To compile this driver as a module, choose M here.
+
 endif # CRYPTO_HW

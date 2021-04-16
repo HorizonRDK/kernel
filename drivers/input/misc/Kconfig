@@ -855,4 +855,13 @@ config INPUT_HISI_POWERKEY
 	  To compile this driver as a module, choose M here: the
 	  module will be called hisi_powerkey.
 
+config INPUT_HOBOT_KEY
+	tristate "Horizon Robotics adc key"
+	depends on ARCH_HOBOT
+	help
+	  Say Y to enable support for Horizon Robotics ADC KEY.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called hobot-key.
+
 endif

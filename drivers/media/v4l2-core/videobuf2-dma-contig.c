@@ -421,7 +421,9 @@ static void vb2_dc_put_userptr(void *buf_priv)
 {
 	struct vb2_dc_buf *buf = buf_priv;
 	struct sg_table *sgt = buf->dma_sgt;
+#ifndef CONFIG_HOBOT_XJ3
 	int i;
+#endif
 	struct page **pages;
 
 	if (sgt) {
@@ -434,8 +436,10 @@ static void vb2_dc_put_userptr(void *buf_priv)
 		pages = frame_vector_pages(buf->vec);
 		/* sgt should exist only if vector contains pages... */
 		BUG_ON(IS_ERR(pages));
+#ifndef CONFIG_HOBOT_XJ3
 		for (i = 0; i < frame_vector_count(buf->vec); i++)
 			set_page_dirty_lock(pages[i]);
+#endif
 		sg_free_table(sgt);
 		kfree(sgt);
 	}

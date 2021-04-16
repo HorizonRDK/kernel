@@ -29,7 +29,7 @@
 #include "governor.h"
 
 static struct class *devfreq_class;
-
+static atomic_t devfreq_no = ATOMIC_INIT(-1);
 /*
  * devfreq core provides delayed work based load monitoring helper
  * functions. Governors can use these or can implement their own
@@ -517,7 +517,7 @@ struct devfreq *devfreq_add_device(struct device *dev,
 {
 	struct devfreq *devfreq;
 	struct devfreq_governor *governor;
-	static atomic_t devfreq_no = ATOMIC_INIT(-1);
+//	static atomic_t devfreq_no = ATOMIC_INIT(-1);
 	int err = 0;
 
 	if (!dev || !profile || !governor_name) {
@@ -552,7 +552,6 @@ struct devfreq *devfreq_add_device(struct device *dev,
 	devfreq->last_status.current_frequency = profile->initial_freq;
 	devfreq->data = data;
 	devfreq->nb.notifier_call = devfreq_notifier_call;
-
 	if (!devfreq->profile->max_state && !devfreq->profile->freq_table) {
 		mutex_unlock(&devfreq->lock);
 		devfreq_set_freq_table(devfreq);
@@ -585,10 +584,21 @@ struct devfreq *devfreq_add_device(struct device *dev,
 	mutex_lock(&devfreq_list_lock);
 	list_add(&devfreq->node, &devfreq_list);
 
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
+	if (!strncmp(dev_name(dev), "soc:dmc0", 8)) {
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ_DEFAULT_GOV
+		pr_info("set dmc devfreq governor to %s\n",
+			CONFIG_ARM_HOBOT_DMC_DEVFREQ_DEFAULT_GOV);
+		strncpy(devfreq->governor_name,
+			CONFIG_ARM_HOBOT_DMC_DEVFREQ_DEFAULT_GOV, DEVFREQ_NAME_LEN);
+#endif
+	}
+#endif
+
 	governor = find_devfreq_governor(devfreq->governor_name);
 	if (IS_ERR(governor)) {
-		dev_err(dev, "%s: Unable to find governor for the device\n",
-			__func__);
+		dev_err(dev, "%s: Unable to find governor %s for the device\n",
+			__func__, devfreq->governor_name);
 		err = PTR_ERR(governor);
 		goto err_init;
 	}
@@ -630,7 +640,7 @@ int devfreq_remove_device(struct devfreq *devfreq)
 		return -EINVAL;
 
 	device_unregister(&devfreq->dev);
-
+	atomic_dec(&devfreq_no);
 	return 0;
 }
 EXPORT_SYMBOL(devfreq_remove_device);

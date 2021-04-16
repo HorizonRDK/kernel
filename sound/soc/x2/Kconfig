@@ -1,0 +1,12 @@
+config X2_I2S
+	tristate "x2 i2s"
+	depends on ARCH_HOBOT
+	default n
+	help
+	  X2 i2s interface
+
+config X2_RAW_I2S
+    tristate "X2 I2S Driver"
+    default n
+    ---help---
+        Driver for the X2 I2S

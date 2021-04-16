@@ -2,6 +2,30 @@
 # Platform drivers
 #	Most drivers here are currently for webcam support
 
+menuconfig VIDEO_HOBOTC_JPU
+	tristate "HOBOT C-series JPEG encoder & decoder driver"
+	default n
+	---help---
+	  Say Y here to enable support for HOBOT C-series JPEG driver.
+
+menuconfig VIDEO_HOBOTC_JPU_CV
+	tristate "HOBOT C-series JPEG encoder & decoder driver for CV"
+	default n
+	---help---
+	  Say Y here to enable support for HOBOT C-series JPEG driver for CV.
+
+menuconfig VIDEO_HOBOTC_VPU
+	tristate "HOBOT C-series VPU encoder & decoder driver"
+	default n
+	---help---
+	  Say Y here to enable support for HOBOT C-series VSP driver.
+
+menuconfig VIDEO_HOBOTC_VPU_CV
+	tristate "HOBOT C-series VPU encoder & decoder driver for CV"
+	default n
+	---help---
+	  Say Y here to enable support for HOBOT C-series VSP driver for CV.
+
 menuconfig V4L_PLATFORM_DRIVERS
 	bool "V4L platform devices"
 	depends on MEDIA_CAMERA_SUPPORT
@@ -10,7 +34,6 @@ menuconfig V4L_PLATFORM_DRIVERS
 	  Say Y here to enable support for platform-specific V4L drivers.
 
 if V4L_PLATFORM_DRIVERS
-
 source "drivers/media/platform/marvell-ccic/Kconfig"
 
 config VIDEO_VIA_CAMERA
@@ -27,6 +50,7 @@ config VIDEO_VIA_CAMERA
 # Platform multimedia device configuration
 #
 
+source "drivers/media/platform/avb/Kconfig"
 source "drivers/media/platform/davinci/Kconfig"
 
 source "drivers/media/platform/omap/Kconfig"
@@ -150,6 +174,7 @@ source "drivers/media/platform/am437x/Kconfig"
 source "drivers/media/platform/xilinx/Kconfig"
 source "drivers/media/platform/rcar-vin/Kconfig"
 source "drivers/media/platform/atmel/Kconfig"
+source "drivers/media/platform/hobot/Kconfig"
 
 config VIDEO_TI_CAL
 	tristate "TI CAL (Camera Adaptation Layer) driver"

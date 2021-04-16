@@ -29,6 +29,8 @@
 #include <linux/firmware.h>
 #include <linux/remoteproc.h>
 #include <linux/elf.h>
+#include <crypto/hash.h>
+#include <linux/io.h>
 
 #include "remoteproc_internal.h"
 
@@ -165,6 +167,9 @@ rproc_elf_load_segments(struct rproc *rproc, const struct firmware *fw)
 		if (phdr->p_type != PT_LOAD)
 			continue;
 
+		if (!filesz)
+			continue;
+
 		dev_dbg(dev, "phdr: type %d da 0x%x memsz 0x%x filesz 0x%x\n",
 			phdr->p_type, da, memsz, filesz);
 
@@ -191,8 +196,12 @@ rproc_elf_load_segments(struct rproc *rproc, const struct firmware *fw)
 		}
 
 		/* put the segment where the remote processor expects it */
-		if (phdr->p_filesz)
-			memcpy(ptr, elf_data + phdr->p_offset, filesz);
+		if (phdr->p_filesz) {
+			if (rproc->fix_map_mode)
+				memcpy_toio(ptr, elf_data + phdr->p_offset, filesz);
+			else
+				memcpy(ptr, elf_data + phdr->p_offset, filesz);
+		}
 
 		/*
 		 * Zero out remaining memory for this segment.
@@ -201,8 +210,12 @@ rproc_elf_load_segments(struct rproc *rproc, const struct firmware *fw)
 		 * did this for us. albeit harmless, we may consider removing
 		 * this.
 		 */
-		if (memsz > filesz)
-			memset(ptr + filesz, 0, memsz - filesz);
+		if (memsz > filesz) {
+			if (rproc->fix_map_mode)
+				memset_io(ptr + filesz, 0, memsz - filesz);
+			else
+				memset(ptr + filesz, 0, memsz - filesz);
+		}
 	}
 
 	return ret;
@@ -328,10 +341,125 @@ rproc_elf_find_loaded_rsc_table(struct rproc *rproc, const struct firmware *fw)
 	return rproc_da_to_va(rproc, shdr->sh_addr, shdr->sh_size);
 }
 
+/**
+ * rproc_elf_get_chksum() - calcuate checksum of the loadable section
+ * @rproc: the rproc handle
+ * @fw: the ELF firmware image
+ * @algo: name of the checksum algorithm
+ * @chksum: checksum
+ * @output_size: size of the checksum
+ *
+ * This function calculate the checksum of the loadable secitons
+ * of the specified firmware.
+ *
+ * Returns 0 for success, negative value for failure.
+ */
+static int
+rproc_elf_get_chksum(struct rproc *rproc, const struct firmware *fw,
+		char *algo, u8 *chksum, int output_size)
+{
+	int ret, i;
+	struct device *dev = &rproc->dev;
+	struct crypto_shash *tfm;
+	struct shash_desc *desc;
+	int algo_len = 0;
+	struct elf32_hdr *ehdr;
+	struct elf32_phdr *phdr;
+	const u8 *elf_data = fw->data;
+
+	printk("%s, %d\n", __func__, __LINE__);
+
+	memset(chksum, 0, output_size);
+	/* If no algo is specified, default it to "sha256" */
+	if (!strlen(algo))
+		sprintf(algo, "sha256");
+	ret = crypto_has_alg(algo, 0, 0);
+	if (!ret) {
+		dev_err(dev, "failed to find crypto algo: %s.\n", algo);
+		return -EINVAL;
+	}
+	dev_dbg(dev, "firmware checksum algo: %s.\n", algo);
+	tfm =  crypto_alloc_shash(algo, 0, 0);
+	if (!tfm) {
+		dev_err(dev, "failed to allocate shash.\n");
+		return -ENOMEM;
+	}
+	algo_len = crypto_shash_digestsize(tfm);
+	if (algo_len > output_size) {
+		dev_err(dev,
+			"algo digest size %d is larger expected %d.\n",
+			algo_len, output_size);
+		return -EINVAL;
+	}
+	desc = kzalloc(sizeof(*desc) + algo_len, GFP_KERNEL);
+	if (!desc)
+		return -ENOMEM;
+	desc->tfm = tfm;
+	ret = crypto_shash_init(desc);
+	if (ret) {
+		dev_err(dev, "failed crypto %s initialization.\n", algo);
+		return ret;
+	}
+
+	ehdr = (struct elf32_hdr *)elf_data;
+	phdr = (struct elf32_phdr *)(elf_data + ehdr->e_phoff);
+
+	/* go through the available ELF segments */
+	for (i = 0; i < ehdr->e_phnum; i++, phdr++) {
+		u32 memsz = phdr->p_memsz;
+		u32 filesz = phdr->p_filesz;
+		u32 offset = phdr->p_offset;
+
+		dev_err(dev, "offset %x filesz  %x memsz %x \n",
+			offset, filesz, memsz);
+
+		if(!filesz)
+			continue;
+
+		if (phdr->p_type != PT_LOAD)
+			continue;
+
+		if (filesz > memsz) {
+			dev_err(dev, "bad phdr filesz 0x%x memsz 0x%x\n",
+				filesz, memsz);
+			ret = -EINVAL;
+			break;
+		}
+
+		if (offset + filesz > fw->size) {
+			dev_err(dev, "truncated fw: need 0x%x avail 0x%zx\n",
+				offset + filesz, fw->size);
+			ret = -EINVAL;
+			break;
+		}
+
+		/* put the segment where the remote processor expects it */
+		if (phdr->p_filesz) {
+			ret = crypto_shash_update(desc,
+				elf_data + offset, filesz);
+			if (ret) {
+				dev_err(dev,
+				"Failed to update fw crypto digest state at offset 0x%x, size 0x%x.\n",
+				offset, filesz);
+				return ret;
+			}
+		}
+	}
+	ret = crypto_shash_final(desc, chksum);
+	crypto_free_shash(tfm);
+	kfree(desc);
+	if (ret) {
+		dev_err(dev, "failed to finalize checksum of firmware.\n");
+		return ret;
+	}
+	return ret;
+}
+
 const struct rproc_fw_ops rproc_elf_fw_ops = {
 	.load = rproc_elf_load_segments,
 	.find_rsc_table = rproc_elf_find_rsc_table,
 	.find_loaded_rsc_table = rproc_elf_find_loaded_rsc_table,
 	.sanity_check = rproc_elf_sanity_check,
+	.get_chksum = rproc_elf_get_chksum,
 	.get_boot_addr = rproc_elf_get_boot_addr
 };

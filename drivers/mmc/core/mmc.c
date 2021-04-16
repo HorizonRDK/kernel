@@ -971,6 +971,9 @@ static void mmc_set_bus_speed(struct mmc_card *card)
 	else if (max_dtr > card->csd.max_dtr)
 		max_dtr = card->csd.max_dtr;
 
+#ifdef	CONFIG_HOBOT_FPGA_X3
+	if (max_dtr > 24000000) max_dtr = 24000000;
+#endif
 	mmc_set_clock(card->host, max_dtr);
 }
 

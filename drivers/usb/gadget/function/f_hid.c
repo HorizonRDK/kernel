@@ -161,7 +161,7 @@ static struct usb_endpoint_descriptor hidg_hs_in_ep_desc = {
 	.bEndpointAddress	= USB_DIR_IN,
 	.bmAttributes		= USB_ENDPOINT_XFER_INT,
 	/*.wMaxPacketSize	= DYNAMIC */
-	.bInterval		= 4, /* FIXME: Add this field in the
+	.bInterval		= 1, /* FIXME: Add this field in the
 				      * HID gadget configuration?
 				      * (struct hidg_func_descriptor)
 				      */
@@ -173,7 +173,7 @@ static struct usb_endpoint_descriptor hidg_hs_out_ep_desc = {
 	.bEndpointAddress	= USB_DIR_OUT,
 	.bmAttributes		= USB_ENDPOINT_XFER_INT,
 	/*.wMaxPacketSize	= DYNAMIC */
-	.bInterval		= 4, /* FIXME: Add this field in the
+	.bInterval		= 1, /* FIXME: Add this field in the
 				      * HID gadget configuration?
 				      * (struct hidg_func_descriptor)
 				      */
@@ -537,6 +537,15 @@ static int hidg_setup(struct usb_function *f,
 		  | HID_REQ_SET_REPORT):
 		VDBG(cdev, "set_report | wLength=%d\n", ctrl->wLength);
 		goto stall;
+		break;
+
+	case ((USB_DIR_OUT | USB_TYPE_CLASS | USB_RECIP_INTERFACE) << 8
+		| USB_REQ_GET_INTERFACE):
+		VDBG(cdev, "get_interface |wLenght=%d\n", ctrl->wLength);
+		/* send an empty report */
+		length = min_t(unsigned, length, hidg->report_length);
+		memset(req->buf, 0x0, length);
+		goto respond;
 		break;
 
 	case ((USB_DIR_OUT | USB_TYPE_CLASS | USB_RECIP_INTERFACE) << 8

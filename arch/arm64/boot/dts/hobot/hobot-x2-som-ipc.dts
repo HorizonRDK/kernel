@@ -1,0 +1,320 @@
+/*
+ * dts file for Hobot X2 FPGA
+ *
+ * (C) Copyright 2018, Horizon, Inc.
+ *
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+ */
+
+/dts-v1/;
+#include "hobot-xj2.dtsi"
+#include "hobot-pinctrl-xj2.dtsi"
+#include "hobot-clk-xj2.dtsi"
+#include "memory-1g.dtsi"
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/phy/phy.h>
+
+/ {
+	model = "Hobot X2 SOM for IPC";
+	compatible = "hobot,x2-fpga";
+
+	aliases {
+		serial0 = &uart0;
+		serial1 = &uart1;
+		serial2 = &uart2;
+		serial3 = &uart3;
+		i2c0	= &i2c0;
+		i2c1	= &i2c1;
+		i2c2	= &i2c2;
+		i2c3	= &i2c3;
+		i2s0	= &i2s0;
+		i2s1	= &i2s1;
+		spi0	= &spi0;
+		pwm0	= &pwm_0;
+		pwm1	= &pwm_1;
+		pwm2	= &pwm_2;
+		bifsd	= &bifsd;
+		bifspi	= &bifspi;
+		mmc1	= &sdio0;
+		mmc2	= &sdio1;
+	};
+
+	chosen {
+		bootargs = "earlycon loglevel=8 console=ttyS0 clk_ignore_unused";
+		stdout-path = "serial0:115200n8";
+	};
+
+};
+
+&i2c0 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	x2_camera@0x7f {
+	    compatible = "x2,camera";
+	    reg = <0x7f>;
+	};
+	tmp75c@48 {
+                compatible = "ti,tmp75c";
+		reg = <0x48>;
+	};
+	mp5416@69 {
+		compatible = "mps,mp5416";
+		reg = <0x69>;
+		system-power-controller;
+		regulators {
+			vcc_cnn0_reg: DCDC1 {
+				regulator-name = "VCC_CNN0";
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <1000000>;
+				regulator-enable-ramp-delay = <3000>;
+			};
+
+			vdd_core_pd_reg: DCDC2 {
+				regulator-name = "VDD_CORE_PD";
+				regulator-min-microvolt = <900000>;
+				regulator-max-microvolt = <900000>;
+				regulator-always-on;
+				regulator-boot-on;
+			};
+
+			vcc_cnn1_reg: DCDC3 {
+				regulator-name = "VCC_CNN1";
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <1000000>;
+				regulator-enable-ramp-delay = <3000>;
+			};
+
+			vcc_cpu_reg: DCDC4 {
+				regulator-name = "VCC_CPU";
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <1000000>;
+				regulator-always-on;
+				regulator-boot-on;
+			};
+
+			vdd_core_ao_reg: LDO3 {
+				regulator-name = "VDD_CORE_AO";
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+				regulator-boot-on;
+			};
+
+			vdd_1v8_reg: LDO4 {
+				regulator-name = "VDD_1V8";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+				regulator-always-on;
+				regulator-boot-on;
+			};
+
+			vdd_0v9_reg: LDO5 {
+				regulator-name = "VDD_0V9";
+				regulator-min-microvolt = <900000>;
+				regulator-max-microvolt = <900000>;
+				regulator-always-on;
+				regulator-boot-on;
+			};
+		};
+	};
+};
+
+&i2c1 {
+	status = "disabled";
+};
+
+&pinctrl {
+	status = "okay";
+	gpioirq-bank-cfg = <118 0 0 0>;
+};
+
+&uart0 {
+	status = "okay";
+	clocks = <&uart0_mclk>;
+	clock-names = "uart_mclk";
+};
+
+&ips {
+	pinctrl-names = "bt_func", "dvp_func";
+	pinctrl-0 = <&btin_func &btout_func>;
+	pinctrl-1 = <&dvpin_func &dvpout_func>;
+	status = "okay";
+};
+
+&isp {
+	status = "okay";
+};
+
+&ipu {
+	status = "okay";
+	slot_num = /bits/ 8 <8>;
+	slot_size = <0x1000000>;
+};
+
+&sif {
+	status = "okay";
+};
+&mipi_host {
+	status = "okay";
+};
+
+&mipi_dev {
+	status = "okay";
+};
+
+&dma {
+	status = "okay";
+};
+
+&dmatest {
+	status = "disabled";
+};
+
+&rtc {
+	status = "okay";
+};
+
+&pwm_0 {
+	status = "disabled";
+};
+
+&spi0 {
+	status = "okay";
+};
+
+&cpu0 {
+	status = "okay";
+	cpu-supply = <&vcc_cpu_reg>;
+};
+&cpu1 {
+	status = "okay";
+	cpu-supply = <&vcc_cpu_reg>;
+};
+
+&cnn0 {
+	status = "okay";
+	cnn-supply = <&vcc_cnn0_reg>;
+};
+
+&cnn1 {
+	status = "okay";
+	cnn-supply = <&vcc_cnn1_reg>;
+};
+
+&iar {
+	status = "okay";
+};
+
+&bifspi {
+	status = "okay";
+};
+
+&bifsd {
+	status = "okay";
+	/*cd-gpio = <91>;*/
+};
+&bifbase {
+	/*x2j2 bifbase: GPIO7[8]: 118, GPIO0[7]: 7*/
+	status = "okay";
+	bifbase_irq_pin = <118>;
+	bifbase_tri_pin = <7>;
+};
+
+&bifeth {
+	status = "okay";
+};
+
+&hbipc_eth {
+	status = "okay";
+	if_name = "bifeth0";
+};
+
+&biflite_spi {
+	status = "okay";
+	frame_len_max = <262144>;
+	frag_len_max = <1024>;
+	frame_count = <4>;
+};
+
+&biflite_sd {
+	status = "okay";
+	frame_len_max = <262144>;
+	frag_len_max = <32768>;
+	frame_count = <12>;
+};
+
+&biflite_eth {
+	status = "okay";
+	frame_len_max = <262144>;
+};
+
+&bifsio {
+	status = "okay";
+};
+
+&nor_flash {
+	status = "okay";
+	qspi-mode = <1>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	flash@0 {
+		compatible = "gd25lq128d";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0x0>;
+		spi-tx-bus-width = <4>;
+		spi-rx-bus-width = <4>;
+		spi-max-frequency = <50000000>;
+
+		partition@qspi-uboot {
+			label = "qspi-uboot";
+			reg = <0x200000 0x200000>;
+		};
+	};
+};
+
+&sdio0 {
+	status = "okay";
+	bus-width = <8>;
+	cap-mmc-highspeed;
+	mmc-hs200-1_8v;
+	non-removable;
+	disable-wp;
+};
+
+&watchdog {
+	status = "okay";
+};
+
+&i2s0 {
+	status = "disabled";
+};
+
+&i2s1 {
+	status = "disabled";
+};
+&ddr_monitor {
+	status = "okay";
+};
+
+&onewire {
+	status = "okay";
+};
+
+&temp {
+	status = "okay";
+};
+
+&soc_thermal {
+	status = "okay";
+};
+
+&efuse{
+	status = "okay";
+};

@@ -4,6 +4,7 @@
 #
 
 obj-$(CONFIG_VIDEO_M32R_AR_M64278) += arv.o
+obj-y				  += avb/
 
 obj-$(CONFIG_VIDEO_VIA_CAMERA) += via-camera.o
 obj-$(CONFIG_VIDEO_CAFE_CCIC) += marvell-ccic/
@@ -89,5 +90,13 @@ obj-$(CONFIG_VIDEO_MEDIATEK_JPEG)	+= mtk-jpeg/
 obj-$(CONFIG_VIDEO_QCOM_CAMSS)		+= qcom/camss-8x16/
 
 obj-$(CONFIG_VIDEO_QCOM_VENUS)		+= qcom/venus/
+
+obj-$(CONFIG_VIDEO_HOBOTC_JPU)     += hobot/jpg/
+obj-$(CONFIG_VIDEO_HOBOTC_JPU_CV)  += hobot/jpg-cv/
+
+obj-$(CONFIG_VIDEO_HOBOTC_VPU)      += hobot/vpu/
+obj-$(CONFIG_VIDEO_HOBOTC_VPU_CV)   += hobot/vpu-cv/
+
+obj-y		    += hobot/
 
 obj-y					+= meson/

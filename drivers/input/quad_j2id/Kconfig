@@ -1,0 +1,11 @@
+#
+# MATRIX QUAD j2_id configuration
+#
+config QUAD_J2ID
+	tristate "matrix v2.0 quad j2 identify"
+	default n
+	help
+	  Say Y here if you need to identify each j2 on board.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called j2_id.

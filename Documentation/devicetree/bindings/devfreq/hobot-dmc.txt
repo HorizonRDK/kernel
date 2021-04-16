@@ -1,0 +1,37 @@
+* Horizon j5 DMC(Dynamic Memory Controller) device
+
+Required properties:
+- compatible:		 Must be "hobot,j5-dmc".
+- devfreq-events:	 Node to get DDR loading, Refer to
+			 Documentation/devicetree/bindings/devfreq/
+			 rockchip-dfi.txt
+- clocks:		 Phandles for clock specified in "clock-names" property
+- clock-names :		 The name of clock used by the DFI, must be
+			 "pclk_ddr_mon";
+- operating-points-v2:	 Refer to Documentation/devicetree/bindings/power/opp.txt
+			 for details.
+- status:		 Marks the node enabled/disabled.
+
+Following properties are ddr timing:
+
+Example:
+	dmc_opp_table: dmc_opp_table {
+		compatible = "operating-points-v2";
+
+		opp00 {
+			opp-hz = /bits/ 64 <300000000>;
+			opp-microvolt = <900000>;
+		};
+		opp01 {
+			opp-hz = /bits/ 64 <666000000>;
+			opp-microvolt = <900000>;
+		};
+	};
+
+	dmc: dmc {
+		compatible = "hobot,j5-dmc";
+		devfreq-events = <&dfi>;
+		clocks = <&cru SCLK_DDRCLK>;
+		clock-names = "dmc_clk";
+		operating-points-v2 = <&dmc_opp_table>;
+	};

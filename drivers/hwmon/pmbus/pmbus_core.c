@@ -2093,6 +2093,9 @@ int pmbus_do_probe(struct i2c_client *client, const struct i2c_device_id *id,
 	const struct pmbus_platform_data *pdata = dev_get_platdata(dev);
 	struct pmbus_data *data;
 	int ret;
+#ifdef CONFIG_HOBOT_XJ3
+	int retries = 0;
+#endif
 
 	if (!info)
 		return -ENODEV;
@@ -2114,10 +2117,19 @@ int pmbus_do_probe(struct i2c_client *client, const struct i2c_device_id *id,
 		data->flags = pdata->flags;
 	data->info = info;
 
+#ifdef CONFIG_HOBOT_XJ3
+retry:
+#endif
 	ret = pmbus_init_common(client, data, info);
+#ifdef CONFIG_HOBOT_XJ3
+	if (ret < 0 && retries < 6) {
+		dev_err(dev, "pmbus_init_common error, retry:%d\n", retries);
+		retries++;
+		goto retry;
+	}
+#endif
 	if (ret < 0)
 		return ret;
-
 	ret = pmbus_find_attributes(client, data);
 	if (ret)
 		goto out_kfree;

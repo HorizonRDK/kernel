@@ -1,0 +1,305 @@
+/*
+ * dts file for Hobot X3 DVB
+ *
+ * (C) Copyright 2018, Horizon, Inc.
+ *
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+ */
+
+/dts-v1/;
+#include "hobot-xj3-xvb.dtsi"
+
+/ {
+	model = "Hobot X3 SOC MP DVB";
+
+	cnn0_pd_reg_dc: cnn0_pd_reg_dc@2 {
+
+		status = "disabled";
+		compatible = "regulator-gpio";
+		regulator-name = "VCC_CNN0";
+		regulator-min-microvolt = <800000>;
+		regulator-max-microvolt = <800000>;
+		enable-gpio = <&gpios 1 0>;
+		states = <800000 0>;
+		startup-delay-us = <3000>;
+		regulator-boot-on;
+		enable-active-high;
+	};
+
+	cnn1_pd_reg_dc: cnn1_pd_reg_dc@3 {
+		status = "disabled";
+		compatible = "regulator-gpio";
+		regulator-name = "VCC_CNN1";
+		regulator-min-microvolt = <800000>;
+		regulator-max-microvolt = <800000>;
+		enable-gpio = <&gpios 2 0>;
+		states = <800000 0>;
+		startup-delay-us = <3000>;
+		regulator-boot-on;
+		enable-active-high;
+	};
+
+    cnn_opp_table_dc: cnn_opp_table_dc {
+        compatible = "operating-points-v2";
+        opp-shared;
+        opp00 {
+            opp-hz = /bits/ 64 <1000000000>;
+            opp-microvolt = <800000>;
+            clock-latency-ns = <500000>;
+        };
+        opp01 {
+            opp-hz = /bits/ 64 <800000000>;
+            opp-microvolt = <800000>;
+            clock-latency-ns = <500000>;
+        };
+        opp02 {
+            opp-hz = /bits/ 64 <400000000>;
+            opp-microvolt = <800000>;
+            clock-latency-ns = <500000>;
+        };
+        opp03 {
+            opp-hz = /bits/ 64 <600000000>;
+            opp-microvolt = <800000>;
+            clock-latency-ns = <500000>;
+        };
+    };
+
+    cnn_opp_table_dc_lite: cnn_opp_table_dc_lite {
+        compatible = "operating-points-v2";
+        opp-shared;
+        opp00 {
+            opp-hz = /bits/ 64 <400000000>;
+            opp-microvolt = <800000>;
+            clock-latency-ns = <500000>;
+        };
+        opp01 {
+            opp-hz = /bits/ 64 <600000000>;
+            opp-microvolt = <800000>;
+            clock-latency-ns = <500000>;
+        };
+    };
+
+    cnn_opp_table_lite: cnn_opp_table_lite {
+        compatible = "operating-points-v2";
+        opp-shared;
+	opp00 {
+		opp-hz = /bits/ 64 <400000000>;
+		opp-microvolt = <820000>;
+		clock-latency-ns = <500000>;
+	};
+	opp01 {
+		opp-hz = /bits/ 64 <600000000>;
+		opp-microvolt = <820000>;
+		clock-latency-ns = <500000>;
+	};
+    };
+
+    cpu_pd_reg_dc: cpu_pd_reg_dc {
+        status = "disabled";
+		compatible = "regulator-gpio";
+        regulator-name = "VCC_CPU";
+        regulator-min-microvolt = <800000>;
+        regulator-max-microvolt = <800000>;
+		states = <800000 0>;
+		regulator-always-on;
+    };
+
+    /*TODO: cpu opp table for DC-DC X3 som */
+	cpu_opp_table_dc: cpu_opp_table_dc {
+		compatible = "operating-points-v2";
+		opp-shared;
+		opp00 {
+			opp-hz = /bits/ 64 <1200000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <500000>;
+		};
+		opp01 {
+			opp-hz = /bits/ 64 <1000000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <500000>;
+		};
+		opp02 {
+			opp-hz = /bits/ 64 <800000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <500000>;
+		};
+		opp03 {
+			opp-hz = /bits/ 64 <500000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <500000>;
+		};
+		opp04 {
+			opp-hz = /bits/ 64 <240000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <500000>;
+		};
+		opp05 {
+			opp-hz = /bits/ 64 <1500000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <500000>;
+			turbo-mode;
+		};
+	};
+};
+
+&i2c0 {
+
+	axp15060@37 {
+		compatible = "X-Powers,axp15060";
+		reg = <0x37>;
+		regulators {
+			sys_pd1_3v3_reg: DCDC1 {
+				regulator-name = "VDD_3V3";
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+			};
+
+			cnn0_pd_reg: DCDC2 {
+				regulator-name = "VCC_CNN0";
+				regulator-min-microvolt = <820000>;
+				regulator-max-microvolt = <1000000>;
+				regulator-enable-ramp-delay = <3000>;
+			};
+
+			cnn1_pd_reg: DCDC3 {
+				regulator-name = "VCC_CNN1";
+				regulator-min-microvolt = <820000>;
+				regulator-max-microvolt = <1000000>;
+				regulator-enable-ramp-delay = <3000>;
+			};
+
+			cpu_pd_reg: DCDC4 {
+				regulator-name = "VCC_CPU";
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <1000000>;
+				regulator-always-on;
+			};
+			vdd_usb_0v8: BLDO2 {
+				regulator-name = "USB_V_8";
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <800000>;
+				regulator-enable-ramp-delay = <3000>;
+			};
+		};
+	};
+
+};
+
+&usbdrd3_0 {
+	usb_0v8-supply = <&vdd_usb_0v8>;
+};
+
+&dwc3_powersave {
+	status = "okay";
+};
+
+&cnn_opp_table {
+	opp00 {
+		opp-hz = /bits/ 64 <1000000000>;
+		opp-microvolt = <820000>;
+		clock-latency-ns = <500000>;
+	};
+	opp01 {
+		opp-hz = /bits/ 64 <800000000>;
+		opp-microvolt = <820000>;
+		clock-latency-ns = <500000>;
+	};
+	opp02 {
+		opp-hz = /bits/ 64 <400000000>;
+		opp-microvolt = <820000>;
+		clock-latency-ns = <500000>;
+	};
+	opp03 {
+		opp-hz = /bits/ 64 <600000000>;
+		opp-microvolt = <820000>;
+		clock-latency-ns = <500000>;
+	};
+};
+
+
+&cpu0 {
+	cpu-supply = <&cpu_pd_reg>;
+    cpu-supply-dc = <&cpu_pd_reg_dc>;
+    operating-points-v2-dc = <&cpu_opp_table_dc>;
+};
+
+&cpu1 {
+	cpu-supply = <&cpu_pd_reg>;
+    cpu-supply-dc = <&cpu_pd_reg_dc>;
+    operating-points-v2-dc = <&cpu_opp_table_dc>;
+};
+
+&cpu2 {
+    cpu-supply = <&cpu_pd_reg>;
+    cpu-supply-dc = <&cpu_pd_reg_dc>;
+    operating-points-v2-dc = <&cpu_opp_table_dc>;
+};
+
+&cpu3 {
+    cpu-supply = <&cpu_pd_reg>;
+    cpu-supply-dc = <&cpu_pd_reg_dc>;
+    operating-points-v2-dc = <&cpu_opp_table_dc>;
+};
+
+&cnn0 {
+    cnn-supply = <&cnn0_pd_reg>;
+    cnn-supply-dc = <&cnn0_pd_reg_dc>;
+    operating-points-v2-dc = <&cnn_opp_table_dc>;
+    operating-points-v2-lite = <&cnn_opp_table_lite>;
+    operating-points-v2-dc-lite = <&cnn_opp_table_dc_lite>;
+    governor = "userspace";
+};
+
+&cnn1 {
+    cnn-supply = <&cnn1_pd_reg>;
+    cnn-supply-dc = <&cnn1_pd_reg_dc>;
+    operating-points-v2-dc = <&cnn_opp_table_dc>;
+    operating-points-v2-lite = <&cnn_opp_table_lite>;
+    operating-points-v2-dc-lite = <&cnn_opp_table_dc_lite>;
+	governor = "userspace";
+};
+
+&sdio1 {
+	powerup-gpio = <100>;	/* x3-dvb UART1_CTSN/GPIO6[4] */
+	powerup-logic = <1>;
+};
+
+&sdio2 {
+	powerup-gpio = <2>; /* x3-dvb EN_VDD_CNN1/GPIO0[2] */
+};
+
+&mipi_host0 {
+	pinctrl-0 = <&sensor1_func>;
+	pinctrl-1 = <&sensor1_gpio_func>;
+	snrclk-idx = <1>;
+};
+
+&mipi_host1 {
+	pinctrl-0 = <&sensor0_func>;
+	pinctrl-1 = <&sensor0_gpio_func>;
+	snrclk-idx = <0>;
+};
+
+&spi2 {
+	status = "disable";
+	slave;
+	slave@0x00 {
+		compatible = "rohm,dh2228fv";
+		spi-max-frequency = <20000000>;
+		reg = <0>;
+	};
+};
+
+&spi0 {
+	status = "disable";
+	spidev@0x00 {
+		compatible = "rohm,dh2228fv";
+		spi-max-frequency = <20000000>;
+		reg = <0>;
+	};
+};

@@ -740,6 +740,17 @@ config MMC_DW_ZX
 	  This selects support for ZTE SoC specific extensions to the
 	  Synopsys DesignWare Memory Card Interface driver. Select this option
 	  for platforms based on ZX296718 SoC's.
+config MMC_DW_HOBOT
+	tristate "Hobot specific extensions for Synopsys DW Memory Card Interface"
+	depends on MMC_DW
+	select MMC_DW_PLTFM
+	help
+	  This selects support for Hobot SoC specific extensions to the
+	  Synopsys DesignWare Memory Card Interface driver. Select this option
+	  for platforms based on HOBOT SoC's.
+
+
+
 
 config MMC_SH_MMCIF
 	tristate "SuperH Internal MMCIF support"

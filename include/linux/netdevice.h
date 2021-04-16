@@ -113,6 +113,16 @@ enum netdev_tx {
 };
 typedef enum netdev_tx netdev_tx_t;
 
+#if IS_ENABLED(CONFIG_TSN)
+enum sr_class {
+	SR_CLASS_A = 1,
+	SR_CLASS_B = 2,
+	SR_CLASS_LAST,
+	SR_CLASS_ERR,
+};
+#endif
+
+
 /*
  * Current order: NETDEV_TX_MASK > NET_XMIT_MASK >= 0 is significant;
  * hard_start_xmit() return < NET_XMIT_MASK means skb was consumed.
@@ -1191,6 +1201,17 @@ struct net_device_ops {
 						     struct netpoll_info *info);
 	void			(*ndo_netpoll_cleanup)(struct net_device *dev);
 #endif
+
+#if IS_ENABLED(CONFIG_TSN)
+	int			(*ndo_tsn_capable)(struct net_device *dev);
+	int			(*ndo_tsn_link_configure)(struct net_device *dev,
+							  enum sr_class class,
+							  u16 framesize,
+							  u16 vid, u8 add_link,
+							  u8 pcp_hi, u8 pcp_lo);
+#endif
+
+
 	int			(*ndo_set_vf_mac)(struct net_device *dev,
 						  int queue, u8 *mac);
 	int			(*ndo_set_vf_vlan)(struct net_device *dev,

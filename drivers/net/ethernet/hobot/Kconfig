@@ -1,0 +1,31 @@
+#
+# Horizon network device configuration
+#
+
+config NET_VENDOR_HOBOT
+	bool "Hobot x2 ethernet devices"
+	default y
+	---help---
+	  If you have a network (Ethernet) device belonging to this class, say Y.
+
+if NET_VENDOR_HOBOT
+
+config X2_ETH
+	tristate "Hobot X2 Ethernet Device support"
+	select PHYLIB
+	select CRC32
+	select MII
+	depends on OF && HAS_DMA
+	---help---
+	  This driver supports the X2 Ethernet device from Hobot
+
+config X3_ETH
+	tristate "Hobot X3 Ethernet Device support"
+	select PHYLIB
+	select CRC32
+	select MII
+	depends on OF && HAS_DMA
+	---help---
+	  This driver supports the X3 Ethernet device from Hobot
+
+endif # NET_VENDOR_HOBOT

@@ -1,0 +1,39 @@
+config X2_AUDIO
+	tristate "x2 audio"
+	depends on ARCH_HOBOT
+	default n
+	help
+	  X2
+	  audio
+	  interface
+	  info
+
+config HOBOT_AUDIO
+	tristate "hobot audio use dts"
+	depends on ARCH_HOBOT
+	default n
+
+config HOBOT_1977
+        tristate "hobot audio use dts 1977"
+        depends on ARCH_HOBOT
+        default n
+
+config HOBOT_102
+        tristate "hobot audio use dts ac102"
+        depends on ARCH_HOBOT
+        default n
+
+config HOBOT_DUMMY
+        tristate "hobot audio use dts dummy"
+        depends on ARCH_HOBOT
+        default n
+
+config HOBOT_101
+        tristate "hobot audio use dts ac101"
+        depends on ARCH_HOBOT
+        default n
+
+config HOBOT_96BOARD
+        tristate "hobot audio use dts 96board"
+        depends on ARCH_HOBOT
+        default n

@@ -1,0 +1,8 @@
+config HOBOT_CPUFREQ_QOS
+	bool "Hobot cpufreq qos services"
+	depends on ARCH_HOBOT
+	depends on PM
+	default n
+	help
+	  Use hobot cpufreq qos to boost cpufreq.
+

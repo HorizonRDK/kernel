@@ -1,0 +1,15 @@
+#KERN_DIR = /work/opensource/linux-4.9.y
+KERN_DIR := /lib/modules/`uname -r`/build
+
+obj-m = bifbase_cp.o
+bifbase_cp-objs =bif_base.o bif_simulate.o
+ccflags-y =-DCONFIG_HOBOT_BIF_TEST
+
+all:
+	rm -fr *.o *.cmd *.bak
+	make -C $(KERN_DIR) M=`pwd` modules
+	rm -fr *.o *.cmd *.bak
+
+clean:
+	make -C $(KERN_DIR) M=`pwd` modules clean
+	rm -rf *.order

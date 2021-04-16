@@ -892,6 +892,13 @@ config VIDEO_M52790
 
 	 To compile this driver as a module, choose M here: the
 	 module will be called m52790.
+config VIDEO_HOBOT_CAMERA_X2
+	tristate "Hobot X2 Camera"
+	depends on I2C
+	---help---
+	 Support for Hobot X2 Camera.
+
+	 To compile this driver as a module, choose Y here
 endmenu
 
 menu "Sensors used on soc_camera driver"
