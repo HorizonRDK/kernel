@@ -336,8 +336,7 @@ static long ion_dummy_ioctl(struct ion_client *client,
 		}
 
 		dma_sync_single_for_device(NULL, phy_data.paddr, phy_data.len, DMA_TO_DEVICE);
-		__flush_dcache_area(page_address(pfn_to_page(PHYS_PFN(phy_data.paddr))), phy_data.len);
-		__flush_dcache_area(vaddr, phy_data.len);
+		__flush_dcache_area(phys_to_virt(phy_data.paddr), phy_data.len);
 
 		break;
 	}
@@ -360,7 +359,7 @@ static long ion_dummy_ioctl(struct ion_client *client,
 		}
 
 		dma_sync_single_for_cpu(NULL, phy_data.paddr, phy_data.len, DMA_FROM_DEVICE);
-		__inval_dcache_area(page_address(pfn_to_page(PHYS_PFN(phy_data.paddr))), phy_data.len);
+		__inval_dcache_area(phys_to_virt(phy_data.paddr), phy_data.len);
 
 		break;
 	}
