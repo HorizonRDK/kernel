@@ -2326,7 +2326,7 @@ void sif_frame_ndone(struct sif_subdev *subdev)
 				trans_frame(framemgr, frame, FS_REQUEST);
 				vio_group_start_trigger_mp(group, frame);
 			} else {
-				vio_err("[S%d][V%d] NDONE [FRM](%d %d %d %d %d)\n",
+				vio_err("[S%d][V%d][FRM][NDONE](FREE[%d] REQUEST[%d] PROCESS[%d] COMPLETE[%d] USED[%d])\n",
 					group->instance,
 					subdev->id,
 					framemgr->queued_count[FS_FREE],
@@ -2347,6 +2347,7 @@ void sif_frame_ndone(struct sif_subdev *subdev)
 			}
 			spin_unlock_irqrestore(&subdev->slock, flags);
 			vio_dbg("%s: splice_enable mux_index = %d\n", __func__, subdev->mux_index);
+		}
 	} else {
 		framemgr_e_barrier_irqs(framemgr, 0, flags);
 		frame = peek_frame(framemgr, FS_PROCESS);
@@ -2359,7 +2360,7 @@ void sif_frame_ndone(struct sif_subdev *subdev)
 			trans_frame(framemgr, frame, FS_REQUEST);
 			vio_group_start_trigger_mp(group, frame);
 		} else {
-			vio_err("[S%d][V%d] NDONE [FRM](%d %d %d %d %d)\n",
+			vio_err("[S%d][V%d][FRM][NDONE](FREE[%d] REQUEST[%d] PROCESS[%d] COMPLETE[%d] USED[%d])\n",
 				group->instance,
 				subdev->id,
 				framemgr->queued_count[FS_FREE],
@@ -2381,7 +2382,6 @@ void sif_frame_ndone(struct sif_subdev *subdev)
 		spin_unlock_irqrestore(&subdev->slock, flags);
 		vio_dbg("%s: mux_index = %d\n", __func__, subdev->mux_index);
 	}
-  }
 }
 
 /*
@@ -2440,7 +2440,7 @@ void sif_frame_done(struct sif_subdev *subdev)
 				event = VIO_FRAME_NDONE;
 				vio_err("[S%d][V%d]SIF PROCESS queue has no member;\n",
 					group->instance, subdev->id);
-				vio_err("[S%d][V%d][FRM](%d %d %d %d %d)\n",
+				vio_err("[S%d][V%d][FRM][NDONE](FREE[%d] REQUEST[%d] PROCESS[%d] COMPLETE[%d] USED[%d])\n",
 					group->instance,
 					subdev->id,
 					framemgr->queued_count[0],
@@ -2490,7 +2490,7 @@ void sif_frame_done(struct sif_subdev *subdev)
 				event = VIO_FRAME_NDONE;
 				vio_err("[S%d][V%d]SIF PROCESS queue has no member;\n",
 					group->instance, subdev->id);
-				vio_err("[S%d][V%d][FRM](%d %d %d %d %d)\n",
+				vio_err("[S%d][V%d][FRM][NDONE](FREE[%d] REQUEST[%d] PROCESS[%d] COMPLETE[%d] USED[%d])\n",
 					group->instance,
 					subdev->id,
 					framemgr->queued_count[0],
