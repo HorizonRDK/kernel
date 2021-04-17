@@ -277,7 +277,8 @@ function all()
 
     # strip & copy kernel modules
     cpfiles "$SRC_KERNEL_DIR/_install/lib/modules/*" "$TARGET_TMPROOTFS_DIR/lib/modules/"
-    ${CROSS_COMPILE}strip -v -g $TARGET_TMPROOTFS_DIR/lib/modules/4.14.74/*.ko
+    [ -z "${KERNEL_VER}" ] && { KERNEL_VER=$(cat $SRC_KERNEL_DIR/include/config/kernel.release 2> /dev/null); }
+    ${CROSS_COMPILE}strip -v -g $TARGET_TMPROOTFS_DIR/lib/modules/${KERNEL_VER}/*.ko
 
     #rm $SRC_KERNEL_DIR/_install/ -rf
 
