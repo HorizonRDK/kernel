@@ -85,7 +85,7 @@ static int align_is_en(void)
 }
 static void cpu_cal_diag_report(uint16_t err_id)
 {
-	if(err_id >= 1 && err_id <= total_test_num) {
+	if(err_id >= 1 && err_id <= total_test_num + 1) {
 		diag_send_event_stat_and_env_data(
 							   DiagMsgPrioHigh,
 							   ModuleDiag_cpu_cal,
@@ -219,8 +219,8 @@ static int cpu_cal_diag_init(void)
 	struct diag_register_info cpu_cal_info;
 	int i = 0, ret = 0;
 	cpu_cal_info.module_id = (uint8_t)ModuleDiag_cpu_cal;
-	cpu_cal_info.event_cnt = total_test_num;
-	for(i = 0; i < total_test_num; ++i) {
+	cpu_cal_info.event_cnt = total_test_num + 1;
+	for(i = 0; i < total_test_num + 1; ++i) {
 		cpu_cal_info.event_handle[i].event_id = (uint8_t)(i + 1);
 		cpu_cal_info.event_handle[i].min_snd_ms = 100;
 		cpu_cal_info.event_handle[i].max_snd_ms = 148;
