@@ -283,6 +283,7 @@ static struct attribute_group ion_dev_attr_group = {
 #define ION_CACHE_INVAL 1
 #define ION_CACHE_FLUSH 2
 #define ION_MEMCPY 3
+#define ION_CACHE_FLUSH_ALL 4
 struct ion_phy_data {
 	struct ion_handle *handle;
 	phys_addr_t paddr;
@@ -340,6 +341,13 @@ static long ion_dummy_ioctl(struct ion_client *client,
 
 		break;
 	}
+
+	case ION_CACHE_FLUSH_ALL:
+	{
+		__flush_dcache_all();
+		break;
+	}
+
 	case ION_CACHE_INVAL:
 	{
 		struct ion_phy_data phy_data;
