@@ -34,6 +34,9 @@
 #define SENSOR_USER_UNLOCK    _IOW(CAMERA_IOC_MAGIC, 5, int)
 #define SENSOR_AE_SHARE	      _IOW(CAMERA_IOC_MAGIC, 6, int)
 #define SENSOR_TURNING_PARAM_EX   _IOW(CAMERA_IOC_MAGIC, 7, sensor_turning_data_ex_t)
+#define SENSOR_SET_INIT_CNT  _IOW(CAMERA_IOC_MAGIC, 8, int)
+#define SENSOR_GET_INIT_CNT  _IOR(CAMERA_IOC_MAGIC, 9, int)
+
 
 typedef enum _mipi_pre_state_t {
 	SENSOR_PRE_STATE_LOCK = 0,
@@ -67,6 +70,7 @@ typedef struct _camera_charmod_s {
 	struct file *mst_file;
 	struct mutex user_mutex;
 	uint32_t start_num;
+	uint32_t init_num;
 	uint32_t ae_share_flag;
 	// wait queue
 	uint32_t pre_state;

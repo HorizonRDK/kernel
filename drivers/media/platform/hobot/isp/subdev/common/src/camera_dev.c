@@ -60,6 +60,7 @@ static int camera_fop_open(struct inode *pinode, struct file *pfile)
 	} else {
 		camera_cdev->mst_file = pfile;
 		camera_cdev->start_num = 0;
+		camera_cdev->init_num = 0;
 		camera_cdev->pre_state = SENSOR_PRE_STATE_UNLOCK;
 		pr_info("user_mutex init !\n");
 	}
@@ -84,10 +85,12 @@ static int camera_fop_release(struct inode *pinode, struct file *pfile)
 		memset(&camera_mod[camera_cdev->port]->camera_param, 0,
 			sizeof(sensor_turning_data_t));
 		camera_cdev->start_num = 0;
+		camera_cdev->init_num = 0;
 	}
 	mutex_unlock(&camera_cdev->slock);
 	pfile->private_data = NULL;
-	pr_info("line %d user_num %d\n", __LINE__, camera_cdev->user_num);
+	pr_info("line %d user_num %d  camera_cdev->start_num %d \n",
+			__LINE__, camera_cdev->user_num, camera_cdev->start_num);
 	return 0;
 }
 static long camera_fop_ioctl(struct file *pfile, unsigned int cmd,
@@ -179,6 +182,27 @@ static long camera_fop_ioctl(struct file *pfile, unsigned int cmd,
 				return -EINVAL;
 			}
 			break;
+		case SENSOR_SET_INIT_CNT:
+			if (copy_from_user((void *)&camera_cdev->init_num,
+				(void __user *)arg, sizeof(int))) {
+				pr_err("ioctl set user init count err !\n");
+				return -EINVAL;
+			}
+			if (camera_cdev->init_num == 1)
+				pr_info("ioctl sensor start %d start_num %d\n",
+					__LINE__, camera_cdev->init_num);
+			if (camera_cdev->init_num == 0)
+				pr_info("ioctl sensor stop %d start_num %d\n",
+					__LINE__, camera_cdev->init_num);
+			break;
+		case SENSOR_GET_INIT_CNT:
+			if (copy_to_user((void __user *)arg,
+				(void *)&camera_cdev->init_num,
+				sizeof(int))) {
+				pr_err("ioctl get user init count err !\n");
+				return -EINVAL;
+			}
+			break;
 		case SENSOR_USER_LOCK:
 			if (mutex_lock_interruptible(&camera_cdev->user_mutex)) {
 				pr_err("mutex_lock_interruptible lock error \n");
@@ -202,11 +226,13 @@ static long camera_fop_ioctl(struct file *pfile, unsigned int cmd,
 				if (camera_cdev->pre_state == SENSOR_PRE_STATE_LOCK) {
 					camera_cdev->pre_done = false;
 					mutex_unlock(&camera_cdev->user_mutex);
-					pr_err("ioctl sensor user lock failed!\n");
+					pr_err("ioctl sensor user lock failed!!\n");
 					goto wait_again;
 				}
 				camera_cdev->pre_state = SENSOR_PRE_STATE_LOCK;
 				mutex_unlock(&camera_cdev->user_mutex);
+				pr_info("SENSOR_USER_LOCK  pre_state %d =start_num %d =init_num %d user_num %d\n",
+					camera_cdev->pre_state, camera_cdev->start_num, camera_cdev->init_num, camera_cdev->user_num);
 			}
 			break;
 		case SENSOR_USER_UNLOCK:
