@@ -572,7 +572,7 @@ static int wave_sleep_wake(hb_vpu_dev_t *dev, u32 core, int mode)
 static int wave_close_instance(hb_vpu_dev_t *dev, u32 core, u32 inst)
 {
 	int ret;
-	u32 error_reason = 0, intr_reason;
+	u32 error_reason = 0;
 	unsigned long timeout = jiffies + VPU_DEC_TIMEOUT;
 
 	vpu_debug(5, "[+] core=%d, inst=%d\n", core, inst);
@@ -581,21 +581,6 @@ static int wave_close_instance(hb_vpu_dev_t *dev, u32 core, u32 inst)
 		ret = vpuapi_dec_clr_all_disp_flag(dev, core, inst);
 	}
 	while ((ret = vpuapi_close(dev, core, inst)) == VPUAPI_RET_STILL_RUNNING) {
-#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
-		vdi_lock(dev, core, VPUDRV_MUTEX_VPU);
-#else
-		vdi_lock(dev, VPUDRV_MUTEX_VPU);
-#endif
-		intr_reason = VPU_READL(W5_VPU_INT_REASON);
-		VPU_WRITEL(W5_VPU_INT_REASON_CLEAR, intr_reason);
-		VPU_WRITEL(W5_VPU_VINT_CLEAR, 0x1);
-		vpu_debug(5, "Clear interrupt(reason %x)\n", intr_reason);
-#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
-		vdi_unlock(dev, core, VPUDRV_MUTEX_VPU);
-#else
-		vdi_unlock(dev, VPUDRV_MUTEX_VPU);
-#endif
-
 		ret = vpuapi_get_output_info(dev, core, inst, &error_reason);
 		vpu_debug(5, "core=%d, inst=%d, ret=%d, error_reason=0x%x\n",
 			core, inst,  ret, error_reason);
@@ -1128,6 +1113,7 @@ int vpuapi_close(hb_vpu_dev_t *dev, u32 core, u32 inst)
 	int ret = VPUAPI_RET_SUCCESS;
 	u32 val;
 	int product_code;
+	u32 intr_reason;
 
 #ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
 	vdi_lock(dev, core, VPUDRV_MUTEX_VPU);
@@ -1155,6 +1141,12 @@ int vpuapi_close(hb_vpu_dev_t *dev, u32 core, u32 inst)
 			val = VPU_READL(W5_RET_FAIL_REASON);
 			if (val == WAVE5_SYSERR_VPU_STILL_RUNNING) {
 				ret = VPUAPI_RET_STILL_RUNNING;
+				intr_reason = VPU_READL(W5_VPU_INT_REASON);
+				if (intr_reason != 0) {
+					//VPU_WRITEL(W5_VPU_INT_REASON_CLEAR, intr_reason);
+					//VPU_WRITEL(W5_VPU_VINT_CLEAR, 0x1);
+					//vpu_debug(7, "Clear interrupt(reason %x)\n", intr_reason);
+				}
 			} else {
 				ret = VPUAPI_RET_FAILURE;
 			}
@@ -1168,6 +1160,7 @@ int vpuapi_close(hb_vpu_dev_t *dev, u32 core, u32 inst)
 	if (ret != VPUAPI_RET_SUCCESS) {
 		vpu_err("ret=%d\n", ret);
 	}
+
 	vpu_debug(5, "[-] ret=%d\n", ret);
 #ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
 	vdi_unlock(dev, core, VPUDRV_MUTEX_VPU);
@@ -1395,10 +1388,12 @@ static int vpu_free_instances(struct file *filp)
 			dev->vpu_open_ref_count--;
 			list_del(&vil->list);
 			test_and_clear_bit(vil->inst_idx, vpu_inst_bitmap);
-			spin_lock(&dev->poll_spinlock);
-			dev->poll_event[vil->inst_idx] = VPU_INST_CLOSED;
-			spin_unlock(&dev->poll_spinlock);
+			dev->poll_event[vil->inst_idx] = LLONG_MIN;
 			wake_up_interruptible(&dev->poll_wait_q[vil->inst_idx]);
+			dev->poll_int_event[vil->inst_idx] = LLONG_MIN;
+			dev->total_poll[vil->inst_idx] = 0;
+			dev->total_release[vil->inst_idx] = 0;
+			wake_up_interruptible(&dev->poll_int_wait_q[vil->inst_idx]);
 			memset(&dev->vpu_ctx[vil->inst_idx], 0x00,
 				sizeof(dev->vpu_ctx[vil->inst_idx]));
 			memset(&dev->vpu_status[vil->inst_idx], 0x00,
@@ -1549,14 +1544,15 @@ static irqreturn_t vpu_irq_handler(int irq, void *dev_id)
 #ifdef SUPPORT_MULTI_INST_INTR
 	u32 intr_reason = 0;
 	s32 intr_inst_index = 0;
+	int inst_arr[MAX_NUM_VPU_INSTANCE] = {0, };
+	int idx;
 #endif
-	unsigned long flags_mp;
 
 #ifdef VPU_IRQ_CONTROL
-	spin_lock_irqsave(&dev->irq_spinlock, flags_mp);
+	spin_lock(&dev->irq_spinlock);
 	disable_irq_nosync(dev->irq);
 	dev->irq_trigger = 1;
-	spin_unlock_irqrestore(&dev->irq_spinlock, flags_mp);
+	spin_unlock(&dev->irq_spinlock);
 #endif
 
 	for (core = 0; core < MAX_NUM_VPU_CORE; core++) {
@@ -1669,6 +1665,7 @@ static irqreturn_t vpu_irq_handler(int irq, void *dev_id)
 							     (&dev->interrupt_pending_q
 							      [intr_inst_index]));
 						}
+						inst_arr[intr_inst_index] = 1;
 					} else {
 						vpu_err("intr_inst_index is wrong "
 							"intr_inst_index=%d \n",
@@ -1725,6 +1722,19 @@ static irqreturn_t vpu_irq_handler(int irq, void *dev_id)
 	if (intr_inst_index >= 0 && intr_inst_index < MAX_NUM_VPU_INSTANCE) {
 		dev->interrupt_flag[intr_inst_index] = 1;
 		wake_up_interruptible(&dev->interrupt_wait_q[intr_inst_index]);
+		for (idx=0; idx < MAX_NUM_VPU_INSTANCE; idx++) {
+			if (inst_arr[idx] == 1) {
+				spin_lock(&dev->poll_int_wait_q[idx].lock);
+				dev->poll_int_event[idx]++;
+				vpu_debug(7, "vpu_irq_handler poll_int_event[%d]=%lld.\n",
+					idx, dev->poll_int_event[idx]);
+				dev->total_poll[idx]++;
+				vpu_debug(7, "vpu_irq_handler total_poll[%d]=%lld.\n",
+					idx, dev->total_poll[idx]);
+				spin_unlock(&dev->poll_int_wait_q[idx].lock);
+				wake_up_interruptible(&dev->poll_int_wait_q[idx]);
+			}
+		}
 	}
 #else
 	dev->interrupt_flag = 1;
@@ -1800,6 +1810,7 @@ static int vpu_open(struct inode *inode, struct file *filp)
 	dev->open_count++;
 	priv->vpu_dev = dev;
 	priv->inst_index = -1;
+	priv->is_irq_poll = 0;
 	filp->private_data = (void *)priv;
 	spin_unlock(&dev->vpu_spinlock);
 	hb_vpu_clk_enable(dev, dev->vpu_freq);
@@ -1816,6 +1827,7 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 	int inst_index;
 	hb_vpu_dev_t *dev;
 	hb_vpu_priv_t *priv;
+	unsigned long flags_mp;
 
 	priv = filp->private_data;
 	dev = priv->vpu_dev;
@@ -2053,6 +2065,21 @@ INTERRUPT_REMAIN_IN_QUEUE:
 			}
 			spin_unlock_irqrestore(&dev->irq_spinlock, flags_mp);
 #endif
+#ifdef SUPPORT_MULTI_INST_INTR
+			if (dev->interrupt_reason[intr_inst_index] != 0)
+#else
+			if (dev->interrupt_reason != 0)
+#endif
+			{
+				spin_lock_irqsave(&dev->poll_int_wait_q[intr_inst_index].lock, flags_mp);
+				dev->poll_int_event[intr_inst_index]--;
+				dev->total_release[intr_inst_index]++;
+				vpu_debug(7, "ioctl poll event %lld total_release[%d]=%lld.\n",
+					dev->poll_int_event[intr_inst_index], intr_inst_index,
+					dev->total_release[intr_inst_index]);
+				spin_unlock_irqrestore(&dev->poll_int_wait_q[intr_inst_index].lock, flags_mp);
+			}
+
 			ret = copy_to_user((void __user *)arg, &info,
 					   sizeof(hb_vpu_drv_intr_t));
 			//vpu_debug(5, "[-]VDI_IOCTL_WAIT_INTERRUPT\n");
@@ -2323,10 +2350,12 @@ INTERRUPT_REMAIN_IN_QUEUE:
 #endif
 			spin_unlock(&dev->vpu_spinlock);
 
-			spin_lock(&dev->poll_spinlock);
-			dev->poll_event[inst_info.inst_idx] = VPU_INST_CLOSED;
-			spin_unlock(&dev->poll_spinlock);
+			dev->poll_event[inst_info.inst_idx] = LLONG_MIN;
 			wake_up_interruptible(&dev->poll_wait_q[inst_info.inst_idx]);
+			dev->poll_int_event[inst_info.inst_idx] = LLONG_MIN;
+			dev->total_poll[inst_info.inst_idx] = 0;
+			dev->total_release[inst_info.inst_idx] = 0;
+			wake_up_interruptible(&dev->poll_int_wait_q[inst_info.inst_idx]);
 
 			/* flag just for that vpu is in opened or closed */
 			dev->vpu_open_ref_count--;
@@ -2412,9 +2441,10 @@ INTERRUPT_REMAIN_IN_QUEUE:
 						MAX_NUM_VPU_INSTANCE);
 			if (inst_index < MAX_NUM_VPU_INSTANCE) {
 				set_bit(inst_index, vpu_inst_bitmap);
-				spin_lock(&dev->poll_spinlock);
-				dev->poll_event[inst_index] = VPU_EVENT_NONE;
-				spin_unlock(&dev->poll_spinlock);
+				dev->poll_event[inst_index] = 0;
+				dev->poll_int_event[inst_index] = 0;
+				dev->total_poll[inst_index] = 0;
+				dev->total_release[inst_index] = 0;
 			} else {
 				inst_index = -1;
 			}
@@ -2478,15 +2508,21 @@ INTERRUPT_REMAIN_IN_QUEUE:
 			if (intr_inst_index >= 0 &&
 				intr_inst_index < MAX_NUM_VPU_INSTANCE) {
 				if (info.intr_reason == 0) {
-					spin_lock(&dev->poll_spinlock);
+					spin_lock(&dev->poll_wait_q[intr_inst_index].lock);
 					priv->inst_index = intr_inst_index;
-					spin_unlock(&dev->poll_spinlock);
+					priv->is_irq_poll = 0;
+					spin_unlock(&dev->poll_wait_q[intr_inst_index].lock);
+				} else if (info.intr_reason == VPU_INST_INTERRUPT) {
+					spin_lock_irqsave(&dev->poll_int_wait_q[intr_inst_index].lock, flags_mp);
+					priv->inst_index = intr_inst_index;
+					priv->is_irq_poll = 1;
+					spin_unlock_irqrestore(&dev->poll_int_wait_q[intr_inst_index].lock, flags_mp);
 				} else if (info.intr_reason == VPU_ENC_PIC_DONE ||
 					info.intr_reason == VPU_DEC_PIC_DONE ||
 					info.intr_reason == VPU_INST_CLOSED) {
-					spin_lock(&dev->poll_spinlock);
-					dev->poll_event[intr_inst_index] = VPU_ENC_PIC_DONE;
-					spin_unlock(&dev->poll_spinlock);
+					spin_lock(&dev->poll_wait_q[intr_inst_index].lock);
+					dev->poll_event[intr_inst_index]++;
+					spin_unlock(&dev->poll_wait_q[intr_inst_index].lock);
 					wake_up_interruptible(&dev->poll_wait_q[intr_inst_index]);
 				} else {
 					vpu_err
@@ -2914,26 +2950,32 @@ static unsigned int vpu_poll(struct file *filp, struct poll_table_struct *wait)
 	hb_vpu_dev_t *dev;
 	hb_vpu_priv_t *priv;
 	unsigned int mask = 0;
+	int64_t count;
 
 	priv = filp->private_data;
 	dev = priv->vpu_dev;
 	if (priv->inst_index < 0 || priv->inst_index >= MAX_NUM_VPU_INSTANCE) {
 		return EPOLLERR;
 	}
-	poll_wait(filp, &dev->poll_wait_q[priv->inst_index], wait);
-	spin_lock(&dev->poll_spinlock);
-	if (VPU_ENC_PIC_DONE == dev->poll_event[priv->inst_index]
-		|| VPU_DEC_PIC_DONE == dev->poll_event[priv->inst_index]) {
-		mask = EPOLLIN | EPOLLET;
-	} else if (VPU_INST_CLOSED == dev->poll_event[priv->inst_index]) {
-		mask = EPOLLHUP;
-	} else if (VPU_EVENT_NONE == dev->poll_event[priv->inst_index]) {
-		mask = 0;
+	if (priv->is_irq_poll == 0) {
+		poll_wait(filp, &dev->poll_wait_q[priv->inst_index], wait);
+		spin_lock(&dev->poll_wait_q[priv->inst_index].lock);
+		if (dev->poll_event[priv->inst_index] > 0) {
+			mask = EPOLLIN | EPOLLET;
+			dev->poll_event[priv->inst_index]--;
+		} else if (dev->poll_event[priv->inst_index] == LLONG_MIN) {
+			mask = EPOLLHUP;
+		}
+		spin_unlock(&dev->poll_wait_q[priv->inst_index].lock);
 	} else {
-		mask = EPOLLERR;
+		poll_wait(filp, &dev->poll_int_wait_q[priv->inst_index], wait);
+		count = dev->poll_int_event[priv->inst_index];
+		if (count > 0) {
+			mask = EPOLLIN | EPOLLET;
+		} else if (count == LLONG_MIN) {
+			mask = EPOLLHUP;
+		}
 	}
-	dev->poll_event[priv->inst_index] = VPU_EVENT_NONE;
-	spin_unlock(&dev->poll_spinlock);
 	return mask;
 }
 
@@ -4243,9 +4285,11 @@ static int vpu_probe(struct platform_device *pdev)
 #endif
 
 	for (i = 0; i < MAX_NUM_VPU_INSTANCE; i++) {
+		init_waitqueue_head(&dev->poll_int_wait_q[i]);
+	}
+	for (i = 0; i < MAX_NUM_VPU_INSTANCE; i++) {
 		init_waitqueue_head(&dev->poll_wait_q[i]);
 	}
-	spin_lock_init(&dev->poll_spinlock);
 #ifdef SUPPORT_MULTI_INST_INTR
 	for (i = 0; i < MAX_NUM_VPU_INSTANCE; i++) {
 		init_waitqueue_head(&dev->interrupt_wait_q[i]);

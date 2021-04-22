@@ -65,6 +65,13 @@ typedef struct _hb_jpu_ion_phys_map {
 	uint64_t iova;	/* IO virtual address */
 } hb_jpu_ion_phys_map_t;
 
+typedef enum _hb_jpu_event_e {
+	JPU_EVENT_NONE = 0,
+	JPU_PIC_DONE = 1,
+	JPU_INST_CLOSED = 2,
+	JPU_INST_INTERRUPT = 3,
+} hb_jpu_event_t;
+
 #define JDI_IOCTL_MAGIC  'J'
 
 #define JDI_IOCTL_ALLOCATE_PHYSICAL_MEMORY          \

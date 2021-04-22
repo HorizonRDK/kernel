@@ -169,6 +169,7 @@ static int jpu_free_instances(struct file *filp)
 	hb_jpu_drv_instance_pool_t *vip;
 	void *vip_base;
 	int instance_pool_size_per_core;
+	int32_t hw_idx = 0;
 #ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
 	int32_t i = 0;
 #else
@@ -207,6 +208,14 @@ static int jpu_free_instances(struct file *filp)
 				  (int)instance_pool_size_per_core);
 			vip = (hb_jpu_drv_instance_pool_t *) vip_base;
 			if (vip) {
+				for (hw_idx = 0; hw_idx < MAX_HW_NUM_JPU_INSTANCE; hw_idx++) {
+					if (dev->interrupt_flag[hw_idx] == 1) {
+						JPU_WRITEL(MJPEG_PIC_STATUS_REG(hw_idx),
+							dev->interrupt_reason[hw_idx]);
+						enable_irq(dev->irq);
+						dev->interrupt_flag[hw_idx] = 0;
+					}
+				}
 #ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
 				for (i = 0; i < JPUDRV_MUTEX_MAX; i++) {
 					jdi_lock_release(dev, (u32)0, i);
@@ -242,10 +251,10 @@ static int jpu_free_instances(struct file *filp)
 			dev->jpu_open_ref_count--;
 			list_del(&vil->list);
 			test_and_clear_bit(vil->inst_idx, jpu_inst_bitmap);
-			spin_lock(&dev->poll_spinlock);
-			dev->poll_event[vil->inst_idx] = JPU_INST_CLOSED;
-			spin_unlock(&dev->poll_spinlock);
+			dev->poll_event[vil->inst_idx] = LLONG_MIN;
 			wake_up_interruptible(&dev->poll_wait_q[vil->inst_idx]);
+			dev->poll_int_event = LLONG_MIN;
+			wake_up_interruptible(&dev->poll_int_wait);
 			memset(&dev->jpu_ctx[vil->inst_idx], 0x00,
 				sizeof(dev->jpu_ctx[vil->inst_idx]));
 			memset(&dev->jpu_status[vil->inst_idx], 0x00,
@@ -323,6 +332,10 @@ static irqreturn_t jpu_irq_handler(int irq, void *dev_id)
 		kill_fasync(&dev->async_queue, SIGIO, POLL_IN);
 
 	wake_up_interruptible(&dev->interrupt_wait_q[i]);
+	spin_lock(&dev->poll_int_wait.lock);
+	dev->poll_int_event++;
+	spin_unlock(&dev->poll_int_wait.lock);
+	wake_up_interruptible(&dev->poll_int_wait);
 
 	return IRQ_HANDLED;
 }
@@ -361,6 +374,7 @@ static int jpu_open(struct inode *inode, struct file *filp)
 	dev->open_count++;
 	priv->jpu_dev = dev;
 	priv->inst_index = -1;
+	priv->is_irq_poll = 0;
 	filp->private_data = (void *)priv;
 	spin_unlock(&dev->jpu_spinlock);
 	hb_jpu_clk_enable(dev);
@@ -376,6 +390,7 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 	int inst_index;
 	hb_jpu_dev_t *dev;
 	hb_jpu_priv_t *priv;
+	unsigned long flags_mp;
 
 	priv = filp->private_data;
 	dev = priv->jpu_dev;
@@ -536,6 +551,10 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 #ifdef JPU_IRQ_CONTROL
 			enable_irq(dev->irq);
 #endif
+			spin_lock_irqsave(&dev->poll_int_wait.lock, flags_mp);
+			dev->poll_int_event--;
+			spin_unlock_irqrestore(&dev->poll_int_wait.lock, flags_mp);
+
 			jpu_debug(7, "[-]VDI_IOCTL_WAIT_INTERRUPT\n");
 			if (ret != 0)
 				return -EFAULT;
@@ -721,10 +740,11 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 				inst_info.inst_open_count++;
 			}
 
-			spin_lock(&dev->poll_spinlock);
-			dev->poll_event[inst_info.inst_idx] = JPU_INST_CLOSED;
-			spin_unlock(&dev->poll_spinlock);
+			dev->poll_event[inst_info.inst_idx] = LLONG_MIN;
 			wake_up_interruptible(&dev->poll_wait_q[inst_info.inst_idx]);
+			dev->poll_int_event = LLONG_MIN;
+			wake_up_interruptible(&dev->poll_int_wait);
+
 
 			/* flag just for that jpu is in opened or closed */
 			dev->jpu_open_ref_count--;
@@ -807,9 +827,8 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 						MAX_NUM_JPU_INSTANCE);
 			if (inst_index < MAX_NUM_JPU_INSTANCE) {
 				set_bit(inst_index, jpu_inst_bitmap);
-				spin_lock(&dev->poll_spinlock);
-				dev->poll_event[inst_index] = JPU_EVENT_NONE;
-				spin_unlock(&dev->poll_spinlock);
+				dev->poll_event[inst_index] = 0;
+				dev->poll_int_event = 0;
 			} else {
 				inst_index = -1;
 			}
@@ -871,14 +890,20 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 		inst_no = info.inst_idx;
 		if (inst_no >= 0 && inst_no < MAX_NUM_JPU_INSTANCE) {
 			if (info.intr_reason == 0) {
-				spin_lock(&dev->poll_spinlock);
+				spin_lock(&dev->poll_wait_q[inst_no].lock);
 				priv->inst_index = inst_no;
-				spin_unlock(&dev->poll_spinlock);
+				priv->is_irq_poll = 0;
+				spin_unlock(&dev->poll_wait_q[inst_no].lock);
+			} else if (info.intr_reason == JPU_INST_INTERRUPT) {
+				spin_lock_irqsave(&dev->poll_int_wait.lock, flags_mp);
+				priv->inst_index = inst_no;
+				priv->is_irq_poll = 1;
+				spin_unlock_irqrestore(&dev->poll_int_wait.lock, flags_mp);
 			} else if (info.intr_reason == JPU_PIC_DONE ||
 				info.intr_reason == JPU_INST_CLOSED) {
-				spin_lock(&dev->poll_spinlock);
-				dev->poll_event[inst_no] = JPU_PIC_DONE;
-				spin_unlock(&dev->poll_spinlock);
+				spin_lock(&dev->poll_wait_q[inst_no].lock);
+				dev->poll_event[inst_no]++;
+				spin_unlock(&dev->poll_wait_q[inst_no].lock);
 				wake_up_interruptible(&dev->poll_wait_q[inst_no]);
 			} else {
 				jpu_err
@@ -1180,26 +1205,34 @@ static unsigned int jpu_poll(struct file *filp, struct poll_table_struct *wait)
 {
 	hb_jpu_dev_t *dev;
 	hb_jpu_priv_t *priv;
-	unsigned int mask;
+	unsigned int mask = 0;
+	int64_t count;
 
 	priv = filp->private_data;
 	dev = priv->jpu_dev;
 	if (priv->inst_index < 0 || priv->inst_index >= MAX_NUM_JPU_INSTANCE) {
 		return EPOLLERR;
 	}
-	poll_wait(filp, &dev->poll_wait_q[priv->inst_index], wait);
-	spin_lock(&dev->poll_spinlock);
-	if (JPU_PIC_DONE == dev->poll_event[priv->inst_index]) {
-		mask = EPOLLIN | EPOLLET;
-	} else if (JPU_INST_CLOSED == dev->poll_event[priv->inst_index]) {
-		mask = EPOLLHUP;
-	} else if (JPU_EVENT_NONE == dev->poll_event[priv->inst_index]) {
-		mask = 0;
+
+	if (priv->is_irq_poll == 0) {
+		poll_wait(filp, &dev->poll_wait_q[priv->inst_index], wait);
+		spin_lock(&dev->poll_wait_q[priv->inst_index].lock);
+		if (dev->poll_event[priv->inst_index] > 0) {
+			mask = EPOLLIN | EPOLLET;
+			dev->poll_event[priv->inst_index]--;
+		} else if (dev->poll_event[priv->inst_index] == LLONG_MIN) {
+			mask = EPOLLHUP;
+		}
+		spin_unlock(&dev->poll_wait_q[priv->inst_index].lock);
 	} else {
-		mask = EPOLLERR;
+		poll_wait(filp, &dev->poll_int_wait, wait);
+		count = dev->poll_int_event;
+		if (count > 0) {
+			mask = EPOLLIN | EPOLLET;
+		} else if (count == LLONG_MIN) {
+			mask = EPOLLHUP;
+		}
 	}
-	dev->poll_event[priv->inst_index] = JPU_EVENT_NONE;
-	spin_unlock(&dev->poll_spinlock);
 	return mask;
 }
 
@@ -1609,7 +1642,6 @@ static int jpu_probe(struct platform_device *pdev)
 			s_video_memory.phys_addr, s_video_memory.base);
 	}
 #endif
-	spin_lock_init(&dev->poll_spinlock);
 	for (i = 0; i < MAX_NUM_JPU_INSTANCE; i++) {
 		init_waitqueue_head(&dev->interrupt_wait_q[i]);
 	}
@@ -1617,6 +1649,8 @@ static int jpu_probe(struct platform_device *pdev)
 	for (i = 0; i < MAX_NUM_JPU_INSTANCE; i++) {
 		init_waitqueue_head(&dev->poll_wait_q[i]);
 	}
+
+	init_waitqueue_head(&dev->poll_int_wait);
 
 	dev->async_queue = NULL;
 	dev->open_count = 0;

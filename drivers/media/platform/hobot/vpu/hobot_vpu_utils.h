@@ -30,13 +30,6 @@
 #define VPU_VCPU_BPU_CLK_NAME "vpu_bclk"
 #define VPU_VCE_CLK_NAME "vpu_cclk"
 
-typedef enum _hb_vpu_event_e {
-	VPU_EVENT_NONE = 0,
-	VPU_ENC_PIC_DONE = 1,
-	VPU_DEC_PIC_DONE = 2,
-	VPU_INST_CLOSED = 3,
-} hb_vpu_event_t;
-
 typedef struct _hb_vpu_driver_data {
 	char *fw_name;
 } hb_vpu_driver_data_t;
@@ -95,9 +88,12 @@ typedef struct _hb_vpu_dev {
 	struct ion_client *vpu_ion_client;
 #endif
 
+	wait_queue_head_t poll_int_wait_q[MAX_NUM_VPU_INSTANCE];
+	int64_t poll_int_event[MAX_NUM_VPU_INSTANCE];
 	wait_queue_head_t poll_wait_q[MAX_NUM_VPU_INSTANCE];
-	hb_vpu_event_t poll_event[MAX_NUM_VPU_INSTANCE];
-	spinlock_t poll_spinlock;
+	int64_t poll_event[MAX_NUM_VPU_INSTANCE];
+	int64_t total_poll[MAX_NUM_VPU_INSTANCE];
+	int64_t total_release[MAX_NUM_VPU_INSTANCE];
 #ifdef SUPPORT_MULTI_INST_INTR
 	wait_queue_head_t interrupt_wait_q[MAX_NUM_VPU_INSTANCE];
 	int interrupt_flag[MAX_NUM_VPU_INSTANCE];
@@ -150,6 +146,7 @@ typedef struct _hb_vpu_dev {
 typedef struct _hb_vpu_priv {
 	hb_vpu_dev_t *vpu_dev;
 	u32 inst_index;
+	u32 is_irq_poll;
 } hb_vpu_priv_t;
 
 #ifdef USE_VPU_CLOSE_INSTANCE_ONCE_ABNORMAL_RELEASE

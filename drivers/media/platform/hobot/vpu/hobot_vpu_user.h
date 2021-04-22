@@ -104,6 +104,14 @@ typedef struct _hb_vpu_drv_intr {
 //#endif
 } hb_vpu_drv_intr_t;
 
+typedef enum _hb_vpu_event_e {
+	VPU_EVENT_NONE = 0,
+	VPU_ENC_PIC_DONE = 1,
+	VPU_DEC_PIC_DONE = 2,
+	VPU_INST_CLOSED = 3,
+	VPU_INST_INTERRUPT = 4,
+} hb_vpu_event_t;
+
 #define VDI_IOCTL_MAGIC						'V'
 #define VDI_IOCTL_ALLOCATE_PHYSICAL_MEMORY			\
 	_IO(VDI_IOCTL_MAGIC, 0)

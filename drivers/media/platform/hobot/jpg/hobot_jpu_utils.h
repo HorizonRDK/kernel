@@ -30,12 +30,6 @@
 #define JPU_JPEG_ACLK_NAME           "jpg_aclk"
 #define JPU_JPEG_CCLK_NAME           "jpg_cclk"
 
-typedef enum _hb_jpu_event_e {
-	JPU_EVENT_NONE = 0,
-	JPU_PIC_DONE = 1,
-	JPU_INST_CLOSED = 2,
-} hb_jpu_event_t;
-
 typedef struct _hb_jpu_platform_data {
 	int ip_ver;
 	int clock_rate;
@@ -88,9 +82,10 @@ typedef struct _hb_jpu_dev {
 	wait_queue_head_t interrupt_wait_q[MAX_HW_NUM_JPU_INSTANCE];
 	int interrupt_flag[MAX_HW_NUM_JPU_INSTANCE];
 	u32 interrupt_reason[MAX_HW_NUM_JPU_INSTANCE];
-	hb_jpu_event_t poll_event[MAX_NUM_JPU_INSTANCE];
+	int64_t poll_event[MAX_NUM_JPU_INSTANCE];
 	wait_queue_head_t poll_wait_q[MAX_NUM_JPU_INSTANCE];
-	spinlock_t poll_spinlock;
+	int64_t poll_int_event;
+	wait_queue_head_t poll_int_wait;
 
 	struct fasync_struct *async_queue;
 	u32 open_count;		/*!<< device reference count. Not instance count */
@@ -119,6 +114,7 @@ typedef struct _hb_jpu_dev {
 typedef struct _hb_jpu_priv {
 	hb_jpu_dev_t *jpu_dev;
 	u32 inst_index;
+	u32 is_irq_poll;
 } hb_jpu_priv_t;
 
 #endif /* __HOBOT_JPU_UTILS_H__ */
