@@ -121,21 +121,17 @@ int acamera_event_queue_pop( acamera_event_queue_ptr_t p_queue )
 int32_t acamera_event_queue_empty( acamera_event_queue_ptr_t p_queue )
 {
     int32_t result = 0;
-	int debug_flag;
     unsigned long flags;
     acamera_loop_buf_ptr_t p_buf = &( p_queue->buf );
 	struct _acamera_fsm_mgr_t *p_fsm_mgr;
 	p_fsm_mgr = container_of(p_queue, struct _acamera_fsm_mgr_t, event_queue);
-	int ctx_id = p_fsm_mgr->ctx_id;
-	debug_flag = ((event_debug == 1) && ((1 << ctx_id) & isp_debug_mask));
+
     flags = system_spinlock_lock( p_queue->lock );
     if ( p_buf->head == p_buf->tail ) {
         result = 1;
     }
     system_spinlock_unlock( p_queue->lock, flags );
-	if (debug_flag) {
-		acamera_evt_process_dbg(p_fsm_mgr->p_ctx);
-	}
+	// acamera_evt_process_dbg(p_fsm_mgr->p_ctx);
 
     return result;
 }

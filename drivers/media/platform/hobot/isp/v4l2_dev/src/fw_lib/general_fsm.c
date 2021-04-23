@@ -361,24 +361,63 @@ int general_fsm_get_param( void *fsm, uint32_t param_id, void *input, uint32_t i
     return rc;
 }
 
+extern int time_takes_check;
 extern int isp_stream_onoff_check(void);
 extern void dma_writer_config_done(void);
 uint8_t general_fsm_process_event( general_fsm_t *p_fsm, event_id_t event_id )
 {
+    int i = 0;
     uint8_t b_event_processed = 0;
-
+    struct timeval tv1[6], tv2[6];
+    unsigned long sec_diff, us_diff;
 
     switch ( event_id ) {
     default:
         break;
     case event_id_new_frame:
-        //need to be almost sync as the new address available from FR or DS        
+        //need to be almost sync as the new address available from FR or DS
+        if (time_takes_check)
+            do_gettimeofday(&tv1[0]);
         acamera_general_interrupt_hanlder( ACAMERA_FSM2CTX_PTR( p_fsm ), ACAMERA_IRQ_FRAME_START );
+        if (time_takes_check) {
+            do_gettimeofday(&tv2[0]);
+            do_gettimeofday(&tv1[1]);
+        }
         acamera_general_interrupt_hanlder( ACAMERA_FSM2CTX_PTR( p_fsm ), ACAMERA_IRQ_FRAME_END );
+        if (time_takes_check) {
+            do_gettimeofday(&tv2[1]);
+            do_gettimeofday(&tv1[2]);
+        }
         acamera_general_interrupt_hanlder( ACAMERA_FSM2CTX_PTR( p_fsm ), ACAMERA_IRQ_ANTIFOG_HIST );
+        if (time_takes_check) {
+            do_gettimeofday(&tv2[2]);
+            do_gettimeofday(&tv1[3]);
+        }
         acamera_general_interrupt_hanlder( ACAMERA_FSM2CTX_PTR( p_fsm ), ACAMERA_IRQ_AF2_STATS );
+        if (time_takes_check) {
+            do_gettimeofday(&tv2[3]);
+            do_gettimeofday(&tv1[4]);
+        }
         acamera_general_interrupt_hanlder( ACAMERA_FSM2CTX_PTR( p_fsm ), ACAMERA_IRQ_AWB_STATS );
+        if (time_takes_check) {
+            do_gettimeofday(&tv2[4]);
+            do_gettimeofday(&tv1[5]);
+        }
         acamera_general_interrupt_hanlder( ACAMERA_FSM2CTX_PTR( p_fsm ), ACAMERA_IRQ_AE_STATS );
+        if (time_takes_check) {
+            do_gettimeofday(&tv2[5]);
+
+            for (i = 0; i < 6; i++) {
+                sec_diff = tv2[i].tv_sec - tv1[i].tv_sec;
+
+                if (tv2[i].tv_usec >= tv1[i].tv_usec)
+                    us_diff = tv2[i].tv_usec - tv1[i].tv_usec;
+                else
+                    us_diff = 1000000 + tv2[i].tv_usec - tv1[i].tv_usec;
+
+                pr_debug("idx %d, cost %ld.%06ld\n", i, sec_diff, us_diff);
+            }
+        }
 
         if (ACAMERA_FSM2CTX_PTR( p_fsm )->p_gfw->sif_isp_offline == 0)
             acamera_general_interrupt_hanlder( ACAMERA_FSM2CTX_PTR( p_fsm ), ACAMERA_IRQ_FRAME_WRITER_FR ); //enabled for DMA_WRITER_FSM

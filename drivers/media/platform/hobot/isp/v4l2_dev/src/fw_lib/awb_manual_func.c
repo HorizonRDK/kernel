@@ -252,10 +252,12 @@ void awb_read_statistics( AWB_fsm_t *p_fsm )
     // Read out the per zone statistics
     p_fsm->curr_AWB_ZONES = horz_zones * vert_zones;
 
-    temp_wb[0] = acamera_isp_white_balance_gain_00_read(p_fsm->cmn.isp_base);
-    temp_wb[1] = acamera_isp_white_balance_gain_01_read(p_fsm->cmn.isp_base);
-    temp_wb[2] = acamera_isp_white_balance_gain_10_read(p_fsm->cmn.isp_base);
-    temp_wb[3] = acamera_isp_white_balance_gain_11_read(p_fsm->cmn.isp_base);
+    if (p_ctx->isp_awb_stats_on) {
+        temp_wb[0] = acamera_isp_white_balance_gain_00_read(p_fsm->cmn.isp_base);
+        temp_wb[1] = acamera_isp_white_balance_gain_01_read(p_fsm->cmn.isp_base);
+        temp_wb[2] = acamera_isp_white_balance_gain_10_read(p_fsm->cmn.isp_base);
+        temp_wb[3] = acamera_isp_white_balance_gain_11_read(p_fsm->cmn.isp_base);
+    }
 
     for ( _i = 0; _i < p_fsm->curr_AWB_ZONES; ++_i ) {
         _metering_lut_entry = acamera_awb_statistics_data_read( p_fsm, _i * 2 );
@@ -265,12 +267,14 @@ void awb_read_statistics( AWB_fsm_t *p_fsm )
         irg = ( _metering_lut_entry & 0xfff );
         ibg = ( ( _metering_lut_entry >> 16 ) & 0xfff );
 
-	irg_1 = irg;
-	ibg_1 = ibg;
-	irg_1 = (((uint32_t)irg_1 * temp_wb[0] * 256) / temp_wb[1]) >> 8;
-	ibg_1 = (((uint32_t)ibg_1 * temp_wb[3] * 256) / temp_wb[1]) >> 8;
-        irg_1 = ( irg_1 == 0 ) ? 1 : irg_1;
-        ibg_1 = ( ibg_1 == 0 ) ? 1 : ibg_1;
+        if (p_ctx->isp_awb_stats_on) {
+            irg_1 = irg;
+            ibg_1 = ibg;
+            irg_1 = ((((uint32_t)irg_1 * temp_wb[0]) << 8) / temp_wb[1]) >> 8;
+            ibg_1 = ((((uint32_t)ibg_1 * temp_wb[3]) << 8) / temp_wb[1]) >> 8;
+            irg_1 = ( irg_1 == 0 ) ? 1 : irg_1;
+            ibg_1 = ( ibg_1 == 0 ) ? 1 : ibg_1;
+        }
 
         irg = ( irg * ( p_fsm->rg_coef ) ) >> 8;
         ibg = ( ibg * ( p_fsm->bg_coef ) ) >> 8;
@@ -282,29 +286,33 @@ void awb_read_statistics( AWB_fsm_t *p_fsm )
         p_sbuf_awb_stats->stats_data[_i].sum = acamera_awb_statistics_data_read( p_fsm, _i * 2 + 1 );
         p_fsm->sum += p_sbuf_awb_stats->stats_data[_i].sum;
 
-	p_fsm->awb_stats[_i].rg =  (uint16_t)(irg_1);
-	p_fsm->awb_stats[_i].bg =  (uint16_t)(ibg_1);
-	p_fsm->awb_stats[_i].sum =  p_sbuf_awb_stats->stats_data[_i].sum;
+        if (p_ctx->isp_awb_stats_on) {
+            p_fsm->awb_stats[_i].rg =  (uint16_t)(irg_1);
+            p_fsm->awb_stats[_i].bg =  (uint16_t)(ibg_1);
+            p_fsm->awb_stats[_i].sum =  p_sbuf_awb_stats->stats_data[_i].sum;
+        }
     }
 
-    int rc = 0;
-    rc = system_chardev_lock();
-    if (rc == 0 && p_ctx->isp_awb_stats_on) {
-	    isp_ctx_node_t *cn;
-	    cn = isp_ctx_get_node(fw_id, ISP_AWB, FREEQ);
-	    if (cn) {
-		    cn->ctx.frame_id = p_ctx->isp_frame_counter;
-            cn->ctx.timestamps = p_ctx->timestamps;
-		    //memcpy(cn->base, p_sbuf_awb_stats->stats_data, sizeof(p_sbuf_awb_stats->stats_data));
-		    memcpy(cn->base, p_fsm->awb_stats, sizeof(p_sbuf_awb_stats->stats_data));
-		    cn->ctx.crc16 = crc16(~0, cn->base, sizeof(p_sbuf_awb_stats->stats_data));
-		    isp_ctx_put_node(fw_id, cn, ISP_AWB, DONEQ);
+    if (p_ctx->isp_awb_stats_on) {
+        int rc = 0;
+        rc = system_chardev_lock();
+        if (rc == 0) {
+            isp_ctx_node_t *cn;
+            cn = isp_ctx_get_node(fw_id, ISP_AWB, FREEQ);
+            if (cn) {
+                cn->ctx.frame_id = p_ctx->isp_frame_counter;
+                cn->ctx.timestamps = p_ctx->timestamps;
+                //memcpy(cn->base, p_sbuf_awb_stats->stats_data, sizeof(p_sbuf_awb_stats->stats_data));
+                memcpy(cn->base, p_fsm->awb_stats, sizeof(p_sbuf_awb_stats->stats_data));
+                cn->ctx.crc16 = crc16(~0, cn->base, sizeof(p_sbuf_awb_stats->stats_data));
+                isp_ctx_put_node(fw_id, cn, ISP_AWB, DONEQ);
 
-		    pr_debug("awb stats frame id %d\n", cn->ctx.frame_id);
-	    }        
+                pr_debug("awb stats frame id %d\n", cn->ctx.frame_id);
+            }
+        }
+        if (rc == 0)
+            system_chardev_unlock();
     }
-    if (rc == 0)
-        system_chardev_unlock();
 
     p_sbuf_awb_stats->curr_AWB_ZONES = p_fsm->curr_AWB_ZONES;
 

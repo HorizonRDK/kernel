@@ -105,9 +105,11 @@ static int g_isp_fps_lasttime[VIO_MAX_STREAM] = {0, };
 int event_debug = 0;
 int threshold = 50;
 int isp_debug_mask = 0;
+int time_takes_check = 0;
 module_param(event_debug, int, S_IRUGO|S_IWUSR);
 module_param(threshold, int, S_IRUGO|S_IWUSR);
 module_param(isp_debug_mask, int, S_IRUGO|S_IWUSR);
+module_param(time_takes_check, int, S_IRUGO|S_IWUSR);
 
 #if FW_USE_HOBOT_DMA
 extern hobot_dma_t g_hobot_dma;

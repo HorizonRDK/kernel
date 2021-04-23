@@ -154,6 +154,7 @@ void ae_initialize( AE_fsm_ptr_t p_fsm )
     ae_calculate_exposure( p_fsm );
 }
 
+extern int time_takes_check;
 uint32_t lumvar[512] = {0};
 void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
 {
@@ -167,6 +168,11 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
     int fw_id = p_fsm->cmn.ctx_id;
     fsm_param_mon_alg_flow_t ae_flow;
     acamera_context_t *p_ctx = ACAMERA_FSM2CTX_PTR( p_fsm );
+    struct timeval tv1, tv2;
+    unsigned long irq_interval;
+
+    if (time_takes_check)
+        do_gettimeofday(&tv1);
 
     memset( &sbuf, 0, sizeof( sbuf ) );
     sbuf.buf_type = SBUF_TYPE_AE;
@@ -224,79 +230,83 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
     p_sbuf_ae->histogram_sum = sum;
     LOG( LOG_DEBUG, "histsum: histogram_sum: %u.", p_sbuf_ae->histogram_sum );
 
-    p_sbuf_ae->ae_5bin_info.zones_h = (uint16_t)acamera_isp_metering_aexp_nodes_used_horiz_read(p_fsm->cmn.isp_base);
-    p_sbuf_ae->ae_5bin_info.zones_v = (uint16_t)acamera_isp_metering_aexp_nodes_used_vert_read(p_fsm->cmn.isp_base);
+    if (p_ctx->isp_ae_5bin_stats_on) {
+        p_sbuf_ae->ae_5bin_info.zones_h = (uint16_t)acamera_isp_metering_aexp_nodes_used_horiz_read(p_fsm->cmn.isp_base);
+        p_sbuf_ae->ae_5bin_info.zones_v = (uint16_t)acamera_isp_metering_aexp_nodes_used_vert_read(p_fsm->cmn.isp_base);
 
-    if (p_sbuf_ae->ae_5bin_info.zones_h > ISP_METERING_ZONES_AE5_H) {
-        printk_ratelimited("5bin zone h %d invalid.\n", p_sbuf_ae->ae_5bin_info.zones_h);
-        p_sbuf_ae->ae_5bin_info.zones_h = ISP_METERING_ZONES_AE5_H;
-    }
-    if (p_sbuf_ae->ae_5bin_info.zones_v > ISP_METERING_ZONES_AE5_V) {
-        printk_ratelimited("5bin zone v %d invalid.\n", p_sbuf_ae->ae_5bin_info.zones_v);
-        p_sbuf_ae->ae_5bin_info.zones_v = ISP_METERING_ZONES_AE5_V;
-    }
+        if (p_sbuf_ae->ae_5bin_info.zones_h > ISP_METERING_ZONES_AE5_H) {
+            printk_ratelimited("5bin zone h %d invalid.\n", p_sbuf_ae->ae_5bin_info.zones_h);
+            p_sbuf_ae->ae_5bin_info.zones_h = ISP_METERING_ZONES_AE5_H;
+        }
+        if (p_sbuf_ae->ae_5bin_info.zones_v > ISP_METERING_ZONES_AE5_V) {
+            printk_ratelimited("5bin zone v %d invalid.\n", p_sbuf_ae->ae_5bin_info.zones_v);
+            p_sbuf_ae->ae_5bin_info.zones_v = ISP_METERING_ZONES_AE5_V;
+        }
 
-    p_sbuf_ae->ae_5bin_info.zones_size = (uint32_t)p_sbuf_ae->ae_5bin_info.zones_v * p_sbuf_ae->ae_5bin_info.zones_h;
-    p_sbuf_ae->ae_5bin_info.threshold0_1 = (uint16_t)acamera_isp_metering_aexp_hist_thresh_0_1_read(p_fsm->cmn.isp_base);
-    p_sbuf_ae->ae_5bin_info.threshold1_2 = (uint16_t)acamera_isp_metering_aexp_hist_thresh_1_2_read(p_fsm->cmn.isp_base);
-    p_sbuf_ae->ae_5bin_info.threshold3_4 = (uint16_t)acamera_isp_metering_aexp_hist_thresh_3_4_read(p_fsm->cmn.isp_base);
-    p_sbuf_ae->ae_5bin_info.threshold4_5 = (uint16_t)acamera_isp_metering_aexp_hist_thresh_4_5_read(p_fsm->cmn.isp_base);
-    p_sbuf_ae->ae_5bin_info.normal_bin0 = (uint16_t)acamera_isp_metering_aexp_hist_0_read(p_fsm->cmn.isp_base);
-    p_sbuf_ae->ae_5bin_info.normal_bin1 = (uint16_t)acamera_isp_metering_aexp_hist_1_read(p_fsm->cmn.isp_base);
-    p_sbuf_ae->ae_5bin_info.normal_bin3 = (uint16_t)acamera_isp_metering_aexp_hist_3_read(p_fsm->cmn.isp_base);
-    p_sbuf_ae->ae_5bin_info.normal_bin4 = (uint16_t)acamera_isp_metering_aexp_hist_4_read(p_fsm->cmn.isp_base);
-    LOG(LOG_DEBUG, "5bin: zones_sum: %u.", p_sbuf_ae->ae_5bin_info.zones_size);
+        p_sbuf_ae->ae_5bin_info.zones_size = (uint32_t)p_sbuf_ae->ae_5bin_info.zones_v * p_sbuf_ae->ae_5bin_info.zones_h;
+        p_sbuf_ae->ae_5bin_info.threshold0_1 = (uint16_t)acamera_isp_metering_aexp_hist_thresh_0_1_read(p_fsm->cmn.isp_base);
+        p_sbuf_ae->ae_5bin_info.threshold1_2 = (uint16_t)acamera_isp_metering_aexp_hist_thresh_1_2_read(p_fsm->cmn.isp_base);
+        p_sbuf_ae->ae_5bin_info.threshold3_4 = (uint16_t)acamera_isp_metering_aexp_hist_thresh_3_4_read(p_fsm->cmn.isp_base);
+        p_sbuf_ae->ae_5bin_info.threshold4_5 = (uint16_t)acamera_isp_metering_aexp_hist_thresh_4_5_read(p_fsm->cmn.isp_base);
+        p_sbuf_ae->ae_5bin_info.normal_bin0 = (uint16_t)acamera_isp_metering_aexp_hist_0_read(p_fsm->cmn.isp_base);
+        p_sbuf_ae->ae_5bin_info.normal_bin1 = (uint16_t)acamera_isp_metering_aexp_hist_1_read(p_fsm->cmn.isp_base);
+        p_sbuf_ae->ae_5bin_info.normal_bin3 = (uint16_t)acamera_isp_metering_aexp_hist_3_read(p_fsm->cmn.isp_base);
+        p_sbuf_ae->ae_5bin_info.normal_bin4 = (uint16_t)acamera_isp_metering_aexp_hist_4_read(p_fsm->cmn.isp_base);
+        LOG(LOG_DEBUG, "5bin: zones_sum: %u.", p_sbuf_ae->ae_5bin_info.zones_size);
 
-    for ( i = 0; i < p_sbuf_ae->ae_5bin_info.zones_size; i++ ) {
-        _metering_lut_entry = acamera_metering_stats_mem_array_data_read(p_fsm->cmn.isp_base, i * 2);
-        LOG(LOG_DEBUG, "5bin: %u. data %d \n", i, _metering_lut_entry);
-        p_sbuf_ae->hist4[i * 4] = ( uint16_t )(_metering_lut_entry & 0xffff);
-        p_sbuf_ae->hist4[i * 4 + 1] = ( uint16_t )((_metering_lut_entry >> 16) & 0xffff);
-        _metering_lut_entry = acamera_metering_stats_mem_array_data_read(p_fsm->cmn.isp_base, i * 2 + 1);
-        LOG(LOG_DEBUG, "5bin: %u. data %d \n", i, _metering_lut_entry);
-        p_sbuf_ae->hist4[i * 4 + 2] = ( uint16_t )(_metering_lut_entry & 0xffff);
-        p_sbuf_ae->hist4[i * 4 + 3] = ( uint16_t )((_metering_lut_entry >> 16) & 0xffff);
-    }
+        for ( i = 0; i < p_sbuf_ae->ae_5bin_info.zones_size; i++ ) {
+            _metering_lut_entry = acamera_metering_stats_mem_array_data_read(p_fsm->cmn.isp_base, i * 2);
+            LOG(LOG_DEBUG, "5bin: %u. data %d \n", i, _metering_lut_entry);
+            p_sbuf_ae->hist4[i * 4] = ( uint16_t )(_metering_lut_entry & 0xffff);
+            p_sbuf_ae->hist4[i * 4 + 1] = ( uint16_t )((_metering_lut_entry >> 16) & 0xffff);
+            _metering_lut_entry = acamera_metering_stats_mem_array_data_read(p_fsm->cmn.isp_base, i * 2 + 1);
+            LOG(LOG_DEBUG, "5bin: %u. data %d \n", i, _metering_lut_entry);
+            p_sbuf_ae->hist4[i * 4 + 2] = ( uint16_t )(_metering_lut_entry & 0xffff);
+            p_sbuf_ae->hist4[i * 4 + 3] = ( uint16_t )((_metering_lut_entry >> 16) & 0xffff);
+        }
 
-	// read ae_5bin static
-	rc = system_chardev_lock();
-	if (rc == 0 && p_ctx->isp_ae_5bin_stats_on) {
-		isp_ctx_node_t *cn;
-		cn = isp_ctx_get_node(fw_id, ISP_AE_5BIN, FREEQ);
-		if (cn) {
-			cn->ctx.frame_id = p_ctx->isp_frame_counter;
-            cn->ctx.timestamps = p_ctx->timestamps;
-			memcpy(cn->base, p_sbuf_ae->hist4, sizeof(p_sbuf_ae->hist4));
-			cn->ctx.crc16 = crc16(~0, cn->base, sizeof(p_sbuf_ae->hist4));
-			isp_ctx_put_node(fw_id, cn, ISP_AE_5BIN, DONEQ);
+        // read ae_5bin static
+        rc = system_chardev_lock();
+        if (rc == 0) {
+            isp_ctx_node_t *cn;
+            cn = isp_ctx_get_node(fw_id, ISP_AE_5BIN, FREEQ);
+            if (cn) {
+                cn->ctx.frame_id = p_ctx->isp_frame_counter;
+                cn->ctx.timestamps = p_ctx->timestamps;
+                memcpy(cn->base, p_sbuf_ae->hist4, sizeof(p_sbuf_ae->hist4));
+                cn->ctx.crc16 = crc16(~0, cn->base, sizeof(p_sbuf_ae->hist4));
+                isp_ctx_put_node(fw_id, cn, ISP_AE_5BIN, DONEQ);
 
-			pr_debug("ae_5bin stats frame id %d\n", cn->ctx.frame_id);
-		}
-	}
-	if (rc == 0)
-	    system_chardev_unlock();
+                pr_debug("ae_5bin stats frame id %d\n", cn->ctx.frame_id);
+            }
+        }
+        if (rc == 0)
+            system_chardev_unlock();
+    }//endif p_ctx->isp_ae_5bin_stats_on
 
 	// read lumvar
-	for ( i = 0; i < 512; i++ ) {
-		lumvar[i] = acamera_lumvar_stats_mem_array_data_read(p_fsm->cmn.isp_base, i);
-		LOG(LOG_DEBUG, "lumvar: %u. data %d \n", i, lumvar[i]);
-	}
-	rc = system_chardev_lock();
-	if (rc == 0 && p_ctx->isp_lumvar_stats_on) {
-		isp_ctx_node_t *cn;
-		cn = isp_ctx_get_node(fw_id, ISP_LUMVAR, FREEQ);
-		if (cn) {
-			cn->ctx.frame_id = p_ctx->isp_frame_counter;
-            cn->ctx.timestamps = p_ctx->timestamps;
-			memcpy(cn->base, lumvar, sizeof(lumvar));
-			cn->ctx.crc16 = crc16(~0, cn->base, sizeof(lumvar));
-			isp_ctx_put_node(fw_id, cn, ISP_LUMVAR, DONEQ);
+    if (p_ctx->isp_lumvar_stats_on) {
+        for ( i = 0; i < 512; i++ ) {
+            lumvar[i] = acamera_lumvar_stats_mem_array_data_read(p_fsm->cmn.isp_base, i);
+            LOG(LOG_DEBUG, "lumvar: %u. data %d \n", i, lumvar[i]);
+        }
+        rc = system_chardev_lock();
+        if (rc == 0) {
+            isp_ctx_node_t *cn;
+            cn = isp_ctx_get_node(fw_id, ISP_LUMVAR, FREEQ);
+            if (cn) {
+                cn->ctx.frame_id = p_ctx->isp_frame_counter;
+                cn->ctx.timestamps = p_ctx->timestamps;
+                memcpy(cn->base, lumvar, sizeof(lumvar));
+                cn->ctx.crc16 = crc16(~0, cn->base, sizeof(lumvar));
+                isp_ctx_put_node(fw_id, cn, ISP_LUMVAR, DONEQ);
 
-			pr_debug("lumvar stats frame id %d\n", cn->ctx.frame_id);
-		}
-	}
-	if (rc == 0)
-	    system_chardev_unlock();
+                pr_debug("lumvar stats frame id %d\n", cn->ctx.frame_id);
+            }
+        }
+        if (rc == 0)
+            system_chardev_unlock();
+    }
 
     /* read done, set the buffer back for future using */
     sbuf.buf_status = SBUF_STATUS_DATA_DONE;
@@ -310,6 +320,17 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
     ae_flow.frame_id_current = acamera_fsm_util_get_cur_frame_id( &p_fsm->cmn );
     ae_flow.flow_state = MON_ALG_FLOW_STATE_INPUT_READY;
     acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_MON_AE_FLOW, &ae_flow, sizeof( ae_flow ) );
+
+    if (time_takes_check)
+        do_gettimeofday(&tv2);
+
+    if (time_takes_check) {
+        if (tv2.tv_usec >= tv1.tv_usec)
+            irq_interval = tv2.tv_usec - tv1.tv_usec;
+        else
+            irq_interval = 1000000 + tv2.tv_usec - tv1.tv_usec;
+        pr_debug("cost %ld.%06ld\n", tv2.tv_sec - tv1.tv_sec, irq_interval);
+    }
 
     LOG( LOG_INFO, "AE flow: INPUT_READY: frame_id_tracking: %d, cur frame_id: %u.", ae_flow.frame_id_tracking, ae_flow.frame_id_current );
 }

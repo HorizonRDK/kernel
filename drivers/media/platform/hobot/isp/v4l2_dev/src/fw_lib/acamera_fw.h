@@ -319,6 +319,12 @@ static __inline void acamera_evt_process_dbg(acamera_context_ptr_t p_ctx)
 {
     int last_idx = p_ctx->process_start.index % 2;
     int cur_idx = !last_idx;
+    int debug_flag;
+
+    debug_flag = ((event_debug == 1) && ((1 << p_ctx->context_id) & isp_debug_mask));
+
+    if (!debug_flag)
+        return;
 
     printk_ratelimited(TAG_EVT_DBG "==s[%d] time record==\n", p_ctx->context_id);
     printk_ratelimited(TAG_EVT_DBG "cur_irq_fs = %ld.%06ld\n",
