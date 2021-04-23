@@ -17,6 +17,7 @@
 *
 */
 #define pr_fmt(fmt) "[isp_drv]: %s: " fmt, __func__
+#include <linux/wait.h>
 #include "acamera_types.h"
 #include "acamera_logger.h"
 #include "acamera_math.h"
@@ -127,6 +128,7 @@ static void reset_connection( void )
     ACAMERA_CONNECTION_TRACE( "reset connection" );
 }
 
+extern int isp_open_check(void);
 extern void *acamera_get_api_ctx_ptr( void );
 
 #if ISP_HAS_CONNECTION_SOCKET
@@ -159,6 +161,7 @@ static int acamera_socket_do_init( connection_t *con )
 #endif
 #endif //ISP_HAS_STREAM_CONNECTION
 
+wait_queue_head_t isp_init_done_wq;
 void acamera_connection_init( void )
 {
 #if ISP_HAS_STREAM_CONNECTION
@@ -195,6 +198,8 @@ void acamera_connection_init( void )
     if ( !con.data_read || !con.data_write ) {
         LOG( LOG_WARNING, "Connection method is not defined" );
     }
+
+    init_waitqueue_head(&isp_init_done_wq);
 #endif //ISP_HAS_STREAM_CONNECTION
 }
 
@@ -527,8 +532,17 @@ static void process_api_request( void )
 }
 #endif
 
-extern void *acamera_get_api_ctx_ptr(void);
-extern int isp_open_check(void);
+int acamera_connection_valid(void)
+{
+    acamera_context_ptr_t context_ptr = (acamera_context_ptr_t)acamera_get_api_ctx_ptr();
+
+    if (context_ptr->initialized == 0 || isp_open_check() == 0) {
+        wait_event_interruptible(isp_init_done_wq, context_ptr->initialized);
+    }
+
+    return 1;
+}
+
 void acamera_connection_process( void )
 {
 #if ISP_HAS_STREAM_CONNECTION
@@ -539,10 +553,6 @@ void acamera_connection_process( void )
     if (!con.data_read || !con.data_write) {
         return;
     }
-
-    acamera_context_ptr_t context_ptr = (acamera_context_ptr_t)acamera_get_api_ctx_ptr();
-    if (context_ptr->initialized == 0 || isp_open_check() == 0)
-        return;
 
 #if ISP_HAS_CONNECTION_BUFFER
     process_api_request();

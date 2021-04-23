@@ -78,6 +78,8 @@
 
 static acamera_firmware_t g_firmware;
 
+extern wait_queue_head_t isp_init_done_wq;
+
 typedef int (*isp_callback)(int);
 extern void isp_register_callback(isp_callback func);
 int sif_isp_ctx_sync_func(int ctx_id);
@@ -352,6 +354,8 @@ int acamera_isp_init_context(uint8_t idx)
         // active context, for acamera_get_api_context calling
         acamera_command( idx, TGENERAL, ACTIVE_CONTEXT, idx, COMMAND_SET, &ret );
         pr_info("context-%d copy to isp ping/pong\n", idx);
+
+        wake_up(&isp_init_done_wq);
     } else {
         g_firmware.initialized = 0;
         pr_err("acamera context init failed, ret = %d\n", ret);

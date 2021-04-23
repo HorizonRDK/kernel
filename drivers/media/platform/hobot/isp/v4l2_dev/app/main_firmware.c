@@ -72,13 +72,14 @@ void callback_meta( uint32_t ctx_num, const void *fw_metadata )
 
 static struct task_struct *isp_fw_connections_thread = NULL;
 
+extern int acamera_connection_valid(void);
 static int connection_thread( void *foo )
 {
     LOG( LOG_INFO, "connection_thread start" );
 
     acamera_connection_init();
 
-    while ( !kthread_should_stop() ) {
+    while ( acamera_connection_valid() && !kthread_should_stop() ) {
         acamera_connection_process();
     }
 
