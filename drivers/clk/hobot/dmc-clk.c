@@ -46,7 +46,9 @@
 #define DDR_INDEX_P2    2
 #define DDR_FREQ_3200   3200000000
 #define DDR_FREQ_2666   2666000000
+#define DDR_FREQ_1333   1333000000
 #define DDR_FREQ_667    667000000
+#define DDR_FREQ_333    333000000
 
 #define to_dmc_clk(_hw) container_of(_hw, struct dmc_clk, hw)
 
@@ -297,11 +299,11 @@ static void hobot_smccc_cr5(unsigned long a0, unsigned long a1,
 	p_err = sram_vaddr + 1;
 	p_serive_started = sram_vaddr + 3;
 	if (a1 == DRAM_SET_RATE) {
-		if (rate == DDR_FREQ_667) {
+		if (rate == DDR_FREQ_333) {
 			index = 2;
-		} else if (rate == DDR_FREQ_2666) {
+		} else if (rate == DDR_FREQ_1333) {
 			index = 1;
-		} else if (rate == DDR_FREQ_3200) {
+		} else if (rate == DDR_FREQ_2666) {
 			index = 0;
 		} else if (rate == 0) {
 			/* most case reclac rate is 0
