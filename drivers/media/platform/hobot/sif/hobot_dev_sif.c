@@ -48,6 +48,7 @@ static struct pm_qos_request sif_pm_qos_req;
 static int g_sif_fps[VIO_MAX_STREAM] = {0, };
 static int g_sif_idx[VIO_MAX_STREAM] = {0, };
 static int g_sif_fps_lasttime[VIO_MAX_STREAM] = {0, };
+static u32 temp_flow = 0;
 
 static int x3_sif_suspend(struct device *dev)
 {
@@ -993,6 +994,8 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 			clear_bit(subdev->mux_index, &sif->mux_mask);
 			clear_bit(subdev->ddr_mux_index, &sif->mux_mask);
 			clear_bit(subdev->ddr_mux_index, &sif->state);
+			temp_flow = 0;
+			subdev->overflow = 0;
 			if (subdev->dol_num > 1)
 				clear_bit(SIF_DOL2_MODE + subdev->mux_index + 1, &sif->state);
 			if (subdev->dol_num > 2)
@@ -2297,7 +2300,7 @@ void sif_frame_ndone(struct sif_subdev *subdev)
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
 	struct vio_group *group;
-	struct sif_video_ctx *sif_ctx;
+	struct sif_video_ctx *sif_ctx = NULL;
 	struct x3_sif_dev *sif;
 	unsigned long flags;
 	int i = 0;
@@ -2594,7 +2597,6 @@ static irqreturn_t sif_isr(int irq, void *data)
 	struct vio_group *group;
 	struct vio_group_task *gtask;
 	struct sif_subdev *subdev;
-	static u32 temp = 0;
 
 	sif = (struct x3_sif_dev *) data;
 	memset(&irq_src, 0x0, sizeof(struct sif_irq_src));
@@ -2612,10 +2614,10 @@ static irqreturn_t sif_isr(int irq, void *data)
 			err_occured = 1;
 			instance = atomic_read(&sif->instance);
 			sif->statistic.hard_overflow[instance]++;
-			temp |= irq_src.sif_in_buf_overflow;
+			temp_flow |= irq_src.sif_in_buf_overflow;
 			sif_statics_err_overflow_clr(sif->base_reg);
-			vio_err("input buffer overflow(0x%x) temp 0x%x \n",
-				irq_src.sif_in_buf_overflow, temp);
+			vio_err("input buffer overflow(0x%x) temp_flow 0x%x \n",
+				irq_src.sif_in_buf_overflow, temp_flow);
 		}
 		for (mux_index = 0; mux_index <= 7; mux_index++) {
 			if (test_bit(mux_index + SIF_DOL2_MODE, &sif->state))
@@ -2625,26 +2627,30 @@ static irqreturn_t sif_isr(int irq, void *data)
 				group = sif->sif_mux[mux_index];
 				subdev = group->sub_ctx[0];
 				if(subdev->dol_num > 1) {
-					if ((BIT2CHN(temp, mux_index)) || (BIT2CHN(temp, subdev->mux_index1)))
+					if ((BIT2CHN(temp_flow, mux_index)) ||
+						(BIT2CHN(temp_flow, subdev->mux_index1)))
 						subdev->overflow = ((0x1 << mux_index) | (0x1 << subdev->mux_index1));
 				} else if (subdev->dol_num > 2) {
-					if ((BIT2CHN(temp, mux_index)) || (BIT2CHN(temp, subdev->mux_index1)) ||
-						(BIT2CHN(temp, subdev->mux_index2)))
+					if ((BIT2CHN(temp_flow, mux_index)) ||
+						(BIT2CHN(temp_flow, subdev->mux_index1)) ||
+						(BIT2CHN(temp_flow, subdev->mux_index2)))
 						subdev->overflow = ((0x1 << mux_index) | (0x1 << subdev->mux_index1) |
 							(0x1 << subdev->mux_index2));
 				} else if (subdev->format == HW_FORMAT_YUV422) {
-					if ((BIT2CHN(temp, mux_index)) || (BIT2CHN(temp, subdev->mux_index1)))
+					if ((BIT2CHN(temp_flow, mux_index)) ||
+						(BIT2CHN(temp_flow, subdev->mux_index1)))
 						subdev->overflow = ((0x1 << mux_index) | (0x1 << subdev->mux_index1));
 				} else if (subdev->splice_info.splice_enable) {
-					if ((BIT2CHN(temp, mux_index)) || (BIT2CHN(temp, subdev->mux_index1)))
+					if ((BIT2CHN(temp_flow, mux_index)) ||
+						(BIT2CHN(temp_flow, subdev->mux_index1)))
 						subdev->overflow = ((0x1 << mux_index) | (0x1 << subdev->mux_index1));
 				} else {
-					if (BIT2CHN(temp, mux_index)) {
+					if (BIT2CHN(temp_flow, mux_index)) {
 						vio_err("overflow FE mux_index %d\n", mux_index);
 						subdev->overflow = (0x1 << mux_index);
 					}
 				}
-				temp &= ~(subdev->overflow);
+				temp_flow &= ~(subdev->overflow);
 				if (subdev->splice_info.splice_enable) {
 					if (test_bit(mux_index + SIF_SPLICE_OP, &sif->state)) {
 						subdev->splice_info.splice_done = 1;
@@ -2653,8 +2659,8 @@ static irqreturn_t sif_isr(int irq, void *data)
 					}
 				}
 				if (subdev->overflow != 0) {
-					vio_err("FE overflow %d mux_index %d temp 0x%x\n",
-							subdev->overflow, mux_index, temp);
+					vio_err("FE overflow %d mux_index %d temp_flow 0x%x\n",
+							subdev->overflow, mux_index, temp_flow);
 					sif_frame_ndone(subdev);
 					if (subdev->splice_info.splice_enable) {
 						if (subdev->splice_info.splice_done && subdev->splice_info.frame_done) {
