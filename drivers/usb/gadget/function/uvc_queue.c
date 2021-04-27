@@ -254,6 +254,14 @@ void uvcg_queue_cancel(struct uvc_video_queue *queue, int disconnect)
 	 */
 	if (disconnect)
 		queue->flags |= UVC_QUEUE_DISCONNECTED;
+
+	/*
+	 * reset buf_used for uvc video queue for some exception.
+	 * (eg. VS request completed with status -18.)
+	 * otherwise, buf_used might be abnormal, which might cause data abort
+	 * in uvc_video_encode_data->memcpy.
+	 */
+	queue->buf_used = 0;
 	spin_unlock_irqrestore(&queue->irqlock, flags);
 }
 
