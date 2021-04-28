@@ -184,6 +184,8 @@ void gdc_init(struct x3_gdc_dev *gdc_dev, gdc_settings_t *gdc_settings)
 	base_addr = gdc_dev->base_reg;
 
 	gdc_process_enable(base_addr, 0);
+	gdc_process_reset(base_addr, 1);
+	gdc_process_reset(base_addr, 0);
 	gdc_set_config_addr(base_addr, gdc_settings->gdc_config.config_addr);
 	gdc_set_config_size(base_addr,
 			    gdc_settings->gdc_config.config_size / 4);

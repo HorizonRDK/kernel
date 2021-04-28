@@ -14,6 +14,7 @@ void gdc_set_rdma_img_height(void __iomem *base_addr, u32 height);
 void gdc_set_wdma_img_width(void __iomem *base_addr, u32 width);
 void gdc_set_wdma_img_height(void __iomem *base_addr, u32 height);
 void gdc_process_enable(void __iomem *base_addr, bool enable);
+void gdc_process_reset(void __iomem *base_addr, bool enable);
 void gdc_set_rdma0_img_addr(void __iomem *base_addr, u32 addr);
 void gdc_set_rdma1_img_addr(void __iomem *base_addr, u32 addr);
 void gdc_set_rdma2_img_addr(void __iomem *base_addr, u32 addr);
