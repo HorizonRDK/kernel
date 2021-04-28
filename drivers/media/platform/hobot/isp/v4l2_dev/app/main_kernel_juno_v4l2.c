@@ -437,12 +437,16 @@ static int isp_platform_remove( struct platform_device *pdev )
 }
 
 extern int acamera_isp_firmware_clear(void);
+extern void system_dma_irq_affinity_set(int suspend);
+extern void system_interrupts_irq_affinity_set(int suspend);
 static int isp_suspend(struct device *dev)
 {
 	int ret = 0;
 
 	pr_info("enter\n");
     acamera_isp_firmware_clear();
+    system_dma_irq_affinity_set(1);
+    system_interrupts_irq_affinity_set(1);
 
 	return ret;
 }
@@ -452,6 +456,8 @@ static int isp_resume(struct device *dev)
 	int ret = 0;
 
 	pr_info("enter\n");
+    system_dma_irq_affinity_set(0);
+    system_interrupts_irq_affinity_set(0);
 
 	return ret;
 }

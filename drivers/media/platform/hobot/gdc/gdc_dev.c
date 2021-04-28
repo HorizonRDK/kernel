@@ -583,6 +583,8 @@ static int x3_gdc_suspend(struct device *dev)
 	int ret = 0;
 
 	vio_info("%s\n", __func__);
+	if (g_gdc_dev)
+		vio_irq_affinity_set(g_gdc_dev->irq, MOD_GDC, 1);
 
 	return ret;
 }
@@ -592,6 +594,8 @@ static int x3_gdc_resume(struct device *dev)
 	int ret = 0;
 
 	vio_info("%s\n", __func__);
+	if (g_gdc_dev)
+		vio_irq_affinity_set(g_gdc_dev->irq, MOD_GDC, 0);
 
 	return ret;
 }
@@ -748,7 +752,7 @@ static int x3_gdc_probe(struct platform_device *pdev)
 		goto err_get_irq;
 	}
 
-	irq_set_affinity_hint(gdc->irq, get_cpu_mask(VIO_IRQ_CPU_IDX));
+	vio_irq_affinity_set(gdc->irq, MOD_GDC, 0);
 
 #ifdef CONFIG_OF
 	ret = of_property_read_u32(dnode, "id", &gdc->hw_id);

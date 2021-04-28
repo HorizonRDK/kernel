@@ -4009,8 +4009,11 @@ static struct file_operations x3_ipu_fops = {
 static int x3_ipu_suspend(struct device *dev)
 {
 	int ret = 0;
+	struct x3_ipu_dev *ipu;
 
 	vio_info("%s\n", __func__);
+	ipu = dev_get_drvdata(dev);
+	vio_irq_affinity_set(ipu->irq, MOD_IPU, 1);
 
 	return ret;
 }
@@ -4018,8 +4021,11 @@ static int x3_ipu_suspend(struct device *dev)
 static int x3_ipu_resume(struct device *dev)
 {
 	int ret = 0;
+	struct x3_ipu_dev *ipu;
 
 	vio_info("%s\n", __func__);
+	ipu = dev_get_drvdata(dev);
+	vio_irq_affinity_set(ipu->irq, MOD_IPU, 0);
 
 	return ret;
 }
@@ -4639,7 +4645,7 @@ static int x3_ipu_probe(struct platform_device *pdev)
 		goto err_get_irq;
 	}
 
-	irq_set_affinity_hint(ipu->irq, get_cpu_mask(VIO_IRQ_CPU_IDX));
+	vio_irq_affinity_set(ipu->irq, MOD_IPU, 0);
 
 	ipu->ion_client = ion_client_create(hb_ion_dev, "ipu_driver_ion");
 	if (IS_ERR(ipu->ion_client)) {

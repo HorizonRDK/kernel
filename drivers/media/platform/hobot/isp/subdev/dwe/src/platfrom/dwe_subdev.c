@@ -37,6 +37,7 @@
 #include "acamera_logger.h"
 
 #include "vio_config.h"
+#include "vio_group_api.h"
 #include "system_dwe_api.h"
 #include "dwe_dev.h"
 #include "dwe_subdev.h"
@@ -425,7 +426,7 @@ int dwe_hw_init(void)
 			goto irqldc_err;
 		}
 
-		irq_set_affinity_hint(irq, get_cpu_mask(VIO_IRQ_CPU_IDX));
+		vio_irq_affinity_set(irq, MOD_LDC, 0);
 
 		irq = dwe_ctx->dev_ctx->dis_dev->irq_num;
 		ret = request_irq(irq, x3_dis_irq, IRQF_TRIGGER_HIGH, "dis", NULL);
@@ -434,7 +435,7 @@ int dwe_hw_init(void)
 			goto irqdis_err;
 		}
 
-		irq_set_affinity_hint(irq, get_cpu_mask(VIO_IRQ_CPU_IDX));
+		vio_irq_affinity_set(irq, MOD_DIS, 0);
 	}
 
 	/* init workqueue */
@@ -609,12 +610,72 @@ static int soc_dwe_remove(struct platform_device *pdev)
 
 static struct platform_device *soc_dwe_dev;
 
+static int dwe_suspend(struct device *dev)
+{
+	int ret = 0;
+
+	pr_info("enter\n");
+	ret = check_dev(dwe_ctx->dev_ctx);
+	if (ret < 0) {
+		pr_err("dwe_ctx->dev_ctx is error! \n");
+		return 0;
+	} else {
+		vio_irq_affinity_set(dwe_ctx->dev_ctx->ldc_dev->irq_num, MOD_LDC, 1);
+		vio_irq_affinity_set(dwe_ctx->dev_ctx->dis_dev->irq_num, MOD_DIS, 1);
+	}
+
+	return ret;
+}
+
+static int dwe_resume(struct device *dev)
+{
+	int ret = 0;
+
+	pr_info("enter\n");
+	ret = check_dev(dwe_ctx->dev_ctx);
+	if (ret < 0) {
+		pr_err("dwe_ctx->dev_ctx is error! \n");
+		return 0;
+	} else {
+		vio_irq_affinity_set(dwe_ctx->dev_ctx->ldc_dev->irq_num, MOD_LDC, 0);
+		vio_irq_affinity_set(dwe_ctx->dev_ctx->dis_dev->irq_num, MOD_DIS, 0);
+	}
+
+	return ret;
+}
+
+static int dwe_runtime_suspend(struct device *dev)
+{
+	int ret = 0;
+
+	pr_info("enter\n");
+
+	return ret;
+}
+
+static int dwe_runtime_resume(struct device *dev)
+{
+	int ret = 0;
+
+	pr_info("enter\n");
+
+	return ret;
+}
+
+static const struct dev_pm_ops dwe_pm_ops = {
+	.suspend = dwe_suspend,
+	.resume = dwe_resume,
+	.runtime_suspend = dwe_runtime_suspend,
+	.runtime_resume = dwe_runtime_resume,
+};
+
 static struct platform_driver soc_dwe_driver = {
 	.probe = soc_dwe_probe,
 	.remove = soc_dwe_remove,
 	.driver = {
 		.name = "soc_dwe_v4l2",
 		.owner = THIS_MODULE,
+		.pm = &dwe_pm_ops,
 	},
 };
 

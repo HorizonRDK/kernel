@@ -7,6 +7,7 @@
 #include <linux/delay.h>
 #include <linux/sched.h>
 #include <linux/sched/signal.h>
+#include <linux/interrupt.h>
 #include <uapi/linux/sched/types.h>
 #include <linux/stacktrace.h>
 #include "vio_group_api.h"
@@ -108,6 +109,32 @@ void iar_register_set_callback(iar_set_addr_callback func)
        iar_set_addr = func;
 }
 EXPORT_SYMBOL(iar_register_set_callback);
+
+void vio_irq_affinity_set(int irq, enum MOD_ID id, int suspend)
+{
+	if (suspend) {
+		irq_set_affinity_hint(irq, NULL);
+	} else {
+		switch(id) {
+		case MOD_IDMA:
+			if (nr_cpu_ids == 2)
+				irq_set_affinity_hint(irq, get_cpu_mask(1));
+			else
+				irq_set_affinity_hint(irq, get_cpu_mask(3));
+			break;
+		case MOD_ISP:
+			if (nr_cpu_ids == 2)
+				irq_set_affinity_hint(irq, get_cpu_mask(1));
+			else
+				irq_set_affinity_hint(irq, get_cpu_mask(2));
+			break;
+		default:
+			irq_set_affinity_hint(irq, get_cpu_mask(1));
+			break;
+		}
+	}
+}
+EXPORT_SYMBOL(vio_irq_affinity_set);
 
 int vio_group_task_start(struct vio_group_task *group_task)
 {

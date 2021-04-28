@@ -53,8 +53,11 @@ static u32 temp_flow = 0;
 static int x3_sif_suspend(struct device *dev)
 {
 	int ret = 0;
+	struct x3_sif_dev *sif;
 
 	vio_info("%s\n", __func__);
+	sif = dev_get_drvdata(dev);
+	vio_irq_affinity_set(sif->irq, MOD_SIF, 1);
 
 	return ret;
 }
@@ -62,8 +65,11 @@ static int x3_sif_suspend(struct device *dev)
 static int x3_sif_resume(struct device *dev)
 {
 	int ret = 0;
+	struct x3_sif_dev *sif;
 
 	vio_info("%s\n", __func__);
+	sif = dev_get_drvdata(dev);
+	vio_irq_affinity_set(sif->irq, MOD_SIF, 0);
 
 	return ret;
 }
@@ -3615,7 +3621,7 @@ static int x3_sif_probe(struct platform_device *pdev)
 		goto err_get_irq;
 	}
 
-	irq_set_affinity_hint(sif->irq, get_cpu_mask(VIO_IRQ_CPU_IDX));
+	vio_irq_affinity_set(sif->irq, MOD_SIF, 0);
 
 	spin_lock_init(&sif->seq_task.slock);
 	atomic_set(&sif->seq_task.refcount, 0);

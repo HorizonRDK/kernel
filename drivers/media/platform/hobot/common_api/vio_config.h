@@ -13,7 +13,6 @@
 #define vio_info(fmt, ...)	pr_info(fmt, ##__VA_ARGS__)
 #define vio_cont(fmt, ...)	pr_cont(fmt, ##__VA_ARGS__)
 
-#define	VIO_IRQ_CPU_IDX	1
 #define IRAM_MAX_RANG	0x140000
 
 #define VIO_MAX_STREAM	8
@@ -32,6 +31,18 @@ enum vio_video_state {
 enum FrameErrorType{
 	VIO_FRAME_DONE = 1,
 	VIO_FRAME_NDONE = 2,
+};
+
+enum MOD_ID {
+	MOD_IPS,
+	MOD_SIF,
+	MOD_ISP,
+	MOD_IDMA,
+	MOD_LDC,
+	MOD_DIS,
+	MOD_GDC,
+	MOD_IPU,
+	MOD_PYM,
 };
 
 enum RST_id{

@@ -32,6 +32,7 @@
 #include "acamera_types.h"
 #include "acamera_logger.h"
 #include "system_dma.h"
+#include "vio_group_api.h"
 
 #if FW_USE_HOBOT_DMA
 hobot_dma_t g_hobot_dma = {
@@ -202,6 +203,11 @@ void system_dma_desc_flush(void)
     g_hobot_dma.is_busy = 0;
 
     system_spinlock_unlock( g_hobot_dma.dma_ctrl_lock, flags );
+}
+
+void system_dma_irq_affinity_set(int suspend)
+{
+    vio_irq_affinity_set(g_hobot_dma.irq_in_dts, MOD_IDMA, suspend);
 }
 #endif
 

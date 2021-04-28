@@ -2078,8 +2078,11 @@ static struct file_operations x3_pym_fops = {
 static int x3_pym_suspend(struct device *dev)
 {
 	int ret = 0;
+	struct x3_pym_dev *pym;
 
 	vio_info("%s\n", __func__);
+	pym = dev_get_drvdata(dev);
+	vio_irq_affinity_set(pym->irq, MOD_PYM, 1);
 
 	return ret;
 }
@@ -2087,8 +2090,11 @@ static int x3_pym_suspend(struct device *dev)
 static int x3_pym_resume(struct device *dev)
 {
 	int ret = 0;
+	struct x3_pym_dev *pym;
 
 	vio_info("%s\n", __func__);
+	pym = dev_get_drvdata(dev);
+	vio_irq_affinity_set(pym->irq, MOD_PYM, 0);
 
 	return ret;
 }
@@ -2551,7 +2557,7 @@ static int x3_pym_probe(struct platform_device *pdev)
 		goto err_get_irq;
 	}
 
-	irq_set_affinity_hint(pym->irq, get_cpu_mask(VIO_IRQ_CPU_IDX));
+	vio_irq_affinity_set(pym->irq, MOD_PYM, 0);
 
 	pym->ion_client = ion_client_create(hb_ion_dev, "pym_driver_ion");
 	if (IS_ERR(pym->ion_client)) {

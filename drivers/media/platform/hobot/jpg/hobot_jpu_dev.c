@@ -1759,6 +1759,7 @@ static int jpu_resume(struct platform_device *pdev)
 		jpu_err("The jpu dev is NULL!");
 		return -1;
 	}
+	irq_set_affinity_hint(dev->irq, get_cpu_mask(1));
 	jpu_debug_leave();
 	return 0;
 }

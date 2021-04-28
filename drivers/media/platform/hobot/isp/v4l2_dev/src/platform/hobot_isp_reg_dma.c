@@ -36,6 +36,7 @@
 #include "acamera_isp_core_nomem_settings.h"
 #include "acamera_decompander0_mem_config.h"
 #include "hobot_isp_reg_dma.h"
+#include "vio_group_api.h"
 
 #if FW_USE_HOBOT_DMA
 
@@ -371,7 +372,8 @@ void hobot_dma_init(hobot_dma_t *hobot_dma)
     if(ret)
         printk(KERN_ERR "ERROR: %s request_irq() failed: %d\n", __FUNCTION__, ret);
 
-    irq_set_affinity_hint(hobot_dma->irq_in_dts, get_cpu_mask(IDMA_IRQ_CPU_IDX));
+    vio_irq_affinity_set(hobot_dma->irq_in_dts, MOD_IDMA, 0);
+
     dma_isp_reg_mask_int_write(DMA_INT_DISABLE);  //mask dma irq
 
     // disable irq after request_irq, if not, it may cause "Unbalanced enable for IRQ" warning log

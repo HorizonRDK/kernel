@@ -33,7 +33,7 @@
 
 #include "ips_hw_api.h"
 #include "hobot_dev_ips.h"
-#include "vio_config.h"
+#include "vio_group_api.h"
 
 #define MODULE_NAME "X3 IPS"
 #define REGISTER_CLK(name) {name, NULL}
@@ -448,8 +448,11 @@ int vio_get_clk(struct device *dev)
 static int x3_ips_suspend(struct device *dev)
 {
 	int ret = 0;
+	struct x3_ips_dev *ips;
 
+	ips = dev_get_drvdata(dev);
 	vio_info("%s\n", __func__);
+	vio_irq_affinity_set(ips->irq, MOD_IPS, 1);
 
 	return ret;
 }
@@ -457,8 +460,11 @@ static int x3_ips_suspend(struct device *dev)
 static int x3_ips_resume(struct device *dev)
 {
 	int ret = 0;
+	struct x3_ips_dev *ips;
 
+	ips = dev_get_drvdata(dev);
 	vio_info("%s\n", __func__);
+	vio_irq_affinity_set(ips->irq, MOD_IPS, 0);
 
 	return ret;
 }
@@ -560,7 +566,8 @@ static int x3_ips_probe(struct platform_device *pdev)
 		goto err_get_irq;
 	}
 
-	irq_set_affinity_hint(ips->irq, get_cpu_mask(VIO_IRQ_CPU_IDX));
+	vio_irq_affinity_set(ips->irq, MOD_IPS, 0);
+
 	dev = &pdev->dev;
 	ret = device_create_file(dev, &dev_attr_regdump);
 	if (ret < 0) {

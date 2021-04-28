@@ -4666,6 +4666,7 @@ DONE_WAKEUP:
 	if (dev->vpu_open_ref_count > 0)
 		hb_vpu_clk_enable(dev, dev->vpu_freq);
 
+	irq_set_affinity_hint(dev->irq, get_cpu_mask(1));
 	vpu_debug_leave();
 	return 0;
 }
