@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * uvc_configfs.c
  *
@@ -6,14 +7,17 @@
  * Copyright (c) 2014 Samsung Electronics Co., Ltd.
  *		http://www.samsung.com
  *
- * Author: Andrzej Pietrasiewicz <andrzej.p@samsung.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
+ * Author: Andrzej Pietrasiewicz <andrzejtp2010@gmail.com>
  */
+
+#include <linux/sort.h>
+
 #include "u_uvc.h"
 #include "uvc_configfs.h"
+
+/* -----------------------------------------------------------------------------
+ * Global Utility Structures and Macros
+ */
 
 #define UVCG_STREAMING_CONTROL_SIZE	1
 
@@ -34,9 +38,93 @@ static struct configfs_attribute prefix##attr_##cname = { \
 	.show		= prefix##cname##_show,				\
 }
 
-static inline struct f_uvc_opts *to_f_uvc_opts(struct config_item *item);
+#define le8_to_cpu(x)	(x)
+#define cpu_to_le8(x)	(x)
 
-/* control/header/<NAME> */
+static int uvcg_config_compare_u32(const void *l, const void *r)
+{
+	u32 li = *(const u32 *)l;
+	u32 ri = *(const u32 *)r;
+
+	return li < ri ? -1 : li == ri ? 0 : 1;
+}
+
+static inline struct f_uvc_opts *to_f_uvc_opts(struct config_item *item)
+{
+	return container_of(to_config_group(item), struct f_uvc_opts,
+			    func_inst.group);
+}
+
+struct uvcg_config_group_type {
+	struct config_item_type type;
+	const char *name;
+	struct uvcg_config_group_type **children;
+	int (*create_children)(struct config_group *group);
+};
+
+static void uvcg_config_item_release(struct config_item *item)
+{
+	struct config_group *group = to_config_group(item);
+
+	kfree(group);
+}
+
+static struct configfs_item_operations uvcg_config_item_ops = {
+	.release	= uvcg_config_item_release,
+};
+
+static int uvcg_config_create_group(struct config_group *parent,
+				    struct uvcg_config_group_type *type);
+
+static int uvcg_config_create_children(struct config_group *group,
+				struct uvcg_config_group_type *type)
+{
+	struct uvcg_config_group_type **child;
+	int ret;
+
+	if (type->create_children)
+		return type->create_children(group);
+
+	for (child = type->children; child && *child; ++child) {
+		ret = uvcg_config_create_group(group, *child);
+		if (ret < 0)
+			return ret;
+	}
+
+	return 0;
+}
+
+static int uvcg_config_create_group(struct config_group *parent,
+				    struct uvcg_config_group_type *type)
+{
+	struct config_group *group;
+
+	group = kzalloc(sizeof(*group), GFP_KERNEL);
+	if (!group)
+		return -ENOMEM;
+
+	config_group_init_type_name(group, type->name, &type->type);
+	configfs_add_default_group(group, parent);
+
+	return uvcg_config_create_children(group, type);
+}
+
+static void uvcg_config_remove_children(struct config_group *group)
+{
+	struct config_group *child, *n;
+
+	list_for_each_entry_safe(child, n, &group->default_groups, group_entry) {
+		list_del(&child->group_entry);
+		uvcg_config_remove_children(child);
+		config_item_put(&child->cg_item);
+	}
+}
+
+/* -----------------------------------------------------------------------------
+ * control/header/<NAME>
+ * control/header
+ */
+
 DECLARE_UVC_HEADER_DESCRIPTOR(1);
 
 struct uvcg_control_header {
@@ -50,9 +138,9 @@ static struct uvcg_control_header *to_uvcg_control_header(struct config_item *it
 	return container_of(item, struct uvcg_control_header, item);
 }
 
-#define UVCG_CTRL_HDR_ATTR(cname, aname, conv, str2u, uxx, vnoc, limit)	\
+#define UVCG_CTRL_HDR_ATTR(cname, aname, bits, limit)			\
 static ssize_t uvcg_control_header_##cname##_show(			\
-	struct config_item *item, char *page)			\
+	struct config_item *item, char *page)				\
 {									\
 	struct uvcg_control_header *ch = to_uvcg_control_header(item);	\
 	struct f_uvc_opts *opts;					\
@@ -66,7 +154,7 @@ static ssize_t uvcg_control_header_##cname##_show(			\
 	opts = to_f_uvc_opts(opts_item);				\
 									\
 	mutex_lock(&opts->lock);					\
-	result = sprintf(page, "%d\n", conv(ch->desc.aname));		\
+	result = sprintf(page, "%u\n", le##bits##_to_cpu(ch->desc.aname));\
 	mutex_unlock(&opts->lock);					\
 									\
 	mutex_unlock(su_mutex);						\
@@ -82,7 +170,7 @@ uvcg_control_header_##cname##_store(struct config_item *item,		\
 	struct config_item *opts_item;					\
 	struct mutex *su_mutex = &ch->item.ci_group->cg_subsys->su_mutex;\
 	int ret;							\
-	uxx num;							\
+	u##bits num;							\
 									\
 	mutex_lock(su_mutex); /* for navigating configfs hierarchy */	\
 									\
@@ -95,7 +183,7 @@ uvcg_control_header_##cname##_store(struct config_item *item,		\
 		goto end;						\
 	}								\
 									\
-	ret = str2u(page, 0, &num);					\
+	ret = kstrtou##bits(page, 0, &num);				\
 	if (ret)							\
 		goto end;						\
 									\
@@ -103,7 +191,7 @@ uvcg_control_header_##cname##_store(struct config_item *item,		\
 		ret = -EINVAL;						\
 		goto end;						\
 	}								\
-	ch->desc.aname = vnoc(num);					\
+	ch->desc.aname = cpu_to_le##bits(num);				\
 	ret = len;							\
 end:									\
 	mutex_unlock(&opts->lock);					\
@@ -113,11 +201,9 @@ end:									\
 									\
 UVC_ATTR(uvcg_control_header_, cname, aname)
 
-UVCG_CTRL_HDR_ATTR(bcd_uvc, bcdUVC, le16_to_cpu, kstrtou16, u16, cpu_to_le16,
-		   0xffff);
+UVCG_CTRL_HDR_ATTR(bcd_uvc, bcdUVC, 16, 0xffff);
 
-UVCG_CTRL_HDR_ATTR(dw_clock_frequency, dwClockFrequency, le32_to_cpu, kstrtou32,
-		   u32, cpu_to_le32, 0x7fffffff);
+UVCG_CTRL_HDR_ATTR(dw_clock_frequency, dwClockFrequency, 32, 0x7fffffff);
 
 #undef UVCG_CTRL_HDR_ATTR
 
@@ -128,6 +214,7 @@ static struct configfs_attribute *uvcg_control_header_attrs[] = {
 };
 
 static struct config_item_type uvcg_control_header_type = {
+	.ct_item_ops	= &uvcg_config_item_ops,
 	.ct_attrs	= uvcg_control_header_attrs,
 	.ct_owner	= THIS_MODULE,
 };
@@ -152,60 +239,42 @@ static struct config_item *uvcg_control_header_make(struct config_group *group,
 	return &h->item;
 }
 
-static void uvcg_control_header_drop(struct config_group *group,
-			      struct config_item *item)
-{
-	struct uvcg_control_header *h = to_uvcg_control_header(item);
-
-	kfree(h);
-}
-
-/* control/header */
-static struct uvcg_control_header_grp {
-	struct config_group	group;
-} uvcg_control_header_grp;
-
 static struct configfs_group_operations uvcg_control_header_grp_ops = {
 	.make_item		= uvcg_control_header_make,
-	.drop_item		= uvcg_control_header_drop,
 };
 
-static struct config_item_type uvcg_control_header_grp_type = {
-	.ct_group_ops	= &uvcg_control_header_grp_ops,
-	.ct_owner	= THIS_MODULE,
+static struct uvcg_config_group_type uvcg_control_header_grp_type = {
+	.type = {
+		.ct_item_ops	= &uvcg_config_item_ops,
+		.ct_group_ops	= &uvcg_control_header_grp_ops,
+		.ct_owner	= THIS_MODULE,
+	},
+	.name = "header",
 };
 
-/* control/processing/default */
-static struct uvcg_default_processing {
-	struct config_group	group;
-} uvcg_default_processing;
+/* -----------------------------------------------------------------------------
+ * control/processing/default
+ */
 
-static inline struct uvcg_default_processing
-*to_uvcg_default_processing(struct config_item *item)
-{
-	return container_of(to_config_group(item),
-			    struct uvcg_default_processing, group);
-}
-
-#define UVCG_DEFAULT_PROCESSING_ATTR(cname, aname, conv)		\
+#define UVCG_DEFAULT_PROCESSING_ATTR(cname, aname, bits)		\
 static ssize_t uvcg_default_processing_##cname##_show(			\
 	struct config_item *item, char *page)				\
 {									\
-	struct uvcg_default_processing *dp = to_uvcg_default_processing(item); \
+	struct config_group *group = to_config_group(item);		\
 	struct f_uvc_opts *opts;					\
 	struct config_item *opts_item;					\
-	struct mutex *su_mutex = &dp->group.cg_subsys->su_mutex;	\
+	struct mutex *su_mutex = &group->cg_subsys->su_mutex;		\
 	struct uvc_processing_unit_descriptor *pd;			\
 	int result;							\
 									\
 	mutex_lock(su_mutex); /* for navigating configfs hierarchy */	\
 									\
-	opts_item = dp->group.cg_item.ci_parent->ci_parent->ci_parent;	\
+	opts_item = group->cg_item.ci_parent->ci_parent->ci_parent;	\
 	opts = to_f_uvc_opts(opts_item);				\
 	pd = &opts->uvc_processing;					\
 									\
 	mutex_lock(&opts->lock);					\
-	result = sprintf(page, "%d\n", conv(pd->aname));		\
+	result = sprintf(page, "%u\n", le##bits##_to_cpu(pd->aname));	\
 	mutex_unlock(&opts->lock);					\
 									\
 	mutex_unlock(su_mutex);						\
@@ -214,37 +283,33 @@ static ssize_t uvcg_default_processing_##cname##_show(			\
 									\
 UVC_ATTR_RO(uvcg_default_processing_, cname, aname)
 
-#define identity_conv(x) (x)
-
-UVCG_DEFAULT_PROCESSING_ATTR(b_unit_id, bUnitID, identity_conv);
-UVCG_DEFAULT_PROCESSING_ATTR(b_source_id, bSourceID, identity_conv);
-UVCG_DEFAULT_PROCESSING_ATTR(w_max_multiplier, wMaxMultiplier, le16_to_cpu);
-UVCG_DEFAULT_PROCESSING_ATTR(i_processing, iProcessing, identity_conv);
-
-#undef identity_conv
+UVCG_DEFAULT_PROCESSING_ATTR(b_unit_id, bUnitID, 8);
+UVCG_DEFAULT_PROCESSING_ATTR(b_source_id, bSourceID, 8);
+UVCG_DEFAULT_PROCESSING_ATTR(w_max_multiplier, wMaxMultiplier, 16);
+UVCG_DEFAULT_PROCESSING_ATTR(i_processing, iProcessing, 8);
 
 #undef UVCG_DEFAULT_PROCESSING_ATTR
 
 static ssize_t uvcg_default_processing_bm_controls_show(
 	struct config_item *item, char *page)
 {
-	struct uvcg_default_processing *dp = to_uvcg_default_processing(item);
+	struct config_group *group = to_config_group(item);
 	struct f_uvc_opts *opts;
 	struct config_item *opts_item;
-	struct mutex *su_mutex = &dp->group.cg_subsys->su_mutex;
+	struct mutex *su_mutex = &group->cg_subsys->su_mutex;
 	struct uvc_processing_unit_descriptor *pd;
 	int result, i;
 	char *pg = page;
 
 	mutex_lock(su_mutex); /* for navigating configfs hierarchy */
 
-	opts_item = dp->group.cg_item.ci_parent->ci_parent->ci_parent;
+	opts_item = group->cg_item.ci_parent->ci_parent->ci_parent;
 	opts = to_f_uvc_opts(opts_item);
 	pd = &opts->uvc_processing;
 
 	mutex_lock(&opts->lock);
 	for (result = 0, i = 0; i < pd->bControlSize; ++i) {
-		result += sprintf(pg, "%d\n", pd->bmControls[i]);
+		result += sprintf(pg, "%u\n", pd->bmControls[i]);
 		pg = page + result;
 	}
 	mutex_unlock(&opts->lock);
@@ -265,158 +330,55 @@ static struct configfs_attribute *uvcg_default_processing_attrs[] = {
 	NULL,
 };
 
-static struct config_item_type uvcg_default_processing_type = {
-	.ct_attrs	= uvcg_default_processing_attrs,
-	.ct_owner	= THIS_MODULE,
+static struct uvcg_config_group_type uvcg_default_processing_type = {
+	.type = {
+		.ct_item_ops	= &uvcg_config_item_ops,
+		.ct_attrs	= uvcg_default_processing_attrs,
+		.ct_owner	= THIS_MODULE,
+	},
+	.name = "default",
 };
 
-/* struct uvcg_processing {}; */
+/* -----------------------------------------------------------------------------
+ * control/processing
+ */
 
-/* control/processing */
-static struct uvcg_processing_grp {
-	struct config_group	group;
-} uvcg_processing_grp;
-
-static struct config_item_type uvcg_processing_grp_type = {
-	.ct_owner = THIS_MODULE,
+static struct uvcg_config_group_type uvcg_processing_grp_type = {
+	.type = {
+		.ct_item_ops	= &uvcg_config_item_ops,
+		.ct_owner	= THIS_MODULE,
+	},
+	.name = "processing",
+	.children = (struct uvcg_config_group_type*[]) {
+		&uvcg_default_processing_type,
+		NULL,
+	},
 };
 
-/* control/extension/default */
-static struct uvcg_default_extension {
-	struct config_group	group;
-} uvcg_default_extension;
+/* -----------------------------------------------------------------------------
+ * control/terminal/camera/default
+ */
 
-static inline struct uvcg_default_extension
-*to_uvcg_default_extension(struct config_item *item)
-{
-	return container_of(to_config_group(item),
-			    struct uvcg_default_extension, group);
-}
-
-#define UVCG_DEFAULT_EXTENSION_ATTR(cname, aname, conv)		\
-static ssize_t uvcg_default_extension_##cname##_show(			\
-	struct config_item *item, char *page)				\
-{									\
-	struct uvcg_default_extension *dp = to_uvcg_default_extension(item); \
-	struct f_uvc_opts *opts;					\
-	struct config_item *opts_item;					\
-	struct mutex *su_mutex = &dp->group.cg_subsys->su_mutex;	\
-	struct UVC_EXTENSION_UNIT_DESCRIPTOR(1, 2) *ed;			\
-	int result;							\
-									\
-	mutex_lock(su_mutex); /* for navigating configfs hierarchy */	\
-									\
-	opts_item = dp->group.cg_item.ci_parent->ci_parent->ci_parent;	\
-	opts = to_f_uvc_opts(opts_item);				\
-	ed = &opts->uvc_extension;					\
-									\
-	mutex_lock(&opts->lock);					\
-	result = sprintf(page, "%d\n", conv(ed->aname));		\
-	mutex_unlock(&opts->lock);					\
-									\
-	mutex_unlock(su_mutex);						\
-	return result;							\
-}									\
-									\
-UVC_ATTR_RO(uvcg_default_extension_, cname, aname)
-
-#define identity_conv(x) (x)
-
-UVCG_DEFAULT_EXTENSION_ATTR(b_unit_id, bUnitID, identity_conv);
-UVCG_DEFAULT_EXTENSION_ATTR(b_num_input_pins, bNrInPins, identity_conv);
-UVCG_DEFAULT_EXTENSION_ATTR(i_extension, iExtension, identity_conv);
-
-#undef identity_conv
-
-#undef UVCG_DEFAULT_EXTENSION_ATTR
-
-static ssize_t uvcg_default_extension_bm_controls_show(
-	struct config_item *item, char *page)
-{
-	struct uvcg_default_extension *dp = to_uvcg_default_extension(item);
-	struct f_uvc_opts *opts;
-	struct config_item *opts_item;
-	struct mutex *su_mutex = &dp->group.cg_subsys->su_mutex;
-	struct UVC_EXTENSION_UNIT_DESCRIPTOR(1, 2) *ed;
-	int result, i;
-	char *pg = page;
-
-	mutex_lock(su_mutex); /* for navigating configfs hierarchy */
-
-	opts_item = dp->group.cg_item.ci_parent->ci_parent->ci_parent;
-	opts = to_f_uvc_opts(opts_item);
-	ed = &opts->uvc_extension;
-
-	mutex_lock(&opts->lock);
-	for (result = 0, i = 0; i < ed->bControlSize; ++i) {
-		result += sprintf(pg, "%d\n", ed->bmControls[i]);
-		pg = page + result;
-	}
-	mutex_unlock(&opts->lock);
-
-	mutex_unlock(su_mutex);
-
-	return result;
-}
-
-UVC_ATTR_RO(uvcg_default_extension_, bm_controls, bmControls);
-
-static struct configfs_attribute *uvcg_default_extension_attrs[] = {
-	&uvcg_default_extension_attr_b_unit_id,
-	&uvcg_default_extension_attr_b_num_input_pins,
-	&uvcg_default_extension_attr_bm_controls,
-	&uvcg_default_extension_attr_i_extension,
-	NULL,
-};
-
-static struct config_item_type uvcg_default_extension_type = {
-	.ct_attrs	= uvcg_default_extension_attrs,
-	.ct_owner	= THIS_MODULE,
-};
-
-/* struct uvcg_extension {}; */
-
-/* control/extension */
-static struct uvcg_extension_grp {
-	struct config_group	group;
-} uvcg_extension_grp;
-
-static struct config_item_type uvcg_extension_grp_type = {
-	.ct_owner = THIS_MODULE,
-};
-
-/* control/terminal/camera/default */
-static struct uvcg_default_camera {
-	struct config_group	group;
-} uvcg_default_camera;
-
-static inline struct uvcg_default_camera
-*to_uvcg_default_camera(struct config_item *item)
-{
-	return container_of(to_config_group(item),
-			    struct uvcg_default_camera, group);
-}
-
-#define UVCG_DEFAULT_CAMERA_ATTR(cname, aname, conv)			\
+#define UVCG_DEFAULT_CAMERA_ATTR(cname, aname, bits)			\
 static ssize_t uvcg_default_camera_##cname##_show(			\
 	struct config_item *item, char *page)				\
 {									\
-	struct uvcg_default_camera *dc = to_uvcg_default_camera(item);	\
+	struct config_group *group = to_config_group(item);		\
 	struct f_uvc_opts *opts;					\
 	struct config_item *opts_item;					\
-	struct mutex *su_mutex = &dc->group.cg_subsys->su_mutex;	\
+	struct mutex *su_mutex = &group->cg_subsys->su_mutex;		\
 	struct uvc_camera_terminal_descriptor *cd;			\
 	int result;							\
 									\
 	mutex_lock(su_mutex); /* for navigating configfs hierarchy */	\
 									\
-	opts_item = dc->group.cg_item.ci_parent->ci_parent->ci_parent->	\
+	opts_item = group->cg_item.ci_parent->ci_parent->ci_parent->	\
 			ci_parent;					\
 	opts = to_f_uvc_opts(opts_item);				\
 	cd = &opts->uvc_camera_terminal;				\
 									\
 	mutex_lock(&opts->lock);					\
-	result = sprintf(page, "%d\n", conv(cd->aname));		\
+	result = sprintf(page, "%u\n", le##bits##_to_cpu(cd->aname));	\
 	mutex_unlock(&opts->lock);					\
 									\
 	mutex_unlock(su_mutex);						\
@@ -426,44 +388,40 @@ static ssize_t uvcg_default_camera_##cname##_show(			\
 									\
 UVC_ATTR_RO(uvcg_default_camera_, cname, aname)
 
-#define identity_conv(x) (x)
-
-UVCG_DEFAULT_CAMERA_ATTR(b_terminal_id, bTerminalID, identity_conv);
-UVCG_DEFAULT_CAMERA_ATTR(w_terminal_type, wTerminalType, le16_to_cpu);
-UVCG_DEFAULT_CAMERA_ATTR(b_assoc_terminal, bAssocTerminal, identity_conv);
-UVCG_DEFAULT_CAMERA_ATTR(i_terminal, iTerminal, identity_conv);
+UVCG_DEFAULT_CAMERA_ATTR(b_terminal_id, bTerminalID, 8);
+UVCG_DEFAULT_CAMERA_ATTR(w_terminal_type, wTerminalType, 16);
+UVCG_DEFAULT_CAMERA_ATTR(b_assoc_terminal, bAssocTerminal, 8);
+UVCG_DEFAULT_CAMERA_ATTR(i_terminal, iTerminal, 8);
 UVCG_DEFAULT_CAMERA_ATTR(w_objective_focal_length_min, wObjectiveFocalLengthMin,
-			 le16_to_cpu);
+			 16);
 UVCG_DEFAULT_CAMERA_ATTR(w_objective_focal_length_max, wObjectiveFocalLengthMax,
-			 le16_to_cpu);
+			 16);
 UVCG_DEFAULT_CAMERA_ATTR(w_ocular_focal_length, wOcularFocalLength,
-			 le16_to_cpu);
-
-#undef identity_conv
+			 16);
 
 #undef UVCG_DEFAULT_CAMERA_ATTR
 
 static ssize_t uvcg_default_camera_bm_controls_show(
 	struct config_item *item, char *page)
 {
-	struct uvcg_default_camera *dc = to_uvcg_default_camera(item);
+	struct config_group *group = to_config_group(item);
 	struct f_uvc_opts *opts;
 	struct config_item *opts_item;
-	struct mutex *su_mutex = &dc->group.cg_subsys->su_mutex;
+	struct mutex *su_mutex = &group->cg_subsys->su_mutex;
 	struct uvc_camera_terminal_descriptor *cd;
 	int result, i;
 	char *pg = page;
 
 	mutex_lock(su_mutex); /* for navigating configfs hierarchy */
 
-	opts_item = dc->group.cg_item.ci_parent->ci_parent->ci_parent->
+	opts_item = group->cg_item.ci_parent->ci_parent->ci_parent->
 			ci_parent;
 	opts = to_f_uvc_opts(opts_item);
 	cd = &opts->uvc_camera_terminal;
 
 	mutex_lock(&opts->lock);
 	for (result = 0, i = 0; i < cd->bControlSize; ++i) {
-		result += sprintf(pg, "%d\n", cd->bmControls[i]);
+		result += sprintf(pg, "%u\n", cd->bmControls[i]);
 		pg = page + result;
 	}
 	mutex_unlock(&opts->lock);
@@ -486,54 +444,55 @@ static struct configfs_attribute *uvcg_default_camera_attrs[] = {
 	NULL,
 };
 
-static struct config_item_type uvcg_default_camera_type = {
-	.ct_attrs	= uvcg_default_camera_attrs,
-	.ct_owner	= THIS_MODULE,
+static struct uvcg_config_group_type uvcg_default_camera_type = {
+	.type = {
+		.ct_item_ops	= &uvcg_config_item_ops,
+		.ct_attrs	= uvcg_default_camera_attrs,
+		.ct_owner	= THIS_MODULE,
+	},
+	.name = "default",
 };
 
-/* struct uvcg_camera {}; */
+/* -----------------------------------------------------------------------------
+ * control/terminal/camera
+ */
 
-/* control/terminal/camera */
-static struct uvcg_camera_grp {
-	struct config_group	group;
-} uvcg_camera_grp;
-
-static struct config_item_type uvcg_camera_grp_type = {
-	.ct_owner = THIS_MODULE,
+static struct uvcg_config_group_type uvcg_camera_grp_type = {
+	.type = {
+		.ct_item_ops	= &uvcg_config_item_ops,
+		.ct_owner	= THIS_MODULE,
+	},
+	.name = "camera",
+	.children = (struct uvcg_config_group_type*[]) {
+		&uvcg_default_camera_type,
+		NULL,
+	},
 };
 
-/* control/terminal/output/default */
-static struct uvcg_default_output {
-	struct config_group	group;
-} uvcg_default_output;
+/* -----------------------------------------------------------------------------
+ * control/terminal/output/default
+ */
 
-static inline struct uvcg_default_output
-*to_uvcg_default_output(struct config_item *item)
-{
-	return container_of(to_config_group(item),
-			    struct uvcg_default_output, group);
-}
-
-#define UVCG_DEFAULT_OUTPUT_ATTR(cname, aname, conv)			\
+#define UVCG_DEFAULT_OUTPUT_ATTR(cname, aname, bits)			\
 static ssize_t uvcg_default_output_##cname##_show(			\
-	struct config_item *item, char *page)			\
+	struct config_item *item, char *page)				\
 {									\
-	struct uvcg_default_output *dout = to_uvcg_default_output(item); \
+	struct config_group *group = to_config_group(item);		\
 	struct f_uvc_opts *opts;					\
 	struct config_item *opts_item;					\
-	struct mutex *su_mutex = &dout->group.cg_subsys->su_mutex;	\
+	struct mutex *su_mutex = &group->cg_subsys->su_mutex;		\
 	struct uvc_output_terminal_descriptor *cd;			\
 	int result;							\
 									\
 	mutex_lock(su_mutex); /* for navigating configfs hierarchy */	\
 									\
-	opts_item = dout->group.cg_item.ci_parent->ci_parent->		\
+	opts_item = group->cg_item.ci_parent->ci_parent->		\
 			ci_parent->ci_parent;				\
 	opts = to_f_uvc_opts(opts_item);				\
 	cd = &opts->uvc_output_terminal;				\
 									\
 	mutex_lock(&opts->lock);					\
-	result = sprintf(page, "%d\n", conv(cd->aname));		\
+	result = sprintf(page, "%u\n", le##bits##_to_cpu(cd->aname));	\
 	mutex_unlock(&opts->lock);					\
 									\
 	mutex_unlock(su_mutex);						\
@@ -543,15 +502,11 @@ static ssize_t uvcg_default_output_##cname##_show(			\
 									\
 UVC_ATTR_RO(uvcg_default_output_, cname, aname)
 
-#define identity_conv(x) (x)
-
-UVCG_DEFAULT_OUTPUT_ATTR(b_terminal_id, bTerminalID, identity_conv);
-UVCG_DEFAULT_OUTPUT_ATTR(w_terminal_type, wTerminalType, le16_to_cpu);
-UVCG_DEFAULT_OUTPUT_ATTR(b_assoc_terminal, bAssocTerminal, identity_conv);
-UVCG_DEFAULT_OUTPUT_ATTR(b_source_id, bSourceID, identity_conv);
-UVCG_DEFAULT_OUTPUT_ATTR(i_terminal, iTerminal, identity_conv);
-
-#undef identity_conv
+UVCG_DEFAULT_OUTPUT_ATTR(b_terminal_id, bTerminalID, 8);
+UVCG_DEFAULT_OUTPUT_ATTR(w_terminal_type, wTerminalType, 16);
+UVCG_DEFAULT_OUTPUT_ATTR(b_assoc_terminal, bAssocTerminal, 8);
+UVCG_DEFAULT_OUTPUT_ATTR(b_source_id, bSourceID, 8);
+UVCG_DEFAULT_OUTPUT_ATTR(i_terminal, iTerminal, 8);
 
 #undef UVCG_DEFAULT_OUTPUT_ATTR
 
@@ -564,47 +519,68 @@ static struct configfs_attribute *uvcg_default_output_attrs[] = {
 	NULL,
 };
 
-static struct config_item_type uvcg_default_output_type = {
-	.ct_attrs	= uvcg_default_output_attrs,
-	.ct_owner	= THIS_MODULE,
+static struct uvcg_config_group_type uvcg_default_output_type = {
+	.type = {
+		.ct_item_ops	= &uvcg_config_item_ops,
+		.ct_attrs	= uvcg_default_output_attrs,
+		.ct_owner	= THIS_MODULE,
+	},
+	.name = "default",
 };
 
-/* struct uvcg_output {}; */
+/* -----------------------------------------------------------------------------
+ * control/terminal/output
+ */
 
-/* control/terminal/output */
-static struct uvcg_output_grp {
-	struct config_group	group;
-} uvcg_output_grp;
-
-static struct config_item_type uvcg_output_grp_type = {
-	.ct_owner = THIS_MODULE,
+static struct uvcg_config_group_type uvcg_output_grp_type = {
+	.type = {
+		.ct_item_ops	= &uvcg_config_item_ops,
+		.ct_owner	= THIS_MODULE,
+	},
+	.name = "output",
+	.children = (struct uvcg_config_group_type*[]) {
+		&uvcg_default_output_type,
+		NULL,
+	},
 };
 
-/* control/terminal */
-static struct uvcg_terminal_grp {
-	struct config_group	group;
-} uvcg_terminal_grp;
+/* -----------------------------------------------------------------------------
+ * control/terminal
+ */
 
-static struct config_item_type uvcg_terminal_grp_type = {
-	.ct_owner = THIS_MODULE,
+static struct uvcg_config_group_type uvcg_terminal_grp_type = {
+	.type = {
+		.ct_item_ops	= &uvcg_config_item_ops,
+		.ct_owner	= THIS_MODULE,
+	},
+	.name = "terminal",
+	.children = (struct uvcg_config_group_type*[]) {
+		&uvcg_camera_grp_type,
+		&uvcg_output_grp_type,
+		NULL,
+	},
 };
 
-/* control/class/{fs} */
-static struct uvcg_control_class {
-	struct config_group	group;
-} uvcg_control_class_fs, uvcg_control_class_ss;
+/* -----------------------------------------------------------------------------
+ * control/class/{fs|ss}
+ */
 
+struct uvcg_control_class_group {
+	struct config_group group;
+	const char *name;
+};
 
 static inline struct uvc_descriptor_header
 **uvcg_get_ctl_class_arr(struct config_item *i, struct f_uvc_opts *o)
 {
-	struct uvcg_control_class *cl = container_of(to_config_group(i),
-		struct uvcg_control_class, group);
+	struct uvcg_control_class_group *group =
+		container_of(i, struct uvcg_control_class_group,
+			     group.cg_item);
 
-	if (cl == &uvcg_control_class_fs)
+	if (!strcmp(group->name, "fs"))
 		return o->uvc_fs_control_cls;
 
-	if (cl == &uvcg_control_class_ss)
+	if (!strcmp(group->name, "ss"))
 		return o->uvc_ss_control_cls;
 
 	return NULL;
@@ -647,6 +623,7 @@ static int uvcg_control_class_allow_link(struct config_item *src,
 unlock:
 	mutex_unlock(&opts->lock);
 out:
+	config_item_put(header);
 	mutex_unlock(su_mutex);
 	return ret;
 }
@@ -682,10 +659,12 @@ static void uvcg_control_class_drop_link(struct config_item *src,
 unlock:
 	mutex_unlock(&opts->lock);
 out:
+	config_item_put(header);
 	mutex_unlock(su_mutex);
 }
 
 static struct configfs_item_operations uvcg_control_class_item_ops = {
+	.release	= uvcg_config_item_release,
 	.allow_link	= uvcg_control_class_allow_link,
 	.drop_link	= uvcg_control_class_drop_link,
 };
@@ -695,43 +674,100 @@ static struct config_item_type uvcg_control_class_type = {
 	.ct_owner	= THIS_MODULE,
 };
 
-/* control/class */
-static struct uvcg_control_class_grp {
-	struct config_group	group;
-} uvcg_control_class_grp;
+/* -----------------------------------------------------------------------------
+ * control/class
+ */
 
-static struct config_item_type uvcg_control_class_grp_type = {
-	.ct_owner = THIS_MODULE,
+static int uvcg_control_class_create_children(struct config_group *parent)
+{
+	static const char * const names[] = { "fs", "ss" };
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(names); ++i) {
+		struct uvcg_control_class_group *group;
+
+		group = kzalloc(sizeof(*group), GFP_KERNEL);
+		if (!group)
+			return -ENOMEM;
+
+		group->name = names[i];
+
+		config_group_init_type_name(&group->group, group->name,
+					    &uvcg_control_class_type);
+		configfs_add_default_group(&group->group, parent);
+	}
+
+	return 0;
+}
+
+static struct uvcg_config_group_type uvcg_control_class_grp_type = {
+	.type = {
+		.ct_item_ops	= &uvcg_config_item_ops,
+		.ct_owner	= THIS_MODULE,
+	},
+	.name = "class",
+	.create_children = uvcg_control_class_create_children,
 };
 
-/* control */
-static struct uvcg_control_grp {
-	struct config_group	group;
-} uvcg_control_grp;
+/* -----------------------------------------------------------------------------
+ * control
+ */
 
-static struct config_item_type uvcg_control_grp_type = {
-	.ct_owner = THIS_MODULE,
+static ssize_t uvcg_default_control_b_interface_number_show(
+	struct config_item *item, char *page)
+{
+	struct config_group *group = to_config_group(item);
+	struct mutex *su_mutex = &group->cg_subsys->su_mutex;
+	struct config_item *opts_item;
+	struct f_uvc_opts *opts;
+	int result = 0;
+
+	mutex_lock(su_mutex); /* for navigating configfs hierarchy */
+
+	opts_item = item->ci_parent;
+	opts = to_f_uvc_opts(opts_item);
+
+	mutex_lock(&opts->lock);
+	result += sprintf(page, "%u\n", opts->control_interface);
+	mutex_unlock(&opts->lock);
+
+	mutex_unlock(su_mutex);
+
+	return result;
+}
+
+UVC_ATTR_RO(uvcg_default_control_, b_interface_number, bInterfaceNumber);
+
+static struct configfs_attribute *uvcg_default_control_attrs[] = {
+	&uvcg_default_control_attr_b_interface_number,
+	NULL,
 };
 
-/* streaming/uncompressed */
-static struct uvcg_uncompressed_grp {
-	struct config_group	group;
-} uvcg_uncompressed_grp;
+static struct uvcg_config_group_type uvcg_control_grp_type = {
+	.type = {
+		.ct_item_ops	= &uvcg_config_item_ops,
+		.ct_attrs	= uvcg_default_control_attrs,
+		.ct_owner	= THIS_MODULE,
+	},
+	.name = "control",
+	.children = (struct uvcg_config_group_type*[]) {
+		&uvcg_control_header_grp_type,
+		&uvcg_processing_grp_type,
+		&uvcg_terminal_grp_type,
+		&uvcg_control_class_grp_type,
+		NULL,
+	},
+};
 
-/* streaming/mjpeg */
-static struct uvcg_mjpeg_grp {
-	struct config_group	group;
-} uvcg_mjpeg_grp;
+/* -----------------------------------------------------------------------------
+ * streaming/uncompressed
+ * streaming/mjpeg
+ */
 
-/* streaming/framebased */
-static struct uvcg_framebased_grp {
-	struct config_group	group;
-} uvcg_framebased_grp;
-
-static struct config_item *fmt_parent[] = {
-	&uvcg_uncompressed_grp.group.cg_item,
-	&uvcg_mjpeg_grp.group.cg_item,
-	&uvcg_framebased_grp.group.cg_item,
+static const char * const uvcg_format_names[] = {
+	"uncompressed",
+	"mjpeg",
+	"framebased",
 };
 
 enum uvcg_format_type {
@@ -816,7 +852,11 @@ struct uvcg_format_ptr {
 	struct list_head	entry;
 };
 
-/* streaming/header/<NAME> */
+/* -----------------------------------------------------------------------------
+ * streaming/header/<NAME>
+ * streaming/header
+ */
+
 struct uvcg_streaming_header {
 	struct config_item				item;
 	struct uvc_input_header_descriptor		desc;
@@ -824,7 +864,6 @@ struct uvcg_streaming_header {
 	struct list_head				formats;
 	unsigned					num_fmt;
 };
-
 
 static struct uvcg_streaming_header *to_uvcg_streaming_header(struct config_item *item)
 {
@@ -857,10 +896,22 @@ static int uvcg_streaming_header_allow_link(struct config_item *src,
 		goto out;
 	}
 
-	for (i = 0; i < ARRAY_SIZE(fmt_parent); ++i)
-		if (target->ci_parent == fmt_parent[i])
+	/*
+	 * Linking is only allowed to direct children of the format nodes
+	 * (streaming/uncompressed or streaming/mjpeg nodes). First check that
+	 * the grand-parent of the target matches the grand-parent of the source
+	 * (the streaming node), and then verify that the target parent is a
+	 * format node.
+	 */
+	if (src->ci_parent->ci_parent != target->ci_parent->ci_parent)
+		goto out;
+
+	for (i = 0; i < ARRAY_SIZE(uvcg_format_names); ++i) {
+		if (!strcmp(target->ci_parent->ci_name, uvcg_format_names[i]))
 			break;
-	if (i == ARRAY_SIZE(fmt_parent))
+	}
+
+	if (i == ARRAY_SIZE(uvcg_format_names))
 		goto out;
 
 	target_fmt = container_of(to_config_group(target), struct uvcg_format,
@@ -878,8 +929,8 @@ static int uvcg_streaming_header_allow_link(struct config_item *src,
 	ret = 0;
 	format_ptr->fmt = target_fmt;
 	list_add_tail(&format_ptr->entry, &src_hdr->formats);
-
 	++src_hdr->num_fmt;
+	++target_fmt->linked;
 
 out:
 	mutex_unlock(&opts->lock);
@@ -917,19 +968,22 @@ static void uvcg_streaming_header_drop_link(struct config_item *src,
 			break;
 		}
 
+	--target_fmt->linked;
+
 out:
 	mutex_unlock(&opts->lock);
 	mutex_unlock(su_mutex);
 }
 
 static struct configfs_item_operations uvcg_streaming_header_item_ops = {
-	.allow_link		= uvcg_streaming_header_allow_link,
-	.drop_link		= uvcg_streaming_header_drop_link,
+	.release	= uvcg_config_item_release,
+	.allow_link	= uvcg_streaming_header_allow_link,
+	.drop_link	= uvcg_streaming_header_drop_link,
 };
 
-#define UVCG_STREAMING_HEADER_ATTR(cname, aname, conv)			\
+#define UVCG_STREAMING_HEADER_ATTR(cname, aname, bits)			\
 static ssize_t uvcg_streaming_header_##cname##_show(			\
-	struct config_item *item, char *page)			\
+	struct config_item *item, char *page)				\
 {									\
 	struct uvcg_streaming_header *sh = to_uvcg_streaming_header(item); \
 	struct f_uvc_opts *opts;					\
@@ -943,7 +997,7 @@ static ssize_t uvcg_streaming_header_##cname##_show(			\
 	opts = to_f_uvc_opts(opts_item);				\
 									\
 	mutex_lock(&opts->lock);					\
-	result = sprintf(page, "%d\n", conv(sh->desc.aname));		\
+	result = sprintf(page, "%u\n", le##bits##_to_cpu(sh->desc.aname));\
 	mutex_unlock(&opts->lock);					\
 									\
 	mutex_unlock(su_mutex);						\
@@ -952,16 +1006,11 @@ static ssize_t uvcg_streaming_header_##cname##_show(			\
 									\
 UVC_ATTR_RO(uvcg_streaming_header_, cname, aname)
 
-#define identity_conv(x) (x)
-
-UVCG_STREAMING_HEADER_ATTR(bm_info, bmInfo, identity_conv);
-UVCG_STREAMING_HEADER_ATTR(b_terminal_link, bTerminalLink, identity_conv);
-UVCG_STREAMING_HEADER_ATTR(b_still_capture_method, bStillCaptureMethod,
-			   identity_conv);
-UVCG_STREAMING_HEADER_ATTR(b_trigger_support, bTriggerSupport, identity_conv);
-UVCG_STREAMING_HEADER_ATTR(b_trigger_usage, bTriggerUsage, identity_conv);
-
-#undef identity_conv
+UVCG_STREAMING_HEADER_ATTR(bm_info, bmInfo, 8);
+UVCG_STREAMING_HEADER_ATTR(b_terminal_link, bTerminalLink, 8);
+UVCG_STREAMING_HEADER_ATTR(b_still_capture_method, bStillCaptureMethod, 8);
+UVCG_STREAMING_HEADER_ATTR(b_trigger_support, bTriggerSupport, 8);
+UVCG_STREAMING_HEADER_ATTR(b_trigger_usage, bTriggerUsage, 8);
 
 #undef UVCG_STREAMING_HEADER_ATTR
 
@@ -1000,31 +1049,26 @@ static struct config_item
 	return &h->item;
 }
 
-static void uvcg_streaming_header_drop(struct config_group *group,
-			      struct config_item *item)
-{
-	struct uvcg_streaming_header *h = to_uvcg_streaming_header(item);
-
-	kfree(h);
-}
-
-/* streaming/header */
-static struct uvcg_streaming_header_grp {
-	struct config_group	group;
-} uvcg_streaming_header_grp;
-
 static struct configfs_group_operations uvcg_streaming_header_grp_ops = {
 	.make_item		= uvcg_streaming_header_make,
-	.drop_item		= uvcg_streaming_header_drop,
 };
 
-static struct config_item_type uvcg_streaming_header_grp_type = {
-	.ct_group_ops	= &uvcg_streaming_header_grp_ops,
-	.ct_owner	= THIS_MODULE,
+static struct uvcg_config_group_type uvcg_streaming_header_grp_type = {
+	.type = {
+		.ct_item_ops	= &uvcg_config_item_ops,
+		.ct_group_ops	= &uvcg_streaming_header_grp_ops,
+		.ct_owner	= THIS_MODULE,
+	},
+	.name = "header",
 };
 
-/* streaming/<mode>/<format>/<NAME> */
+/* -----------------------------------------------------------------------------
+ * streaming/<mode>/<format>/<NAME>
+ */
+
 struct uvcg_frame {
+	struct config_item	item;
+	enum uvcg_format_type	fmt_type;
 	struct {
 		u8	b_length;
 		u8	b_descriptor_type;
@@ -1046,8 +1090,6 @@ struct uvcg_frame {
 		u32	dw_bytes_perline;
 	} __attribute__((packed)) frame;
 	u32 *dw_frame_interval;
-	enum uvcg_format_type	fmt_type;
-	struct config_item	item;
 };
 
 static struct uvcg_frame *to_uvcg_frame(struct config_item *item)
@@ -1055,7 +1097,7 @@ static struct uvcg_frame *to_uvcg_frame(struct config_item *item)
 	return container_of(item, struct uvcg_frame, item);
 }
 
-#define UVCG_FRAME_ATTR(cname, aname, to_cpu_endian, to_little_endian, bits) \
+#define UVCG_FRAME_ATTR(cname, aname, bits) \
 static ssize_t uvcg_frame_##cname##_show(struct config_item *item, char *page)\
 {									\
 	struct uvcg_frame *f = to_uvcg_frame(item);			\
@@ -1070,7 +1112,7 @@ static ssize_t uvcg_frame_##cname##_show(struct config_item *item, char *page)\
 	opts = to_f_uvc_opts(opts_item);				\
 									\
 	mutex_lock(&opts->lock);					\
-	result = sprintf(page, "%d\n", to_cpu_endian(f->frame.cname));	\
+	result = sprintf(page, "%u\n", f->frame.cname);			\
 	mutex_unlock(&opts->lock);					\
 									\
 	mutex_unlock(su_mutex);						\
@@ -1085,8 +1127,8 @@ static ssize_t  uvcg_frame_##cname##_store(struct config_item *item,	\
 	struct config_item *opts_item;					\
 	struct uvcg_format *fmt;					\
 	struct mutex *su_mutex = &f->item.ci_group->cg_subsys->su_mutex;\
+	typeof(f->frame.cname) num;					\
 	int ret;							\
-	u##bits num;							\
 									\
 	ret = kstrtou##bits(page, 0, &num);				\
 	if (ret)							\
@@ -1104,7 +1146,7 @@ static ssize_t  uvcg_frame_##cname##_store(struct config_item *item,	\
 		goto end;						\
 	}								\
 									\
-	f->frame.cname = to_little_endian(num);				\
+	f->frame.cname = num;						\
 	ret = len;							\
 end:									\
 	mutex_unlock(&opts->lock);					\
@@ -1139,7 +1181,7 @@ static ssize_t uvcg_frame_b_frame_index_show(struct config_item *item,
 	opts = to_f_uvc_opts(opts_item);
 
 	mutex_lock(&opts->lock);
-	result = sprintf(page, "%d\n", f->frame.b_frame_index);
+	result = sprintf(page, "%u\n", f->frame.b_frame_index);
 	mutex_unlock(&opts->lock);
 
 out:
@@ -1149,21 +1191,14 @@ out:
 
 UVC_ATTR_RO(uvcg_frame_, b_frame_index, bFrameIndex);
 
-#define noop_conversion(x) (x)
-
-UVCG_FRAME_ATTR(bm_capabilities, bmCapabilities, noop_conversion,
-		noop_conversion, 8);
-UVCG_FRAME_ATTR(w_width, wWidth, le16_to_cpu, cpu_to_le16, 16);
-UVCG_FRAME_ATTR(w_height, wHeight, le16_to_cpu, cpu_to_le16, 16);
-UVCG_FRAME_ATTR(dw_min_bit_rate, dwMinBitRate, le32_to_cpu, cpu_to_le32, 32);
-UVCG_FRAME_ATTR(dw_max_bit_rate, dwMaxBitRate, le32_to_cpu, cpu_to_le32, 32);
-UVCG_FRAME_ATTR(dw_max_video_frame_buffer_size, dwMaxVideoFrameBufferSize,
-		le32_to_cpu, cpu_to_le32, 32);
-UVCG_FRAME_ATTR(dw_default_frame_interval, dwDefaultFrameInterval,
-		le32_to_cpu, cpu_to_le32, 32);
-UVCG_FRAME_ATTR(dw_bytes_perline, dwBytesPerLine, le32_to_cpu, cpu_to_le32, 32);
-
-#undef noop_conversion
+UVCG_FRAME_ATTR(bm_capabilities, bmCapabilities, 8);
+UVCG_FRAME_ATTR(w_width, wWidth, 16);
+UVCG_FRAME_ATTR(w_height, wHeight, 16);
+UVCG_FRAME_ATTR(dw_min_bit_rate, dwMinBitRate, 32);
+UVCG_FRAME_ATTR(dw_max_bit_rate, dwMaxBitRate, 32);
+UVCG_FRAME_ATTR(dw_max_video_frame_buffer_size, dwMaxVideoFrameBufferSize, 32);
+UVCG_FRAME_ATTR(dw_default_frame_interval, dwDefaultFrameInterval, 32);
+UVCG_FRAME_ATTR(dw_bytes_perline, dwBytesPerLine, 32);
 
 #undef UVCG_FRAME_ATTR
 
@@ -1184,8 +1219,7 @@ static ssize_t uvcg_frame_dw_frame_interval_show(struct config_item *item,
 
 	mutex_lock(&opts->lock);
 	for (result = 0, i = 0; i < frm->frame.b_frame_interval_type; ++i) {
-		result += sprintf(pg, "%d\n",
-				  le32_to_cpu(frm->dw_frame_interval[i]));
+		result += sprintf(pg, "%u\n", frm->dw_frame_interval[i]);
 		pg = page + result;
 	}
 	mutex_unlock(&opts->lock);
@@ -1210,7 +1244,7 @@ static inline int __uvcg_fill_frm_intrv(char *buf, void *priv)
 		return ret;
 
 	interv = priv;
-	**interv = cpu_to_le32(num);
+	**interv = num;
 	++*interv;
 
 	return 0;
@@ -1287,6 +1321,8 @@ static ssize_t uvcg_frame_dw_frame_interval_store(struct config_item *item,
 	kfree(ch->dw_frame_interval);
 	ch->dw_frame_interval = frm_intrv;
 	ch->frame.b_frame_interval_type = n;
+	sort(ch->dw_frame_interval, n, sizeof(*ch->dw_frame_interval),
+	     uvcg_config_compare_u32, NULL);
 	ret = len;
 
 end:
@@ -1324,11 +1360,13 @@ static struct configfs_attribute *uvcg_frame_attrs2[] = {
 };
 
 static struct config_item_type uvcg_frame_type1 = {
+	.ct_item_ops	= &uvcg_config_item_ops,
 	.ct_attrs	= uvcg_frame_attrs1,
 	.ct_owner	= THIS_MODULE,
 };
 
 static struct config_item_type uvcg_frame_type2 = {
+	.ct_item_ops	= &uvcg_config_item_ops,
 	.ct_attrs	= uvcg_frame_attrs2,
 	.ct_owner	= THIS_MODULE,
 };
@@ -1347,12 +1385,12 @@ static struct config_item *uvcg_frame_make(struct config_group *group,
 
 	h->frame.b_descriptor_type		= USB_DT_CS_INTERFACE;
 	h->frame.b_frame_index			= 1;
-	h->frame.w_width			= cpu_to_le16(640);
-	h->frame.w_height			= cpu_to_le16(360);
-	h->frame.dw_min_bit_rate		= cpu_to_le32(18432000);
-	h->frame.dw_max_bit_rate		= cpu_to_le32(55296000);
-	h->frame.dw_max_video_frame_buffer_size	= cpu_to_le32(460800);
-	h->frame.dw_default_frame_interval	= cpu_to_le32(666666);
+	h->frame.w_width			= 640;
+	h->frame.w_height			= 360;
+	h->frame.dw_min_bit_rate		= 18432000;
+	h->frame.dw_max_bit_rate		= 55296000;
+	h->frame.dw_max_video_frame_buffer_size	= 460800;
+	h->frame.dw_default_frame_interval	= 666666;
 	h->frame.dw_bytes_perline		= 0;
 
 	opts_item = group->cg_item.ci_parent->ci_parent->ci_parent;
@@ -1387,7 +1425,6 @@ static struct config_item *uvcg_frame_make(struct config_group *group,
 
 static void uvcg_frame_drop(struct config_group *group, struct config_item *item)
 {
-	struct uvcg_frame *h = to_uvcg_frame(item);
 	struct uvcg_format *fmt;
 	struct f_uvc_opts *opts;
 	struct config_item *opts_item;
@@ -1398,8 +1435,9 @@ static void uvcg_frame_drop(struct config_group *group, struct config_item *item
 	mutex_lock(&opts->lock);
 	fmt = to_uvcg_format(&group->cg_item);
 	--fmt->num_frames;
-	kfree(h);
 	mutex_unlock(&opts->lock);
+
+	config_item_put(item);
 }
 
 static void uvcg_format_set_indices(struct config_group *fmt)
@@ -1411,7 +1449,7 @@ static void uvcg_format_set_indices(struct config_group *fmt)
 		struct uvcg_frame *frm;
 
 		if (ci->ci_type != &uvcg_frame_type1 &&
-			ci->ci_type != &uvcg_frame_type2)
+		    ci->ci_type != &uvcg_frame_type2)
 			continue;
 
 		frm = to_uvcg_frame(ci);
@@ -1419,7 +1457,10 @@ static void uvcg_format_set_indices(struct config_group *fmt)
 	}
 }
 
-/* streaming/uncompressed/<NAME> */
+/* -----------------------------------------------------------------------------
+ * streaming/uncompressed/<NAME>
+ */
+
 struct uvcg_uncompressed {
 	struct uvcg_format		fmt;
 	struct uvc_format_uncompressed	desc;
@@ -1491,7 +1532,7 @@ end:
 
 UVC_ATTR(uvcg_uncompressed_, guid_format, guidFormat);
 
-#define UVCG_UNCOMPRESSED_ATTR_RO(cname, aname, conv)			\
+#define UVCG_UNCOMPRESSED_ATTR_RO(cname, aname, bits)			\
 static ssize_t uvcg_uncompressed_##cname##_show(			\
 	struct config_item *item, char *page)				\
 {									\
@@ -1507,7 +1548,7 @@ static ssize_t uvcg_uncompressed_##cname##_show(			\
 	opts = to_f_uvc_opts(opts_item);				\
 									\
 	mutex_lock(&opts->lock);					\
-	result = sprintf(page, "%d\n", conv(u->desc.aname));		\
+	result = sprintf(page, "%u\n", le##bits##_to_cpu(u->desc.aname));\
 	mutex_unlock(&opts->lock);					\
 									\
 	mutex_unlock(su_mutex);						\
@@ -1516,7 +1557,7 @@ static ssize_t uvcg_uncompressed_##cname##_show(			\
 									\
 UVC_ATTR_RO(uvcg_uncompressed_, cname, aname);
 
-#define UVCG_UNCOMPRESSED_ATTR(cname, aname, conv)			\
+#define UVCG_UNCOMPRESSED_ATTR(cname, aname, bits)			\
 static ssize_t uvcg_uncompressed_##cname##_show(			\
 	struct config_item *item, char *page)				\
 {									\
@@ -1532,7 +1573,7 @@ static ssize_t uvcg_uncompressed_##cname##_show(			\
 	opts = to_f_uvc_opts(opts_item);				\
 									\
 	mutex_lock(&opts->lock);					\
-	result = sprintf(page, "%d\n", conv(u->desc.aname));		\
+	result = sprintf(page, "%u\n", le##bits##_to_cpu(u->desc.aname));\
 	mutex_unlock(&opts->lock);					\
 									\
 	mutex_unlock(su_mutex);						\
@@ -1565,10 +1606,6 @@ uvcg_uncompressed_##cname##_store(struct config_item *item,		\
 	if (ret)							\
 		goto end;						\
 									\
-	if (num > 255) {						\
-		ret = -EINVAL;						\
-		goto end;						\
-	}								\
 	u->desc.aname = num;						\
 	ret = len;							\
 end:									\
@@ -1579,16 +1616,12 @@ end:									\
 									\
 UVC_ATTR(uvcg_uncompressed_, cname, aname);
 
-#define identity_conv(x) (x)
-
-UVCG_UNCOMPRESSED_ATTR(b_bits_per_pixel, bBitsPerPixel, identity_conv);
-UVCG_UNCOMPRESSED_ATTR(b_default_frame_index, bDefaultFrameIndex,
-		       identity_conv);
-UVCG_UNCOMPRESSED_ATTR_RO(b_aspect_ratio_x, bAspectRatioX, identity_conv);
-UVCG_UNCOMPRESSED_ATTR_RO(b_aspect_ratio_y, bAspectRatioY, identity_conv);
-UVCG_UNCOMPRESSED_ATTR_RO(bm_interface_flags, bmInterfaceFlags, identity_conv);
-
-#undef identity_conv
+UVCG_UNCOMPRESSED_ATTR_RO(b_format_index, bFormatIndex, 8);
+UVCG_UNCOMPRESSED_ATTR(b_bits_per_pixel, bBitsPerPixel, 8);
+UVCG_UNCOMPRESSED_ATTR(b_default_frame_index, bDefaultFrameIndex, 8);
+UVCG_UNCOMPRESSED_ATTR_RO(b_aspect_ratio_x, bAspectRatioX, 8);
+UVCG_UNCOMPRESSED_ATTR_RO(b_aspect_ratio_y, bAspectRatioY, 8);
+UVCG_UNCOMPRESSED_ATTR_RO(bm_interface_flags, bmInterfaceFlags, 8);
 
 #undef UVCG_UNCOMPRESSED_ATTR
 #undef UVCG_UNCOMPRESSED_ATTR_RO
@@ -1611,6 +1644,7 @@ uvcg_uncompressed_bma_controls_store(struct config_item *item,
 UVC_ATTR(uvcg_uncompressed_, bma_controls, bmaControls);
 
 static struct configfs_attribute *uvcg_uncompressed_attrs[] = {
+	&uvcg_uncompressed_attr_b_format_index,
 	&uvcg_uncompressed_attr_guid_format,
 	&uvcg_uncompressed_attr_b_bits_per_pixel,
 	&uvcg_uncompressed_attr_b_default_frame_index,
@@ -1622,6 +1656,7 @@ static struct configfs_attribute *uvcg_uncompressed_attrs[] = {
 };
 
 static struct config_item_type uvcg_uncompressed_type = {
+	.ct_item_ops	= &uvcg_config_item_ops,
 	.ct_group_ops	= &uvcg_uncompressed_group_ops,
 	.ct_attrs	= uvcg_uncompressed_attrs,
 	.ct_owner	= THIS_MODULE,
@@ -1671,25 +1706,23 @@ static struct config_group *uvcg_uncompressed_make(struct config_group *group,
 	return &h->fmt.group;
 }
 
-static void uvcg_uncompressed_drop(struct config_group *group,
-			    struct config_item *item)
-{
-	struct uvcg_uncompressed *h = to_uvcg_uncompressed(item);
-
-	kfree(h);
-}
-
 static struct configfs_group_operations uvcg_uncompressed_grp_ops = {
 	.make_group		= uvcg_uncompressed_make,
-	.drop_item		= uvcg_uncompressed_drop,
 };
 
-static struct config_item_type uvcg_uncompressed_grp_type = {
-	.ct_group_ops	= &uvcg_uncompressed_grp_ops,
-	.ct_owner	= THIS_MODULE,
+static struct uvcg_config_group_type uvcg_uncompressed_grp_type = {
+	.type = {
+		.ct_item_ops	= &uvcg_config_item_ops,
+		.ct_group_ops	= &uvcg_uncompressed_grp_ops,
+		.ct_owner	= THIS_MODULE,
+	},
+	.name = "uncompressed",
 };
 
-/* streaming/mjpeg/<NAME> */
+/* -----------------------------------------------------------------------------
+ * streaming/mjpeg/<NAME>
+ */
+
 struct uvcg_mjpeg {
 	struct uvcg_format		fmt;
 	struct uvc_format_mjpeg		desc;
@@ -1707,7 +1740,7 @@ static struct configfs_group_operations uvcg_mjpeg_group_ops = {
 	.drop_item		= uvcg_frame_drop,
 };
 
-#define UVCG_MJPEG_ATTR_RO(cname, aname, conv)				\
+#define UVCG_MJPEG_ATTR_RO(cname, aname, bits)				\
 static ssize_t uvcg_mjpeg_##cname##_show(struct config_item *item, char *page)\
 {									\
 	struct uvcg_mjpeg *u = to_uvcg_mjpeg(item);			\
@@ -1722,7 +1755,7 @@ static ssize_t uvcg_mjpeg_##cname##_show(struct config_item *item, char *page)\
 	opts = to_f_uvc_opts(opts_item);				\
 									\
 	mutex_lock(&opts->lock);					\
-	result = sprintf(page, "%d\n", conv(u->desc.aname));		\
+	result = sprintf(page, "%u\n", le##bits##_to_cpu(u->desc.aname));\
 	mutex_unlock(&opts->lock);					\
 									\
 	mutex_unlock(su_mutex);						\
@@ -1731,7 +1764,7 @@ static ssize_t uvcg_mjpeg_##cname##_show(struct config_item *item, char *page)\
 									\
 UVC_ATTR_RO(uvcg_mjpeg_, cname, aname)
 
-#define UVCG_MJPEG_ATTR(cname, aname, conv)				\
+#define UVCG_MJPEG_ATTR(cname, aname, bits)				\
 static ssize_t uvcg_mjpeg_##cname##_show(struct config_item *item, char *page)\
 {									\
 	struct uvcg_mjpeg *u = to_uvcg_mjpeg(item);			\
@@ -1746,7 +1779,7 @@ static ssize_t uvcg_mjpeg_##cname##_show(struct config_item *item, char *page)\
 	opts = to_f_uvc_opts(opts_item);				\
 									\
 	mutex_lock(&opts->lock);					\
-	result = sprintf(page, "%d\n", conv(u->desc.aname));		\
+	result = sprintf(page, "%u\n", le##bits##_to_cpu(u->desc.aname));\
 	mutex_unlock(&opts->lock);					\
 									\
 	mutex_unlock(su_mutex);						\
@@ -1779,10 +1812,6 @@ uvcg_mjpeg_##cname##_store(struct config_item *item,			\
 	if (ret)							\
 		goto end;						\
 									\
-	if (num > 255) {						\
-		ret = -EINVAL;						\
-		goto end;						\
-	}								\
 	u->desc.aname = num;						\
 	ret = len;							\
 end:									\
@@ -1793,16 +1822,12 @@ end:									\
 									\
 UVC_ATTR(uvcg_mjpeg_, cname, aname)
 
-#define identity_conv(x) (x)
-
-UVCG_MJPEG_ATTR(b_default_frame_index, bDefaultFrameIndex,
-		       identity_conv);
-UVCG_MJPEG_ATTR_RO(bm_flags, bmFlags, identity_conv);
-UVCG_MJPEG_ATTR_RO(b_aspect_ratio_x, bAspectRatioX, identity_conv);
-UVCG_MJPEG_ATTR_RO(b_aspect_ratio_y, bAspectRatioY, identity_conv);
-UVCG_MJPEG_ATTR_RO(bm_interface_flags, bmInterfaceFlags, identity_conv);
-
-#undef identity_conv
+UVCG_MJPEG_ATTR_RO(b_format_index, bFormatIndex, 8);
+UVCG_MJPEG_ATTR(b_default_frame_index, bDefaultFrameIndex, 8);
+UVCG_MJPEG_ATTR_RO(bm_flags, bmFlags, 8);
+UVCG_MJPEG_ATTR_RO(b_aspect_ratio_x, bAspectRatioX, 8);
+UVCG_MJPEG_ATTR_RO(b_aspect_ratio_y, bAspectRatioY, 8);
+UVCG_MJPEG_ATTR_RO(bm_interface_flags, bmInterfaceFlags, 8);
 
 #undef UVCG_MJPEG_ATTR
 #undef UVCG_MJPEG_ATTR_RO
@@ -1825,6 +1850,7 @@ uvcg_mjpeg_bma_controls_store(struct config_item *item,
 UVC_ATTR(uvcg_mjpeg_, bma_controls, bmaControls);
 
 static struct configfs_attribute *uvcg_mjpeg_attrs[] = {
+	&uvcg_mjpeg_attr_b_format_index,
 	&uvcg_mjpeg_attr_b_default_frame_index,
 	&uvcg_mjpeg_attr_bm_flags,
 	&uvcg_mjpeg_attr_b_aspect_ratio_x,
@@ -1835,6 +1861,7 @@ static struct configfs_attribute *uvcg_mjpeg_attrs[] = {
 };
 
 static struct config_item_type uvcg_mjpeg_type = {
+	.ct_item_ops	= &uvcg_config_item_ops,
 	.ct_group_ops	= &uvcg_mjpeg_group_ops,
 	.ct_attrs	= uvcg_mjpeg_attrs,
 	.ct_owner	= THIS_MODULE,
@@ -1865,25 +1892,23 @@ static struct config_group *uvcg_mjpeg_make(struct config_group *group,
 	return &h->fmt.group;
 }
 
-static void uvcg_mjpeg_drop(struct config_group *group,
-			    struct config_item *item)
-{
-	struct uvcg_mjpeg *h = to_uvcg_mjpeg(item);
-
-	kfree(h);
-}
-
 static struct configfs_group_operations uvcg_mjpeg_grp_ops = {
 	.make_group		= uvcg_mjpeg_make,
-	.drop_item		= uvcg_mjpeg_drop,
 };
 
-static struct config_item_type uvcg_mjpeg_grp_type = {
-	.ct_group_ops	= &uvcg_mjpeg_grp_ops,
-	.ct_owner	= THIS_MODULE,
+static struct uvcg_config_group_type uvcg_mjpeg_grp_type = {
+	.type = {
+		.ct_item_ops	= &uvcg_config_item_ops,
+		.ct_group_ops	= &uvcg_mjpeg_grp_ops,
+		.ct_owner	= THIS_MODULE,
+	},
+	.name = "mjpeg",
 };
 
-/* streaming/framebase/<NAME> */
+/* -----------------------------------------------------------------------------
+ * streaming/framebased/<NAME>
+ */
+
 struct uvcg_framebased {
 	struct uvcg_format		fmt;
 	struct uvc_format_framebased	desc;
@@ -1901,9 +1926,9 @@ static struct configfs_group_operations uvcg_framebased_group_ops = {
 	.drop_item		= uvcg_frame_drop,
 };
 
-#define UVCG_FRAMEBASED_ATTR_RO(cname, aname, conv)			\
-static ssize_t								\
-uvcg_framebased_##cname##_show(struct config_item *item, char *page)	\
+#define UVCG_FRAMEBASED_ATTR_RO(cname, aname, bits)			\
+static ssize_t uvcg_framebased_##cname##_show(struct config_item *item,\
+					char *page)			\
 {									\
 	struct uvcg_framebased *u = to_uvcg_framebased(item);		\
 	struct f_uvc_opts *opts;					\
@@ -1917,7 +1942,7 @@ uvcg_framebased_##cname##_show(struct config_item *item, char *page)	\
 	opts = to_f_uvc_opts(opts_item);				\
 									\
 	mutex_lock(&opts->lock);					\
-	result = sprintf(page, "%d\n", conv(u->desc.aname));		\
+	result = sprintf(page, "%u\n", le##bits##_to_cpu(u->desc.aname));\
 	mutex_unlock(&opts->lock);					\
 									\
 	mutex_unlock(su_mutex);						\
@@ -1926,9 +1951,9 @@ uvcg_framebased_##cname##_show(struct config_item *item, char *page)	\
 									\
 UVC_ATTR_RO(uvcg_framebased_, cname, aname)
 
-#define UVCG_FRAMEBASED_ATTR(cname, aname, conv)			\
-static ssize_t								\
-uvcg_framebased_##cname##_show(struct config_item *item, char *page)	\
+#define UVCG_FRAMEBASED_ATTR(cname, aname, bits)			\
+static ssize_t uvcg_framebased_##cname##_show(struct config_item *item,\
+				char *page)\
 {									\
 	struct uvcg_framebased *u = to_uvcg_framebased(item);		\
 	struct f_uvc_opts *opts;					\
@@ -1942,7 +1967,7 @@ uvcg_framebased_##cname##_show(struct config_item *item, char *page)	\
 	opts = to_f_uvc_opts(opts_item);				\
 									\
 	mutex_lock(&opts->lock);					\
-	result = sprintf(page, "%d\n", conv(u->desc.aname));		\
+	result = sprintf(page, "%u\n", le##bits##_to_cpu(u->desc.aname));\
 	mutex_unlock(&opts->lock);					\
 									\
 	mutex_unlock(su_mutex);						\
@@ -1989,17 +2014,12 @@ end:									\
 									\
 UVC_ATTR(uvcg_framebased_, cname, aname)
 
-#define identity_conv(x) (x)
-
-UVCG_FRAMEBASED_ATTR_RO(b_format_index, bFormatIndex, identity_conv);
-UVCG_FRAMEBASED_ATTR_RO(b_bits_per_pixel, bBitsPerPixel, identity_conv);
-UVCG_FRAMEBASED_ATTR(b_default_frame_index, bDefaultFrameIndex,
-		       identity_conv);
-UVCG_FRAMEBASED_ATTR_RO(b_aspect_ratio_x, bAspectRatioX, identity_conv);
-UVCG_FRAMEBASED_ATTR_RO(b_aspect_ratio_y, bAspectRatioY, identity_conv);
-UVCG_FRAMEBASED_ATTR_RO(bm_interface_flags, bmInterfaceFlags, identity_conv);
-
-#undef identity_conv
+UVCG_FRAMEBASED_ATTR_RO(b_format_index, bFormatIndex, 8);
+UVCG_FRAMEBASED_ATTR_RO(b_bits_per_pixel, bBitsPerPixel, 8);
+UVCG_FRAMEBASED_ATTR(b_default_frame_index, bDefaultFrameIndex, 8);
+UVCG_FRAMEBASED_ATTR_RO(b_aspect_ratio_x, bAspectRatioX, 8);
+UVCG_FRAMEBASED_ATTR_RO(b_aspect_ratio_y, bAspectRatioY, 8);
+UVCG_FRAMEBASED_ATTR_RO(bm_interface_flags, bmInterfaceFlags, 8);
 
 #undef UVCG_FRAMEBASED_ATTR
 #undef UVCG_FRAMEBASED_ATTR_RO
@@ -2068,7 +2088,7 @@ uvcg_framebased_bma_controls_show(struct config_item *item, char *page)
 
 static inline ssize_t
 uvcg_framebased_bma_controls_store(struct config_item *item,
-				const char *page, size_t len)
+				     const char *page, size_t len)
 {
 	struct uvcg_framebased *u = to_uvcg_framebased(item);
 
@@ -2090,6 +2110,7 @@ static struct configfs_attribute *uvcg_framebased_attrs[] = {
 };
 
 static struct config_item_type uvcg_framebased_type = {
+	.ct_item_ops	= &uvcg_config_item_ops,
 	.ct_group_ops	= &uvcg_framebased_group_ops,
 	.ct_attrs	= uvcg_framebased_attrs,
 	.ct_owner	= THIS_MODULE,
@@ -2098,85 +2119,70 @@ static struct config_item_type uvcg_framebased_type = {
 static struct config_group *uvcg_framebased_make(struct config_group *group,
 						   const char *name)
 {
-	static char guid[] = {
+	static char guid[] = { /*Declear frame frame based as H264*/
 		'H',  '2',  '6',  '4', 0x00, 0x00, 0x10, 0x00,
-		 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71
+		0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71
 	};
-	struct uvcg_framebased *h;
+	struct uvcg_framebased *f;
 
-	h = kzalloc(sizeof(*h), GFP_KERNEL);
-	if (!h)
+	f = kzalloc(sizeof(*f), GFP_KERNEL);
+	if (!f)
 		return ERR_PTR(-ENOMEM);
 
-	h->desc.bLength			= UVC_DT_FORMAT_FRAMEBASED_SIZE;
-	h->desc.bDescriptorType		= USB_DT_CS_INTERFACE;
-	h->desc.bDescriptorSubType	= UVC_VS_FORMAT_FRAME_BASED;
-	memcpy(h->desc.guidFormat, guid, sizeof(guid));
-	h->desc.bBitsPerPixel		= 16;
-	h->desc.bDefaultFrameIndex	= 1;
-	h->desc.bAspectRatioX		= 0;
-	h->desc.bAspectRatioY		= 0;
-	h->desc.bmInterfaceFlags	= 0;
-	h->desc.bCopyProtect		= 0;
+	f->desc.bLength			= UVC_DT_FORMAT_FRAMEBASED_SIZE;
+	f->desc.bDescriptorType		= USB_DT_CS_INTERFACE;
+	f->desc.bDescriptorSubType	= UVC_VS_FORMAT_FRAME_BASED;
+	memcpy(f->desc.guidFormat, guid, sizeof(guid));
+	f->desc.bBitsPerPixel		= 16;
+	f->desc.bDefaultFrameIndex	= 1;
+	f->desc.bAspectRatioX		= 0;
+	f->desc.bAspectRatioY		= 0;
+	f->desc.bmInterfaceFlags	= 0;
+	f->desc.bCopyProtect		= 0;
+	f->desc.bVariableSize		= 1;
 
-	h->fmt.type = UVCG_FRAMEBASED;
-	config_group_init_type_name(&h->fmt.group, name,
+	f->fmt.type = UVCG_FRAMEBASED;
+	config_group_init_type_name(&f->fmt.group, name,
 				    &uvcg_framebased_type);
 
-	return &h->fmt.group;
-}
-
-
-static void uvcg_framebased_drop(struct config_group *group,
-			    struct config_item *item)
-{
-	struct uvcg_framebased *h = to_uvcg_framebased(item);
-
-	kfree(h);
+	return &f->fmt.group;
 }
 
 static struct configfs_group_operations uvcg_framebased_grp_ops = {
-	.make_group		= uvcg_framebased_make,	/* h264 as default*/
-	.drop_item		= uvcg_framebased_drop,
+	.make_group		= uvcg_framebased_make,
+};
+static struct uvcg_config_group_type uvcg_framebased_grp_type = {
+	.type = {
+		.ct_item_ops	= &uvcg_config_item_ops,
+		.ct_group_ops	= &uvcg_framebased_grp_ops,
+		.ct_owner	= THIS_MODULE,
+	},
+	.name = "framebased",
 };
 
-static struct config_item_type uvcg_framebased_grp_type = {
-	.ct_group_ops	= &uvcg_framebased_grp_ops,
-	.ct_owner	= THIS_MODULE,
-};
+/* -----------------------------------------------------------------------------
+ * streaming/color_matching/default
+ */
 
-/* streaming/color_matching/default */
-static struct uvcg_default_color_matching {
-	struct config_group	group;
-} uvcg_default_color_matching;
-
-static inline struct uvcg_default_color_matching
-*to_uvcg_default_color_matching(struct config_item *item)
-{
-	return container_of(to_config_group(item),
-			    struct uvcg_default_color_matching, group);
-}
-
-#define UVCG_DEFAULT_COLOR_MATCHING_ATTR(cname, aname, conv)		\
+#define UVCG_DEFAULT_COLOR_MATCHING_ATTR(cname, aname, bits)		\
 static ssize_t uvcg_default_color_matching_##cname##_show(		\
-	struct config_item *item, char *page)		\
+	struct config_item *item, char *page)				\
 {									\
-	struct uvcg_default_color_matching *dc =			\
-		to_uvcg_default_color_matching(item);			\
+	struct config_group *group = to_config_group(item);		\
 	struct f_uvc_opts *opts;					\
 	struct config_item *opts_item;					\
-	struct mutex *su_mutex = &dc->group.cg_subsys->su_mutex;	\
+	struct mutex *su_mutex = &group->cg_subsys->su_mutex;		\
 	struct uvc_color_matching_descriptor *cd;			\
 	int result;							\
 									\
 	mutex_lock(su_mutex); /* for navigating configfs hierarchy */	\
 									\
-	opts_item = dc->group.cg_item.ci_parent->ci_parent->ci_parent;	\
+	opts_item = group->cg_item.ci_parent->ci_parent->ci_parent;	\
 	opts = to_f_uvc_opts(opts_item);				\
 	cd = &opts->uvc_color_matching;					\
 									\
 	mutex_lock(&opts->lock);					\
-	result = sprintf(page, "%d\n", conv(cd->aname));		\
+	result = sprintf(page, "%u\n", le##bits##_to_cpu(cd->aname));	\
 	mutex_unlock(&opts->lock);					\
 									\
 	mutex_unlock(su_mutex);						\
@@ -2185,16 +2191,10 @@ static ssize_t uvcg_default_color_matching_##cname##_show(		\
 									\
 UVC_ATTR_RO(uvcg_default_color_matching_, cname, aname)
 
-#define identity_conv(x) (x)
-
-UVCG_DEFAULT_COLOR_MATCHING_ATTR(b_color_primaries, bColorPrimaries,
-				 identity_conv);
+UVCG_DEFAULT_COLOR_MATCHING_ATTR(b_color_primaries, bColorPrimaries, 8);
 UVCG_DEFAULT_COLOR_MATCHING_ATTR(b_transfer_characteristics,
-				 bTransferCharacteristics, identity_conv);
-UVCG_DEFAULT_COLOR_MATCHING_ATTR(b_matrix_coefficients, bMatrixCoefficients,
-				 identity_conv);
-
-#undef identity_conv
+				 bTransferCharacteristics, 8);
+UVCG_DEFAULT_COLOR_MATCHING_ATTR(b_matrix_coefficients, bMatrixCoefficients, 8);
 
 #undef UVCG_DEFAULT_COLOR_MATCHING_ATTR
 
@@ -2205,41 +2205,54 @@ static struct configfs_attribute *uvcg_default_color_matching_attrs[] = {
 	NULL,
 };
 
-static struct config_item_type uvcg_default_color_matching_type = {
-	.ct_attrs	= uvcg_default_color_matching_attrs,
-	.ct_owner	= THIS_MODULE,
+static struct uvcg_config_group_type uvcg_default_color_matching_type = {
+	.type = {
+		.ct_item_ops	= &uvcg_config_item_ops,
+		.ct_attrs	= uvcg_default_color_matching_attrs,
+		.ct_owner	= THIS_MODULE,
+	},
+	.name = "default",
 };
 
-/* struct uvcg_color_matching {}; */
+/* -----------------------------------------------------------------------------
+ * streaming/color_matching
+ */
 
-/* streaming/color_matching */
-static struct uvcg_color_matching_grp {
-	struct config_group	group;
-} uvcg_color_matching_grp;
-
-static struct config_item_type uvcg_color_matching_grp_type = {
-	.ct_owner = THIS_MODULE,
+static struct uvcg_config_group_type uvcg_color_matching_grp_type = {
+	.type = {
+		.ct_item_ops	= &uvcg_config_item_ops,
+		.ct_owner	= THIS_MODULE,
+	},
+	.name = "color_matching",
+	.children = (struct uvcg_config_group_type*[]) {
+		&uvcg_default_color_matching_type,
+		NULL,
+	},
 };
 
-/* streaming/class/{fs|hs|ss} */
-static struct uvcg_streaming_class {
-	struct config_group	group;
-} uvcg_streaming_class_fs, uvcg_streaming_class_hs, uvcg_streaming_class_ss;
+/* -----------------------------------------------------------------------------
+ * streaming/class/{fs|hs|ss}
+ */
 
+struct uvcg_streaming_class_group {
+	struct config_group group;
+	const char *name;
+};
 
 static inline struct uvc_descriptor_header
 ***__uvcg_get_stream_class_arr(struct config_item *i, struct f_uvc_opts *o)
 {
-	struct uvcg_streaming_class *cl = container_of(to_config_group(i),
-		struct uvcg_streaming_class, group);
+	struct uvcg_streaming_class_group *group =
+		container_of(i, struct uvcg_streaming_class_group,
+			     group.cg_item);
 
-	if (cl == &uvcg_streaming_class_fs)
+	if (!strcmp(group->name, "fs"))
 		return &o->uvc_fs_streaming_cls;
 
-	if (cl == &uvcg_streaming_class_hs)
+	if (!strcmp(group->name, "hs"))
 		return &o->uvc_hs_streaming_cls;
 
-	if (cl == &uvcg_streaming_class_ss)
+	if (!strcmp(group->name, "ss"))
 		return &o->uvc_ss_streaming_cls;
 
 	return NULL;
@@ -2343,7 +2356,6 @@ static int __uvcg_cnt_strm(void *priv1, void *priv2, void *priv3, int n,
 		} else if (fmt->type == UVCG_FRAMEBASED) {
 			struct uvcg_framebased *f =
 				container_of(fmt, struct uvcg_framebased, fmt);
-
 			*size += sizeof(f->desc);
 		} else {
 			return -EINVAL;
@@ -2429,33 +2441,31 @@ static int __uvcg_fill_strm(void *priv1, void *priv2, void *priv3, int n,
 		struct uvcg_format *fmt = priv1;
 
 		if (fmt->type == UVCG_UNCOMPRESSED) {
-			struct uvc_format_uncompressed *unc = *dest;
 			struct uvcg_uncompressed *u =
 				container_of(fmt, struct uvcg_uncompressed,
 					     fmt);
 
+			u->desc.bFormatIndex = n + 1;
+			u->desc.bNumFrameDescriptors = fmt->num_frames;
 			memcpy(*dest, &u->desc, sizeof(u->desc));
 			*dest += sizeof(u->desc);
-			unc->bNumFrameDescriptors = fmt->num_frames;
-			unc->bFormatIndex = n + 1;
 		} else if (fmt->type == UVCG_MJPEG) {
-			struct uvc_format_mjpeg *mjp = *dest;
 			struct uvcg_mjpeg *m =
 				container_of(fmt, struct uvcg_mjpeg, fmt);
 
+			m->desc.bFormatIndex = n + 1;
+			m->desc.bNumFrameDescriptors = fmt->num_frames;
 			memcpy(*dest, &m->desc, sizeof(m->desc));
 			*dest += sizeof(m->desc);
-			mjp->bNumFrameDescriptors = fmt->num_frames;
-			mjp->bFormatIndex = n + 1;
 		} else if (fmt->type == UVCG_FRAMEBASED) {
-			struct uvc_format_framebased *frmb = *dest;
 			struct uvcg_framebased *f =
-				container_of(fmt, struct uvcg_framebased, fmt);
+				container_of(fmt, struct uvcg_framebased,
+					     fmt);
 
+			f->desc.bFormatIndex = n + 1;
+			f->desc.bNumFrameDescriptors = fmt->num_frames;
 			memcpy(*dest, &f->desc, sizeof(f->desc));
 			*dest += sizeof(f->desc);
-			frmb->bNumFrameDescriptors = fmt->num_frames;
-			frmb->bFormatIndex = n + 1;
 		} else {
 			return -EINVAL;
 		}
@@ -2483,7 +2493,7 @@ static int __uvcg_fill_strm(void *priv1, void *priv2, void *priv3, int n,
 				frm->frame.b_frame_interval_type);
 		else if (frm->fmt_type == UVCG_FRAMEBASED)
 			h->bLength = UVC_DT_FRAME_FRAMEBASED_SIZE(
-				frm->frame.b_frame_interval_type);
+				 frm->frame.b_frame_interval_type);
 	}
 	break;
 	}
@@ -2560,6 +2570,7 @@ static int uvcg_streaming_class_allow_link(struct config_item *src,
 unlock:
 	mutex_unlock(&opts->lock);
 out:
+	config_item_put(header);
 	mutex_unlock(su_mutex);
 	return ret;
 }
@@ -2600,10 +2611,12 @@ static void uvcg_streaming_class_drop_link(struct config_item *src,
 unlock:
 	mutex_unlock(&opts->lock);
 out:
+	config_item_put(header);
 	mutex_unlock(su_mutex);
 }
 
 static struct configfs_item_operations uvcg_streaming_class_item_ops = {
+	.release	= uvcg_config_item_release,
 	.allow_link	= uvcg_streaming_class_allow_link,
 	.drop_link	= uvcg_streaming_class_drop_link,
 };
@@ -2613,42 +2626,110 @@ static struct config_item_type uvcg_streaming_class_type = {
 	.ct_owner	= THIS_MODULE,
 };
 
-/* streaming/class */
-static struct uvcg_streaming_class_grp {
-	struct config_group	group;
-} uvcg_streaming_class_grp;
+/* -----------------------------------------------------------------------------
+ * streaming/class
+ */
 
-static struct config_item_type uvcg_streaming_class_grp_type = {
-	.ct_owner = THIS_MODULE,
-};
-
-/* streaming */
-static struct uvcg_streaming_grp {
-	struct config_group	group;
-} uvcg_streaming_grp;
-
-static struct config_item_type uvcg_streaming_grp_type = {
-	.ct_owner = THIS_MODULE,
-};
-
-static inline struct f_uvc_opts *to_f_uvc_opts(struct config_item *item)
+static int uvcg_streaming_class_create_children(struct config_group *parent)
 {
-	return container_of(to_config_group(item), struct f_uvc_opts,
-			    func_inst.group);
+	static char * const names[] = { "fs", "hs", "ss" };
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(names); ++i) {
+		struct uvcg_streaming_class_group *group;
+
+		group = kzalloc(sizeof(*group), GFP_KERNEL);
+		if (!group)
+			return -ENOMEM;
+
+		group->name = names[i];
+
+		config_group_init_type_name(&group->group, group->name,
+					    &uvcg_streaming_class_type);
+		configfs_add_default_group(&group->group, parent);
+	}
+
+	return 0;
 }
 
-static void uvc_attr_release(struct config_item *item)
+static struct uvcg_config_group_type uvcg_streaming_class_grp_type = {
+	.type = {
+		.ct_item_ops	= &uvcg_config_item_ops,
+		.ct_owner	= THIS_MODULE,
+	},
+	.name = "class",
+	.create_children = uvcg_streaming_class_create_children,
+};
+
+/* -----------------------------------------------------------------------------
+ * streaming
+ */
+
+static ssize_t uvcg_default_streaming_b_interface_number_show(
+	struct config_item *item, char *page)
+{
+	struct config_group *group = to_config_group(item);
+	struct mutex *su_mutex = &group->cg_subsys->su_mutex;
+	struct config_item *opts_item;
+	struct f_uvc_opts *opts;
+	int result = 0;
+
+	mutex_lock(su_mutex); /* for navigating configfs hierarchy */
+
+	opts_item = item->ci_parent;
+	opts = to_f_uvc_opts(opts_item);
+
+	mutex_lock(&opts->lock);
+	result += sprintf(page, "%u\n", opts->streaming_interface);
+	mutex_unlock(&opts->lock);
+
+	mutex_unlock(su_mutex);
+
+	return result;
+}
+
+UVC_ATTR_RO(uvcg_default_streaming_, b_interface_number, bInterfaceNumber);
+
+static struct configfs_attribute *uvcg_default_streaming_attrs[] = {
+	&uvcg_default_streaming_attr_b_interface_number,
+	NULL,
+};
+
+static struct uvcg_config_group_type uvcg_streaming_grp_type = {
+	.type = {
+		.ct_item_ops	= &uvcg_config_item_ops,
+		.ct_attrs	= uvcg_default_streaming_attrs,
+		.ct_owner	= THIS_MODULE,
+	},
+	.name = "streaming",
+	.children = (struct uvcg_config_group_type*[]) {
+		&uvcg_streaming_header_grp_type,
+		&uvcg_uncompressed_grp_type,
+		&uvcg_mjpeg_grp_type,
+		&uvcg_framebased_grp_type,
+		&uvcg_color_matching_grp_type,
+		&uvcg_streaming_class_grp_type,
+		NULL,
+	},
+};
+
+/* -----------------------------------------------------------------------------
+ * UVC function
+ */
+
+static void uvc_func_item_release(struct config_item *item)
 {
 	struct f_uvc_opts *opts = to_f_uvc_opts(item);
 
+	uvcg_config_remove_children(to_config_group(item));
 	usb_put_function_instance(&opts->func_inst);
 }
 
-static struct configfs_item_operations uvc_item_ops = {
-	.release		= uvc_attr_release,
+static struct configfs_item_operations uvc_func_item_ops = {
+	.release	= uvc_func_item_release,
 };
 
-#define UVCG_OPTS_ATTR(cname, aname, conv, str2u, uxx, vnoc, limit)	\
+#define UVCG_OPTS_ATTR(cname, aname, limit)				\
 static ssize_t f_uvc_opts_##cname##_show(				\
 	struct config_item *item, char *page)				\
 {									\
@@ -2656,7 +2737,7 @@ static ssize_t f_uvc_opts_##cname##_show(				\
 	int result;							\
 									\
 	mutex_lock(&opts->lock);					\
-	result = sprintf(page, "%d\n", conv(opts->cname));		\
+	result = sprintf(page, "%u\n", opts->cname);			\
 	mutex_unlock(&opts->lock);					\
 									\
 	return result;							\
@@ -2667,8 +2748,8 @@ f_uvc_opts_##cname##_store(struct config_item *item,			\
 			   const char *page, size_t len)		\
 {									\
 	struct f_uvc_opts *opts = to_f_uvc_opts(item);			\
+	unsigned int num;						\
 	int ret;							\
-	uxx num;							\
 									\
 	mutex_lock(&opts->lock);					\
 	if (opts->refcnt) {						\
@@ -2676,7 +2757,7 @@ f_uvc_opts_##cname##_store(struct config_item *item,			\
 		goto end;						\
 	}								\
 									\
-	ret = str2u(page, 0, &num);					\
+	ret = kstrtouint(page, 0, &num);				\
 	if (ret)							\
 		goto end;						\
 									\
@@ -2684,7 +2765,7 @@ f_uvc_opts_##cname##_store(struct config_item *item,			\
 		ret = -EINVAL;						\
 		goto end;						\
 	}								\
-	opts->cname = vnoc(num);					\
+	opts->cname = num;						\
 	ret = len;							\
 end:									\
 	mutex_unlock(&opts->lock);					\
@@ -2693,22 +2774,10 @@ end:									\
 									\
 UVC_ATTR(f_uvc_opts_, cname, cname)
 
-#define identity_conv(x) (x)
-
-UVCG_OPTS_ATTR(streaming_bulk, streaming_bulk, identity_conv,
-	       kstrtou8, u8, identity_conv, 1);
-UVCG_OPTS_ATTR(streaming_interval, streaming_interval, identity_conv,
-	       kstrtou8, u8, identity_conv, 16);
-UVCG_OPTS_ATTR(streaming_maxpacket, streaming_maxpacket, le16_to_cpu,
-	       kstrtou16, u16, le16_to_cpu, 3072);
-UVCG_OPTS_ATTR(streaming_maxburst, streaming_maxburst, identity_conv,
-	       kstrtou8, u8, identity_conv, 15);
-UVCG_OPTS_ATTR(control_interface, control_interface, identity_conv,
-	       kstrtou8, u8, identity_conv, 16);
-UVCG_OPTS_ATTR(streaming_interface, streaming_interface, identity_conv,
-	       kstrtou8, u8, identity_conv, 16);
-
-#undef identity_conv
+UVCG_OPTS_ATTR(streaming_bulk, streaming_bulk, 1);
+UVCG_OPTS_ATTR(streaming_interval, streaming_interval, 16);
+UVCG_OPTS_ATTR(streaming_maxpacket, streaming_maxpacket, 3072);
+UVCG_OPTS_ATTR(streaming_maxburst, streaming_maxburst, 15);
 
 #undef UVCG_OPTS_ATTR
 
@@ -2717,142 +2786,34 @@ static struct configfs_attribute *uvc_attrs[] = {
 	&f_uvc_opts_attr_streaming_interval,
 	&f_uvc_opts_attr_streaming_maxpacket,
 	&f_uvc_opts_attr_streaming_maxburst,
-	&f_uvc_opts_attr_control_interface,
-	&f_uvc_opts_attr_streaming_interface,
 	NULL,
 };
 
-static struct config_item_type uvc_func_type = {
-	.ct_item_ops	= &uvc_item_ops,
-	.ct_attrs	= uvc_attrs,
-	.ct_owner	= THIS_MODULE,
+static struct uvcg_config_group_type uvc_func_type = {
+	.type = {
+		.ct_item_ops	= &uvc_func_item_ops,
+		.ct_attrs	= uvc_attrs,
+		.ct_owner	= THIS_MODULE,
+	},
+	.name = "",
+	.children = (struct uvcg_config_group_type*[]) {
+		&uvcg_control_grp_type,
+		&uvcg_streaming_grp_type,
+		NULL,
+	},
 };
 
 int uvcg_attach_configfs(struct f_uvc_opts *opts)
 {
-	config_group_init_type_name(&uvcg_control_header_grp.group,
-				    "header",
-				    &uvcg_control_header_grp_type);
+	int ret;
 
-	config_group_init_type_name(&uvcg_default_processing.group,
-			"default", &uvcg_default_processing_type);
-	config_group_init_type_name(&uvcg_processing_grp.group,
-			"processing", &uvcg_processing_grp_type);
-	configfs_add_default_group(&uvcg_default_processing.group,
-			&uvcg_processing_grp.group);
+	config_group_init_type_name(&opts->func_inst.group, uvc_func_type.name,
+				    &uvc_func_type.type);
 
-	config_group_init_type_name(&uvcg_default_extension.group,
-			"default", &uvcg_default_extension_type);
-	config_group_init_type_name(&uvcg_extension_grp.group,
-			"extension", &uvcg_extension_grp_type);
-	configfs_add_default_group(&uvcg_default_extension.group,
-			&uvcg_extension_grp.group);
+	ret = uvcg_config_create_children(&opts->func_inst.group,
+					  &uvc_func_type);
+	if (ret < 0)
+		config_group_put(&opts->func_inst.group);
 
-	config_group_init_type_name(&uvcg_default_camera.group,
-			"default", &uvcg_default_camera_type);
-	config_group_init_type_name(&uvcg_camera_grp.group,
-			"camera", &uvcg_camera_grp_type);
-	configfs_add_default_group(&uvcg_default_camera.group,
-			&uvcg_camera_grp.group);
-
-	config_group_init_type_name(&uvcg_default_output.group,
-			"default", &uvcg_default_output_type);
-	config_group_init_type_name(&uvcg_output_grp.group,
-			"output", &uvcg_output_grp_type);
-	configfs_add_default_group(&uvcg_default_output.group,
-			&uvcg_output_grp.group);
-
-	config_group_init_type_name(&uvcg_terminal_grp.group,
-			"terminal", &uvcg_terminal_grp_type);
-	configfs_add_default_group(&uvcg_camera_grp.group,
-			&uvcg_terminal_grp.group);
-	configfs_add_default_group(&uvcg_output_grp.group,
-			&uvcg_terminal_grp.group);
-
-	config_group_init_type_name(&uvcg_control_class_fs.group,
-			"fs", &uvcg_control_class_type);
-	config_group_init_type_name(&uvcg_control_class_ss.group,
-			"ss", &uvcg_control_class_type);
-	config_group_init_type_name(&uvcg_control_class_grp.group,
-			"class",
-			&uvcg_control_class_grp_type);
-	configfs_add_default_group(&uvcg_control_class_fs.group,
-			&uvcg_control_class_grp.group);
-	configfs_add_default_group(&uvcg_control_class_ss.group,
-			&uvcg_control_class_grp.group);
-
-	config_group_init_type_name(&uvcg_control_grp.group,
-			"control",
-			&uvcg_control_grp_type);
-	configfs_add_default_group(&uvcg_control_header_grp.group,
-			&uvcg_control_grp.group);
-	configfs_add_default_group(&uvcg_processing_grp.group,
-			&uvcg_control_grp.group);
-	configfs_add_default_group(&uvcg_extension_grp.group,
-			&uvcg_control_grp.group);
-	configfs_add_default_group(&uvcg_terminal_grp.group,
-			&uvcg_control_grp.group);
-	configfs_add_default_group(&uvcg_control_class_grp.group,
-			&uvcg_control_grp.group);
-
-	config_group_init_type_name(&uvcg_streaming_header_grp.group,
-				    "header",
-				    &uvcg_streaming_header_grp_type);
-	config_group_init_type_name(&uvcg_uncompressed_grp.group,
-				    "uncompressed",
-				    &uvcg_uncompressed_grp_type);
-	config_group_init_type_name(&uvcg_mjpeg_grp.group,
-				    "mjpeg",
-				    &uvcg_mjpeg_grp_type);
-	config_group_init_type_name(&uvcg_framebased_grp.group,
-				    "framebased",
-				    &uvcg_framebased_grp_type);
-	config_group_init_type_name(&uvcg_default_color_matching.group,
-				    "default",
-				    &uvcg_default_color_matching_type);
-	config_group_init_type_name(&uvcg_color_matching_grp.group,
-			"color_matching",
-			&uvcg_color_matching_grp_type);
-	configfs_add_default_group(&uvcg_default_color_matching.group,
-			&uvcg_color_matching_grp.group);
-
-	config_group_init_type_name(&uvcg_streaming_class_fs.group,
-			"fs", &uvcg_streaming_class_type);
-	config_group_init_type_name(&uvcg_streaming_class_hs.group,
-			"hs", &uvcg_streaming_class_type);
-	config_group_init_type_name(&uvcg_streaming_class_ss.group,
-			"ss", &uvcg_streaming_class_type);
-	config_group_init_type_name(&uvcg_streaming_class_grp.group,
-			"class", &uvcg_streaming_class_grp_type);
-	configfs_add_default_group(&uvcg_streaming_class_fs.group,
-			&uvcg_streaming_class_grp.group);
-	configfs_add_default_group(&uvcg_streaming_class_hs.group,
-			&uvcg_streaming_class_grp.group);
-	configfs_add_default_group(&uvcg_streaming_class_ss.group,
-			&uvcg_streaming_class_grp.group);
-
-	config_group_init_type_name(&uvcg_streaming_grp.group,
-			"streaming", &uvcg_streaming_grp_type);
-	configfs_add_default_group(&uvcg_streaming_header_grp.group,
-			&uvcg_streaming_grp.group);
-	configfs_add_default_group(&uvcg_uncompressed_grp.group,
-			&uvcg_streaming_grp.group);
-	configfs_add_default_group(&uvcg_mjpeg_grp.group,
-			&uvcg_streaming_grp.group);
-	configfs_add_default_group(&uvcg_framebased_grp.group,
-			&uvcg_streaming_grp.group);
-	configfs_add_default_group(&uvcg_color_matching_grp.group,
-			&uvcg_streaming_grp.group);
-	configfs_add_default_group(&uvcg_streaming_class_grp.group,
-			&uvcg_streaming_grp.group);
-
-	config_group_init_type_name(&opts->func_inst.group,
-			"",
-			&uvc_func_type);
-	configfs_add_default_group(&uvcg_control_grp.group,
-			&opts->func_inst.group);
-	configfs_add_default_group(&uvcg_streaming_grp.group,
-			&opts->func_inst.group);
-
-	return 0;
+	return ret;
 }

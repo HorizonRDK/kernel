@@ -1,12 +1,9 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
  * audio.c -- Audio gadget driver
  *
  * Copyright (C) 2008 Bryan Wu <cooloney@kernel.org>
  * Copyright (C) 2008 Analog Devices, Inc
- *
- * Enter bugs at http://blackfin.uclinux.org/
- *
- * Licensed under the GPL-2 or later.
  */
 
 /* #define VERBOSE_DEBUG */
@@ -148,10 +145,8 @@ static struct usb_function *f_uac1;
  */
 
 /* Thanks to Linux Foundation for donating this product ID. */
-// #define AUDIO_VENDOR_NUM		0x1d6b	/* Linux Foundation */
-// #define AUDIO_PRODUCT_NUM		0x0101	/* Linux-USB Audio Gadget */
-#define AUDIO_VENDOR_NUM		0x20b1	/* Re-use XMOS's id temporarily */
-#define AUDIO_PRODUCT_NUM		0x0002	/* XMOS uac gadget */
+#define AUDIO_VENDOR_NUM		0x1d6b	/* Linux Foundation */
+#define AUDIO_PRODUCT_NUM		0x0101	/* Linux-USB Audio Gadget */
 
 /*-------------------------------------------------------------------------*/
 
@@ -305,8 +300,10 @@ static int audio_bind(struct usb_composite_dev *cdev)
 		struct usb_descriptor_header *usb_desc;
 
 		usb_desc = usb_otg_descriptor_alloc(cdev->gadget);
-		if (!usb_desc)
+		if (!usb_desc) {
+			status = -ENOMEM;
 			goto fail;
+		}
 		usb_otg_descriptor_init(cdev->gadget, usb_desc);
 		otg_desc[0] = usb_desc;
 		otg_desc[1] = NULL;

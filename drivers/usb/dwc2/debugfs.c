@@ -52,7 +52,7 @@ static ssize_t testmode_write(struct file *file, const char __user *ubuf, size_t
 	else if (!strncmp(buf, "test_packet", 11))
 		testmode = USB_TEST_PACKET;
 	else if (!strncmp(buf, "test_force_enable", 17))
-		testmode = USB_TEST_FORCE_EN;
+		testmode = USB_TEST_FORCE_ENABLE;
 	else
 		testmode = 0;
 
@@ -97,7 +97,7 @@ static int testmode_show(struct seq_file *s, void *unused)
 	case USB_TEST_PACKET:
 		seq_puts(s, "test_packet\n");
 		break;
-	case USB_TEST_FORCE_EN:
+	case USB_TEST_FORCE_ENABLE:
 		seq_puts(s, "test_force_enable\n");
 		break;
 	default:

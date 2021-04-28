@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
  * f_uac1.c -- USB Audio Class 1.0 Function (using u_audio API)
  *
@@ -10,11 +11,6 @@
  * This file is based on f_uac1.c which is
  *   Copyright (C) 2008 Bryan Wu <cooloney@kernel.org>
  *   Copyright (C) 2008 Analog Devices, Inc
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
  */
 
 #include <linux/usb/audio.h>
@@ -463,10 +459,10 @@ static int f_audio_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 	} else if (intf == uac1->as_in_intf) {
 		uac1->as_in_alt = alt;
 
-			if (alt)
-				ret = u_audio_start_playback(&uac1->g_audio);
-			else
-				u_audio_stop_playback(&uac1->g_audio);
+		if (alt)
+			ret = u_audio_start_playback(&uac1->g_audio);
+		else
+			u_audio_stop_playback(&uac1->g_audio);
 	} else {
 		dev_err(dev, "%s:%d Error!\n", __func__, __LINE__);
 		return -EINVAL;
@@ -503,6 +499,7 @@ static void f_audio_disable(struct usb_function *f)
 	uac1->as_out_alt = 0;
 	uac1->as_in_alt = 0;
 
+	u_audio_stop_playback(&uac1->g_audio);
 	u_audio_stop_capture(&uac1->g_audio);
 }
 
@@ -572,6 +569,7 @@ static int f_audio_bind(struct usb_configuration *c, struct usb_function *f)
 		goto fail;
 	as_out_interface_alt_0_desc.bInterfaceNumber = status;
 	as_out_interface_alt_1_desc.bInterfaceNumber = status;
+	ac_header_desc.baInterfaceNr[0] = status;
 	uac1->as_out_intf = status;
 	uac1->as_out_alt = 0;
 
@@ -580,6 +578,7 @@ static int f_audio_bind(struct usb_configuration *c, struct usb_function *f)
 		goto fail;
 	as_in_interface_alt_0_desc.bInterfaceNumber = status;
 	as_in_interface_alt_1_desc.bInterfaceNumber = status;
+	ac_header_desc.baInterfaceNr[1] = status;
 	uac1->as_in_intf = status;
 	uac1->as_in_alt = 0;
 
