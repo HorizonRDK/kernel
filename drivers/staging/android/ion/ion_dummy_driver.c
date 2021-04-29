@@ -295,6 +295,8 @@ static long ion_dummy_ioctl(struct ion_client *client,
 			    unsigned int cmd, unsigned long arg)
 {
 	int ret;
+	int cpu;
+	struct cpumask mask;
 
 	switch (cmd) {
 	case ION_GET_PHY:
@@ -344,7 +346,10 @@ static long ion_dummy_ioctl(struct ion_client *client,
 
 	case ION_CACHE_FLUSH_ALL:
 	{
-		__flush_dcache_all();
+		memcpy(&mask, cpu_online_mask, sizeof(struct cpumask));
+		for_each_cpu(cpu, &mask)
+			smp_call_function_single(cpu,
+				(smp_call_func_t)__flush_dcache_all, NULL, 0);
 		break;
 	}
 
