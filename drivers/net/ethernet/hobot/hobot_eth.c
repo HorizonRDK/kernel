@@ -3694,6 +3694,8 @@ static int xj3_open(struct net_device *ndev) {
     }
 
     priv->dma_buf_sz = 3000;
+    /*reset mss when open*/
+    priv->mss = 0;
 
     ret = alloc_dma_desc_resources(priv);
     if (ret < 0) {
