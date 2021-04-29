@@ -112,8 +112,28 @@ isp_ctx_node_t *isp_ctx_get_node(int ctx_id, isp_info_type_e it, isp_ctx_queue_t
 	return cn;
 }
 
+
+int isp_ctx_flush_queueto(int ctx_id, isp_info_type_e it,
+		isp_ctx_queue_type_e src_queue,
+		isp_ctx_queue_type_e dst_queue)
+{
+	int ret = 0;
+	struct list_head *node_pos, *node_next;
+
+	list_for_each_safe(node_pos, node_next, &ctx_queue[ctx_id][it].ctx_node_head[src_queue]) {
+		if (DONEQ == src_queue) {
+			ret = down_trylock(&ctx_queue[ctx_id][it].sem);
+		}
+	}
+
+	list_splice_tail_init(&ctx_queue[ctx_id][it].ctx_node_head[src_queue],
+			&ctx_queue[ctx_id][it].ctx_node_head[dst_queue]);
+
+	return ret;
+}
+
 isp_ctx_node_t *isp_ctx_get_node_timeout(int ctx_id, isp_info_type_e it,
-				isp_ctx_queue_type_e qt, int32_t timeout)
+				isp_ctx_queue_type_e qt, int32_t timeout, int latest_flag)
 {
 	struct list_head *node;
 	isp_ctx_node_t *cn = NULL;
@@ -130,9 +150,18 @@ isp_ctx_node_t *isp_ctx_get_node_timeout(int ctx_id, isp_info_type_e it,
 						msecs_to_jiffies(timeout));
 		system_chardev_lock();
 	} else {
-		ret1 = down_trylock(&ctx_queue[ctx_id][it].sem);
+		if(latest_flag == 1) {
+			spin_lock(&lock);
+			isp_ctx_flush_queueto(ctx_id, it, DONEQ, FREEQ);
+			spin_unlock(&lock);
+			system_chardev_unlock();
+			ret = down_timeout(&ctx_queue[ctx_id][it].sem,
+							msecs_to_jiffies(timeout));
+			system_chardev_lock();
+		} else {
+			ret1 = down_trylock(&ctx_queue[ctx_id][it].sem);
+		}
 	}
-
 	if (ret >= 0) {
 		spin_lock(&lock);
 		if (!list_empty(&ctx_queue[ctx_id][it].ctx_node_head[qt])) {
@@ -195,16 +224,16 @@ void isp_ctx_put_node(int ctx_id, isp_ctx_node_t *cn, isp_info_type_e it, isp_ct
 	spin_lock(&lock);
 	list_move_tail(&cn->node, &ctx_queue[ctx_id][it].ctx_node_head[qt]);
 	spin_unlock(&lock);
-
 	isp_ctx_queue_state("put");
+
 	if(qt == DONEQ) {
 		up(&ctx_queue[ctx_id][it].sem);
 	}
 }
 
-isp_ctx_node_t * isp_ctx_get(int ctx_id, isp_info_type_e it, int32_t timeout)
+isp_ctx_node_t * isp_ctx_get(int ctx_id, isp_info_type_e it, int32_t timeout, int32_t latest_flag)
 {
-	return isp_ctx_get_node_timeout(ctx_id, it, DONEQ, timeout);
+	return isp_ctx_get_node_timeout(ctx_id, it, DONEQ, timeout, latest_flag);
 }
 
 isp_ctx_node_t *isp_ctx_get_conditional(int ctx_id, isp_info_type_e it, int frame_id, int32_t timeout)
