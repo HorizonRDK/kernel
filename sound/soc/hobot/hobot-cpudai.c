@@ -139,7 +139,6 @@ static int i2s_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 			val |= (0x1<<9); //slave
 		writel(val, i2s->regaddr_tx + I2S_MODE);
 	}
-
 	spin_unlock_irqrestore(&i2s->lock, flags);
 	return 0;
 }
@@ -155,6 +154,7 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 	u32 reg_val = 0;
 	u16 mclk_period;
 	int mclk;
+	int bclk_div = 8;
 	unsigned long flags;
 	spin_lock_irqsave(&i2s->lock, flags);
 
@@ -165,17 +165,25 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 
 		if (i2s->i2sdsp == 0) {	/* i2s mode */
 			lrck_div = i2s->wordlength * i2s->channel_num;
-			if (i2s->samplerate == 8000)
-				lrck_div = 64;
+			if (i2s->samplerate == 32000)
+				bclk_div = 6;
 			ws_h = ws_l = (lrck_div / 2) - 1;
 			i2s->div_ws = ws_l | (ws_h << 8);
 			i2s->clk = i2s->samplerate * lrck_div;
 			spin_unlock_irqrestore(&i2s->lock, flags);
 			if (i2s->ms == 1) {
+				ret = change_clk(i2s->dev, "i2s-mclk",
+					i2s->clk * bclk_div);
+				if (ret < 0) {
+					pr_err("change i2s mclk failed\n");
+					return ret;
+				}
 				ret = change_clk(i2s->dev, "i2s-bclk",
 					i2s->clk);
-				if (ret < 0)
+				if (ret < 0) {
 					pr_err("change i2s bclk failed\n");
+					return ret;
+				}
 			}
 			spin_lock_irqsave(&i2s->lock, flags);
 			writel(i2s->div_ws, i2s->regaddr_rx + I2S_DIV_WS);
@@ -187,8 +195,10 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 			if (i2s->ms == 1) {
 				ret = change_clk(i2s->dev, "i2s-bclk",
 					i2s->clk);
-				if (ret < 0)
+				if (ret < 0) {
 					pr_err("change i2s bclk failed\n");
+					return ret;
+				}
 			}
 			spin_lock_irqsave(&i2s->lock, flags);
 			writel(ws_l | (ws_h << 8), i2s->regaddr_rx +
@@ -199,17 +209,25 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 
 		if (i2s->i2sdsp == 0) {	/* i2s mode */
 			lrck_div = i2s->wordlength * i2s->channel_num;
-			if (i2s->samplerate == 8000)
-                                lrck_div = 64;
+			if (i2s->samplerate == 32000)
+				bclk_div = 6;
 			ws_h = ws_l = (lrck_div / 2) - 1;
 			i2s->div_ws = ws_l | (ws_h << 8);
 			i2s->clk = i2s->samplerate * lrck_div;
 			spin_unlock_irqrestore(&i2s->lock, flags);
 			if (i2s->ms == 1) {
+				ret = change_clk(i2s->dev, "i2s-mclk",
+					i2s->clk * bclk_div);
+				if (ret < 0) {
+					pr_err("change i2s mclk failed\n");
+					return ret;
+				}
 				ret = change_clk(i2s->dev, "i2s-bclk",
 					i2s->clk);
-				if (ret < 0)
+				if (ret < 0) {
 					pr_err("change i2s bclk failed\n");
+					return ret;
+				}
 			}
 			spin_lock_irqsave(&i2s->lock, flags);
 			writel(i2s->div_ws, i2s->regaddr_tx + I2S_DIV_WS);

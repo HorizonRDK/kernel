@@ -44,7 +44,7 @@
 
 #define AC101_CHANNELS_MAX 2
 #define _MASTER_INDEX	0
-
+#define AC101_BCLK_DIV 8
 /*
  * *** To sync channels ***
  *
@@ -659,11 +659,15 @@ static int ac101_aif1clk(struct snd_soc_codec* codec, int event, int quick) {
 
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
-		if (ac10x->aif1_clken == 0){
-			ret = ac101_update_bits(codec, SYSCLK_CTRL, (0x1<<AIF1CLK_ENA), (0x1<<AIF1CLK_ENA));
-			ret = ret || ac101_update_bits(codec, MOD_CLK_ENA, (0x1<<MOD_CLK_AIF1), (0x1<<MOD_CLK_AIF1));
-                        ret = ret || ac101_update_bits(codec, MOD_RST_CTRL, (0x1<<MOD_RESET_AIF1), (0x1<<MOD_RESET_AIF1));
-			ret = ret || ac101_update_bits(codec, SYSCLK_CTRL, (0x1<<SYSCLK_ENA), (0x1<<SYSCLK_ENA));
+		if (ac10x->aif1_clken == 0) {
+			ret = ac101_update_bits(codec, MOD_CLK_ENA, (0x1 << MOD_CLK_AIF1),
+				(0x1 << MOD_CLK_AIF1));
+			ret = ret || ac101_update_bits(codec, MOD_RST_CTRL, (0x1 << MOD_RESET_AIF1),
+					(0x1 << MOD_RESET_AIF1));
+			ret = ret || ac101_update_bits(codec, SYSCLK_CTRL, (0x1 << AIF1CLK_ENA),
+					(0x1 << AIF1CLK_ENA));
+			ret = ret || ac101_update_bits(codec, SYSCLK_CTRL, (0x1 << SYSCLK_ENA),
+					(0x1 << SYSCLK_ENA));
 
 			if (ret) {
 				printk("start sysclk failed\n");
@@ -680,6 +684,9 @@ static int ac101_aif1clk(struct snd_soc_codec* codec, int event, int quick) {
 			ret = ret || ac101_update_bits(codec, MOD_CLK_ENA, (0x1<<MOD_CLK_AIF1), (0x0<<MOD_CLK_AIF1));
 			ret = ret || ac101_update_bits(codec, MOD_RST_CTRL, (0x1<<MOD_RESET_AIF1), (0x0<<MOD_RESET_AIF1));
 			ret = ret || ac101_update_bits(codec, SYSCLK_CTRL, (0x1<<SYSCLK_ENA), (0x0<<SYSCLK_ENA));
+			ret = ret || ac101_write(codec, PLL_CTRL1, 0x0141);
+			ret = ret || ac101_write(codec, PLL_CTRL2, 0x0000);
+			ret = ret || ac101_write(codec, SYSCLK_CTRL, 0x0000);
 
 			if (ret) {
 				printk("stop sysclk failed\n");
@@ -1080,8 +1087,6 @@ int ac101_hw_params(struct snd_pcm_substream *substream,
 
 	/* set LRCK/BCLK ratio */
 	aif1_lrck_div = aif1_slot_size * channels;
-	if (params_rate(params) == 8000)
-		aif1_lrck_div = 64;
 	#if 0
 	switch(params_rate(params)) {
 	case 16000:
@@ -1137,8 +1142,12 @@ int ac101_hw_params(struct snd_pcm_substream *substream,
 	/* setting pll if it's master mode */
 	//reg_val = ac101_read(codec, AIF_CLK_CTRL);
 	//if ((reg_val & (0x1 << AIF1_MSTR_MOD)) == 0) {
+	ac10x->sysclk = params_rate(params)*aif1_lrck_div*AC101_BCLK_DIV;
+	if (params_rate(params) == 32000)
+		ac10x->sysclk = params_rate(params)*aif1_lrck_div*(AC101_BCLK_DIV - 2);
+	if (params_rate(params) != 48000) {
 		ac101_set_pll(codec_dai, ac10x->clk_id, 0, ac10x->sysclk, freq_out);
-	//}
+	}
 	bclkdiv = freq_out / (aif1_lrck_div * params_rate(params));
 	for (i = 0; i < ARRAY_SIZE(ac101_bclkdivs) - 1; i++) {
 		if (ac101_bclkdivs[i] >= bclkdiv) {
