@@ -1,16 +1,11 @@
 #!/usr/bin/env python2
 import json
-import types
-import collections
 import os
-import binascii
-import numpy as np
+import struct
 import sys
-import math
 import gzip
 import shutil
 
-from array import array
 from collections import OrderedDict
 
 def resolveJson(path):
@@ -33,7 +28,6 @@ def bootInfoOutput():
     for i in range(len(result)):
         result[i] = int(result[i], 16)
 
-    result = np.asarray(result, dtype=np.int32)
     return result
 
 
@@ -64,17 +58,17 @@ def dtbNameTranfer(bootInfoContent, filename, num):
     for i in range(len(listname)):
         tmp = tmp + (ord(listname[i])<<(8*(i%4)))
         if (i%4) == 3:
-            bootInfoContent[j] = np.asarray(tmp , dtype=np.int32)
+            bootInfoContent[j] = tmp
             j = j + 1
             tmp = 0
         if i+1 == len(listname):
-            bootInfoContent[j] = np.asarray(tmp , dtype=np.int32)
+            bootInfoContent[j] = tmp
             j = j + 1
             tmp = 0
     return tmp
 
 def str2hex(s):
-    odata = 0;
+    odata = 0
     su =s.upper()
     for c in su:
         tmp=ord(c)
@@ -104,7 +98,6 @@ if __name__ == '__main__':
 
     # bootInfoContent = bootInfoOutput()
     bootInfoContent = [0 for i in range(0, 256)]
-    bootInfoContent = np.asarray(bootInfoContent, dtype=np.int32)
 
     filePath = bootloaderInfoOutput()
 
@@ -120,10 +113,10 @@ if __name__ == '__main__':
     file = open(dtb_file_out_path, "rb")
     fjson = json.load(file, object_pairs_hook=OrderedDict)
 
-    bootInfoContent[0] = np.asarray(str2hex(fjson['imageaddr']), dtype=np.int32)
-    bootInfoContent[1] = np.asarray(str2hex(fjson['imagesize']), dtype=np.int32)
-    bootInfoContent[2] = np.asarray(str2hex(fjson['recoveryaddr']), dtype=np.int32)
-    bootInfoContent[3] = np.asarray(str2hex(fjson['recoverysize']), dtype=np.int32)
+    bootInfoContent[0] = str2hex(fjson['imageaddr'])
+    bootInfoContent[1] = str2hex(fjson['imagesize'])
+    bootInfoContent[2] = str2hex(fjson['recoveryaddr'])
+    bootInfoContent[3] = str2hex(fjson['recoverysize'])
 
     file = open(bootDtb, "rb")
     hjson = json.load(file, object_pairs_hook=OrderedDict)
@@ -132,15 +125,15 @@ if __name__ == '__main__':
     j=5
     addr=0
     board_id = resolveJsonKey(bootDtb)
-    bootInfoContent[4] = np.asarray(len(board_id), dtype=np.int32)
+    bootInfoContent[4] = len(board_id)
     for key in board_id:
         dict_key = hjson[key]['dtb_name']
         dtb_file = dtbPath + dict_key
         file_object = open(dtb_file, 'rb')
         file_size = getFileSize(dtb_file)
 
-        bootInfoContent[j] = np.asarray(str2hex(key), dtype=np.int32)
-        bootInfoContent[j+1] = np.asarray(str2hex(hjson[key]['gpio_id']), dtype=np.int32)
+        bootInfoContent[j] = str2hex(key)
+        bootInfoContent[j+1] = str2hex(hjson[key]['gpio_id'])
         bootInfoContent[j+3] = file_size
         dtbNameTranfer(bootInfoContent, hjson[key]['dtb_name'], j+4)
 
@@ -171,14 +164,16 @@ if __name__ == '__main__':
     listname = list(dtbname[0])
 
     file_produced0 = open(filePath[5], 'wb')
-    file_produced0.write(bootInfoContent)
+    for i in range(len(bootInfoContent)):
+        file_produced0.write(struct.pack('I', bootInfoContent[i]))
 
     file_produced0.close()
 
     # if (imageType == "nor" or imageType == "nand"):
     # get hobot_x2a_dtb.img: dtb_mapping + dtb file
     file_produced2 = open(filePath[8], 'wb')
-    file_produced2.write(bootInfoContent)
+    for i in range(len(bootInfoContent)):
+        file_produced2.write(struct.pack('I', bootInfoContent[i]))
 
     file_object2 = open(filePath[6], 'rb')
     file_content2 = file_object2.read()
