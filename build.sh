@@ -84,13 +84,6 @@ function set_kernel_config()
 {
     echo "******************************"
     echo "Set Kernel Defconfig"
-    if [ "$BOOT_MODE" = "nand"  ];then
-        sed -i 's/# CONFIG_MTD_UBI_FASTMAP is not set/CONFIG_MTD_UBI_FASTMAP=y/g' $OUT_BUILD_KERNEL_DIR/arch/arm64/configs/$KERNEL_DEFCONFIG
-        sed -i 's/# CONFIG_MTD_UBI_FASTMAP_AUTOCONVERT is not set/CONFIG_MTD_UBI_FASTMAP_AUTOCONVERT=1/g' $OUT_BUILD_KERNEL_DIR/arch/arm64/configs/$KERNEL_DEFCONFIG
-    else
-        sed -i 's/CONFIG_MTD_UBI_FASTMAP=y/# CONFIG_MTD_UBI_FASTMAP is not set/g' $OUT_BUILD_KERNEL_DIR/arch/arm64/configs/$KERNEL_DEFCONFIG
-        sed -i 's/CONFIG_MTD_UBI_FASTMAP_AUTOCONVERT=1/# CONFIG_MTD_UBI_FASTMAP_AUTOCONVERT is not set/g' $OUT_BUILD_KERNEL_DIR/arch/arm64/configs/$KERNEL_DEFCONFIG
-    fi
 
     if [ ! -z "$GCOV_CFLAGS" ];then
         echo "Kernel GCOV function is enabled!"
@@ -105,37 +98,6 @@ function set_kernel_config()
         sed -i 's:CONFIG_HOBOT_GCOV_BASE=y:# CONFIG_HOBOT_GCOV_BASE is not set:g' $OUT_BUILD_KERNEL_DIR/arch/arm64/configs/xj3_debug_defconfig
     fi
     echo "******************************"
-}
-
-function change_dts_flash_config()
-{
-    local dts_file="arch/arm64/boot/dts/hobot/hobot-xj3-xvb.dtsi"
-    local key_value="$1_flash {"
-
-    declare -i nline
-
-    getline()
-    {
-        cat -n $dts_file|grep "${key_value}"|awk '{print $1}'
-    }
-
-    getlinenum()
-    {
-        awk "BEGIN{a=`getline`;b="1";c=(a+b);print c}";
-    }
-
-    key_value="nor_flash {"
-    local norline=`getlinenum`
-    sed -i "${norline}s#okay#disabled#g" $dts_file
-    key_value="nand_flash {"
-    local nandline=`getlinenum`
-    sed -i "${nandline}s#okay#disabled#g" $dts_file
-
-    if [ x"$1" = x"nor" ] || [ x"$1" = x"nand" ];then
-        key_value="$1_flash {"
-        flashline=`getlinenum`
-        sed -i "${flashline}s#disabled#okay#g" $dts_file
-    fi
 }
 
 function get_system_partition_number()
@@ -214,7 +176,6 @@ function build_boot_image()
 function all()
 {
     export SRC_KERNEL_DIR=`pwd`
-    change_dts_flash_config $if_flash
     set_kernel_config
 
     if [ "x$KERNEL_WITH_RECOVERY" = "xtrue" ];then
@@ -341,14 +302,5 @@ function clean()
 # include end
 
 cd $(dirname $0)
-
-# config dts
-if_flash=$BOOT_MODE
-if [[ ! -z "$FLASH_ENABLE" ]];then
-    if [ "$FLASH_ENABLE" = "nor" -o  "$FLASH_ENABLE" = "nand" ];then
-        echo "$FLASH_ENABLE flash is enabled!!"
-        if_flash=$FLASH_ENABLE
-    fi
-fi
 
 buildopt $cmd
