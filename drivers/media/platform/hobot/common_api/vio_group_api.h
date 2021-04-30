@@ -148,6 +148,8 @@ struct vio_chain {
 struct vio_core {
        struct vio_chain chain[VIO_MAX_STREAM];
        atomic_t rsccount;
+       atomic_t gdc0_rsccount;
+       atomic_t gdc1_rsccount;
 };
 struct vio_frame_id {
 	u32 frame_id;
@@ -191,6 +193,8 @@ void vio_reset_module(u32 module);
 void vio_group_done(struct vio_group *group);
 void vio_dwe_clk_enable(void);
 void vio_dwe_clk_disable(void);
+void vio_gdc_clk_enable(u32 hw_id);
+void vio_gdc_clk_disable(u32 hw_id);
 void vio_set_stat_info(u32 instance, u32 stat_type, u16 frameid);
 void vio_print_stat_info(u32 instance);
 int vio_print_delay(s32 instance, s8* buf, u32 size);

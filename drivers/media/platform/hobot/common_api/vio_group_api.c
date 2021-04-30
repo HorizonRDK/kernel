@@ -664,8 +664,6 @@ void vio_dwe_clk_enable(void)
 	if (atomic_read(&core->rsccount) == 0) {
 		if (sif_mclk_freq)
 			vio_set_clk_rate("sif_mclk", sif_mclk_freq);
-		ips_set_clk_ctrl(GDC0_CLOCK_GATE, enable);
-		ips_set_clk_ctrl(GDC1_CLOCK_GATE, enable);
 		ips_set_clk_ctrl(DWE0_CLOCK_GATE, enable);
 		vio_info("%s done", __func__);
 	}
@@ -680,13 +678,61 @@ void vio_dwe_clk_disable(void)
 
 	core = &iscore;
 	if (atomic_dec_return(&core->rsccount) == 0) {
-		ips_set_clk_ctrl(GDC0_CLOCK_GATE, enable);
-		ips_set_clk_ctrl(GDC1_CLOCK_GATE, enable);
 		ips_set_clk_ctrl(DWE0_CLOCK_GATE, enable);
 		vio_info("%s done", __func__);
 	}
 }
 EXPORT_SYMBOL(vio_dwe_clk_disable);
+
+void vio_gdc_clk_enable(u32 hw_id)
+{
+	struct vio_core *core;
+	bool enable = true;
+
+	core = &iscore;
+	if (hw_id == 0) {
+		if (atomic_read(&core->gdc0_rsccount) == 0) {
+			if (sif_mclk_freq)
+				vio_set_clk_rate("sif_mclk", sif_mclk_freq);
+			ips_set_clk_ctrl(GDC0_CLOCK_GATE, enable);
+			vio_info("%s hw_id:%d done", __func__, hw_id);
+		}
+		atomic_inc(&core->gdc0_rsccount);
+	} else if (hw_id == 1) {
+		if (atomic_read(&core->gdc1_rsccount) == 0) {
+                        if (sif_mclk_freq)
+                                vio_set_clk_rate("sif_mclk", sif_mclk_freq);
+                        ips_set_clk_ctrl(GDC1_CLOCK_GATE, enable);
+                        vio_info("%s hw_id:%d done", __func__, hw_id);
+                }
+		atomic_inc(&core->gdc1_rsccount);
+	} else {
+		vio_err("%s error hw_id:%d\n", __func__, hw_id);
+	}
+}
+EXPORT_SYMBOL(vio_gdc_clk_enable);
+
+void vio_gdc_clk_disable(u32 hw_id)
+{
+	struct vio_core *core;
+	bool enable = false;
+
+	core = &iscore;
+	if (hw_id == 0) {
+		if (atomic_dec_return(&core->gdc0_rsccount) == 0) {
+			ips_set_clk_ctrl(GDC0_CLOCK_GATE, enable);
+			vio_info("%s hw_id:%d done", __func__, hw_id);
+		}
+	} else if (hw_id == 1) {
+		if (atomic_dec_return(&core->gdc1_rsccount) == 0) {
+                        ips_set_clk_ctrl(GDC1_CLOCK_GATE, enable);
+                        vio_info("%s hw_id:%d done", __func__, hw_id);
+                }
+	} else {
+		vio_err("%s error hw_id:%d\n", __func__, hw_id);
+	}
+}
+EXPORT_SYMBOL(vio_gdc_clk_disable);
 
 void vio_set_stat_info(u32 instance, u32 stat_type, u16 frameid)
 {

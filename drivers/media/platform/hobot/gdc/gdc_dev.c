@@ -87,7 +87,14 @@ static int x3_gdc_open(struct inode *inode, struct file *file)
 	gdc_ctx->gdc_dev = gdc;
 	file->private_data = gdc_ctx;
 
+	ret = mutex_lock_interruptible(&gdc->gdc_mutex);
+	if (ret) {
+		vio_err("gdc mutex lock error\n");
+		goto p_err;
+	}
 	vio_dwe_clk_enable();
+	vio_gdc_clk_enable(gdc->hw_id);
+	mutex_unlock(&gdc->gdc_mutex);
 	write_gdc_mask(gdc->hw_id, &enbale);
 
 	vio_info("GDC%d open node\n", gdc->hw_id);
@@ -114,6 +121,7 @@ static int x3_gdc_close(struct inode *inode, struct file *file)
 	struct gdc_group *group;
 	struct x3_gdc_dev *gdc;
 	int enbale = 0;
+	int ret;
 
 	gdc_ctx = file->private_data;
 	group = gdc_ctx->group;
@@ -123,11 +131,22 @@ static int x3_gdc_close(struct inode *inode, struct file *file)
 	gdc = gdc_ctx->gdc_dev;
 
 	write_gdc_mask(gdc->hw_id, &enbale);
+	ret = mutex_lock_interruptible(&g_gdc_dev->gdc_mutex);
+	if (ret) {
+                vio_err("gdc mutex lock error\n");
+		goto p_err;
+	}
+	vio_gdc_clk_disable(gdc->hw_id);
 	vio_dwe_clk_disable();
+	mutex_unlock(&g_gdc_dev->gdc_mutex);
 
-	kfree(gdc_ctx);
+p_err:
+	if (gdc_ctx) {
+		kfree(gdc_ctx);
+		gdc_ctx = NULL;
+	}
 
-	return 0;
+	return ret;
 }
 
 void dwe0_reset_control(void)
@@ -779,11 +798,14 @@ static int x3_gdc_probe(struct platform_device *pdev)
 
 	sema_init(&gdc->smp_gdc_enable, 1);
 	spin_lock_init(&gdc->shared_slock);
+	mutex_init(&gdc->gdc_mutex);
 
 	if (gdc->hw_id == 0)
 		g_gdc_dev = gdc;
 
 	gdc_call_install(dwe0_reset_control);
+	/* gdc clock default is open, close it*/
+	ips_set_clk_ctrl(GDC0_CLOCK_GATE - gdc->hw_id, false);
 	vio_info("[FRT:D] %s(%d)\n", __func__, ret);
 
 	return 0;
