@@ -111,7 +111,7 @@ static int32_t module_event_add_to_list(struct diag_event *event)
 
 	spin_lock_irqsave(&g_diag_info->empty_spinlock, flags); /* PRQA S ALL */
 	if (list_empty(&g_diag_info->empty_list)) { /* PRQA S ALL */
-		pr_err("event element is used up\n"); /* PRQA S ALL */
+		pr_debug("event element is used up\n"); /* PRQA S ALL */
 
 		spin_unlock_irqrestore(&g_diag_info->empty_spinlock, flags);
 		return -1;
@@ -411,7 +411,8 @@ int32_t diagnose_send_event(struct diag_event *event)
 	/* insert to priority queue */
 	ret = module_event_add_to_list(event);
 	if (ret < 0) {
-		pr_err("insert to list fail\n");	/* PRQA S ALL */
+		pr_debug("insert to list fail\n");	/* PRQA S ALL */
+		return -1;
 	}
 
 	schedule_work(&g_diag_info->diag_work);	/* PRQA S 3200 */
