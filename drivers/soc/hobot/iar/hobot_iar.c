@@ -4190,7 +4190,10 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		goto err1;
 	}
 
-	EMBEDIMG(0, "drivers/soc/hobot/iar/bootlogo.bmp");
+#ifndef KBUILD_SRC
+#define KBUILD_SRC "."
+#endif
+	EMBEDIMG(0, __stringify(KBUILD_SRC)"/drivers/soc/hobot/iar/bootlogo.bmp");
 #endif
 	g_iar_dev->rst = devm_reset_control_get(&pdev->dev, "iar");
 	if (IS_ERR(g_iar_dev->rst)) {

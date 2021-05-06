@@ -14,6 +14,9 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 #
+ifneq ($(KERNELRELEASE),)
+src_v4l2 := $(KBUILD_SRC)/$(src_v4l2)
+endif
 
 srcfiles := $(subst $(src_v4l2)/,,$(wildcard $(src_v4l2)/src/*/*.c $(src_v4l2)/src/*/*/*.c $(src_v4l2)/app/*.c $(src_v4l2)/app/*/*.c))
 hobot_isp-objs += $(patsubst %.c,%.o,$(srcfiles))

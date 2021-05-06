@@ -15,7 +15,12 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 #
 
+ifneq ($(KERNELRELEASE),)
+sensor_dir := $(KBUILD_SRC)/$(src_subdev)/sensor
+else
 sensor_dir := $(src_subdev)/sensor
+endif
+
 srcfiles := $(subst $(sensor_dir)/,,$(wildcard $(sensor_dir)/src/*/*.c $(sensor_dir)/src/*/*/*.c $(sensor_dir)/src/*/*/*/camera_subdev.c $(sensor_dir)/app/*.c))
 hobot_sns_bridge-objs += $(patsubst %.c,%.o,$(srcfiles))
 obj-$(CONFIG_VIDEO_HOBOT_ISP) += hobot_sns_bridge.o

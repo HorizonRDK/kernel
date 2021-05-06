@@ -14,8 +14,12 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 #
-
+ifneq ($(KERNELRELEASE),)
+log_list_dir := $(KBUILD_SRC)/$(src_subdev)/log_list
+else
 log_list_dir := $(src_subdev)/log_list
+endif
+
 srcfiles := $(subst $(log_list_dir)/,,$(wildcard $(log_list_dir)/*.c))
 hobot_isp_log-objs += $(patsubst %.c,%.o,$(srcfiles))
 obj-$(CONFIG_VIDEO_HOBOT_ISP) += hobot_isp_log.o

@@ -14,8 +14,12 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 #
-
+ifneq ($(KERNELRELEASE),)
+lens_dir := $(KBUILD_SRC)/$(src_subdev)/lens
+else
 lens_dir := $(src_subdev)/lens
+endif
+
 srcfiles := $(subst $(lens_dir)/,,$(wildcard $(lens_dir)/src/*/*.c \
 	$(lens_dir)/src/*/*/*.c $(lens_dir)/src/*/*/*/*.c $(lens_dir)/app/*.c))
 hobot_lens-objs += $(patsubst %.c,%.o,$(srcfiles))

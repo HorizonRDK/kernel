@@ -14,8 +14,11 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 #
-
+ifneq ($(KERNELRELEASE),)
+common_dir := $(KBUILD_SRC)/$(src_subdev)/common
+else
 common_dir := $(src_subdev)/common
+endif
 
 srcfiles := $(subst $(common_dir)/,,$(wildcard $(common_dir)/src/*.c))
 hobot_sensor-objs += $(patsubst %.c,%.o,$(srcfiles))

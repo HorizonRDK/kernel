@@ -15,7 +15,12 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 #
 
+ifneq ($(KERNELRELEASE),)
+iq_dir := $(KBUILD_SRC)/$(src_subdev)/iq
+else
 iq_dir := $(src_subdev)/iq
+endif
+
 srcfiles := $(subst $(iq_dir)/,,$(wildcard $(iq_dir)/src/*/*.c $(iq_dir)/app/*.c))
 hobot_iq-objs += $(patsubst %.c,%.o,$(srcfiles))
 obj-$(CONFIG_VIDEO_HOBOT_ISP) += hobot_iq.o

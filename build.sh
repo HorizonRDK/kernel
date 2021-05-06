@@ -2,63 +2,44 @@
 
 function choose()
 {
-    local hascpio=$KERNEL_WITH_CPIO
-    local conftmp=.config_tmp
-    local rootfscpio="CONFIG_INITRAMFS_SOURCE=\"./usr/rootfs.cpio\""
-    local rootfspre="CONFIG_INITRAMFS_SOURCE=\"./usr/prerootfs/\""
-    local rootfsnone="CONFIG_INITRAMFS_SOURCE=\"\""
     local manifest=$KERNEL_INITRAMFS_MANIFEST
-    cp .config $conftmp
 
-    if ! $hascpio ;then
-        sed -i "s#${rootfscpio}#${rootfsnone}#g" $conftmp
-    else
-        sed -i "s#${rootfscpio}#${rootfspre}#g" $conftmp
+    if $KERNEL_WITH_CPIO ;then
         if [ "$BOOT_MODE" != "ap" ];then
-            rm -rf ${SRC_KERNEL_DIR}/usr/prerootfs/
-            mkdir -p ${SRC_KERNEL_DIR}/usr/prerootfs/
+            rm -rf ${BUILD_OUTPUT_PATH}/usr/prerootfs/
+            mkdir -p ${BUILD_OUTPUT_PATH}/usr/prerootfs/
             if [ "$BOOT_MODE" = "nor" ];then
                 manifest=${KERNEL_DEBUG_INITRAMFS_MANIFEST}
             fi
             ${SRC_SCRIPTS_DIR}/build_root_manifest.sh $manifest \
-                ${TARGET_PREROOTFS_DIR} ${TARGET_TMPROOTFS_DIR} ${SRC_KERNEL_DIR}/usr/prerootfs/
+                ${TARGET_PREROOTFS_DIR} ${TARGET_TMPROOTFS_DIR} ${BUILD_OUTPUT_PATH}/usr/prerootfs/
             sed -i "/AMA0/d" ${SRC_KERNEL_DIR}/usr/prerootfs/etc/inittab
         fi
+        config=${KERNEL_PREROOTFS_DEFCONFIG}
     fi
-
-    cp $conftmp .config
 }
 
 function make_recovery_img()
 {
     prefix=$TARGET_KERNEL_DIR
-    config=$KERNEL_DEFCONFIG
-
+    config=${KERNEL_PREROOTFS_DEFCONFIG}
+    mkdir -p ${BUILD_OUTPUT_PATH}/usr/prerootfs/
     # real build
-    ARCH=$ARCH_KERNEL
-    make $config || {
+    make ARCH=${ARCH_KERNEL} O=${BUILD_OUTPUT_PATH} $config || {
         echo "make $config failed"
         exit 1
     }
 
-    local conftmp=.config_tmp
-    cp .config $conftmp
+    ${SRC_SCRIPTS_DIR}/build_root_manifest.sh ${KERNEL_DEBUG_INITRAMFS_MANIFEST} ${TARGET_PREROOTFS_DIR} ${TARGET_TMPROOTFS_DIR} ${BUILD_OUTPUT_PATH}/usr/prerootfs/
+    sed -i "/AMA0/d" ${BUILD_OUTPUT_PATH}/usr/prerootfs/etc/inittab
 
-    sed -i "s#CONFIG_INITRAMFS_SOURCE=\"./usr/rootfs.cpio\"#CONFIG_INITRAMFS_SOURCE=\"./usr/prerootfs/\"#g" $conftmp
-    rm -rf ${SRC_KERNEL_DIR}/usr/prerootfs/
-    mkdir -p ${SRC_KERNEL_DIR}/usr/prerootfs/
-
-    ${SRC_SCRIPTS_DIR}/build_root_manifest.sh ${KERNEL_DEBUG_INITRAMFS_MANIFEST} ${TARGET_PREROOTFS_DIR} ${TARGET_TMPROOTFS_DIR} ${SRC_KERNEL_DIR}/usr/prerootfs/
-    sed -i "/AMA0/d" ${SRC_KERNEL_DIR}/usr/prerootfs/etc/inittab
-
-    cp $conftmp .config
-    make -j${N} || {
+    make ARCH=${ARCH_KERNEL} O=${BUILD_OUTPUT_PATH} -j${N} || {
         echo "make failed"
         exit 1
     }
 
     # put binaries to dest directory
-    cpfiles "$SRC_KERNEL_DIR/arch/$ARCH_KERNEL/boot/Image.gz"  "$prefix/"
+    cpfiles "${BUILD_OUTPUT_PATH}/arch/$ARCH_KERNEL/boot/Image.gz"  "$prefix/"
     mv $prefix/Image.gz $prefix/recovery.gz
 }
 
@@ -87,15 +68,15 @@ function set_kernel_config()
 
     if [ ! -z "$GCOV_CFLAGS" ];then
         echo "Kernel GCOV function is enabled!"
-        sed -i 's:# CONFIG_GCOV_KERNEL is not set:CONFIG_GCOV_KERNEL=y:g' $OUT_BUILD_KERNEL_DIR/arch/arm64/configs/xj3_debug_defconfig
-        sed -i 's:# CONFIG_GCOV_FORMAT_AUTODETECT is not set:CONFIG_GCOV_FORMAT_AUTODETECT=y:g' $OUT_BUILD_KERNEL_DIR/arch/arm64/configs/xj3_debug_defconfig
-        sed -i 's:# CONFIG_HOBOT_GCOV_AVIO is not set:CONFIG_HOBOT_GCOV_AVIO=y:g' $OUT_BUILD_KERNEL_DIR/arch/arm64/configs/xj3_debug_defconfig
-        sed -i 's:# CONFIG_HOBOT_GCOV_BASE is not set:CONFIG_HOBOT_GCOV_BASE=y:g' $OUT_BUILD_KERNEL_DIR/arch/arm64/configs/xj3_debug_defconfig
+        sed -i 's:# CONFIG_GCOV_KERNEL is not set:CONFIG_GCOV_KERNEL=y:g' ${BUILD_OUTPUT_PATH}/.config
+        sed -i 's:# CONFIG_GCOV_FORMAT_AUTODETECT is not set:CONFIG_GCOV_FORMAT_AUTODETECT=y:g' ${BUILD_OUTPUT_PATH}/.config
+        sed -i 's:# CONFIG_HOBOT_GCOV_AVIO is not set:CONFIG_HOBOT_GCOV_AVIO=y:g' ${BUILD_OUTPUT_PATH}/.config
+        sed -i 's:# CONFIG_HOBOT_GCOV_BASE is not set:CONFIG_HOBOT_GCOV_BASE=y:g' ${BUILD_OUTPUT_PATH}/.config
     else
-        sed -i 's:CONFIG_GCOV_KERNEL=y:# CONFIG_GCOV_KERNEL is not set:g' $OUT_BUILD_KERNEL_DIR/arch/arm64/configs/xj3_debug_defconfig
-        sed -i 's:CONFIG_GCOV_FORMAT_AUTODETECT=y:# CONFIG_GCOV_FORMAT_AUTODETECT is not set:g' $OUT_BUILD_KERNEL_DIR/arch/arm64/configs/xj3_debug_defconfig
-        sed -i 's:CONFIG_HOBOT_GCOV_AVIO=y:# CONFIG_HOBOT_GCOV_AVIO is not set:g' $OUT_BUILD_KERNEL_DIR/arch/arm64/configs/xj3_debug_defconfig
-        sed -i 's:CONFIG_HOBOT_GCOV_BASE=y:# CONFIG_HOBOT_GCOV_BASE is not set:g' $OUT_BUILD_KERNEL_DIR/arch/arm64/configs/xj3_debug_defconfig
+        sed -i 's:CONFIG_GCOV_KERNEL=y:# CONFIG_GCOV_KERNEL is not set:g' ${BUILD_OUTPUT_PATH}/.config
+        sed -i 's:CONFIG_GCOV_FORMAT_AUTODETECT=y:# CONFIG_GCOV_FORMAT_AUTODETECT is not set:g' ${BUILD_OUTPUT_PATH}/.config
+        sed -i 's:CONFIG_HOBOT_GCOV_AVIO=y:# CONFIG_HOBOT_GCOV_AVIO is not set:g' ${BUILD_OUTPUT_PATH}/.config
+        sed -i 's:CONFIG_HOBOT_GCOV_BASE=y:# CONFIG_HOBOT_GCOV_BASE is not set:g' ${BUILD_OUTPUT_PATH}/.config
     fi
     echo "******************************"
 }
@@ -175,73 +156,69 @@ function build_boot_image()
 
 function all()
 {
-    export SRC_KERNEL_DIR=`pwd`
-    set_kernel_config
-
     if [ "x$KERNEL_WITH_RECOVERY" = "xtrue" ];then
-        cd $SRC_KERNEL_DIR
-
         # get recovery.gz
+        # TODO: should be optimized with "choose"
         make_recovery_img
     fi
 
     prefix=$TARGET_KERNEL_DIR
     config=$KERNEL_DEFCONFIG
-    echo "kernel config: $config"
 
+    # Configuring Image for AP Booting
+    choose
+    echo "kernel config: $config"
     # real build
-    ARCH=$ARCH_KERNEL
-    make $config || {
+    make ARCH=${ARCH_KERNEL} O=${BUILD_OUTPUT_PATH} $config || {
         echo "make $config failed"
         exit 1
     }
-    choose
-    make -j${N} || {
+
+    # For GCOV only, will modify the resulting .config
+    set_kernel_config
+
+    make ARCH=${ARCH_KERNEL} O=${BUILD_OUTPUT_PATH} -j${N} || {
         echo "make failed"
         exit 1
     }
 
-    [ ! -d _install/ ] && mkdir _install/
-
+    # Moving Close Source kos to target/tmprootfs
+    [ ! -d ${TARGET_TMPROOTFS_DIR}/ -a -d ${TOPDIR}/ko ] && mkdir -p ${TARGET_TMPROOTFS_DIR}/
     if [ "$TARGET_MODE" = "debug" ];then
-        [ -d ${TOPDIR}/ko/ko_debug/ ] && cp -raf ${TOPDIR}/ko/ko_debug/* _install/
+        [ -d ${TOPDIR}/ko/ko_debug/ ] && cp -raf ${TOPDIR}/ko/ko_debug/* ${TARGET_TMPROOTFS_DIR}/
     elif [ "$TARGET_MODE" = "release" ];then
-        [ -d ${TOPDIR}/ko/ko_release/ ] && cp -raf ${TOPDIR}/ko/ko_release/* _install/
+        [ -d ${TOPDIR}/ko/ko_release/ ] && cp -raf ${TOPDIR}/ko/ko_release/* ${TARGET_TMPROOTFS_DIR}/
     elif [ "$TARGET_MODE" = "docker" ];then
-        [ -d ${TOPDIR}/ko/ko_docker/ ] && cp -raf ${TOPDIR}/ko/ko_docker/* _install/
+        [ -d ${TOPDIR}/ko/ko_docker/ ] && cp -raf ${TOPDIR}/ko/ko_docker/* ${TARGET_TMPROOTFS_DIR}/
     else
         echo "TARGET_MODE:$TARGET_MODE has not support yet"
         exit 1
     fi
 
     # make modules_install to INSTALL_MOD_PATH for debug ko (default: /)
-    make INSTALL_MOD_PATH=$SRC_KERNEL_DIR/_debug INSTALL_NO_SUBDIR=1 modules_install || {
+    make ARCH=${ARCH_KERNEL} O=${BUILD_OUTPUT_PATH} INSTALL_MOD_PATH=${BUILD_OUTPUT_PATH}/_debug INSTALL_NO_SUBDIR=1 modules_install || {
         echo "make modules_install to INSTALL_MOD_PATH for debug ko failed"
         exit 1
     }
 
     # make modules_install to INSTALL_MOD_PATH release ko (default: /)
-    make INSTALL_MOD_PATH=$SRC_KERNEL_DIR/_install INSTALL_MOD_STRIP=1 INSTALL_NO_SUBDIR=1 modules_install || {
+    make ARCH=${ARCH_KERNEL} O=${BUILD_OUTPUT_PATH} INSTALL_MOD_PATH=${TARGET_TMPROOTFS_DIR}/ INSTALL_MOD_STRIP=1 INSTALL_NO_SUBDIR=1 modules_install || {
         echo "make modules_install to INSTALL_MOD_PATH for release ko failed"
         exit 1
     }
 
-    # put kernel image & dtb to dest directory
-    cpfiles "$SRC_KERNEL_DIR/arch/$ARCH_KERNEL/boot/$KERNEL_IMAGE_NAME" "$prefix/"
-    cd $SRC_KERNEL_DIR/arch/$ARCH_KERNEL/boot/dts/hobot/
-    cpfiles "$KERNEL_DTB_NAME" "$prefix/"
+   # strip kernel modules
+    [ -z "${KERNEL_VER}" ] && { KERNEL_VER=$(cat ${BUILD_OUTPUT_PATH}/include/config/kernel.release 2> /dev/null); }
+    ${CROSS_COMPILE}strip -v -g $TARGET_TMPROOTFS_DIR/lib/modules/${KERNEL_VER}/*.ko
 
     # copy firmware
     cpfiles "$SRC_KERNEL_DIR/drivers/staging/marvell/FwImage/sd8801_uapsta.bin" "$TARGET_TMPROOTFS_DIR/lib/firmware/mrvl/"
     cpfiles "$SRC_KERNEL_DIR/drivers/staging/rtl8723bs/rtlwifi/rtl8723bs_nic.bin " "$TARGET_TMPROOTFS_DIR/lib/firmware/rtlwifi/"
     cpfiles "$SRC_KERNEL_DIR/drivers/crypto/hobot/pka/clp300.elf " "$TARGET_TMPROOTFS_DIR/lib/firmware/"
 
-    # strip & copy kernel modules
-    cpfiles "$SRC_KERNEL_DIR/_install/lib/modules/*" "$TARGET_TMPROOTFS_DIR/lib/modules/"
-    [ -z "${KERNEL_VER}" ] && { KERNEL_VER=$(cat $SRC_KERNEL_DIR/include/config/kernel.release 2> /dev/null); }
-    ${CROSS_COMPILE}strip -v -g $TARGET_TMPROOTFS_DIR/lib/modules/${KERNEL_VER}/*.ko
-
-    #rm $SRC_KERNEL_DIR/_install/ -rf
+    # put kernel image & dtb to dest directory
+    cpfiles "${BUILD_OUTPUT_PATH}/arch/$ARCH_KERNEL/boot/$KERNEL_IMAGE_NAME" "$prefix/"
+    cpfiles "${BUILD_OUTPUT_PATH}/arch/$ARCH_KERNEL/boot/dts/hobot/$KERNEL_DTB_NAME" "$prefix/"
 
     # build dtb-mapping.conf
     build_dtbmapping
@@ -293,8 +270,7 @@ cmd=$1
 
 function clean()
 {
-    SRC_KERNEL_DIR=`pwd`
-    make distclean
+    make ARCH=${ARCH_KERNEL} O=${BUILD_OUTPUT_PATH} distclean
 }
 
 # include

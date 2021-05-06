@@ -9,8 +9,7 @@ iar-objs += hobot_rotation_neon64.o
 iar-objs += hobot_iar.o
 iar_cdev-objs := hobot_iar_cdev.o
 iar_mmap-objs := hobot_iar_mmap.o
-
+EXTRA_CFLAGS += -DKBUILD_SRC=$(KBUILD_SRC)
 ifeq ($(CONFIG_HOBOT_GCOV_AVIO),y)
 GCOV_PROFILE := y
 endif
-

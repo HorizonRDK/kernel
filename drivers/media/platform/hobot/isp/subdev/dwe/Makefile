@@ -15,7 +15,12 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 #
 
+ifneq ($(KERNELRELEASE),)
+dwe_dir := $(KBUILD_SRC)/$(src_subdev)/dwe
+else
 dwe_dir := $(src_subdev)/dwe
+endif
+
 srcfiles := $(subst $(dwe_dir)/,,$(wildcard $(dwe_dir)/src/*/*.c))
 hobot_dwe-objs += $(patsubst %.c,%.o,$(srcfiles))
 obj-$(CONFIG_VIDEO_HOBOT_ISP) += hobot_dwe.o
