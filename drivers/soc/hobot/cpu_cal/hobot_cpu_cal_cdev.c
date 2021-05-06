@@ -20,8 +20,6 @@
 #include <linux/types.h>
 #include <linux/cdev.h>
 #include <linux/kthread.h>
-#include <linux/spinlock.h>
-
 
 #include <soc/hobot/diag.h>
 #include "./scheduler/inc/a53_stl_arrays.h"
@@ -58,7 +56,6 @@ static char test_id_no_fp[] = {1, 2, 3, 4, 5,
 								35, 36, 37,
 								38, 39, 40};
 static char total_test_num = 0;
-static DEFINE_SPINLOCK(cpu_cal_test_spinlock);
 uint32_t cpu_cal_test_init(void)
 {
 	uint32_t result;
@@ -101,7 +98,6 @@ static int cpu_cal_test_kthread(void *data)
 	int i = 0;
 	uint32_t result;
 	uint16_t err_event_id = 0;
-	unsigned long cpu_cal_test_spinlock_flags;
 	struct cpu_cal_test_data *cpu_cal_data = (struct cpu_cal_test_data *)data;
 	result = cpu_cal_test_init();
 	if(result != A53_STL_RET_OK || err_test_id == 1) {
@@ -119,9 +115,9 @@ static int cpu_cal_test_kthread(void *data)
 									test_id_no_fp[i] - 1,
 									A53_STL_EL0_EL1);
 			if(result == A53_STL_RET_OK) {
-				spin_lock_irqsave(&cpu_cal_test_spinlock, cpu_cal_test_spinlock_flags);
+				local_irq_disable();
 				result = A53_STL();
-				spin_unlock_irqrestore(&cpu_cal_test_spinlock, cpu_cal_test_spinlock_flags);
+				local_irq_enable();
 			}
 			if(result != A53_STL_RET_OK || err_test_id == i + 2) {
 				err_test_id = -1;
