@@ -201,13 +201,16 @@ static void lowlevel_rx_complete(struct usb_ep *ep,
 						struct usb_request *req)
 {
 	int status;
+	unsigned long		flags;
 	struct hbusb_rx_chan		*rx = req->context;
 	struct frame_rx_ctrl	*frame_ctrl = &rx->frame_ctrl;
 
 	if (req == NULL)
 		return;
 
+	spin_lock_irqsave(&rx->ep_lock, flags);
 	if ((req != NULL) && (rx->req !=req)) {
+		spin_unlock_irqrestore(&rx->ep_lock, flags);
 		usb_ep_free_request(ep, req);
 		return;
 	}
@@ -221,8 +224,10 @@ static void lowlevel_rx_complete(struct usb_ep *ep,
 		|| (frame_ctrl->hbusb_recv_event == EVENT_HBUSB_TX_FINISHED)
 		||(frame_ctrl->hbusb_recv_event == EVENT_HBUSB_RX_HEAD_IN_DATABUF)) {
 		/*when tx finished, */
+		spin_unlock_irqrestore(&rx->ep_lock, flags);
 		return;
 	}
+	spin_unlock_irqrestore(&rx->ep_lock, flags);
 
 	do {
 		status = lowlevel_rx_submit(rx);
@@ -430,13 +435,16 @@ static void lowlevel_tx_complete(struct usb_ep *ep,
 						struct usb_request *req)
 {
 	int status;
+	unsigned long		flags;
 	struct hbusb_tx_chan		*tx = req->context;
 	struct frame_tx_ctrl	*frame_ctrl = &tx->frame_ctrl;
 
 	if (req == NULL)
 		return;
 
+	spin_lock_irqsave(&tx->ep_lock, flags);
 	if ((req != NULL) && (tx->req !=req)) {
+		spin_unlock_irqrestore(&tx->ep_lock, flags);
 		usb_ep_free_request(ep, req);
 		return;
 	}
@@ -447,8 +455,10 @@ static void lowlevel_tx_complete(struct usb_ep *ep,
 
 	if (frame_ctrl->hbusb_send_event == EVENT_HBUSB_TX_FINISHED) {
 		/*when tx finished, */
+		spin_unlock_irqrestore(&tx->ep_lock, flags);
 		return;
 	}
+	spin_unlock_irqrestore(&tx->ep_lock, flags);
 
 	do {
 		status = lowlevel_tx_submit(tx);
@@ -646,6 +656,7 @@ int parse_rx_param_to_frame_info(struct hbusb_rx_chan	*rx,
 									void __user *user_elem)
 {
 	int i, j, slice_count, tmp_length;
+	unsigned long		flags;
 	struct hbusb_channel	*chan = rx->parent_chan;
 	struct frame_rx_ctrl *frame_ctrl = &rx->frame_ctrl;
 	struct frame_info *frame_info = frame_ctrl->frame_info;
@@ -689,9 +700,11 @@ int parse_rx_param_to_frame_info(struct hbusb_rx_chan	*rx,
 		}
 	}
 
+	spin_lock_irqsave(&rx->ep_lock, flags);
 	frame_info->sg_actual_num = 0;
 	frame_info->error_val = 0;
 	frame_ctrl->hbusb_recv_event = EVENT_HBUSB_RX_CTRL_HEAD;
+	spin_unlock_irqrestore(&rx->ep_lock, flags);
 
 	return 0;
 }
@@ -815,6 +828,7 @@ int parse_tx_param_to_frame_info(struct hbusb_tx_chan	*tx,
 									void __user *user_elem)
 {
 	int i, j, slice_count, tmp_length;
+	unsigned long		flags;
 	struct hbusb_channel	*chan = tx->parent_chan;
 	struct frame_tx_ctrl *frame_ctrl = &tx->frame_ctrl;
 	struct frame_info *frame_info = frame_ctrl->frame_info;
@@ -874,9 +888,11 @@ int parse_tx_param_to_frame_info(struct hbusb_tx_chan	*tx,
 		}
 	}
 
+	spin_lock_irqsave(&tx->ep_lock, flags);
 	frame_info->sg_actual_num = 0;
 	frame_info->error_val = 0;
 	frame_ctrl->hbusb_send_event = EVENT_HBUSB_TX_CTRL_HEAD;
+	spin_unlock_irqrestore(&tx->ep_lock, flags);
 
 	return 0;
 }
