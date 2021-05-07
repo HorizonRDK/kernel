@@ -71,7 +71,6 @@ struct ddr_mon {
 #define uMCTL2_MRCTRL1 0x14
 #define uMCTL2_MRSTAT  0x18
 
-
 #else
 
 #define PORT_NUM 6
@@ -105,7 +104,7 @@ struct ddr_portdata_s {
 #endif
 };
 
-struct ddr_monitor_result_s {
+struct ddr_mon_rec {
 	unsigned long long curtime;
 	struct ddr_portdata_s portdata[PORT_NUM];
 	unsigned int rd_cmd_num;
@@ -121,51 +120,23 @@ struct ddr_monitor_result_s {
 	unsigned int per_cmd_rdwr_num;
 };
 
-typedef struct ddr_monitor_sample_s {
+typedef struct ddr_mon_cfg {
        unsigned int sample_period;
        unsigned int sample_number;
-} ddr_monitor_sample;
+} ddr_mon_cfg;
 
 #define TOTAL_RECORD_NUM 400
 #define TOTAL_RESULT_SIZE (400*1024)
 
-struct ddr_monitor_result_s* ddr_info = NULL;
-char * result_buf = NULL;
+struct ddr_mon_rec* ddr_info = NULL;
+struct ddr_mon_rec* ddr_info_bc = NULL;
 unsigned int cur_idx = 0;
-volatile unsigned int g_record_num = 0;
-unsigned int g_monitor_period = 100000;//unit is us, use 100ms by default
+unsigned int mon_period = 100000;//unit is us, use 100ms by default
 unsigned int g_sample_number = 0;
-unsigned int g_extra_rd_info = 0;
+unsigned int g_rec_num = 0;
 
 module_param(cur_idx, uint, 0644);
-module_param(g_monitor_period, uint, 0644);
-module_param(g_extra_rd_info, uint, 0644);
-
-static int dbg_ddr_monitor_show(struct seq_file *s, void *unused)
-{
-	return 0;
-}
-
-ssize_t ddr_monitor_debug_write(struct file *file, const char __user *buf, size_t size, loff_t *p)
-{
-	char info[255];
-
-	memset(info, 0, 255);
-	if (copy_from_user(info, buf, size))
-		return size;
-
-	pr_info(" %s\n", info);
-	if (!memcmp(info, "ddrstart", 7)) {
-		ddr_monitor_start();
-		return size;
-	} else if (!memcmp(info, "ddrstop", 7)) {
-		ddr_monitor_stop();
-		return size;
-	}
-
-	return size;
-}
-
+module_param(mon_period, uint, 0644);
 
 static int hobot_dfi_disable(struct devfreq_event_dev *edev)
 {
@@ -195,17 +166,17 @@ static int hobot_dfi_get_event(struct devfreq_event_dev *edev,
 				struct devfreq_event_data *edata)
 {
 	unsigned long flags;
-	struct ddr_monitor_result_s* cur_info;
+	struct ddr_mon_rec* cur_info;
 	unsigned long read_cnt = 0;
 	unsigned long write_cnt = 0;
 	unsigned long mwrite_cnt = 0;
 	unsigned long cur_ddr_rate;
 	int cur;
-	void __iomem *clk_reg = ioremap(0xa1000030, 32);
+	void __iomem *clk_reg = NULL;
 
 	spin_lock_irqsave(&ddrmon->lock, flags);
 
-	if (g_record_num <= 0) {
+	if (g_rec_num <= 0) {
 		/* set to max load when not ready*/
 		edata->load_count = 9999;
 		edata->total_count = 10000;
@@ -224,20 +195,18 @@ static int hobot_dfi_get_event(struct devfreq_event_dev *edev,
 
 	cur_info = &ddr_info[cur];
 
-	read_cnt = cur_info->rd_cmd_num * rd_cmd_bytes *
-			(1000000 / g_monitor_period) >> 20;
+	read_cnt = cur_info->rd_cmd_num * rd_cmd_bytes * (1000000 / mon_period) >> 20;
 
-	write_cnt = cur_info->wr_cmd_num * wr_cmd_bytes *
-			(1000000 / g_monitor_period) >> 20;
+	write_cnt = cur_info->wr_cmd_num * wr_cmd_bytes * (1000000 / mon_period) >> 20;
 
-	mwrite_cnt = cur_info->mwr_cmd_num * wr_cmd_bytes *
-			(1000000 / g_monitor_period) >> 20;
+	mwrite_cnt = cur_info->mwr_cmd_num * wr_cmd_bytes * (1000000 / mon_period) >> 20;
 
 	edata->load_count = read_cnt + write_cnt + mwrite_cnt;
 	edata->total_count = (cur_ddr_rate * 4) >> 20;
 
 	spin_unlock_irqrestore(&ddrmon->lock, flags);
 
+	clk_reg = ioremap(0xa1000030, 32);
 	pr_debug("rd:%6ld, wr:%6ld, mwr:%6ld, load:%6ld, total:%6ld, "\
 		"ddr_clk:%4ldMHz, clk_reg:%08x\n",
 		read_cnt, write_cnt, mwrite_cnt, edata->load_count,
@@ -248,130 +217,12 @@ static int hobot_dfi_get_event(struct devfreq_event_dev *edev,
 	return 0;
 }
 
-
 static const struct devfreq_event_ops hobot_dfi_ops = {
 	.disable = hobot_dfi_disable,
 	.enable = hobot_dfi_enable,
 	.get_event = hobot_dfi_get_event,
 	.set_event = hobot_dfi_set_event,
 };
-
-
-static int get_monitor_data(char* buf)
-{
-	int i,j;
-	int start = 0;
-	int cur = 0;
-	int length = 0;
-	volatile int num = 0;
-	unsigned long read_bw = 0;
-	unsigned long write_bw = 0;
-	unsigned long mask_bw = 0;
-
-	if (buf == NULL) {
-		pr_err("%s buf is NULL\n", __func__);
-		return -EINVAL;
-	}
-
-	if (!ddr_info) {
-		pr_err("%s ddr_info is NULL\n", __func__);
-		length += sprintf(buf + length, "ddr_monitor not started \n");
-		return 0;
-	}
-
-	if (g_record_num > 0) {
-
-		num = g_record_num;
-		if (num >= TOTAL_RECORD_NUM)
-			num = TOTAL_RECORD_NUM;
-		start = (cur_idx + TOTAL_RECORD_NUM - num) % TOTAL_RECORD_NUM;
-		g_record_num = 0;
-		for (j = 0; j < num; j++) {
-			cur = (start + j) % TOTAL_RECORD_NUM;
-			length += sprintf(buf + length, "Time %llu ", ddr_info[cur].curtime);
-			length += sprintf(buf + length, "\nRead : ");
-			for (i = 0; i < PORT_NUM; i++)
-			{
-				if (ddr_info[cur].portdata[i].raddr_num) {
-					read_bw = ((unsigned long) ddr_info[cur].portdata[i].rdata_num) *
-						  16 * (1000000 / g_monitor_period) >> 20;
-					length += sprintf(buf + length, "p[%d](bw:%lu stall:%u delay:%u) ", i, \
-						read_bw,\
-						ddr_info[cur].portdata[i].raddr_cyc / ddr_info[cur].portdata[i].raddr_num, \
-						ddr_info[cur].portdata[i].raddr_latency / ddr_info[cur].portdata[i].raddr_num);
-#ifdef CONFIG_HOBOT_XJ3
-					if (g_extra_rd_info) {
-						length += sprintf(buf + length, "(maxRTrans:%u maxRvalid:%u accRtrans:%u minRtrans:%u) ", \
-							ddr_info[cur].portdata[i].max_rtrans_cnt, \
-							ddr_info[cur].portdata[i].max_rvalid_cnt, \
-							ddr_info[cur].portdata[i].acc_rtrans_cnt / ddr_info[cur].portdata[i].waddr_num, \
-							ddr_info[cur].portdata[i].min_rtrans_cnt);
-					}
-#endif
-				} else {
-					length += sprintf(buf + length, "p[%d](bw:%u stall:%u delay:%u) ", i, 0, 0, 0);
-				}
-			}
-			read_bw = ((unsigned long) ddr_info[cur].rd_cmd_num) *
-				  rd_cmd_bytes * (1000000/g_monitor_period) >> 20;
-			length += sprintf(buf + length, "ddrc:%lu MB/s;\n", read_bw);
-			length += sprintf(buf + length, "Write: ");
-			for (i = 0; i < PORT_NUM; i++) {
-				if (ddr_info[cur].portdata[i].waddr_num) {
-					write_bw = ((unsigned long) ddr_info[cur].portdata[i].wdata_num) *
-						    16 * (1000000 / g_monitor_period) >> 20;
-					length += sprintf(buf + length, "p[%d](bw:%lu stall:%u delay:%u) ", i, \
-							write_bw, \
-						ddr_info[cur].portdata[i].waddr_cyc / ddr_info[cur].portdata[i].waddr_num, \
-						ddr_info[cur].portdata[i].waddr_latency / ddr_info[cur].portdata[i].waddr_num);
-#ifdef CONFIG_HOBOT_XJ3
-					if (g_extra_rd_info) {
-						length += sprintf(buf + length, "(maxWTrans:%u maxWready:%u accWtrans:%u minWtrans:%u) ", \
-							ddr_info[cur].portdata[i].max_wtrans_cnt, \
-							ddr_info[cur].portdata[i].max_wready_cnt, \
-							ddr_info[cur].portdata[i].acc_wtrans_cnt / ddr_info[cur].portdata[i].waddr_num, \
-							ddr_info[cur].portdata[i].min_wtrans_cnt);
-					}
-#endif
-				} else {
-					length += sprintf(buf + length, "p[%d](bw:%u stall:%u delay:%u) ", i, 0, 0, 0);
-				}
-			}
-			write_bw = ((unsigned long) ddr_info[cur].wr_cmd_num) *
-				    wr_cmd_bytes * (1000000 / g_monitor_period) >> 20;
-			mask_bw = ((unsigned int) ddr_info[cur].mwr_cmd_num) *
-				    wr_cmd_bytes * (1000000 / g_monitor_period) >> 20;
-			length += sprintf(buf + length, "ddrc %lu MB/s, mask %lu MB/s\n", write_bw, mask_bw);
-			length += sprintf(buf + length, "\n");
-
-		}
-	}
-	return length;
-}
-
-static int dbg_ddr_monitor_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, dbg_ddr_monitor_show, &inode->i_private);
-}
-
-static const struct file_operations debug_fops = {
-	.open = dbg_ddr_monitor_open,
-	.read = seq_read,
-	.write = ddr_monitor_debug_write,
-	.llseek = seq_lseek,
-	.release = single_release,
-};
-
-static int __init ddr_monitor_debuginit(void)
-{
-#ifdef CONFIG_HOBOT_XJ2
-	(void)debugfs_create_file("x2-ddrmonitor", S_IRUGO, NULL, NULL, &debug_fops);
-#else
-	(void)debugfs_create_file("ddrmonitor", S_IRUGO, NULL, NULL, &debug_fops);
-#endif
-
-	return 0;
-}
 
 
 typedef struct _reg_s {
@@ -381,29 +232,36 @@ typedef struct _reg_s {
 
 #define DDR_MONITOR_READ	_IOWR('m', 0, reg_t)
 #define DDR_MONITOR_WRITE	_IOW('m', 1, reg_t)
-#define DDR_MONITOR_CUR	_IOWR('m', 2, struct ddr_monitor_result_s)
-#define DDR_MONITOR_SAMPLE_CONFIG_SET  _IOW('m', 3, ddr_monitor_sample)
+#define DDR_MONITOR_CUR	_IOWR('m', 2, struct ddr_mon_rec)
+#define DDR_MONITOR_SAMPLE_CONFIG_SET  _IOW('m', 3, ddr_mon_cfg)
 
-static int ddr_monitor_mod_open(struct inode *pinode, struct file *pfile)
+static int ddr_monitor_open(struct inode *pinode, struct file *pfile)
 {
 	pr_debug("\n");
 
 	if (ddrmon && !ddr_info) {
-		ddr_info = vmalloc(sizeof(struct ddr_monitor_result_s) * TOTAL_RECORD_NUM);
+		/* allocate double size, below half for ddr_info bouncing buffer */
+		ddr_info = vmalloc(sizeof(struct ddr_mon_rec) * TOTAL_RECORD_NUM * 2);
 		if (ddr_info == NULL) {
 			pr_err("failed to allocate ddr_info buffer, size:%lx\n",
-				sizeof(struct ddr_monitor_result_s) * TOTAL_RECORD_NUM);
+				sizeof(struct ddr_mon_rec) * TOTAL_RECORD_NUM * 2);
 			return -ENOMEM;
 		}
-		result_buf = ddrmon->res_vaddr;
+
+		/*
+		 * we have to use a boucing buffer since ddr_info can't be copied to used
+		 * in atomic context in ddr_monitor_read.
+		 */
+		ddr_info_bc = ddr_info + TOTAL_RECORD_NUM;
+
 		cur_idx = 0;
-		g_record_num = 0;
+		g_rec_num = 0;
 	}
 
 	return 0;
 }
 
-static int ddr_monitor_mod_release(struct inode *pinode, struct file *pfile)
+static int ddr_monitor_release(struct inode *pinode, struct file *pfile)
 {
 	pr_debug("\n");
 
@@ -412,40 +270,55 @@ static int ddr_monitor_mod_release(struct inode *pinode, struct file *pfile)
 	return 0;
 }
 
-static ssize_t ddr_monitor_mod_read(struct file *pfile, char *puser_buf, size_t len, loff_t *poff)
+static ssize_t ddr_monitor_read(struct file *pfile, char *puser_buf, size_t len, loff_t *poff)
 {
-	int result_len = 0;
 	unsigned long flags;
+	int ret;
+	int offset = 0;
+	int rec_num;
 
-	/* When reading in multiple processes, g_record_num could be 0 after
-	 * wakeup, retry to wait for refilling ddr_info buffer
-	 */
-retry:
-	wait_event_interruptible(ddrmon->wq_head,
-					g_record_num >= g_sample_number);
+	wait_event_interruptible(ddrmon->wq_head, g_rec_num >= g_sample_number);
 
 	spin_lock_irqsave(&ddrmon->lock, flags);
-	result_len = get_monitor_data(result_buf);
-	spin_unlock_irqrestore(&ddrmon->lock, flags);
-	if (result_len == 0)
-		goto retry;
 
-	return result_len;
+	if (cur_idx >= g_sample_number) {
+		memcpy(ddr_info_bc, &ddr_info[cur_idx - g_sample_number],
+			g_sample_number * sizeof(struct ddr_mon_rec));
+	} else {
+		offset = (g_sample_number - cur_idx) * sizeof(struct ddr_mon_rec);
+		memcpy((void *)ddr_info_bc, &ddr_info[TOTAL_RECORD_NUM - (g_sample_number - cur_idx)], offset);
+
+		memcpy((void *)ddr_info_bc + offset, &ddr_info[0], cur_idx * sizeof(struct ddr_mon_rec));
+	}
+	rec_num = g_sample_number;
+	g_rec_num = 0;
+	spin_unlock_irqrestore(&ddrmon->lock, flags);
+
+	ret = copy_to_user(puser_buf, ddr_info_bc, rec_num * sizeof(struct ddr_mon_rec));
+	if (ret) {
+		pr_err("%s:%d copy to user error :%d\n", __func__, __LINE__, ret);
+		return -EFAULT;
+	}
+	ret = rec_num * sizeof(struct ddr_mon_rec);
+
+	return ret;
 }
 
-static ssize_t ddr_monitor_mod_write(struct file *pfile, const char *puser_buf, size_t len, loff_t *poff)
+static ssize_t ddr_monitor_write(struct file *pfile, const char *puser_buf, size_t len, loff_t *poff)
 {
 	pr_debug("\n");
 
 	return 0;
 }
 
-static long ddr_monitor_mod_ioctl(struct file *pfile, unsigned int cmd, unsigned long arg)
+static long ddr_monitor_ioctl(struct file *pfile, unsigned int cmd, unsigned long arg)
 {
 	void __iomem *iomem = ddrmon->regaddr;
-	reg_t reg;
 	unsigned int temp = 0;
-	ddr_monitor_sample sample_config;
+	int cur = 0;
+	reg_t reg;
+
+	ddr_mon_cfg sample_config;
 	sample_config.sample_period = 1;
 	sample_config.sample_number = 50;
 
@@ -482,17 +355,14 @@ static long ddr_monitor_mod_ioctl(struct file *pfile, unsigned int cmd, unsigned
 		writel(reg.value, iomem + reg.offset );
 		break;
 	case DDR_MONITOR_CUR:
-		{
-			int cur = 0;
-			if (!arg) {
-				pr_err("get cur error\n");
-				return -EINVAL;
-			}
-			cur  = (cur_idx - 1 + TOTAL_RECORD_NUM) % TOTAL_RECORD_NUM;
-			if ( copy_to_user((void __user *)arg, (void *)(ddr_info + cur), sizeof(struct ddr_monitor_result_s)) ) {
-				pr_err("get cur error, copy data to user failed\n");
-				return -EINVAL;
-			}
+		if (!arg) {
+			pr_err("get cur error\n");
+			return -EINVAL;
+		}
+		cur  = (cur_idx - 1 + TOTAL_RECORD_NUM) % TOTAL_RECORD_NUM;
+		if ( copy_to_user((void __user *)arg, (void *)(ddr_info + cur), sizeof(struct ddr_mon_rec)) ) {
+			pr_err("get cur error, copy data to user failed\n");
+			return -EINVAL;
 		}
 		break;
 	case DDR_MONITOR_SAMPLE_CONFIG_SET:
@@ -502,7 +372,7 @@ static long ddr_monitor_mod_ioctl(struct file *pfile, unsigned int cmd, unsigned
 			return -EINVAL;
 		}
 		if (copy_from_user((void *)&sample_config,
-					(void __user *)arg, sizeof(ddr_monitor_sample))) {
+					(void __user *)arg, sizeof(ddr_mon_cfg))) {
 			dev_err(&ddrmon->pdev->dev,
 					"sampletime set copy_from_user failed\n");
 			return -EINVAL;
@@ -510,7 +380,9 @@ static long ddr_monitor_mod_ioctl(struct file *pfile, unsigned int cmd, unsigned
 		/* sample_period's unit is ms */
 		temp = sample_config.sample_period;
 		g_sample_number = sample_config.sample_number;
-		g_monitor_period = temp * 1000;
+		if (g_sample_number > TOTAL_RECORD_NUM)
+			g_sample_number = TOTAL_RECORD_NUM;
+		mon_period = temp * 1000;
 		ddr_monitor_start();
 
 		break;
@@ -535,14 +407,14 @@ int ddr_monitor_mmap(struct file *filp, struct vm_area_struct *pvma)
 	return 0;
 }
 
-struct file_operations ddr_monitor_mod_fops = {
+struct file_operations ddr_monitor_fops = {
 	.owner			= THIS_MODULE,
 	.mmap 			= ddr_monitor_mmap,
-	.open			= ddr_monitor_mod_open,
-	.read			= ddr_monitor_mod_read,
-	.write			= ddr_monitor_mod_write,
-	.release		= ddr_monitor_mod_release,
-	.unlocked_ioctl = ddr_monitor_mod_ioctl,
+	.open			= ddr_monitor_open,
+	.read			= ddr_monitor_read,
+	.write			= ddr_monitor_write,
+	.release		= ddr_monitor_release,
+	.unlocked_ioctl = ddr_monitor_ioctl,
 };
 
 int ddr_monitor_cdev_create(void)
@@ -566,7 +438,7 @@ int ddr_monitor_cdev_create(void)
 	if (ret < 0)
 		return ret;
 
-	cdev_init(&ddrmon->cdev, &ddr_monitor_mod_fops);
+	cdev_init(&ddrmon->cdev, &ddr_monitor_fops);
 	ddrmon->cdev.owner	= THIS_MODULE;
 
 	cdev_add(&ddrmon->cdev, ddrmon->dev_num, 1);
@@ -592,16 +464,24 @@ int ddr_monitor_start(void)
 	pr_debug("%s: ddrmon->refcnt :%d\n", __func__, ddrmon->refcnt);
 
 	if (!ddr_info) {
-		ddr_info = vmalloc(sizeof(struct ddr_monitor_result_s) * TOTAL_RECORD_NUM);
-		result_buf = ddrmon->res_vaddr;
+		/* allocate double size, below half for ddr_info bouncing buffer */
+		ddr_info = vmalloc(sizeof(struct ddr_mon_rec) * TOTAL_RECORD_NUM * 2);
+		if (ddr_info == NULL) {
+			pr_err("failed to allocate ddr_info buffer, size:%lx\n",
+				sizeof(struct ddr_mon_rec) * TOTAL_RECORD_NUM * 2);
+			return -ENOMEM;
+		}
+
+		ddr_info_bc = ddr_info + TOTAL_RECORD_NUM;
+
 		cur_idx = 0;
-		g_record_num = 0;
+		g_rec_num = 0;
 	}
 
 	writel(0xFFF, ddrmon->regaddr + PERF_MONITOR_ENABLE);
 	writel(0x1, ddrmon->regaddr + PERF_MONITOR_ENABLE_UNMASK);
-	pr_info("set PERF_MONITOR_PERIOD to %dms\n", g_monitor_period/1000);
-	writel((SYS_PCLK_HZ /1000000) * g_monitor_period, ddrmon->regaddr + PERF_MONITOR_PERIOD);
+	pr_info("set PERF_MONITOR_PERIOD to %dms\n", mon_period/1000);
+	writel((SYS_PCLK_HZ /1000000) * mon_period, ddrmon->regaddr + PERF_MONITOR_PERIOD);
 	ddrmon->refcnt++;
 
 	return 0;
@@ -623,7 +503,6 @@ int ddr_monitor_stop(void)
 		writel(0, ddrmon->regaddr + PERF_MONITOR_ENABLE);
 		writel(0x1, ddrmon->regaddr + PERF_MONITOR_ENABLE_SETMASK);
 		vfree(ddr_info);
-		result_buf = NULL;
 		ddr_info = NULL;
 		return 0;
 	} else {
@@ -652,17 +531,15 @@ int ddr_get_port_status(void)
 		ddr_info[cur_idx].portdata[i].raddr_latency = readl(ddrmon->regaddr + MP_BASE_RA2LSTRD_LATENCY + step);
 
 #ifdef CONFIG_HOBOT_XJ3
-		if (g_extra_rd_info) {
-			ddr_info[cur_idx].portdata[i].max_rtrans_cnt = readl(ddrmon->regaddr + MP_BASE_MAX_RTRANS_CNT + step);
-			ddr_info[cur_idx].portdata[i].max_rvalid_cnt = readl(ddrmon->regaddr + MP_BASE_MAX_RVALID_CNT + step);
-			ddr_info[cur_idx].portdata[i].acc_rtrans_cnt = readl(ddrmon->regaddr + MP_BASE_ACC_RTRANS_CNT + step);
-			ddr_info[cur_idx].portdata[i].min_rtrans_cnt = readl(ddrmon->regaddr + MP_BASE_MIN_RTRANS_CNT + step);
+		ddr_info[cur_idx].portdata[i].max_rtrans_cnt = readl(ddrmon->regaddr + MP_BASE_MAX_RTRANS_CNT + step);
+		ddr_info[cur_idx].portdata[i].max_rvalid_cnt = readl(ddrmon->regaddr + MP_BASE_MAX_RVALID_CNT + step);
+		ddr_info[cur_idx].portdata[i].acc_rtrans_cnt = readl(ddrmon->regaddr + MP_BASE_ACC_RTRANS_CNT + step);
+		ddr_info[cur_idx].portdata[i].min_rtrans_cnt = readl(ddrmon->regaddr + MP_BASE_MIN_RTRANS_CNT + step);
 
-			ddr_info[cur_idx].portdata[i].max_wtrans_cnt = readl(ddrmon->regaddr + MP_BASE_MAX_WTRANS_CNT + step);
-			ddr_info[cur_idx].portdata[i].max_wready_cnt = readl(ddrmon->regaddr + MP_BASE_MAX_WREADY_CNT + step);
-			ddr_info[cur_idx].portdata[i].acc_wtrans_cnt = readl(ddrmon->regaddr + MP_BASE_ACC_WTRANS_CNT + step);
-			ddr_info[cur_idx].portdata[i].min_wtrans_cnt = readl(ddrmon->regaddr + MP_BASE_MIN_WTRANS_CNT + step);
-		}
+		ddr_info[cur_idx].portdata[i].max_wtrans_cnt = readl(ddrmon->regaddr + MP_BASE_MAX_WTRANS_CNT + step);
+		ddr_info[cur_idx].portdata[i].max_wready_cnt = readl(ddrmon->regaddr + MP_BASE_MAX_WREADY_CNT + step);
+		ddr_info[cur_idx].portdata[i].acc_wtrans_cnt = readl(ddrmon->regaddr + MP_BASE_ACC_WTRANS_CNT + step);
+		ddr_info[cur_idx].portdata[i].min_wtrans_cnt = readl(ddrmon->regaddr + MP_BASE_MIN_WTRANS_CNT + step);
 #endif
 		ddr_info[cur_idx].portdata[i].waddr_num = readl(ddrmon->regaddr + MP_BASE_WADDR_TX_NUM + step);
 		ddr_info[cur_idx].portdata[i].wdata_num = readl(ddrmon->regaddr + MP_BASE_WDATA_TX_NUM + step);
@@ -682,13 +559,12 @@ int ddr_get_port_status(void)
 	ddr_info[cur_idx].per_cmd_num = readl(ddrmon->regaddr + PERCHARGE_CMD_TX_NUM);
 	ddr_info[cur_idx].per_cmd_rdwr_num = readl(ddrmon->regaddr + PERCHARGE_CMD_FOR_RDWR_TX_NUM);
 
-
-	//ddr_info[cur_idx].curtime = jiffies;
 	cur_idx = (cur_idx + 1) % TOTAL_RECORD_NUM;
-	g_record_num ++;
+	g_rec_num++;
 
-	if (g_record_num >= g_sample_number)
+	if (g_rec_num >= g_sample_number)
 		wake_up_interruptible(&ddrmon->wq_head);
+
 	return 0;
 }
 
@@ -1527,13 +1403,7 @@ static int ddr_monitor_probe(struct platform_device *pdev)
 		return PTR_ERR(ddrmon->edev);
 	}
 
-	ddrmon->res_vaddr = kmalloc(TOTAL_RESULT_SIZE, GFP_KERNEL);
-	if (ddrmon->res_vaddr == NULL) {
-		dev_err(&pdev->dev, "memory alloc fail\n");
-		return -1;
-	}
 	platform_set_drvdata(pdev, ddrmon);
-	ddr_monitor_debuginit();
 	ddr_monitor_cdev_create();
 	init_waitqueue_head(&ddrmon->wq_head);
 	spin_lock_init(&ddrmon->lock);
