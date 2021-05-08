@@ -693,7 +693,7 @@
 			compatible = "hobot,endiv-clk";
 			clocks = <&iar_pix_1stdiv_clk>;
 			offset = <0x240 0x140 0x144 0x148 0x248 0x310>;
-			bits = <21 2 2 2 2 12>;
+			bits = <21 2 2 2 1 12>;
 			field = <3 1 1 1 1 1>;
 			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
