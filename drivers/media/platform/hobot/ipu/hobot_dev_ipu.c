@@ -3171,6 +3171,79 @@ int ipu_init_end(struct ipu_video_ctx *ipu_ctx, int instance)
 	return ret;
 }
 
+void ipu_recalc_addr_by_roi(struct vio_frame *frame,
+		ipu_roi_box_t *roi_info, u16 tgt_stride)
+{
+	struct frame_info *frameinfo = &frame->frameinfo;
+
+	frameinfo->addr[0] = frameinfo->addr_org[0] +
+		roi_info->start_y * tgt_stride + roi_info->start_x;
+	frameinfo->addr[1] = frameinfo->addr_org[1] +
+		(roi_info->start_y * tgt_stride) / 2 + roi_info->start_x;
+
+	vio_dbg("%s frameinfo addr0:0x%x addr1:0x%x\n", __func__,
+			frameinfo->addr[0], frameinfo->addr[1]);
+}
+
+int ipu_set_splice_info(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
+{
+	int ret;
+	struct ipu_subdev *subdev = NULL;
+	ipu_splice_info_t splice_info;
+	struct ipu_info_cfg ipu_info;
+	struct vio_group *group = ipu_ctx->group;
+	u32 instance = group->instance;
+	struct vio_framemgr *framemgr;
+	struct vio_frame *frame;
+	unsigned long flags;
+
+	ret = copy_from_user((void *)&splice_info, (u32 __user *) arg,
+		sizeof(ipu_splice_info_t));
+	if (ret)
+		return ret;
+
+	subdev = ipu_ctx->subdev;
+	memcpy(&ipu_info.sc_info, &splice_info.sc_info,
+			sizeof(ipu_ds_info_t));
+	ipu_info.info_update = 1;
+	framemgr = subdev->ctx[0]->framemgr;
+
+	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	memcpy(&subdev->info_cfg, &ipu_info,
+			sizeof(struct ipu_info_cfg));
+	if (!splice_info.first) {
+		frame = peek_frame(framemgr, FS_COMPLETE);
+		if (frame) {
+			ipu_recalc_addr_by_roi(frame, &splice_info.roi_info,
+				splice_info.tgt_stride);
+			/*
+			 * if not first, need trans complete buf to
+			 * req queue for process again
+			 */
+			ipu_ctx->event = 0;
+			trans_frame(framemgr, frame, FS_REQUEST);
+		} else {
+			vio_err("[S%d][V%d] %s complete no buf, can't process again\n",
+					instance, ipu_ctx->id, __func__);
+		}
+	}
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
+
+	vio_dbg("[S%d][V%d] %s tgt_stride%d first%d last%d roi %d %d %d %d"
+		" scale: tgt w%d h%d step x%d y%d pre scale x%d y%d\n",
+		instance, ipu_ctx->id, __func__, splice_info.tgt_stride,
+		splice_info.first, splice_info.last, splice_info.roi_info.start_x,
+		splice_info.roi_info.start_y, splice_info.roi_info.width,
+		splice_info.roi_info.height, splice_info.sc_info.ds_sc_info.tgt_width,
+		splice_info.sc_info.ds_sc_info.tgt_height,
+		splice_info.sc_info.ds_sc_info.step_x,
+		splice_info.sc_info.ds_sc_info.step_y,
+		splice_info.sc_info.ds_sc_info.pre_scale_x,
+		splice_info.sc_info.ds_sc_info.pre_scale_y);
+
+	return 0;
+}
+
 static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 			  unsigned long arg)
 {
@@ -3326,6 +3399,9 @@ static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 		break;
 	case IPU_IOC_WAIT_INIT:
 		ret = ipu_wait_init(ipu_ctx, arg);
+		break;
+	case IPU_IOC_SPLICE_INFO:
+		ret = ipu_set_splice_info(ipu_ctx, arg);
 		break;
 	default:
 		vio_err("wrong ioctl command\n");

@@ -131,6 +131,7 @@ struct frame_info {
 	u32 dynamic_flag;
 	struct special_buffer spec;
 	int ion_share_fd[3];
+	u32 addr_org[8];
 };
 
 struct vio_frame {

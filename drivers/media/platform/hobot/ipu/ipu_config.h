@@ -117,4 +117,13 @@ typedef struct ipu_cfg_s {
 	ipu_us_info_t us_info;
 	ipu_ds_info_t ds_info[MAX_DS_NUM];
 } ipu_cfg_t;
+
+typedef struct ipu_splice_info_s {
+	ipu_ds_info_t sc_info;
+	ipu_roi_box_t roi_info;
+	u16 tgt_stride;
+	u16 first;
+	u16 last;
+} ipu_splice_info_t;
+
 #endif
