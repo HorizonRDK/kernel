@@ -30,6 +30,7 @@ struct dwc3_of_simple {
 	struct reset_control	*resets;
 	bool			need_reset;
 	struct regulator	*vdd08;		/* usb 0v8 */
+	struct regulator	*vdd33;		/* usb 3v3 */
 };
 
 static int dwc3_of_simple_probe(struct platform_device *pdev)
@@ -48,11 +49,11 @@ static int dwc3_of_simple_probe(struct platform_device *pdev)
 	simple->dev = dev;
 
 	if (of_device_is_compatible(np, "hobot,sunrise3-dwc3")) {
-		/* get & enable regulator */
+		/* get & enable 0v8 regulator */
 		simple->vdd08 = devm_regulator_get(dev, "usb_0v8");
 
 		if (IS_ERR(simple->vdd08)) { /* PRQA S ALL */
-			dev_info(dev, "failed to get usb regulator.\n");
+			dev_info(dev, "failed to get usb regulator 0v8.\n");
 
 			simple->vdd08 = NULL;
 			ret = -EPROBE_DEFER;	/* add to deferred list for retry */
@@ -61,10 +62,28 @@ static int dwc3_of_simple_probe(struct platform_device *pdev)
 
 		ret = regulator_enable(simple->vdd08);
 		if (ret) {
-			dev_err(dev, "usb regulator enable error\n");
+			dev_err(dev, "usb regulator 0v8 enable error\n");
 			goto regulator_fail;
 		}
-		dev_info(dev, "usb regulator enable succeed\n");
+		dev_info(dev, "usb regulator 0v8 enable succeed\n");
+
+		/* get & enable 3v3 regulator */
+		simple->vdd33 = devm_regulator_get(dev, "usb_3v3");
+
+		if (IS_ERR(simple->vdd33)) { /* PRQA S ALL */
+			dev_info(dev, "failed to get usb regulator 3v3.\n");
+
+			simple->vdd33 = NULL;
+			ret = -EPROBE_DEFER;	/* add to deferred list for retry */
+			goto regulator_fail;
+		}
+
+		ret = regulator_enable(simple->vdd33);
+		if (ret) {
+			dev_err(dev, "usb regulator 3v3 enable error\n");
+			goto regulator_fail;
+		}
+		dev_info(dev, "usb regulator 3v3 enable succeed\n");
 
 		/* need to reset dwc3 controller */
 		simple->need_reset = true;
@@ -142,9 +161,22 @@ static void __dwc3_of_simple_teardown(struct dwc3_of_simple *simple,
 	 * uboot regulator not ready, just reset but don't power off.
 	 * otherwise, reboot fastboot/dfu/ufu will be failed.
 	 */
-	if (simple->vdd08 && need_poweroff) {
-		if (regulator_disable(simple->vdd08))
-			dev_err(simple->dev, "usb regulator disable error\n");
+	if (need_poweroff) {
+		/* teardown dwc3 0v8 power */
+		if (simple->vdd08) {
+			if (regulator_disable(simple->vdd08))
+				dev_err(simple->dev, "usb regulator 0v8 disable error\n");
+			else
+				dev_info(simple->dev, "usb regulator 0v8 disabled\n");
+		}
+
+		/* teardown dwc3 3v3 power */
+		if (simple->vdd33) {
+			if (regulator_disable(simple->vdd33))
+				dev_err(simple->dev, "usb regulator 3v3 disable error\n");
+			else
+				dev_info(simple->dev, "usb regulator 3v3 disabled\n");
+		}
 	}
 }
 
