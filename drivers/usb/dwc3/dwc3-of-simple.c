@@ -121,7 +121,8 @@ regulator_fail:
 	return ret;
 }
 
-static void __dwc3_of_simple_teardown(struct dwc3_of_simple *simple)
+static void __dwc3_of_simple_teardown(struct dwc3_of_simple *simple,
+		bool need_poweroff)
 {
 	of_platform_depopulate(simple->dev);
 
@@ -141,19 +142,17 @@ static void __dwc3_of_simple_teardown(struct dwc3_of_simple *simple)
 	 * uboot regulator not ready, just reset but don't power off.
 	 * otherwise, reboot fastboot/dfu/ufu will be failed.
 	 */
-#if 0
-	if (simple->vdd08) {
+	if (simple->vdd08 && need_poweroff) {
 		if (regulator_disable(simple->vdd08))
 			dev_err(simple->dev, "usb regulator disable error\n");
 	}
-#endif
 }
 
 static int dwc3_of_simple_remove(struct platform_device *pdev)
 {
 	struct dwc3_of_simple	*simple = platform_get_drvdata(pdev);
 
-	__dwc3_of_simple_teardown(simple);
+	__dwc3_of_simple_teardown(simple, true);
 
 	return 0;
 }
@@ -162,7 +161,11 @@ static void dwc3_of_simple_shutdown(struct platform_device *pdev)
 {
 	struct dwc3_of_simple	*simple = platform_get_drvdata(pdev);
 
-	__dwc3_of_simple_teardown(simple);
+	/*
+	 * power off just for driver remove case, but don't for shutdown case,
+	 * otherwise, reboot fastboot/ums/ufu won't work, as usb power is off.
+	 */
+	__dwc3_of_simple_teardown(simple, false);
 }
 
 static int __maybe_unused dwc3_of_simple_runtime_suspend(struct device *dev)
