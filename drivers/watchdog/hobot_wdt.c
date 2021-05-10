@@ -42,11 +42,15 @@ static int wdt_timeout;
 static int wdt_timeleft;
 static int nowayout = WATCHDOG_NOWAYOUT;
 static u64 timer_rate;
-static int kthread_disabled = 1;
 static int panic_on_bark;
 static int on_panic;
 static int do_ipi_ping = 1;
 
+#ifdef CONFIG_HOBOT_WATCHDOG_ENABLE
+static int kthread_disabled = 0;
+#else
+static int kthread_disabled = 1;
+#endif
 
 module_param(nowayout, int, 0644);
 module_param(panic_on_bark, int, 0644);

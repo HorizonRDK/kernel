@@ -795,6 +795,12 @@ config HOBOT_WATCHDOG
 	  Say Y here to include support for the watchdog timer
 	  in HOBOT SoCs.
 
+config HOBOT_WATCHDOG_ENABLE
+	bool "Enable Hobot SoC's HW watchdog"
+	depends on HOBOT_WATCHDOG
+	help
+	  Say Y here to enable hw watchdog
+
 config HOBOT_WATCHDOG_TEST
 	tristate "Hobot watchdog test module"
 	depends on ARCH_HOBOT
