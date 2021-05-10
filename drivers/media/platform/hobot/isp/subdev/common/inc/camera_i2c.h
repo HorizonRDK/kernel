@@ -14,6 +14,8 @@
 #ifndef DRIVERS_MEDIA_PLATFORM_HOBOT_ISP_SUBDEV_COMMON_INC_CAMERA_I2C_H_
 #define DRIVERS_MEDIA_PLATFORM_HOBOT_ISP_SUBDEV_COMMON_INC_CAMERA_I2C_H_
 
+#define CAM_I2C_RETRY_MAX	3
+
 int camera_i2c_release(uint32_t port);
 int camera_i2c_open(uint32_t port, uint32_t i2c_bus,
 			char *sensor_name, uint32_t sensor_addr);

@@ -145,7 +145,8 @@ static long camera_subdev_ioctl(struct v4l2_subdev *sd,
                         ARGS_TO_PTR(arg)->address,
                         ARGS_TO_PTR(arg)->w_data);
 		if(ret < 0) {
-		    pr_err("camera_sys_sensor_write error port%d\n", ARGS_TO_PTR(arg)->port);
+		    pr_err("camera_sys_sensor_write error port%d address 0x%x\n",
+				ARGS_TO_PTR(arg)->port, ARGS_TO_PTR(arg)->address);
 		}
 		break;
 	case SENSOR_READ:
@@ -153,7 +154,8 @@ static long camera_subdev_ioctl(struct v4l2_subdev *sd,
                         ARGS_TO_PTR(arg)->address,
                         ARGS_TO_PTR(arg)->r_data);
 		if(ret < 0) {
-		    pr_err("camera_sys_sensor_read error port%d\n", ARGS_TO_PTR(arg)->port);
+		    pr_err("camera_sys_sensor_read error port%d, address 0x%x\n",
+				ARGS_TO_PTR(arg)->port, ARGS_TO_PTR(arg)->address);
 		}
 		break;
 	case SENSOR_ALLOC_ANALOG_GAIN:

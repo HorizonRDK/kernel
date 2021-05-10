@@ -771,8 +771,16 @@ int camera_sys_write(uint32_t port, uint32_t reg_addr,
 
 	if(camera_mod[port]->camera_param.bus_type == I2C_BUS) {
 		ret = camera_i2c_write(port, reg_addr, reg_width, buf, length);
+		if(ret < 0) {
+		pr_err("[%d] port %d reg_addr 0x%x reg_width %d length %d error!",
+			__LINE__, port, reg_addr, reg_width, length);
+		}
 	} else if (camera_mod[port]->camera_param.bus_type == SPI_BUS) {
 		ret = camera_spi_write(port, chip_id, reg_width, reg_addr, buf, length);
+		if(ret < 0) {
+		pr_err("[%d] port %d chip_id %d reg_addr 0x%x reg_width %d length %d error!",
+			__LINE__, port, chip_id, reg_addr, reg_width, length);
+		}
 	}
 
 	return ret;
@@ -849,6 +857,11 @@ static int camera_sys_set_normal_gain(uint32_t port, uint32_t *input_gain,
 		s_gain = camera_mod[port]->camera_param.normal.again_control[i];
 		camera_trans_value(&input_gain[i], a_gain);
 		ret = camera_sys_write(port, s_gain, reg_width, a_gain, s_gain_length);
+		if(ret < 0) {
+			pr_err("%d] port %d s_gain 0x%x a_gain: 0x%x 0x%x 0x%x error!",
+				__LINE__, port, s_gain, a_gain[0], a_gain[1], a_gain[2]);
+			return ret;
+		}
 	}
 
 	for (i = 0; i < camera_mod[port]->
@@ -859,6 +872,10 @@ static int camera_sys_set_normal_gain(uint32_t port, uint32_t *input_gain,
 		s_gain = camera_mod[port]->camera_param.normal.dgain_control[i];
 		camera_trans_value(&dinput_gain[i], a_gain);
 		ret = camera_sys_write(port, s_gain, reg_width, a_gain, s_gain_length);
+		if(ret < 0) {
+			pr_err("[%d] port %d s_gain 0x%x a_gain: 0x%x 0x%x 0x%x error!",
+				__LINE__, port, s_gain, a_gain[0], a_gain[1], a_gain[2]);
+		}
 	}
 
     return ret;
@@ -876,7 +893,10 @@ static int camera_sys_set_normal_line(uint32_t port, uint32_t *input_line)
 
 	camera_trans_value(input_line, line_d);
 	ret = camera_sys_write(port, s_line, reg_width, line_d, s_line_length);
-
+	if(ret < 0) {
+		pr_err("[%d] port %d s_line 0x%x line_d: 0x%x 0x%x 0x%x error!",
+			__LINE__, port, s_line, line_d[0], line_d[1], line_d[2]);
+	}
 	return ret;
 }
 
@@ -895,6 +915,11 @@ static int camera_sys_set_dol2_gain(uint32_t port, uint32_t gain_num,
 		s_gain = camera_mod[port]->camera_param.dol2.again_control[i];
 		camera_trans_value(&input_gain[i], a_gain);
 		ret = camera_sys_write(port, s_gain, reg_width, a_gain, s_gain_length);
+		if(ret < 0) {
+		pr_err("[%d] ret %d port %d s_gain 0x%x a_gain: 0x%x 0x%x 0x%x error!",
+			__LINE__, ret, port, s_gain, a_gain[0], a_gain[1], a_gain[2]);
+			return ret;
+		}
 	}
 
 	for (i = 0; i < camera_mod[port]->
@@ -904,6 +929,11 @@ static int camera_sys_set_dol2_gain(uint32_t port, uint32_t gain_num,
 		s_gain = camera_mod[port]->camera_param.dol2.dgain_control[i];
 		camera_trans_value(&dinput_gain[i], a_gain);
 		ret = camera_sys_write(port, s_gain, reg_width, a_gain, s_gain_length);
+		if(ret < 0) {
+		pr_err("[%d] ret %d port %d s_gain 0x%x a_gain: 0x%x 0x%x 0x%x error!",
+			__LINE__, ret, port, s_gain, a_gain[0], a_gain[1], a_gain[2]);
+			return ret;
+		}
 	}
 
 	return ret;
@@ -927,9 +957,19 @@ static int camera_sys_set_dol2_line(uint32_t port, uint32_t gain_num,
 		case 2:  // m_line
 			camera_trans_value(&input_line[1], line_d);
 			ret = camera_sys_write(port, m_line, reg_width, line_d, m_line_length);
+			if(ret < 0) {
+			pr_err("[%d]ret %d port %d m_line 0x%x line_d: 0x%x 0x%x 0x%x error!",
+				__LINE__, ret, port, m_line, line_d[0], line_d[1], line_d[2]);
+				return ret;
+			}
 		case 1:  // s_line
 			camera_trans_value(input_line, line_d);
 			ret = camera_sys_write(port, s_line, reg_width, line_d, s_line_length);
+			if(ret < 0) {
+			pr_err("[%d] ret %d port %d s_line 0x%x line_d: 0x%x 0x%x 0x%x error!",
+				__LINE__, ret, port, s_line, line_d[0], line_d[1], line_d[2]);
+				return ret;
+			}
 			break;
 		default:
 			break;
@@ -953,6 +993,11 @@ static int camera_sys_set_dol3_gain(uint32_t port, uint32_t gain_num,
 		s_gain = camera_mod[port]->camera_param.dol3.again_control[i];
 		camera_trans_value(&input_gain[i], gain_d);
 		ret = camera_sys_write(port, s_gain, reg_width, gain_d, s_gain_length);
+		if(ret < 0) {
+		pr_err("[%d] ret %d port %d s_gain 0x%x gain_d: 0x%x 0x%x 0x%x error!",
+			__LINE__, ret, port, s_gain, gain_d[0], gain_d[1], gain_d[2]);
+			return ret;
+		}
 	}
 
 	for (i = 0; i < camera_mod[port]->
@@ -962,6 +1007,11 @@ static int camera_sys_set_dol3_gain(uint32_t port, uint32_t gain_num,
 		s_gain = camera_mod[port]->camera_param.dol3.dgain_control[i];
 		camera_trans_value(&dinput_gain[i], gain_d);
 		ret = camera_sys_write(port, s_gain, reg_width, gain_d, s_gain_length);
+		if(ret < 0) {
+		pr_err("[%d] ret %d port %d s_gain 0x%x gain_d: 0x%x 0x%x 0x%x error!",
+			__LINE__, ret, port, s_gain, gain_d[0], gain_d[1], gain_d[2]);
+			return ret;
+		}
 	}
 
 	return ret;
@@ -986,12 +1036,27 @@ static int camera_sys_set_dol3_line(uint32_t port, uint32_t gain_num,
 		case 3:  // l_line
 			camera_trans_value(&input_line[2], line_d);
 			ret = camera_sys_write(port, l_line, reg_width, line_d, l_line_length);
+			if(ret < 0) {
+			pr_err("[%d] ret %d port %d l_line 0x%x line_d: 0x%x 0x%x 0x%x error!",
+				__LINE__, ret, port, l_line, line_d[0], line_d[1], line_d[2]);
+				return ret;
+			}
 		case 2:  // m_line
 			camera_trans_value(&input_line[1], line_d);
 			ret = camera_sys_write(port, m_line, reg_width, line_d, m_line_length);
+			if(ret < 0) {
+			pr_err("[%d] ret %d port %d m_line 0x%x line_d: 0x%x 0x%x 0x%x error!",
+				__LINE__, ret, port, m_line, line_d[0], line_d[1], line_d[2]);
+				return ret;
+			}
 		case 1:  // s_line
 			camera_trans_value(input_line, line_d);
 			ret = camera_sys_write(port, s_line, reg_width, line_d, s_line_length);
+			if(ret < 0) {
+			pr_err("[%d] ret %d port %d s_line 0x%x line_d: 0x%x 0x%x 0x%x error!",
+				__LINE__, ret, port, s_line, line_d[0], line_d[1], line_d[2]);
+				return ret;
+			}
 			break;
 		default:
 			break;
@@ -1046,11 +1111,20 @@ static int camera_sys_set_pwl_line(uint32_t port, uint32_t line_num,
 					line_data[0], line_data[1]);
 				ret = camera_sys_write(port, l_line_addr, reg_width,
 						line_data, l_line_length);
+				if(ret < 0) {
+				pr_err("[%d] ret %d port %d l_line_addr 0x%x line_data:0x%x 0x%x 0x%x error!",
+					__LINE__, ret, port, l_line_addr, line_data[0], line_data[1], line_data[2]);
+					return ret;
+				}
 			}
 			camera_trans_value(&input_line[0], line_data);
 			pr_debug("input_line[0] 0x%x input_line[1] 0x%x\n",
 					line_data[0], line_data[1]);
 			ret = camera_sys_write(port, line_addr, reg_width, line_data, line_length);
+			if(ret < 0) {
+			pr_err("[%d] ret %d port %d line_addr 0x%x line_data:0x%x 0x%x 0x%x error!",
+				__LINE__, ret, port, line_addr, line_data[0], line_data[1], line_data[2]);
+			}
 		default:
 			break;
 	}
@@ -1072,6 +1146,11 @@ static int camera_sys_set_pwl_gain(uint32_t port, uint32_t gain_num,
 		gain_addr = camera_mod[port]->camera_param.pwl.again_control[i];
 		camera_trans_value(&input_gain[i], gain_data);
 		ret = camera_sys_write(port, gain_addr, reg_width, gain_data, gain_length);
+		if(ret < 0) {
+		pr_err("[%d]ret %d port %d gain_addr 0x%x gain_data:0x%x 0x%x 0x%x error!",
+			__LINE__, ret, port, gain_addr, gain_data[0], gain_data[1], gain_data[2]);
+			return ret;
+		}
 	}
 	return ret;
 }
@@ -1092,6 +1171,11 @@ static int camera_sys_set_pwl_dgain(uint32_t port, uint32_t gain_num,
 		gain_addr = camera_mod[port]->camera_param.pwl.dgain_control[i];
 		camera_trans_value(&input_dgain[i], gain_data);
 		ret = camera_sys_write(port, gain_addr, reg_width, gain_data, gain_length);
+		if(ret < 0) {
+		pr_err("[%d]ret %d port %d gain_addr 0x%x gain_data:0x%x 0x%x 0x%x error!",
+			__LINE__, ret, port, gain_addr, gain_data[0], gain_data[1], gain_data[2]);
+			return ret;
+		}
 	}
 	return ret;
 }
@@ -1101,10 +1185,23 @@ int camera_sys_set_ex_gain_control(uint32_t port, sensor_priv_t *priv_param,
 {
 	int ret = 0;
 
-	camera_sys_set_pwl_line(port, priv_param->line_num, input_line);
-	camera_sys_set_pwl_gain(port, priv_param->gain_num, input_gain);
-	camera_sys_set_pwl_dgain(port, priv_param->gain_num, input_dgain);
-
+	ret = camera_sys_set_pwl_line(port, priv_param->line_num, input_line);
+	if(ret < 0) {
+		pr_err("[%d] port %d line_num %d error!", __LINE__,
+			port, priv_param->line_num);
+		return ret;
+	}
+	ret = camera_sys_set_pwl_gain(port, priv_param->gain_num, input_gain);
+	if(ret < 0) {
+		pr_err("[%d] port %d gain_num %d error!", __LINE__,
+			port, priv_param->gain_num);
+		return ret;
+	}
+	ret = camera_sys_set_pwl_dgain(port, priv_param->gain_num, input_dgain);
+	if(ret < 0) {
+		pr_err("[%d] port %d gain_num %d error!", __LINE__,
+			port, priv_param->gain_num);
+	}
 	return ret;
 }
 
@@ -1134,7 +1231,7 @@ int  camera_sys_set_param_hold(uint32_t port, uint32_t value)
 			param_hold_length = camera_mod[port]->camera_param.pwl.param_hold_length;
 			break;
 		default:
-			pr_err("[%s -- %d ] mode is err %d !", __func__, __LINE__,
+			pr_err("[%d] mode is err %d !", __LINE__,
 					camera_mod[port]->camera_param.mode);
 			ret = -1;
 			break;
@@ -1143,9 +1240,17 @@ int  camera_sys_set_param_hold(uint32_t port, uint32_t value)
 		if(value) {
 			buf[0] = 0x01;
 			ret = camera_sys_write(port, param_hold, reg_width, buf, param_hold_length);
+			if(ret < 0) {
+			pr_err("[%d] mode %d wirte param_hold 0x%x error!", __LINE__,
+					camera_mod[port]->camera_param.mode, param_hold);
+			}
 		} else {
 			buf[0] = 0x00;
 			ret = camera_sys_write(port, param_hold, reg_width, buf, param_hold_length);
+			if(ret < 0) {
+			pr_err("[%d] mode %d wirte param_hold 0x%x error!", __LINE__,
+					camera_mod[port]->camera_param.mode, param_hold);
+			}
 		}
 	}
 	return ret;
@@ -1159,35 +1264,35 @@ int  camera_sys_set_gain_line_control(uint32_t port, sensor_priv_t *priv_param)
 
 	ret = camera_sys_gain_line_process(port, priv_param, a_gain, d_gain, a_line);
 	if (ret) {
-		pr_err("[%s -- %d] param is err!", __func__, __LINE__);
+		pr_err("[%d] param is err!", __LINE__);
 		return -1;
 	}
 	switch(camera_mod[port]->camera_param.mode) {
 		case NORMAL_M:
-			camera_sys_set_param_hold(port, 0x1);
-			camera_sys_set_normal_gain(port, a_gain, d_gain);
-			camera_sys_set_normal_line(port, a_line);
-			camera_sys_set_param_hold(port, 0x0);
+			ret = camera_sys_set_param_hold(port, 0x1);
+			ret |= camera_sys_set_normal_gain(port, a_gain, d_gain);
+			ret |= camera_sys_set_normal_line(port, a_line);
+			ret |= camera_sys_set_param_hold(port, 0x0);
 			break;
 		case DOL2_M:
-			camera_sys_set_param_hold(port, 0x1);
-			camera_sys_set_dol2_gain(port, priv_param->gain_num, a_gain, d_gain);
-			camera_sys_set_dol2_line(port, priv_param->line_num, a_line);
-			camera_sys_set_param_hold(port, 0x0);
+			ret = camera_sys_set_param_hold(port, 0x1);
+			ret |= camera_sys_set_dol2_gain(port, priv_param->gain_num, a_gain, d_gain);
+			ret |= camera_sys_set_dol2_line(port, priv_param->line_num, a_line);
+			ret |= camera_sys_set_param_hold(port, 0x0);
 			break;
 		case DOL3_M:
-			camera_sys_set_param_hold(port, 0x1);
-			camera_sys_set_dol3_gain(port, priv_param->gain_num, a_gain, d_gain);
-			camera_sys_set_dol3_line(port, priv_param->line_num, a_line);
-			camera_sys_set_param_hold(port, 0x0);
+			ret = camera_sys_set_param_hold(port, 0x1);
+			ret |= camera_sys_set_dol3_gain(port, priv_param->gain_num, a_gain, d_gain);
+			ret |= camera_sys_set_dol3_line(port, priv_param->line_num, a_line);
+			ret |= camera_sys_set_param_hold(port, 0x0);
 			break;
 		case PWL_M:
-			camera_sys_set_param_hold(port, 0x1);
-			camera_sys_set_ex_gain_control(port, priv_param, a_gain, d_gain, a_line);
-			camera_sys_set_param_hold(port, 0x0);
+			ret = camera_sys_set_param_hold(port, 0x1);
+			ret |= camera_sys_set_ex_gain_control(port, priv_param, a_gain, d_gain, a_line);
+			ret |= camera_sys_set_param_hold(port, 0x0);
 			break;
 		default:
-			pr_err("[%s -- %d ] mode is err %d !", __func__, __LINE__,
+			pr_err("[%d ]mode is err %d !", __LINE__,
 					camera_mod[port]->camera_param.mode);
 			ret = -1;
 			break;
@@ -1519,7 +1624,12 @@ int camera_sys_priv_set(uint32_t port, sensor_priv_t *priv_param)
 			uint32_t src_port = (camera_mod[port]->ae_share_flag >> 16) & 0xff;
 			uint32_t dst_port = camera_mod[port]->ae_share_flag & 0xf;
 
-			camera_sys_set_gain_line_control(port, priv_param);
+			ret = camera_sys_set_gain_line_control(port, priv_param);
+			if(ret < 0) {
+				pr_err("[%d ] port %d src_port %d dst_port %d error!",
+					__LINE__, port, src_port, dst_port);
+				goto out;
+			}
 
 			/* ae share */
 			if (src_port == dst_port) {
@@ -1535,7 +1645,12 @@ int camera_sys_priv_set(uint32_t port, sensor_priv_t *priv_param)
 				pr_err("src port %d is not sharer, cur port %d\n", src_port, port);
 				goto out;
 			}
-			camera_sys_set_gain_line_control(dst_port, priv_param);
+			ret = camera_sys_set_gain_line_control(dst_port, priv_param);
+			if(ret < 0) {
+				pr_err("[%d ] port %d src_port %d dst_port %d error!",
+					__LINE__, port, src_port, dst_port);
+				goto out;
+			}
 #if 0
 			uint32_t line = 0;
 			sensor_priv_t param;

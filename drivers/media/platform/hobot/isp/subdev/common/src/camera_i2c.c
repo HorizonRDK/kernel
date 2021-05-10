@@ -23,6 +23,7 @@
 #include <linux/module.h>
 #include <linux/i2c-dev.h>
 #include <linux/i2c.h>
+#include <linux/delay.h>
 
 #include "inc/camera_dev.h"
 #include "inc/camera_subdev.h"
@@ -95,7 +96,7 @@ int camera_i2c_read(uint32_t port, uint32_t reg_addr,
 	int ret = 0;
 
 	if (count > 100)
-				count = 100;
+		count = 100;
 	if (!camera_mod[port]->client) {
 		pr_err("can not get client[%d]", port);
 		return -ENOMEM;
@@ -123,7 +124,8 @@ int camera_i2c_read(uint32_t port, uint32_t reg_addr,
 
 	ret = i2c_transfer(adap, msg, 2);
 	if(ret != 2) {
-		pr_err("read failed !");
+		pr_err("[%d]read failed reg_addr 0x%x! bit_width %d count %d",
+			__LINE__, reg_addr, bit_width, count);
 		ret = -1;
 	}
 
@@ -133,11 +135,13 @@ int camera_i2c_read(uint32_t port, uint32_t reg_addr,
 int camera_i2c_write(uint32_t port, uint32_t reg_addr, uint32_t bit_width,
 		const char *buf, uint32_t count)
 {
-	int ret;
+	int ret = 0, k = CAM_I2C_RETRY_MAX;
 	char tmp[102];
+	int ret1 = 0;
+	uint32_t r_data = 0;
 
 	if (count > 100)
-				count = 100;
+		count = 100;
 	if (!camera_mod[port]->client) {
 		pr_err("can not get client[%d]", port);
 		return -ENOMEM;
@@ -155,8 +159,22 @@ int camera_i2c_write(uint32_t port, uint32_t reg_addr, uint32_t bit_width,
 	}
 
 	ret = i2c_master_send(camera_mod[port]->client, tmp, count);
+	while ((ret != count) && k--) {
+			mdelay(3);
+		ret = i2c_master_send(camera_mod[port]->client, tmp, count);
+	}
 	if (ret != count) {
-		pr_err("write failed !");
+		pr_err("port %d write failed ! tmp: 0x%x 0x%x 0x%x 0x%x ret %d count %d",
+				port, tmp[0], tmp[1], tmp[2], tmp[3], ret, count);
+		ret1 = camera_i2c_read(port, reg_addr, bit_width, tmp, count);
+		if(ret1 < 0) {
+			pr_err("read failed port %d k %d ret1 %d count %d reg_addr 0x%x ",
+				port, k, ret1, count, reg_addr);
+		} else {
+			r_data = (tmp[0] << 8) | tmp[1];
+			pr_err("port %d ret1 %d k %d count %d reg_addr 0x%x r_data 0x%x",
+				port, ret1, k, count, reg_addr, r_data);
+		}
 		ret = -1;
 	}
 	return ret;
