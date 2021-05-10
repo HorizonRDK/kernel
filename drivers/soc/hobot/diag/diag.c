@@ -11,6 +11,7 @@
  * (at your option) any later version.
  */
 
+#include <asm-generic/errno-base.h>
 #include <linux/init.h> 	/* PRQA S ALL */
 #include <linux/module.h> 	/* PRQA S ALL */
 #include <net/sock.h> 		/* PRQA S ALL */
@@ -26,7 +27,7 @@
 
 #include "diag_drv.h"
 
-//#define DIAG_DEBUG
+// #define DIAG_DEBUG
 
 #undef PDEBUG
 #ifdef DIAG_DEBUG
@@ -266,7 +267,7 @@ static int32_t netlink_snd_msg(struct diag_module_event *module_event)
 
 	len = 12 + ENV_PAYLOAD_SIZE;
 
-	PDEBUG("message send, module: %d, event: %d, status: %d, data_len = %d\n",
+	PDEBUG("message send, module: %d, event: %d, status: %d, data_len = %lu\n",
 			msg.data.module_id, msg.data.event_id, msg.data.event_sta, len);
 	PDEBUG("checksum = %d", msg.header.checksum);
 
@@ -454,11 +455,10 @@ int32_t diagnose_register(const struct diag_register_info *register_info)
 	struct diag_module *module = NULL;
 	uint8_t i, j;
 	uint8_t event_count;
-	int32_t event_registed = 0;
 
 	if (register_info == NULL) {
 		pr_err("invalid input parameter\n");
-		return -1;
+		return -EINVAL;
 	}
 
 	/* whether the module has been resigsterd */
@@ -471,40 +471,37 @@ int32_t diagnose_register(const struct diag_register_info *register_info)
 					module->module_id, module->event_cnt);
 			event_count = module->event_cnt;
 			for (j = 0; j < register_info->event_cnt; j++) {
-				event_registed = 0;
+				if (event_count >= (uint8_t)EVENT_ID_MAX) {
+					mutex_unlock(&g_diag_info->module_list_mutex);
+					pr_err("event count out of range\n");
+					return -EINVAL;
+				}
+				/* check whether event has been registered */
 				for (i = 0; i < module->event_cnt; i++) {
-					/* event_id has been registerd */
 					if (register_info->event_handle[j].event_id ==
 							module->event_id[i].id_handle.event_id) {
-						event_registed = 1;
-						PDEBUG("new event_id = %d\n", register_info->event_handle[j].event_id);
-						break;
-					}
-				}
-
-				/* event_id not registered */
-				if (event_registed == 0) {
-					if (event_count >= (uint8_t)EVENT_ID_MAX) {
-						pr_err("event count out of range\n");
 						mutex_unlock(&g_diag_info->module_list_mutex);
-						return 0;
+						pr_err("module:%#x event:%#x register failed\n",
+								module->module_id,
+								register_info->event_handle[j].event_id);
+						return -EEXIST;
 					}
-
-					PDEBUG("Module %d resgtered, new event_id = %d\n",
-							module->module_id, register_info->event_handle[j].event_id);
-
-					memcpy(&module->event_id[event_count].id_handle,
-							&register_info->event_handle[j],
-							sizeof(struct diag_event_id_handle));
-					module->event_id[event_count].last_sta = (uint8_t)DiagEventStaUnknown;
-					module->event_id[event_count].last_snd_time = 0;
-
-					event_count++;
 				}
-			}
 
-			/* update the event count value */
-			module->event_cnt = event_count;
+				/* register new event */
+				PDEBUG("Module %d resgtered, new event_id = %d\n",
+						module->module_id, register_info->event_handle[j].event_id);
+
+				memcpy(&module->event_id[event_count].id_handle,
+						&register_info->event_handle[j],
+						sizeof(struct diag_event_id_handle));
+				module->event_id[event_count].last_sta = (uint8_t)DiagEventStaUnknown;
+				module->event_id[event_count].last_snd_time = 0;
+
+				event_count++;
+				/* update the event count value */
+				module->event_cnt = event_count;
+			}
 			mutex_unlock(&g_diag_info->module_list_mutex);
 
 			PDEBUG("module: %d has been registered, event_cnt = %d\n",
@@ -518,7 +515,7 @@ int32_t diagnose_register(const struct diag_register_info *register_info)
 	module = (struct diag_module *)kzalloc(sizeof(struct diag_module), GFP_KERNEL);
 	if (module == NULL) {
 		pr_err("diag_module allocate fail\n");
-		return -1;
+		return -ENOMEM;
 	}
 
 	/* initialize diag_module */
