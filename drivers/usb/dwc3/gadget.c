@@ -3877,7 +3877,9 @@ out:
 static void dwc_gadget_release(struct device *dev)
 {
 	struct usb_gadget *gadget = container_of(dev, struct usb_gadget, dev);
+	struct dwc3 *dwc = gadget_to_dwc(gadget);
 
+	dwc3_gadget_free_endpoints(dwc);
 	kfree(gadget);
 }
 
@@ -4011,7 +4013,6 @@ err0:
 void dwc3_gadget_exit(struct dwc3 *dwc)
 {
 	usb_del_gadget_udc(dwc->gadget);
-	dwc3_gadget_free_endpoints(dwc);
 	dma_free_coherent(dwc->sysdev, DWC3_BOUNCE_SIZE, dwc->bounce,
 			  dwc->bounce_addr);
 	kfree(dwc->setup_buf);
