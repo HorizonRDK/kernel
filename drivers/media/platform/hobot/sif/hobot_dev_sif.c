@@ -1900,6 +1900,11 @@ int sif_video_qbuf(struct sif_video_ctx *sif_ctx,
 
 	subdev = sif_ctx->subdev;
 
+	vio_set_stat_info(sif_ctx->group->instance, SIF_MOD,
+		event_sif_cap_q + sif_ctx->group->id,
+		sif_ctx->group->frameid.frame_id,
+		frameinfo->addr[0], framemgr->queued_count);
+
 	if (subdev->dol_num) {
 		ret = sif_check_phyaddr(frameinfo, subdev->dol_num);
 		if (ret)
@@ -1956,6 +1961,11 @@ int sif_video_dqbuf(struct sif_video_ctx *sif_ctx,
 	sif = sif_ctx->sif_dev;
 	subdev = sif_ctx->subdev;
 
+	vio_set_stat_info(sif_ctx->group->instance, SIF_MOD,
+		event_sif_cap_dq + sif_ctx->group->id,
+		sif_ctx->group->frameid.frame_id,
+		0, framemgr->queued_count);
+
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_COMPLETE);
 	if (frame) {
@@ -1965,6 +1975,10 @@ int sif_video_dqbuf(struct sif_video_ctx *sif_ctx,
 		if (sif_ctx->ctx_index == 0)
 			sif->statistic.dq_normal\
 				[sif_ctx->group->instance][sif_ctx->id]++;
+		vio_set_stat_info(sif_ctx->group->instance, SIF_MOD,
+			event_sif_cap_dq + sif_ctx->group->id,
+			sif_ctx->group->frameid.frame_id,
+			frame->frameinfo.addr[0], framemgr->queued_count);
 	} else {
 		ret = -EFAULT;
 		sif_ctx->event = 0;
@@ -2465,8 +2479,9 @@ void sif_frame_done(struct sif_subdev *subdev)
 				frame->frameinfo.frame_id = group->frameid.frame_id;
 				frame->frameinfo.timestamps = group->frameid.timestamps;
 				frame->frameinfo.tv = group->frameid.tv;
-				vio_set_stat_info(group->instance, SIF_CAP_FE + group->id * 2,
-						group->frameid.frame_id);
+				vio_set_stat_info(group->instance, SIF_MOD,
+					event_sif_cap_fe + group->id * 2, group->frameid.frame_id,
+					frame->frameinfo.addr[0], framemgr->queued_count);
 
 				trans_frame(framemgr, frame, FS_COMPLETE);
 				event = VIO_FRAME_DONE;
@@ -2484,6 +2499,9 @@ void sif_frame_done(struct sif_subdev *subdev)
 					framemgr->queued_count[2],
 					framemgr->queued_count[3],
 					framemgr->queued_count[4]);
+				vio_set_stat_info(group->instance, SIF_MOD,
+					event_err, group->frameid.frame_id,
+					frame->frameinfo.addr[0], framemgr->queued_count);
 			}
 			framemgr_x_barrier_irqr(framemgr, 0, flags);
 			spin_lock_irqsave(&subdev->slock, flags);
@@ -2515,8 +2533,9 @@ void sif_frame_done(struct sif_subdev *subdev)
 				frame->frameinfo.frame_id = group->frameid.frame_id;
 				frame->frameinfo.timestamps = group->frameid.timestamps;
 				frame->frameinfo.tv = group->frameid.tv;
-				vio_set_stat_info(group->instance, SIF_CAP_FE + group->id * 2,
-						group->frameid.frame_id);
+				vio_set_stat_info(group->instance, SIF_MOD,
+					event_sif_cap_fe + group->id * 2, group->frameid.frame_id,
+					frame->frameinfo.addr[0], framemgr->queued_count);
 
 				trans_frame(framemgr, frame, FS_COMPLETE);
 				event = VIO_FRAME_DONE;
@@ -2534,6 +2553,9 @@ void sif_frame_done(struct sif_subdev *subdev)
 					framemgr->queued_count[2],
 					framemgr->queued_count[3],
 					framemgr->queued_count[4]);
+				vio_set_stat_info(group->instance, SIF_MOD,
+					event_sif_cap_fe + group->id * 2, group->frameid.frame_id,
+					0, framemgr->queued_count);
 			}
 			framemgr_x_barrier_irqr(framemgr, 0, flags);
 			spin_lock_irqsave(&subdev->slock, flags);
@@ -2751,8 +2773,8 @@ static irqreturn_t sif_isr(int irq, void *data)
 				if (debug_log_print)
 					vio_print_stat_info(group->instance);
 
-				vio_set_stat_info(group->instance, SIF_CAP_FS,
-						group->frameid.frame_id);
+				vio_set_stat_info(group->instance, SIF_MOD, event_sif_cap_fs,
+					group->frameid.frame_id, 0, subdev->framemgr.queued_count);
 
 				if (subdev->md_refresh_count == 1) {
 					ips_set_md_refresh(0);
@@ -2808,8 +2830,8 @@ static irqreturn_t sif_isr(int irq, void *data)
 				return IRQ_HANDLED;
 			}
 			group = sif->sif_input[instance];
-			vio_set_stat_info(group->instance, SIF_IN_FS,
-					group->frameid.frame_id);
+			vio_set_stat_info(group->instance, SIF_MOD, event_sif_in_fs,
+				group->frameid.frame_id, 0, subdev->framemgr.queued_count);
 	}
 
 	if (irq_src.sif_frm_int & 1 << INTR_SIF_IN_SIZE_MISMATCH) {
@@ -3190,6 +3212,8 @@ static long vio_bind_info_ioctl(struct file *file, unsigned int cmd,
 	struct vio_bind_info_dev *bind_dev;
 	struct hb_bind_info_update_s bind_info_update;
 	SYS_MOD_S *src_mod, *dst_mod;
+	int instance = 0, len = 0;
+	struct vio_chain *chain;
 
 	bind_dev = file->private_data;
 	BUG_ON(!bind_dev);
@@ -3224,6 +3248,18 @@ static long vio_bind_info_ioctl(struct file *file, unsigned int cmd,
 		bind_dev->bind_info[dst_mod->s32DevId][dst_mod->enModId].\
 			in[dst_mod->s32ChnId].prev_chn_id = src_mod->s32ChnId;
 
+		break;
+	case VIO_GET_STAT_INFO:
+		ret = copy_from_user((char*)&instance, (u32 __user *) arg, sizeof(int));
+		voi_set_stat_info_update(0);
+		chain = vio_get_stat_info_ptr(instance);
+		len = copy_to_user((void __user *) arg,
+			(char *) &chain->statinfo, sizeof(chain->statinfo));
+		ret = len;
+		// len = copy_to_user((void __user *) arg + len,
+		// 	(char *) &chain->statinfoidx, sizeof(chain->statinfoidx));
+		// ret += len;
+		voi_set_stat_info_update(1);
 		break;
 	default:
 		vio_err("wrong ioctl command\n");

@@ -1043,6 +1043,11 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 	framemgr = pym_ctx->framemgr;
 	group = pym_ctx->group;
 	pym = pym_ctx->pym_dev;
+
+	vio_set_stat_info(group->instance, PYM_MOD, event_pym_q,
+			group->frameid.frame_id,
+			frameinfo->addr[0], framemgr->queued_count);
+
 	if (index >= framemgr->max_index) {
 		vio_err("[S%d] %s index err(%d-%d).\n", group->instance,
 			__func__, index, framemgr->max_index);
@@ -1218,6 +1223,9 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 	subdev = pym_ctx->subdev;
 	pym = pym_ctx->pym_dev;
 	group = pym_ctx->group;
+
+	vio_set_stat_info(group->instance, PYM_MOD, event_pym_dq,
+			group->frameid.frame_id, 0, framemgr->queued_count);
 
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	#if 0
@@ -1854,7 +1862,9 @@ void pym_frame_done(struct pym_subdev *subdev)
 			group->instance,
 			frame->frameinfo.frame_id,
 			frame->frameinfo.timestamps);
-		vio_set_stat_info(group->instance, PYM_FE, group->frameid.frame_id);
+		vio_set_stat_info(group->instance, PYM_MOD, event_pym_fe,
+			group->frameid.frame_id,
+			frame->frameinfo.addr[0], framemgr->queued_count);
 		do_gettimeofday(&tmp_tv);
 		g_pym_idx[group->instance]++;
 		if (tmp_tv.tv_sec > g_pym_fps_lasttime[group->instance]) {
@@ -2083,7 +2093,9 @@ static irqreturn_t pym_isr(int irq, void *data)
 				up(&gtask->hw_resource);
 			}
 		}
-		vio_set_stat_info(group->instance, PYM_FS, group->frameid.frame_id);
+		vio_set_stat_info(group->instance, PYM_MOD, event_pym_fs,
+			group->frameid.frame_id, 0,
+			subdev->framemgr.queued_count);
 	}
 
 	if (drop_flag) {

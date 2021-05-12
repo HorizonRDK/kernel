@@ -1492,8 +1492,8 @@ int32_t acamera_interrupt_handler()
 
                     p_ctx->sts.fs_irq_cnt++;
 
-                    vio_set_stat_info(cur_ctx_id, ISP_FS,
-                            p_ctx->isp_frame_counter);
+                    vio_set_stat_info(cur_ctx_id, ISP_MOD, event_isp_fs,
+                            p_ctx->isp_frame_counter, 0, NULL);
                 }
                 if ( p_ctx->p_gfw->sif_isp_offline == 0 && irq_bit == ISP_INTERRUPT_EVENT_ISP_START_FRAME_START ) {
                     if ( g_firmware.dma_flag_isp_metering_completed == 0 || g_firmware.dma_flag_isp_config_completed == 0 ) {
@@ -1595,8 +1595,8 @@ int32_t acamera_interrupt_handler()
                     // frame_done
                     isp_irq_completion(cur_ctx_id, 1);
 
-                    vio_set_stat_info(cur_ctx_id, ISP_FE,
-                            p_ctx->isp_frame_counter);
+                    vio_set_stat_info(cur_ctx_id, ISP_MOD, event_isp_fe,
+                            p_ctx->isp_frame_counter, 0, NULL);
                     do_gettimeofday(&tmp_tv);
                     g_isp_idx[cur_ctx_id]++;
                     if (tmp_tv.tv_sec > g_isp_fps_lasttime[cur_ctx_id]) {

@@ -2494,6 +2494,10 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	vio_dbg("[S%d][V%d] %s index %d\n", group->instance, ipu_ctx->id,
 		__func__, frameinfo->bufferindex);
 
+	vio_set_stat_info(group->instance, IPU_MOD,
+		event_ipu_q + subdev->id, group->frameid.frame_id,
+		frameinfo->addr[0], framemgr->queued_count);
+
 	if (index >= framemgr->max_index) {
 		vio_err("[S%d] %s index err(%d-%d).\n", group->instance,
 		__func__, index, framemgr->max_index);
@@ -2695,6 +2699,10 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	ipu = ipu_ctx->ipu_dev;
 	group = ipu_ctx->group;
 
+	vio_set_stat_info(group->instance, IPU_MOD,
+		event_ipu_dq + subdev->id, group->frameid.frame_id,
+		0, framemgr->queued_count);
+
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	#if 0
 	if (ipu_ctx->frm_num_usr > (int)ipu_ctx->frm_num) {
@@ -2762,6 +2770,9 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 				framemgr->queued_count[FS_PROCESS],
 				framemgr->queued_count[FS_COMPLETE],
 				framemgr->queued_count[FS_USED]);
+			vio_set_stat_info(group->instance, IPU_MOD,
+				event_ipu_dq + subdev->id, group->frameid.frame_id,
+				frame->frameinfo.addr[0], framemgr->queued_count);
 		}
 		if (ipu_ctx->ctx_index == 0)
 			ipu->statistic.dq_normal\
@@ -3582,8 +3593,9 @@ void ipu_frame_done(struct ipu_subdev *subdev)
 						tmp_tv.tv_sec;
 				g_ipu_idx[group->instance][subdev->id] = 0;
 			}
-			vio_set_stat_info(group->instance, IPU_FS + subdev->id,
-				group->frameid.frame_id);
+			vio_set_stat_info(group->instance, IPU_MOD,
+				event_ipu_fs + subdev->id, group->frameid.frame_id,
+				frame->frameinfo.addr[0], framemgr->queued_count);
 		}
 		vio_dbg("[S%d][V%d]ipu done buffidx%d fid %d timestamps %llu ",
 			group->instance,
@@ -3629,6 +3641,9 @@ void ipu_frame_done(struct ipu_subdev *subdev)
 			framemgr->queued_count[FS_PROCESS],
 			framemgr->queued_count[FS_COMPLETE],
 			framemgr->queued_count[FS_USED]);
+		vio_set_stat_info(group->instance, IPU_MOD,
+				event_ipu_fs + subdev->id, group->frameid.frame_id,
+				0, framemgr->queued_count);
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
@@ -3716,6 +3731,9 @@ void ipu_frame_ndone(struct ipu_subdev *subdev)
 			frame->frameinfo.bufferindex,
 			frame->frameinfo.frame_id);
 		trans_frame(framemgr, frame, FS_REQUEST);
+		vio_set_stat_info(group->instance, IPU_MOD,
+			event_err, group->frameid.frame_id,
+			frame->frameinfo.addr[0], framemgr->queued_count);
 	} else {
 		vio_err("[S%d][V%d]ndone IPU PROCESS queue has no member;\n",
 				group->instance, subdev->id);
@@ -3727,6 +3745,9 @@ void ipu_frame_ndone(struct ipu_subdev *subdev)
 			framemgr->queued_count[FS_PROCESS],
 			framemgr->queued_count[FS_COMPLETE],
 			framemgr->queued_count[FS_USED]);
+		vio_set_stat_info(group->instance, IPU_MOD,
+			event_err, group->frameid.frame_id,
+			0, framemgr->queued_count);
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
@@ -4099,8 +4120,9 @@ static irqreturn_t ipu_isr(int irq, void *data)
 				vio_dbg("[S%d] ipu online frame_id %d", instance, frmid.frame_id);
 			}
 		}
-		vio_set_stat_info(group->instance, IPU_FS, group->frameid.frame_id);
 
+		vio_set_stat_info(group->instance, IPU_MOD, event_ipu_fs,
+			group->frameid.frame_id, 0, src_subdev->framemgr.queued_count);
 #ifdef CONFIG_HOBOT_DIAG
 		frame_fps = get_fps_from_mipi_host();
 		now_frame = jiffies_to_msecs(get_jiffies_64());

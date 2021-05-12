@@ -52,6 +52,7 @@
 
 #define VIO_BIND_INFO_MAGIC 'b'
 #define VIO_BIND_INFO_UPDATE	_IOW(VIO_BIND_INFO_MAGIC, 0, int)
+#define VIO_GET_STAT_INFO		_IOW(VIO_BIND_INFO_MAGIC, 1, int)
 
 #define BIT2CHN(chns, chn) (chns & (1 << chn))
 

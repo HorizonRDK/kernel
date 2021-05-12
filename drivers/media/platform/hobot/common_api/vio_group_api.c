@@ -16,7 +16,7 @@ static struct vio_core iscore;
 u32 ldc_reset_flag, sif_module_exit;
 struct mutex ldc_access_mutex;
 struct mutex rst_mutex;
-
+static u32 stat_info_update = 1;
 struct vio_frame_id  sif_frame_info[VIO_MAX_STREAM];
 struct vio_frame_id  ipu_frame_info[VIO_MAX_STREAM];
 
@@ -734,20 +734,42 @@ void vio_gdc_clk_disable(u32 hw_id)
 }
 EXPORT_SYMBOL(vio_gdc_clk_disable);
 
-void vio_set_stat_info(u32 instance, u32 stat_type, u16 frameid)
+void* vio_get_stat_info_ptr(u32 instance)
+{
+	return &iscore.chain[instance];
+}
+EXPORT_SYMBOL(vio_get_stat_info_ptr);
+
+void voi_set_stat_info_update(s32 update)
+{
+	stat_info_update = update;
+}
+EXPORT_SYMBOL(voi_set_stat_info_update);
+
+void vio_set_stat_info(u32 instance, u32 stat_type, u32 event, u16 frameid,
+	u32 addr, u32 *queued_count)
 {
 	struct vio_chain *chain;
 	struct statinfo *stat;
+	int i = 0;
 
-	chain = &iscore.chain[instance];
-	if (chain->statinfoidx[stat_type] < 0)
-		chain->statinfoidx[stat_type] = 0;
-	else if (chain->statinfoidx[stat_type] >= MAX_DELAY_FRAMES)
-		chain->statinfoidx[stat_type] = 0;
-	stat = &chain->statinfo[chain->statinfoidx[stat_type]][stat_type];
-	stat->framid = frameid;
-	do_gettimeofday(&stat->g_tv);
-	chain->statinfoidx[stat_type]++;
+	if (stat_info_update) {
+		chain = &iscore.chain[instance];
+		if (chain->statinfoidx[stat_type] < 0)
+			chain->statinfoidx[stat_type] = 0;
+		else if (chain->statinfoidx[stat_type] >= MAX_DELAY_FRAMES)
+			chain->statinfoidx[stat_type] = 0;
+		stat = &chain->statinfo[chain->statinfoidx[stat_type]][stat_type];
+		stat->framid = frameid;
+		do_gettimeofday(&stat->g_tv);
+		stat->event = event;
+		stat->addr  = addr;
+		if (queued_count != NULL) {
+			for (i = 0; i < NR_FRAME_STATE; i++)
+				stat->queued_count[i] = queued_count[i];
+		}
+		chain->statinfoidx[stat_type]++;
+	}
 }
 EXPORT_SYMBOL(vio_set_stat_info);
 
@@ -765,139 +787,72 @@ int vio_print_delay(s32 instance, s8* buf, u32 size)
 	struct vio_chain *chain;
 	struct statinfo *stat;
 	int i = 0;
+	int modidx = 0;
 	u32 offset = 0;
 	int len = 0;
 	int idx = 0;
-
+	int showidx = 0;
+	char *event[] = {
+		"event_none",
+		"event_sif_cap_fs",
+		"event_sif_cap_fe",
+		"event_sif_in_fs",
+		"event_sif_in_fe",
+		"event_isp_fs",
+		"event_isp_fe",
+		"event_ipu_fs",
+		"event_ipu_us_fe",
+		"event_ipu_ds0_fe",
+		"event_ipu_ds1_fe",
+		"event_ipu_ds2_fe",
+		"event_ipu_ds3_fe",
+		"event_ipu_ds4_fe",
+		"event_pym_fs",
+		"event_pym_fe",
+		"event_gdc_fs",
+		"event_gdc_fe"
+	};
+	int events[VIO_MOD_NUM] = {
+		event_sif_cap_fs,
+		event_isp_fs,
+		event_ipu_fs,
+		event_pym_fs,
+		event_gdc_fs
+	};
+	int evente[VIO_MOD_NUM] = {
+		event_sif_in_fe,
+		event_isp_fe,
+		event_ipu_ds4_fe,
+		event_pym_fe,
+		event_gdc_fe
+	};
 	chain = &iscore.chain[instance];
 	len = snprintf(&buf[offset], size - offset,
 			"*******pipe %d vio info:************\n", instance);
 	offset += len;
-	for (i = 0; i < MAX_DELAY_FRAMES; i++) {
-		// len = snprintf(&buf[offset], size - offset,
-		// 	"*******frame %d vio info:******\n", i);
-		// offset += len;
-		idx = chain->statinfoidx[SIF_CAP_FS];
-		stat = chain->statinfo[(idx + i)%MAX_DELAY_FRAMES];
-		len = snprintf(&buf[offset], size - offset,
-			"[F%07d]sif_cap(FS %ld.%06ld)",
-			stat[SIF_CAP_FS].framid,
-			stat[SIF_CAP_FS].g_tv.tv_sec, stat[SIF_CAP_FS].g_tv.tv_usec);
-		offset += len;
-
-		idx = chain->statinfoidx[SIF_CAP_FE];
-		stat = chain->statinfo[(idx + i)%MAX_DELAY_FRAMES];
-		len = snprintf(&buf[offset], size - offset,
-			"\n[F%07d]sif_cap(FE %ld.%06ld)\n",
-			stat[SIF_CAP_FE].framid,
-			stat[SIF_CAP_FE].g_tv.tv_sec, stat[SIF_CAP_FE].g_tv.tv_usec);
-		offset += len;
-
-		idx = chain->statinfoidx[SIF_IN_FS];
-		stat = chain->statinfo[(idx + i)%MAX_DELAY_FRAMES];
-		len = snprintf(&buf[offset], size - offset,
-			"[F%07d] sif_in(FS %ld.%06ld)\n",
-			stat[SIF_IN_FS].framid,
-			stat[SIF_IN_FS].g_tv.tv_sec, stat[SIF_IN_FS].g_tv.tv_usec);
-		offset += len;
-
-		idx = chain->statinfoidx[SIF_IN_FE];
-		stat = chain->statinfo[(idx + i)%MAX_DELAY_FRAMES];
-		len = snprintf(&buf[offset], size - offset,
-			"[F%07d] sif_in(FE %ld.%06ld)\n",
-			stat[SIF_IN_FE].framid,
-			stat[SIF_IN_FE].g_tv.tv_sec, stat[SIF_IN_FE].g_tv.tv_usec);
+	for (modidx = 0; modidx < VIO_MOD_NUM; modidx++) {
+		showidx = 0;
+		idx = chain->statinfoidx[modidx];
+		for (i = 0; i < MAX_DELAY_FRAMES; i++) {
+			stat = chain->statinfo[(idx + i)%MAX_DELAY_FRAMES];
+			if (stat[modidx].event >= events[modidx] &&
+				stat[modidx].event <= evente[modidx]) {
+				len = snprintf(&buf[offset], size - offset,
+					"[F%07d] %s (FS %ld.%06ld)\n",
+					stat[modidx].framid, event[stat[modidx].event],
+					stat[modidx].g_tv.tv_sec, stat[modidx].g_tv.tv_usec);
+				offset += len;
+				showidx++;
+				if ((modidx == (int)IPU_MOD) && (showidx >= 60)) {
+					break;
+				} else if (showidx >= 10) {
+					break;
+				}
+			}
+		}
+		len = snprintf(&buf[offset], size - offset, "\n");
 		offset += len;
 	}
-	len = snprintf(&buf[offset], size - offset, "\n");
-	offset += len;
-	for (i = 0; i < MAX_DELAY_FRAMES; i++) {
-		idx = chain->statinfoidx[ISP_FS];
-		stat = chain->statinfo[(idx + i)%MAX_DELAY_FRAMES];
-		len = snprintf(&buf[offset], size - offset,
-			"[F%07d]    isp(FS %ld.%06ld)\n",
-			stat[ISP_FS].framid,
-			stat[ISP_FS].g_tv.tv_sec, stat[ISP_FS].g_tv.tv_usec);
-		offset += len;
-
-		idx = chain->statinfoidx[ISP_FE];
-		stat = chain->statinfo[(idx + i)%MAX_DELAY_FRAMES];
-		len = snprintf(&buf[offset], size - offset,
-			"[F%07d]    isp(FE %ld.%06ld)\n",
-			stat[ISP_FE].framid,
-			stat[ISP_FE].g_tv.tv_sec, stat[ISP_FE].g_tv.tv_usec);
-		offset += len;
-	}
-	len = snprintf(&buf[offset], size - offset, "\n");
-	offset += len;
-	for (i = 0; i < MAX_DELAY_FRAMES; i++) {
-		idx = chain->statinfoidx[IPU_FS];
-		stat = chain->statinfo[(idx + i)%MAX_DELAY_FRAMES];
-		len = snprintf(&buf[offset], size - offset,
-			"[F%07d]    ipu(FS %ld.%06ld)\n",
-			stat[IPU_FS].framid,
-			stat[IPU_FS].g_tv.tv_sec, stat[IPU_FS].g_tv.tv_usec);
-		offset += len;
-
-		idx = chain->statinfoidx[IPU_FS];
-		stat = chain->statinfo[(idx + i)%MAX_DELAY_FRAMES];
-		len = snprintf(&buf[offset], size - offset,
-			"[F%07d]    ipu(FE US %ld.%06ld|ds0 %ld.%06ld|",
-			stat[IPU_FS].framid,
-			stat[IPU_US_FE].g_tv.tv_sec, stat[IPU_US_FE].g_tv.tv_usec,
-			stat[IPU_DS0_FE].g_tv.tv_sec, stat[IPU_DS0_FE].g_tv.tv_usec);
-		offset += len;
-
-		idx = chain->statinfoidx[IPU_FS];
-		stat = chain->statinfo[(idx + i)%MAX_DELAY_FRAMES];
-		len = snprintf(&buf[offset], size - offset,
-			"ds1 %ld.%06ld|ds2 %ld.%06ld|ds3 %ld.%06ld|ds4 %ld.%06ld)\n",
-			stat[IPU_DS1_FE].g_tv.tv_sec, stat[IPU_DS1_FE].g_tv.tv_usec,
-			stat[IPU_DS2_FE].g_tv.tv_sec, stat[IPU_DS2_FE].g_tv.tv_usec,
-			stat[IPU_DS3_FE].g_tv.tv_sec, stat[IPU_DS3_FE].g_tv.tv_usec,
-			stat[IPU_DS4_FE].g_tv.tv_sec, stat[IPU_DS4_FE].g_tv.tv_usec);
-		offset += len;
-	}
-	len = snprintf(&buf[offset], size - offset, "\n");
-	offset += len;
-	for (i = 0; i < MAX_DELAY_FRAMES; i++) {
-		idx = chain->statinfoidx[PYM_FS];
-		stat = chain->statinfo[(idx + i)%MAX_DELAY_FRAMES];
-		len = snprintf(&buf[offset], size - offset,
-			"[F%07d]    pym(FS %ld.%06ld)\n",
-			stat[PYM_FS].framid,
-			stat[PYM_FS].g_tv.tv_sec, stat[PYM_FS].g_tv.tv_usec);
-		offset += len;
-
-		idx = chain->statinfoidx[PYM_FE];
-		stat = chain->statinfo[(idx + i)%MAX_DELAY_FRAMES];
-		len = snprintf(&buf[offset], size - offset,
-			"[F%07d]    pym(FE %ld.%06ld)\n",
-			stat[PYM_FE].framid,
-			stat[PYM_FE].g_tv.tv_sec, stat[PYM_FE].g_tv.tv_usec);
-		offset += len;
-	}
-	len = snprintf(&buf[offset], size - offset, "\n");
-	offset += len;
-	for (i = 0; i < MAX_DELAY_FRAMES; i++) {
-		idx = chain->statinfoidx[GDC_FS];
-		stat = chain->statinfo[(idx + i)%MAX_DELAY_FRAMES];
-		len = snprintf(&buf[offset], size - offset,
-			"[F%07d]    gdc(FS %ld.%06ld)\n",
-			stat[GDC_FS].framid,
-			stat[GDC_FS].g_tv.tv_sec, stat[GDC_FS].g_tv.tv_usec);
-		offset += len;
-
-		idx = chain->statinfoidx[GDC_FE];
-		stat = chain->statinfo[(idx + i)%MAX_DELAY_FRAMES];
-		len = snprintf(&buf[offset], size - offset,
-			"[F%07d]    gdc(FE %ld.%06ld)\n",
-			stat[GDC_FE].framid,
-			stat[GDC_FE].g_tv.tv_sec, stat[GDC_FE].g_tv.tv_usec);
-		offset += len;
-	}
-	len = snprintf(&buf[offset], size - offset, "\n");
-	offset += len;
 
 	return offset;
 }

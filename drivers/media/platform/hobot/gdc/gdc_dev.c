@@ -463,7 +463,8 @@ int gdc_video_process(struct gdc_video_ctx *gdc_ctx, unsigned long arg)
 	gdc_init(gdc_dev, &gdc_settings);
 	ret = gdc_process(gdc_dev, &gdc_settings);
 	gdc_start(gdc_dev);
-	vio_set_stat_info(gdc_ctx->group->instance, GDC_FS, 0);
+	vio_set_stat_info(gdc_ctx->group->instance,
+		GDC_MOD, event_gdc_fs,  0, 0, NULL);
 	spin_unlock_irqrestore(&gdc_dev->shared_slock, flag);
 
 	timeout = wait_event_interruptible_timeout(gdc_ctx->done_wq,
@@ -482,7 +483,8 @@ int gdc_video_process(struct gdc_video_ctx *gdc_ctx, unsigned long arg)
 		vio_err("GDC process failed\n");
 		ret = -gdc_dev->isr_err;
 	}
-	vio_set_stat_info(gdc_ctx->group->instance, GDC_FE, 0);
+	vio_set_stat_info(gdc_ctx->group->instance,
+		GDC_MOD, event_gdc_fe, 0, 0, NULL);
 
 	do_gettimeofday(&tmp_tv);
 	g_gdc_idx[gdc_dev->hw_id][gdc_ctx->group->instance]++;

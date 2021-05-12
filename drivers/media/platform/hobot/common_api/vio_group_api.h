@@ -53,7 +53,66 @@
 #define ISP_FE			16
 #define STAT_NUM		17
 
-#define MAX_DELAY_FRAMES 5
+#define MAX_DELAY_FRAMES 5000
+#define MAX_SHOW_FRAMES 5
+
+enum vio_module {
+	SIF_MOD,
+	ISP_MOD,
+	IPU_MOD,
+	PYM_MOD,
+	GDC_MOD,
+	VIO_MOD_NUM,
+};
+
+enum vio_module_event {
+	event_none,
+	event_sif_cap_fs,
+	event_sif_cap_fe,
+	event_sif_in_fs,
+	event_sif_in_fe,
+	event_isp_fs,
+	event_isp_fe,
+	event_ipu_fs,
+	event_ipu_us_fe,
+	event_ipu_ds0_fe,
+	event_ipu_ds1_fe,
+	event_ipu_ds2_fe,
+	event_ipu_ds3_fe,
+	event_ipu_ds4_fe,
+	event_pym_fs,
+	event_pym_fe,
+	event_gdc_fs,
+	event_gdc_fe,
+
+	event_sif_cap_dq,
+	event_sif_in_dq,
+	event_isp_dq,
+	event_ipu_dq,
+	event_ipu_us_dq,
+	event_ipu_ds0_dq,
+	event_ipu_ds1_dq,
+	event_ipu_ds2_dq,
+	event_ipu_ds3_dq,
+	event_ipu_ds4_dq,
+	event_pym_dq,
+	event_gdc_dq,
+
+	event_sif_cap_q,
+	event_sif_in_q,
+	event_isq_q,
+	event_ipu_q,
+	event_ipu_us_q,
+	event_ipu_ds0_q,
+	event_ipu_ds1_q,
+	event_ipu_ds2_q,
+	event_ipu_ds3_q,
+	event_ipu_ds4_q,
+	event_pym_q,
+	event_gdc_q,
+
+	event_err,
+};
 
 enum vio_group_task_state {
 	VIO_GTASK_START,
@@ -135,13 +194,16 @@ struct vio_video_ctx {
 
 struct statinfo {
 	int framid;
+	int event;
 	struct timeval g_tv;
+	u32 addr;
+	u8 queued_count[NR_FRAME_STATE];
 };
 
 struct vio_chain {
 	struct vio_group group[GROUP_ID_NUMBER];
-	struct statinfo statinfo[MAX_DELAY_FRAMES][STAT_NUM];
-	unsigned long statinfoidx[STAT_NUM];
+	struct statinfo statinfo[MAX_DELAY_FRAMES][VIO_MOD_NUM];
+	unsigned long statinfoidx[VIO_MOD_NUM];
 	unsigned long state;
 };
 
@@ -195,11 +257,14 @@ void vio_dwe_clk_enable(void);
 void vio_dwe_clk_disable(void);
 void vio_gdc_clk_enable(u32 hw_id);
 void vio_gdc_clk_disable(u32 hw_id);
-void vio_set_stat_info(u32 instance, u32 stat_type, u16 frameid);
+void vio_set_stat_info(u32 instance, u32 stat_type, u32 event, u16 frameid,
+	u32 addr, u32 *queued_count);
 void vio_print_stat_info(u32 instance);
 int vio_print_delay(s32 instance, s8* buf, u32 size);
 void vio_print_stack_by_name(char *name);
 void vio_clear_stat_info(u32 instance);
+void* vio_get_stat_info_ptr(u32 instance);
+void voi_set_stat_info_update(s32 update);
 
 extern iar_get_type_callback iar_get_type;
 extern iar_set_addr_callback iar_set_addr;
