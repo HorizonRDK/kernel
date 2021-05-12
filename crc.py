@@ -19,7 +19,7 @@ filename = sys.argv[1]
 #    fi.write(getCrc32(filename));
 crc_ret = getCrc32(filename);
 string_ret = "crc ret %x" %(crc_ret)
-print string_ret;
+print(string_ret);
 print('{:8} {:x}'.format('crc32:', getCrc32(filename)))
 
 with open(sys.argv[2], 'wb')as fi:
