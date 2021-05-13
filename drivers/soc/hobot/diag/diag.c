@@ -92,9 +92,9 @@ static int32_t is_send_condition_ready(struct diag_event_id *event_id,
 	diff = (uint64_t)jiffies_to_msecs(get_jiffies_64()) - event_id->last_snd_time;
 
 	/* TODO need to add spinlock? */
-	if ((diff > event_id->id_handle.max_snd_ms) ||
-			(event_id->last_sta != event->event_sta) ||
+	if ((event_id->last_sta != event->event_sta) ||
 			((event_id->last_sta == event->event_sta) &&
+			 (event->event_sta == DiagEventStaFail) &&
 			 (diff >= event_id->id_handle.min_snd_ms))) {
 		event_id->last_snd_time = jiffies_to_msecs(get_jiffies_64());
 		event_id->last_sta = event->event_sta;
@@ -111,7 +111,7 @@ static int32_t module_event_add_to_list(struct diag_event *event)
 
 	spin_lock_irqsave(&g_diag_info->empty_spinlock, flags); /* PRQA S ALL */
 	if (list_empty(&g_diag_info->empty_list)) { /* PRQA S ALL */
-		pr_debug("event element is used up\n"); /* PRQA S ALL */
+		pr_err("event element is used up\n"); /* PRQA S ALL */
 
 		spin_unlock_irqrestore(&g_diag_info->empty_spinlock, flags);
 		return -1;
@@ -373,9 +373,6 @@ int32_t diagnose_send_event(struct diag_event *event)
 	int32_t event_idx = -1;
 	int32_t ret;
 
-	PDEBUG("diagnose_send_event: module_id = %d, event_id = %d",
-			event.module_id, event.event_id);
-
 	/* sanity check */
 	if (((event->module_id == (uint8_t)0)
 		|| (event->module_id >= (uint8_t)ModuleIdMax))
@@ -411,9 +408,12 @@ int32_t diagnose_send_event(struct diag_event *event)
 	/* insert to priority queue */
 	ret = module_event_add_to_list(event);
 	if (ret < 0) {
-		pr_debug("insert to list fail\n");	/* PRQA S ALL */
+		pr_err("insert to list fail\n");	/* PRQA S ALL */
 		return -1;
 	}
+
+	PDEBUG("module:%hx,event:%hx,sta:%hhx\n",
+			event->module_id, event->event_id, event->event_sta);
 
 	schedule_work(&g_diag_info->diag_work);	/* PRQA S 3200 */
 
