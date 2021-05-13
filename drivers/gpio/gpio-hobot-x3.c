@@ -473,6 +473,16 @@ static int x3_gpio_irq_set_type(struct irq_data *data, unsigned int type) {
 
     return 0;
 }
+/*irq_set_wake*/
+static int x3_gpio_set_wake(struct irq_data *data, unsigned int on)
+{
+	if (on)
+		x3_gpio_irq_enable(data);
+	else
+		x3_gpio_irq_disable(data);
+
+	return 0;
+}
 
 static int x3_gpio_irq_reqres(struct irq_data *data) {
     unsigned long gpio_num, value, flags;
@@ -561,6 +571,7 @@ static struct irq_chip x3_gpio_irq_chip = {
     .irq_ack = NULL,
     .irq_mask = x3_gpio_irq_mask,
     .irq_unmask = x3_gpio_irq_unmask,
+    .irq_set_wake = x3_gpio_set_wake,
     .irq_request_resources = x3_gpio_irq_reqres,
     .irq_release_resources = x3_gpio_irq_relres,
 };
