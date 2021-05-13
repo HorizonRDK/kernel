@@ -2711,17 +2711,17 @@ static int dwc3_gadget_init_endpoints(struct dwc3 *dwc)
 
 	/* hobot xj3 soc endpoint physical resources' limitations as below:
 	 * totally 9 eps, 6 IN eps at most.
-	 * init endpoint with 5 IN + 4 OUT configuration.
+	 * init endpoint with 6 IN + 3 OUT configuration.
 	 */
-	dwc->config_in_eps = 5;
-	dwc->config_out_eps = 4;
-	ret = dwc3_gadget_init_hw_endpoints(dwc, 4, 0);
+	dwc->config_in_eps = 6;
+	dwc->config_out_eps = 3;
+	ret = dwc3_gadget_init_hw_endpoints(dwc, 3, 0);
 	if (ret < 0) {
 		dev_err(dwc->dev, "failed to allocate OUT endpoints");
 		return ret;
 	}
 
-	ret = dwc3_gadget_init_hw_endpoints(dwc, 5, 1);
+	ret = dwc3_gadget_init_hw_endpoints(dwc, 6, 1);
 	if (ret < 0) {
 		dev_err(dwc->dev, "failed to allocate IN endpoints");
 		return ret;
