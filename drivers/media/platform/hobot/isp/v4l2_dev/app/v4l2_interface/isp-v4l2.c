@@ -47,6 +47,7 @@
 
 #define ISPIOC_INPUT_PORT_CTRL _IOWR('@', 0x10, input_port_t)
 #define ISPIOC_MIRROR_CTRL _IOWR('@', 0x11, uint8_t)
+#define ISPIOC_WAKE_UP_CTRL _IO('@', 0x12)
 
 /* isp_v4l2_dev_t to destroy video device */
 static isp_v4l2_dev_t *g_isp_v4l2_devs[FIRMWARE_CONTEXT_NUMBER];
@@ -681,11 +682,18 @@ static int isp_v4l2_dqbuf( struct file *file, void *priv, struct v4l2_buffer *p 
     return rc;
 }
 
+static void isp_wake_up_poll(struct vb2_queue *q)
+{
+	vb2_queue_error(q);
+	return;
+}
+
 long isp_v4l2_ioc_default(struct file *file, void *fh, bool valid_prio, unsigned int cmd, void *arg)
 {
     int ret = 0;
     acamera_context_t *p_ctx;
     isp_v4l2_dev_t *dev = video_drvdata( file );
+    struct isp_v4l2_fh *sp = fh_to_private( file->private_data );
 
     p_ctx = acamera_get_ctx_ptr(dev->ctx_id);
 
@@ -693,7 +701,9 @@ long isp_v4l2_ioc_default(struct file *file, void *fh, bool valid_prio, unsigned
 	case ISPIOC_INPUT_PORT_CTRL:
         memcpy(&p_ctx->inport, (input_port_t *)arg, sizeof(input_port_t));
         break;
-
+	case ISPIOC_WAKE_UP_CTRL:
+			isp_wake_up_poll(&sp->vb2_q);
+			break;
 	case ISPIOC_MIRROR_CTRL: {
         uint8_t v1 = 0, v2 = 0;
         v1 = *((uint8_t *)arg);

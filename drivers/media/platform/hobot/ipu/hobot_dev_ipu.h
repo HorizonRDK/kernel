@@ -48,6 +48,7 @@
 #define IPU_IOC_KERNEL_ION_CONTINOUS    _IOWR(IPU_IOC_MAGIC, 20, kernel_ion_t)
 #define IPU_IOC_WAIT_INIT    	 _IOW(IPU_IOC_MAGIC, 21, int)
 #define IPU_IOC_SPLICE_INFO      _IOW(IPU_IOC_MAGIC, 22, int)
+#define IPU_STOP_WAKE_UP	     _IO(IPU_IOC_MAGIC, 23)
 
 
 

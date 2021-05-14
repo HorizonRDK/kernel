@@ -2324,6 +2324,27 @@ static int ipu_flush_mp_prepare(struct ipu_video_ctx *ipu_ctx)
 	return 0;
 }
 
+static int ipu_wake_up_poll(struct ipu_video_ctx *ipu_ctx)
+{
+	int i;
+	unsigned long flags;
+	struct ipu_subdev *subdev;
+
+	subdev = ipu_ctx->subdev;
+	spin_lock_irqsave(&subdev->slock, flags);
+	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
+		if (test_bit(i, &subdev->val_ctx_mask)) {
+			ipu_ctx = subdev->ctx[i];
+			if (ipu_ctx) {
+				ipu_ctx->event = VIO_FRAME_DONE;
+				wake_up(&ipu_ctx->done_wq);
+			}
+		}
+	}
+	spin_unlock_irqrestore(&subdev->slock, flags);
+	return 0;
+}
+
 int ipu_video_streamoff(struct ipu_video_ctx *ipu_ctx)
 {
 	struct x3_ipu_dev *ipu_dev;
@@ -3402,6 +3423,9 @@ static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 		break;
 	case IPU_IOC_SPLICE_INFO:
 		ret = ipu_set_splice_info(ipu_ctx, arg);
+		break;
+	case IPU_STOP_WAKE_UP:
+		ret = ipu_wake_up_poll(ipu_ctx);
 		break;
 	default:
 		vio_err("wrong ioctl command\n");

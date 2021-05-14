@@ -367,7 +367,7 @@ static ssize_t x3_sif_read(struct file *file, char __user * buf, size_t size,
 
 static u32 x3_sif_poll(struct file *file, struct poll_table_struct *wait)
 {
-	int ret = 0;
+	int poll_mask = 0;
 	struct sif_video_ctx *sif_ctx;
 	struct vio_framemgr *framemgr;
 	unsigned long flags;
@@ -391,14 +391,16 @@ static u32 x3_sif_poll(struct file *file, struct poll_table_struct *wait)
 	if(sif_ctx->event == VIO_FRAME_DONE) {
 		sif->statistic.pollin_fe[sif_ctx->group->instance]\
 			[sif_ctx->id]++;
-		ret = POLLIN;
+		poll_mask = POLLIN;
 	} else if (sif_ctx->event == VIO_FRAME_NDONE) {
 		sif->statistic.pollerr[sif_ctx->group->instance]\
 			[sif_ctx->id]++;
-		ret = POLLERR;
+		poll_mask = POLLERR;
+	} else if (sif_ctx->event == VIO_MODULE_EXIT) {
+		poll_mask |= POLLNVAL;
 	}
 
-	return ret;
+	return poll_mask;
 }
 
 static int sif_node_enqueue(struct frame_list *this,
@@ -1785,7 +1787,6 @@ int sif_video_streamoff(struct sif_video_ctx *sif_ctx)
 		mutex_unlock(&sif_dev->shared_mutex);
 		goto p_dec;
 	}
-	msleep(100);
 	sif_hw_disable(sif_dev->base_reg);
 	clear_bit(SIF_HW_RUN, &sif_dev->state);
 	atomic_set(&sif_dev->rsccount, 0);
@@ -2128,6 +2129,25 @@ void sif_video_user_stats(struct sif_video_ctx *sif_ctx,
 	}
 }
 
+static int sif_wake_up_poll(struct sif_video_ctx *sif_ctx)
+{
+	int i;
+	unsigned long flags;
+	struct sif_subdev *subdev = NULL;
+
+	subdev = sif_ctx->subdev;
+	spin_lock_irqsave(&subdev->slock, flags);
+	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
+		if (test_bit(i, &subdev->val_ctx_mask)) {
+			sif_ctx = subdev->ctx[i];
+			sif_ctx->event = VIO_MODULE_EXIT;
+			wake_up(&sif_ctx->done_wq);
+		}
+	}
+	spin_unlock_irqrestore(&subdev->slock, flags);
+	return 0;
+}
+
 static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 			  unsigned long arg)
 {
@@ -2234,6 +2254,9 @@ static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 		break;
 	case SIF_IOC_PATTERN_CFG:
 		ret = sif_set_pattern_cfg(sif_ctx, arg);
+		break;
+	case SIF_STOP_WAKE_UP:
+		ret = sif_wake_up_poll(sif_ctx);
 		break;
 	case SIF_IOC_USER_STATS:
 		ret = copy_from_user((char *) &stats, (u32 __user *) arg,

@@ -31,6 +31,7 @@ enum vio_video_state {
 enum FrameErrorType{
 	VIO_FRAME_DONE = 1,
 	VIO_FRAME_NDONE = 2,
+	VIO_MODULE_EXIT = 3,
 };
 
 enum MOD_ID {
