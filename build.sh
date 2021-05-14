@@ -1,5 +1,16 @@
 #!/bin/bash
 
+function add_initramfs_src()
+{
+    config=$1
+    local rootfspre="CONFIG_INITRAMFS_SOURCE=\"./usr/prerootfs/\""
+    local rootfsnone="CONFIG_INITRAMFS_SOURCE=\"\""
+    sed -i "/${rootfsnone}/a CONFIG_INITRAMFS_COMPRESSION=\".gz\"" ${config}
+    sed -i "/${rootfsnone}/a CONFIG_INITRAMFS_ROOT_GID=0" ${config}
+    sed -i "/${rootfsnone}/a CONFIG_INITRAMFS_ROOT_UID=0" ${config}
+    sed -i "s#${rootfsnone}#${rootfspre}#g" ${config}
+}
+
 function choose()
 {
     local manifest=$KERNEL_INITRAMFS_MANIFEST
@@ -15,20 +26,16 @@ function choose()
                 ${TARGET_PREROOTFS_DIR} ${TARGET_TMPROOTFS_DIR} ${BUILD_OUTPUT_PATH}/usr/prerootfs/
             sed -i "/AMA0/d" ${SRC_KERNEL_DIR}/usr/prerootfs/etc/inittab
         fi
-        config=${KERNEL_PREROOTFS_DEFCONFIG}
+        add_initramfs_src ${BUILD_OUTPUT_PATH}/.config
     fi
 }
 
 function make_recovery_img()
 {
     prefix=$TARGET_KERNEL_DIR
-    config=${KERNEL_PREROOTFS_DEFCONFIG}
     mkdir -p ${BUILD_OUTPUT_PATH}/usr/prerootfs/
-    # real build
-    make ARCH=${ARCH_KERNEL} O=${BUILD_OUTPUT_PATH} $config || {
-        echo "make $config failed"
-        exit 1
-    }
+
+    add_initramfs_src ${BUILD_OUTPUT_PATH}/.config
 
     ${SRC_SCRIPTS_DIR}/build_root_manifest.sh ${KERNEL_DEBUG_INITRAMFS_MANIFEST} ${TARGET_PREROOTFS_DIR} ${TARGET_TMPROOTFS_DIR} ${BUILD_OUTPUT_PATH}/usr/prerootfs/
     sed -i "/AMA0/d" ${BUILD_OUTPUT_PATH}/usr/prerootfs/etc/inittab
@@ -39,8 +46,8 @@ function make_recovery_img()
     }
 
     # put binaries to dest directory
-    cpfiles "${BUILD_OUTPUT_PATH}/arch/$ARCH_KERNEL/boot/Image.gz"  "$prefix/"
-    mv $prefix/Image.gz $prefix/recovery.gz
+    runcmd "mkdir -p ${prefix}"
+    runcmd "cp ${BUILD_OUTPUT_PATH}/arch/$ARCH_KERNEL/boot/Image.gz $prefix/recovery.gz"
 }
 
 function build_dtbmapping()
@@ -156,23 +163,18 @@ function build_boot_image()
 
 function all()
 {
-    if [ "x$KERNEL_WITH_RECOVERY" = "xtrue" ];then
-        # get recovery.gz
-        # TODO: should be optimized with "choose"
-        make_recovery_img
-    fi
-
     prefix=$TARGET_KERNEL_DIR
     config=$KERNEL_DEFCONFIG
 
-    # Configuring Image for AP Booting
-    choose
     echo "kernel config: $config"
     # real build
     make ARCH=${ARCH_KERNEL} O=${BUILD_OUTPUT_PATH} $config || {
         echo "make $config failed"
         exit 1
     }
+
+    # Configuring Image for AP Booting
+    choose
 
     # For GCOV only, will modify the resulting .config
     set_kernel_config
@@ -227,6 +229,12 @@ function all()
 
     # build dtb-mapping.conf
     build_dtbmapping
+
+    if [ "x$KERNEL_WITH_RECOVERY" = "xtrue" ];then
+        # get recovery.gz
+        # TODO: should be optimized with "choose"
+        make_recovery_img
+    fi
 
     if [ x"$build_boot_img" = x"true" ];then
         build_boot_image
