@@ -62,7 +62,7 @@ int ipu_hw_enable_channel(struct ipu_subdev *subdev, bool enable);
 void ipu_frame_ndone(struct ipu_subdev *subdev);
 void ipu_frame_done(struct ipu_subdev *subdev);
 #ifdef CONFIG_HOBOT_DIAG
-uint16_t get_fps_from_mipi(void);
+uint16_t get_fps_from_mipi_host(void);
 #endif
 
 
@@ -4102,7 +4102,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		vio_set_stat_info(group->instance, IPU_FS, group->frameid.frame_id);
 
 #ifdef CONFIG_HOBOT_DIAG
-		frame_fps = get_fps_from_mipi();
+		frame_fps = get_fps_from_mipi_host();
 		now_frame = jiffies_to_msecs(get_jiffies_64());
 		if (((now_frame - g_diag_last_frame) > (1000/frame_fps + 10)) &&
 				g_diag_last_frame != 0) {

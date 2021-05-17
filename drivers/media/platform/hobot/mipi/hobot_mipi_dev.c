@@ -419,7 +419,6 @@ static int g_md_major;
 static struct class *g_md_class;
 static mipi_ddev_t *g_ddev[MIPI_DEV_MAX_NUM];
 
-uint16_t g_mipi_dev_cfg_fps;
 /**
  * @brief mipi_dev_configure_lanemode: configure dphy as csi tx mode
  *
@@ -1467,15 +1466,6 @@ static int32_t mipi_dev_deinit(mipi_ddev_t *ddev)
 	return 0;
 }
 
-
-uint16_t get_fps_from_mipi(void)
-{
-	return g_mipi_dev_cfg_fps;
-}
-EXPORT_SYMBOL(get_fps_from_mipi);
-
-
-
 /**
  * @brief mipi_dev_init : mipi dev init function
  *
@@ -1547,7 +1537,6 @@ init_retry:
 	mipi_putreg(iomem + REG_MIPI_DEV_PHY_RSTZ, power);
 
 	cfg->ipi_lines = cfg->ipi_lines ? cfg->ipi_lines : (cfg->height + 1);
-	g_mipi_dev_cfg_fps = cfg->fps;
 	if (!cfg->vpg) {
 		if (0 != mipi_dev_configure_ipi(ddev, cfg)) {
 			mipi_dev_deinit(ddev);
