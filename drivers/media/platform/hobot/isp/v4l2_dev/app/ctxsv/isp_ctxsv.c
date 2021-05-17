@@ -96,6 +96,14 @@ isp_ctx_node_t *isp_ctx_get_node(int ctx_id, isp_info_type_e it, isp_ctx_queue_t
 		node = ctx_queue[ctx_id][it].ctx_node_head[qt].next;
 		cn = (isp_ctx_node_t *)node;
 		list_del_init(node);
+	} else if (qt == FREEQ) {
+		node = ctx_queue[ctx_id][it].ctx_node_head[DONEQ].next;
+		if (!node) {
+			pr_err("DONEQ node is null\n");
+			return NULL;
+		}
+		cn = (isp_ctx_node_t *)node;
+		list_del_init(node);
 	}
 	spin_unlock(&lock);
 
@@ -138,6 +146,50 @@ isp_ctx_node_t *isp_ctx_get_node_timeout(int ctx_id, isp_info_type_e it,
 	return cn;
 }
 
+isp_ctx_node_t *isp_ctx_get_node_timeout_conditional(int ctx_id, isp_info_type_e it,
+				int frame_id, isp_ctx_queue_type_e qt, int32_t timeout)
+{
+	struct list_head *node, *next;
+	isp_ctx_node_t *cn = NULL;
+	int ret = 0;
+	int ret1 = 0;
+	int is_empty;
+	spin_lock(&lock);
+	is_empty = list_empty(&ctx_queue[ctx_id][it].ctx_node_head[qt]);
+	spin_unlock(&lock);
+	if (unlikely(is_empty == 1)) {
+		system_chardev_unlock();
+		ret = down_timeout(&ctx_queue[ctx_id][it].sem,
+						msecs_to_jiffies(timeout));
+		system_chardev_lock();
+	} else {
+		ret1 = down_trylock(&ctx_queue[ctx_id][it].sem);
+	}
+
+	if (ret >= 0) {
+		spin_lock(&lock);
+		if (!list_empty(&ctx_queue[ctx_id][it].ctx_node_head[qt])) {
+			list_for_each_safe(node, next, &ctx_queue[ctx_id][it].ctx_node_head[qt]) {
+				cn = (isp_ctx_node_t *)node;
+				if (cn->ctx.frame_id == frame_id) {
+					list_del_init(node);
+					break;
+				} else if (cn->ctx.frame_id < frame_id) {
+					list_move_tail(&cn->node, &ctx_queue[ctx_id][it].ctx_node_head[FREEQ]);
+					cn = NULL;
+				}
+			}
+		}
+		spin_unlock(&lock);
+		isp_ctx_queue_state("get");
+	}
+	if (!cn) {
+		pr_err("can't get related statistics of type %d for frame_id %d",
+		it, frame_id);
+	}
+	return cn;
+}
+
 void isp_ctx_put_node(int ctx_id, isp_ctx_node_t *cn, isp_info_type_e it, isp_ctx_queue_type_e qt)
 {
 	spin_lock(&lock);
@@ -153,6 +205,11 @@ void isp_ctx_put_node(int ctx_id, isp_ctx_node_t *cn, isp_info_type_e it, isp_ct
 isp_ctx_node_t * isp_ctx_get(int ctx_id, isp_info_type_e it, int32_t timeout)
 {
 	return isp_ctx_get_node_timeout(ctx_id, it, DONEQ, timeout);
+}
+
+isp_ctx_node_t *isp_ctx_get_conditional(int ctx_id, isp_info_type_e it, int frame_id, int32_t timeout)
+{
+	return isp_ctx_get_node_timeout_conditional(ctx_id, it, frame_id, DONEQ, timeout);
 }
 
 void isp_ctx_put(int ctx_id, isp_info_type_e type, uint8_t idx)
@@ -209,6 +266,19 @@ int isp_ctx_queue_init(void)
 			ctx_node[i][ISP_AF][j].base = af_base + j * AF_NODE_SIZE;
 			ctx_node[i][ISP_AE_5BIN][j].base = ae_5bin_base + j * AE_5BIN_NODE_SIZE;
 			ctx_node[i][ISP_LUMVAR][j].base = lumvar_base + j * LUMVAR_NODE_SIZE;
+
+			ctx_node[i][ISP_CTX][j].ctx.ctx_id = i;
+			ctx_node[i][ISP_CTX][j].ctx.type = ISP_CTX;
+			ctx_node[i][ISP_AE][j].ctx.ctx_id = i;
+			ctx_node[i][ISP_AE][j].ctx.type = ISP_AE;
+			ctx_node[i][ISP_AWB][j].ctx.ctx_id = i;
+			ctx_node[i][ISP_AWB][j].ctx.type = ISP_AWB;
+			ctx_node[i][ISP_AF][j].ctx.ctx_id = i;
+			ctx_node[i][ISP_AF][j].ctx.type = ISP_AF;
+			ctx_node[i][ISP_AE_5BIN][j].ctx.ctx_id = i;
+			ctx_node[i][ISP_AE_5BIN][j].ctx.type = ISP_AE_5BIN;
+			ctx_node[i][ISP_LUMVAR][j].ctx.ctx_id = i;
+			ctx_node[i][ISP_LUMVAR][j].ctx.type = ISP_LUMVAR;
 
 			for (k = 0; k < TYPE_MAX; k++) {
 				ctx_node[i][k][j].ctx.idx = j;

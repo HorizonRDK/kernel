@@ -42,20 +42,20 @@ typedef enum {
 
 // isp ctx get
 typedef struct {
-        uint8_t ctx_id;
-        uint8_t idx;
+	uint8_t ctx_id;
+	uint8_t idx;
 	uint8_t type;
-        uint32_t frame_id;
-        uint64_t timestamps;
-        uint32_t crc16;
-		int32_t time_out;
+	uint32_t frame_id;
+	uint64_t timestamps;
+	uint32_t crc16;
+	int32_t time_out;
 } isp_ctx_r_t;
 
 // isp ctx set
 typedef struct {
-        uint8_t ctx_id;
-        uint32_t crc16;
-        void *ptr;
+	uint8_t ctx_id;
+	uint32_t crc16;
+	void *ptr;
 } isp_ctx_w_t;
 
 // context queue node
@@ -67,6 +67,7 @@ typedef struct {
 
 extern isp_ctx_node_t *isp_ctx_get_node(int ctx_id, isp_info_type_e it, isp_ctx_queue_type_e qt);
 extern isp_ctx_node_t *isp_ctx_get(int ctx_id, isp_info_type_e it, int32_t timeout);
+extern isp_ctx_node_t *isp_ctx_get_conditional(int ctx_id, isp_info_type_e it, int frame_id, int32_t timeout);
 extern void isp_ctx_put_node(int ctx_id, isp_ctx_node_t *cn, isp_info_type_e it, isp_ctx_queue_type_e qt);
 extern void isp_ctx_put(int ctx_id, isp_info_type_e type, uint8_t idx);
 extern void isp_ctx_done_queue_clear(int ctx_id);

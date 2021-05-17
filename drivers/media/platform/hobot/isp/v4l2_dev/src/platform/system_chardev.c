@@ -53,6 +53,7 @@
 #define ISPIOC_REG_MEM_RW _IOWR('P', 7, struct regs_mem_t)
 #define ISPIOC_IRQ_WAIT _IOWR('P', 8, isp_irq_wait_s)
 #define ISPIOC_STA_CTRL _IOWR('P', 9, isp_sta_ctrl_t)
+#define ISPIOC_GET_CTX_CONDITIONAL _IOWR('P', 10, isp_ctx_r_t)
 
 #define CHECK_CODE	0xeeff
 
@@ -468,6 +469,7 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 	case ISPIOC_REG_MEM_RW:
 	case ISPIOC_IRQ_WAIT:
 	case ISPIOC_STA_CTRL:
+	case ISPIOC_GET_CTX_CONDITIONAL:
 		break;
 	default:
 		pr_err("command %d not support.\n", cmd);
@@ -681,6 +683,35 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 			p_ctx->isp_lumvar_stats_on = 1;
 
 		cn = isp_ctx_get(ctx.ctx_id, ctx.type, ctx.time_out);
+		if (cn) {
+			if (copy_to_user((void __user *)arg, (void *)&cn->ctx, sizeof(ctx))) {
+				ret = -EFAULT;
+			}
+		} else {
+			ret = -EFAULT;
+		}
+	}
+		break;
+	case ISPIOC_GET_CTX_CONDITIONAL:
+	{
+		isp_ctx_r_t ctx;
+		isp_ctx_node_t *cn = NULL;
+		acamera_context_t *p_ctx;
+
+		if (copy_from_user(&ctx, (void __user *)arg, sizeof(ctx))) {
+			ret = -EFAULT;
+			break;
+		}
+
+		// isp context save on
+		p_ctx = (acamera_context_t *)acamera_get_ctx_ptr(ctx.ctx_id);
+		if (p_ctx->initialized == 0) {
+			pr_err("%d ctx is not inited.\n", ctx.ctx_id);
+			ret = -EFAULT;
+			break;
+		}
+
+		cn = isp_ctx_get_conditional(ctx.ctx_id, ctx.type, ctx.frame_id, ctx.time_out);
 		if (cn) {
 			if (copy_to_user((void __user *)arg, (void *)&cn->ctx, sizeof(ctx))) {
 				ret = -EFAULT;
