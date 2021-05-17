@@ -16,7 +16,7 @@
 * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 *
 */
-
+#define pr_fmt(fmt) "[isp_drv]: %s: " fmt, __func__
 #include <linux/device.h>
 #include <linux/slab.h>
 #include <linux/mm.h>
@@ -45,6 +45,7 @@
 #define CUR_MOD_NAME LOG_MODULE_SBUF
 #endif
 
+#define IOC_WAKE_UP_CTRL    _IO('T', 0)
 
 static const char *sbuf_status_str[] = {
     "DATA_EMPTY",
@@ -135,6 +136,7 @@ struct sbuf_context {
     int dev_opened;
 
     int fw_id;
+    uint8_t algo_stop;
     sbuf_fsm_t *p_fsm;
 
     struct mutex idx_set_lock;
@@ -1127,7 +1129,7 @@ static void sbuf_mgr_get_latest_idx_set( struct sbuf_context *p_ctx, struct sbuf
 
         /* wait for the event */
         LOG( LOG_DEBUG, "wait for data, timeout_in_jiffies: %ld, HZ: %d.", time_out_in_jiffies, HZ );
-        rc = wait_event_interruptible_timeout( p_ctx->idx_set_wait_queue, is_idx_set_has_valid_item( &p_ctx->idx_set ), time_out_in_jiffies );
+        rc = wait_event_interruptible_timeout( p_ctx->idx_set_wait_queue, p_ctx->algo_stop || is_idx_set_has_valid_item( &p_ctx->idx_set ), time_out_in_jiffies );
         LOG( LOG_DEBUG, "after timeout, rc: %d, is_idx_set_has_valid_item: %d.", rc, is_idx_set_has_valid_item( &p_ctx->idx_set ) );
 
         rc = mutex_lock_interruptible( &p_ctx->idx_set_lock );
@@ -1672,6 +1674,7 @@ static int sbuf_fops_open( struct inode *inode, struct file *f )
         rc = -EBUSY;
     } else {
         p_ctx->dev_opened = 1;
+        p_ctx->algo_stop = 0;
         rc = 0;
         LOG( LOG_INFO, "open succeed." );
 
@@ -1909,6 +1912,20 @@ LOG( LOG_INFO, "sbuf_iridix_t size: %lu.", sizeof( struct sbuf_iridix)*4);
     return 0;
 }
 
+static long sbuf_fops_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+{
+    long ret = 0;
+    struct sbuf_context *p_ctx = (struct sbuf_context *)file->private_data;
+
+    if (cmd == IOC_WAKE_UP_CTRL) {
+        p_ctx->algo_stop = 1;
+        wake_up_interruptible(&p_ctx->idx_set_wait_queue);
+        pr_debug("[s%d] algo stop, wake up sbuf-thread.\n", p_ctx->fw_id);
+    }
+
+    return ret;
+}
+
 static struct file_operations sbuf_mgr_fops = {
     .owner = THIS_MODULE,
     .open = sbuf_fops_open,
@@ -1916,6 +1933,8 @@ static struct file_operations sbuf_mgr_fops = {
     .read = sbuf_fops_read,
     .write = sbuf_fops_write,
     .llseek = noop_llseek,
+    .unlocked_ioctl = sbuf_fops_ioctl,
+    .compat_ioctl = sbuf_fops_ioctl,    
     .mmap = sbuf_fops_mmap,
 };
 
