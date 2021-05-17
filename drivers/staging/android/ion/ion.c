@@ -42,12 +42,12 @@
 
 /* static struct ion_device *internal_dev; */
 static int heap_id;
-static char *_vio_data_type[26] = {
+static char *_vio_data_type[27] = {
 	"ipuds0_other", "ipuds1", "ipuds2", "ipuds3", "ipuds4",
 	"ipuus", "pymfb", "pymdata", "siffb", "sifraw",
 	"sifyuv", "ispyuv", "gdc", "iar", "gdcfb",
 	"pymlayer", "rgn", "bpu0", "bpu1", "vpu",
-	"vpu0", "vpu1", "vpu2", "vpu3", "vpu4", "other"
+	"vpu0", "vpu1", "vpu2", "vpu3", "vpu4", "vp", "other"
 	};
 
 bool ion_buffer_fault_user_mappings(struct ion_buffer *buffer)
@@ -1498,7 +1498,7 @@ static int ion_debug_heap_show(struct seq_file *s, void *unused)
 		moduletype = buffer->private_flags >> 12;
 		datatype = buffer->private_flags & 0xfff;
 		if (moduletype == 0) {
-			if (datatype > 25) datatype = 25;
+			if (datatype > 26) datatype = 26;
 			ptrtype = _vio_data_type[datatype];
 		} else if (moduletype == 1) {
 			ptrtype = "bpu";
