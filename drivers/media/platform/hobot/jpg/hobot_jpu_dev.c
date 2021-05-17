@@ -1020,7 +1020,6 @@ static int jpu_release(struct inode *inode, struct file *filp)
 		return -1;
 	}
 	priv = filp->private_data;
-	hb_jpu_clk_disable(dev);
 
 	if ((ret = down_interruptible(&dev->jpu_sem)) == 0) {
 		/* found and free the not handled buffer by user applications */
@@ -1046,7 +1045,7 @@ static int jpu_release(struct inode *inode, struct file *filp)
 	}
 	kfree(priv);
 	up(&dev->jpu_sem);
-
+	hb_jpu_clk_disable(dev);
 	jpu_debug_leave();
 
 	return 0;

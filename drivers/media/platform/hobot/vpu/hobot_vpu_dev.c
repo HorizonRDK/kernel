@@ -2711,7 +2711,7 @@ static int vpu_release(struct inode *inode, struct file *filp)
 		return -1;
 	}
 	priv = filp->private_data;
-	hb_vpu_clk_disable(dev);
+	// hb_vpu_clk_disable(dev);
 
 	if ((ret = down_interruptible(&dev->vpu_sem)) == 0) {
 		/* found and free the not handled buffer by user applications */
@@ -2770,6 +2770,7 @@ static int vpu_release(struct inode *inode, struct file *filp)
 	}
 	kfree(priv);
 	up(&dev->vpu_sem);
+	hb_vpu_clk_disable(dev);
 	vpu_debug_leave();
 	return 0;
 }
