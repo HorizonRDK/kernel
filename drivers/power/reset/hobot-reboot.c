@@ -27,11 +27,14 @@ static u32 reboot_offset;
 #define HOBOT_SWINFO_SIZE_MAX   0x10
 #define HOBOT_SWINFO_MAGIC_MEMI 0
 #define HOBOT_SWINFO_MAGIC_CODE 0x57534248
+#define HOBOT_REBOOT_FLAG_BIT_OFFSET  28
+#define HOBOT_REBOOT_FLAG_OFFSET      0x214
 static struct kobject *k_obj;
 static struct mutex swinfo_lock;
 static void __iomem *swreg_base;
 static void __iomem *swmem_base;
 static void __iomem *swinfo_base;
+static void __iomem *reboot_flag_reg;
 //static void __iomem *swfifo_base;
 static u32 swinfo_size;
 static u32 swinfo_ro;
@@ -39,6 +42,36 @@ static u32 swinfo_ro;
 static u32 swi_boot[3];
 static u32 swi_dump[3];
 static u32 swinfo_ptype, swinfo_preg;
+enum reboot_reason {
+	HB_REBOOT_WDT = 0,
+	HB_REBOOT_PANIC,
+	HB_REBOOT_NORMAL
+};
+
+static void hobot_set_reboot_flag(enum reboot_reason flag)
+{
+	u32 regv;
+
+	mutex_lock(&swinfo_lock);
+	regv = readl_relaxed(reboot_flag_reg);
+	regv &=  ~(0xf << HOBOT_REBOOT_FLAG_BIT_OFFSET);
+	regv = regv | (flag << HOBOT_REBOOT_FLAG_BIT_OFFSET);
+
+	writel_relaxed(regv, reboot_flag_reg);
+	mutex_unlock(&swinfo_lock);
+}
+
+void hobot_set_reboot_flag_panic(void)
+{
+	hobot_set_reboot_flag(HB_REBOOT_PANIC);
+}
+EXPORT_SYMBOL(hobot_set_reboot_flag_panic);
+
+void hobot_set_reboot_flag_normal(void)
+{
+	hobot_set_reboot_flag(HB_REBOOT_NORMAL);
+}
+EXPORT_SYMBOL(hobot_set_reboot_flag_normal);
 
 int hobot_swinfo_set(u32 sel, u32 index, u32 mask, u32 value)
 {
@@ -132,6 +165,7 @@ EXPORT_SYMBOL(hobot_swinfo_dump);
 
 int hobot_swinfo_panic(void)
 {
+	hobot_set_reboot_flag_panic();
 	if (swinfo_ptype == 1) {
 		pr_info("swinfo panic boot %d\n", swinfo_preg);
 		return hobot_swinfo_boot(swinfo_preg);
@@ -496,6 +530,7 @@ static int hobot_reboot_probe(struct platform_device *pdev)
 	u32 swreg_offset, swmem_magic, swinfo_sel, b = 0, d = 0;
 	u32 swi[3], i;
 	int err;
+	u32 reboot_flag_offset = 0;
 
 	base = of_iomap(of_get_parent(np), 0);
 	if (!base) {
@@ -551,6 +586,11 @@ static int hobot_reboot_probe(struct platform_device *pdev)
 		swinfo_sel == 0)
 		swinfo_sel = 2;
 
+	if (of_property_read_u32(np, "reboot-flag", &reboot_flag_offset) < 0) {
+		pr_err("get reboot flag offset failed\n");
+		reboot_flag_offset = HOBOT_REBOOT_FLAG_OFFSET;
+	}
+	reboot_flag_reg = base + reboot_flag_offset;
 	npm = of_parse_phandle(np, "memory-region", 0);
 	if (npm) {
 		err = of_address_to_resource(npm, 0, &r);

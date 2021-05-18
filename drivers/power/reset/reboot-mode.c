@@ -17,6 +17,8 @@
 
 #define PREFIX "mode-"
 
+extern void hobot_set_reboot_flag_normal(void);
+
 struct mode_info {
 	const char *mode;
 	u32 magic;
@@ -48,7 +50,9 @@ static int reboot_mode_notify(struct notifier_block *this,
 {
 	struct reboot_mode_driver *reboot;
 	unsigned int magic;
-
+#ifdef CONFIG_HOBOT_XJ3
+	hobot_set_reboot_flag_normal();
+#endif
 	reboot = container_of(this, struct reboot_mode_driver, reboot_notifier);
 	magic = get_reboot_mode_magic(reboot, cmd);
 	if (magic)

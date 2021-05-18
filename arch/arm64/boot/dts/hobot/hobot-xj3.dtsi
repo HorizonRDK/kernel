@@ -1296,6 +1296,7 @@
 				swinfo-sel = <0x2>;
 				swi-boot = <1 0 3>;
 				swi-dump = <2 0 31>;
+				reboot-flag = <0x214>;
 			};
 
 			reboot-mode {
