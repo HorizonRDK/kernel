@@ -75,6 +75,12 @@ static struct usb_gadget_strings *uvc_function_strings[] = {
 
 #define UVC_STATUS_MAX_PACKET_SIZE		16	/* 16 bytes status */
 
+#define MAX_ALTSETTING_NUM			11
+static u16 isoc_max_packet_size[MAX_ALTSETTING_NUM] =
+	{0xc0, 0x180, 0x200, 0x280, 0x320, 0x3b0, 0xa80, 0xb20, 0xbe0, 0x13c0, 0x1400};
+	/* {1x192, 1x384, 1x512, 1x640, 1x800, 1x944, 2x640, 2x800, 2x992, 3x960, 3x1024} */
+	/* {192, 384, 512, 640, 800, 944, 1280, 1600, 1984, 2880, 3072} */
+
 static struct usb_interface_assoc_descriptor uvc_iad = {
 	.bLength		= sizeof(uvc_iad),
 	.bDescriptorType	= USB_DT_INTERFACE_ASSOCIATION,
@@ -425,6 +431,24 @@ uvc_function_set_alt(struct usb_function *f, unsigned interface, unsigned alt)
 			return 0;
 
 		case 1:
+		default:
+			if (opts->streaming_multi_altsetting) {
+				/* uvc isoc streaming support multi altersetting case */
+				if (alt > MAX_ALTSETTING_NUM) {
+					ERROR(cdev, "alt(%u) exceed limit(%u)\n",
+							alt, MAX_ALTSETTING_NUM);
+					return -EINVAL;
+				}
+			} else {
+				/*
+				 * only 2 altersetting for uvc isoc.
+				 * 0 - zero bindwidth
+				 * 1 - full bindwidth
+				 */
+				if (alt != 1)
+					return -EINVAL;
+			}
+
 			if (uvc->state != UVC_STATE_CONNECTED)
 				return 0;
 
@@ -434,8 +458,8 @@ uvc_function_set_alt(struct usb_function *f, unsigned interface, unsigned alt)
 			INFO(cdev, "reset UVC\n");
 			usb_ep_disable(uvc->video.ep);
 
-			ret = config_ep_by_speed(f->config->cdev->gadget,
-						 &uvc->func, uvc->video.ep);
+			ret = config_ep_by_speed_and_alt(f->config->cdev->gadget,
+						 &uvc->func, uvc->video.ep, alt);
 			if (ret)
 				return ret;
 			usb_ep_enable(uvc->video.ep);
@@ -444,9 +468,6 @@ uvc_function_set_alt(struct usb_function *f, unsigned interface, unsigned alt)
 			v4l2_event.type = UVC_EVENT_STREAMON;
 			v4l2_event_queue(uvc->vdev, &v4l2_event);
 			return USB_GADGET_DELAYED_STATUS;
-
-		default:
-			return -EINVAL;
 		}
 	} else {
 		switch (uvc->state) {
@@ -706,6 +727,7 @@ uvc_copy_descriptors(struct uvc_device *uvc, enum usb_device_speed speed)
 	unsigned int n_desc;
 	unsigned int bytes;
 	void *mem;
+	int i;
 
 	opts = fi_to_f_uvc_opts(uvc->func.fi);
 
@@ -786,9 +808,18 @@ uvc_copy_descriptors(struct uvc_device *uvc, enum usb_device_speed speed)
 		bytes += (*src)->bLength;
 		n_desc++;
 	}
-	for (src = uvc_streaming_std; *src; ++src) {
-		bytes += (*src)->bLength;
-		n_desc++;
+	if (!opts->streaming_bulk && opts->streaming_multi_altsetting &&
+			speed == USB_SPEED_HIGH) {
+		src = uvc_streaming_std;
+		bytes += (*src++)->bLength * MAX_ALTSETTING_NUM;
+		n_desc += MAX_ALTSETTING_NUM;
+		bytes += (*src)->bLength * MAX_ALTSETTING_NUM;
+		n_desc += MAX_ALTSETTING_NUM;
+	} else {
+		for (src = uvc_streaming_std; *src; ++src) {
+			bytes += (*src)->bLength;
+			n_desc++;
+		}
 	}
 
 	mem = kmalloc((n_desc + 1) * sizeof(*src) + bytes, GFP_KERNEL);
@@ -823,7 +854,26 @@ uvc_copy_descriptors(struct uvc_device *uvc, enum usb_device_speed speed)
 	uvc_streaming_header->wTotalLength = cpu_to_le16(streaming_size);
 	uvc_streaming_header->bEndpointAddress = uvc->video.ep->address;
 
-	UVC_COPY_DESCRIPTORS(mem, dst, uvc_streaming_std);
+	/*
+	 * for streaming interface multi altersetting case, only for
+	 * high speed case currently.
+	 */
+	if (!opts->streaming_bulk && opts->streaming_multi_altsetting &&
+			speed == USB_SPEED_HIGH) {
+		for (i = 0; i < MAX_ALTSETTING_NUM; i++) {
+			uvc_streaming_std = uvc_hs_streaming;
+			((struct usb_interface_descriptor *)uvc_streaming_std[0])
+				->bAlternateSetting = i + 1;
+			((struct usb_endpoint_descriptor *)uvc_streaming_std[1])
+				->wMaxPacketSize = isoc_max_packet_size[i];
+			((struct usb_endpoint_descriptor *)uvc_streaming_std[1])
+				->bInterval = opts->streaming_interval;
+
+			UVC_COPY_DESCRIPTORS(mem, dst, uvc_streaming_std);
+		}
+	} else {
+		UVC_COPY_DESCRIPTORS(mem, dst, uvc_streaming_std);
+	}
 
 	*dst = NULL;
 	return hdr;
