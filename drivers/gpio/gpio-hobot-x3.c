@@ -254,6 +254,7 @@ static int x3_gpio_get(struct gpio_chip *chip, unsigned offset) {
 }
 
 static void x3_gpio_set(struct gpio_chip *chip, unsigned offset, int val) {
+    unsigned long flags;
     u32 value;
     int index;
     void __iomem *regaddr;
@@ -264,15 +265,21 @@ static void x3_gpio_set(struct gpio_chip *chip, unsigned offset, int val) {
     if (index < 0)
         return;
     regaddr = gpo->regbase + io_groups[index].regoffset;
+
+    raw_spin_lock_irqsave(&gpo->lock, flags);
+
     value = readl(regaddr + X3_IO_CTL);
     if (val == GPIO_LOW)
         value &= ~(0x1 << (gpio - io_groups[index].start));
     else if (val == GPIO_HIGH)
         value |= (0x1 << (gpio - io_groups[index].start));
     writel(value, regaddr + X3_IO_CTL);
+
+    raw_spin_unlock_irqrestore(&gpo->lock, flags);
 }
 
 static int x3_gpio_direction_input(struct gpio_chip *chip, unsigned offset) {
+    unsigned long flags;
     u32 value;
     int index;
     void __iomem *regaddr;
@@ -283,15 +290,21 @@ static int x3_gpio_direction_input(struct gpio_chip *chip, unsigned offset) {
     if (index < 0)
         return -ENODEV;
     regaddr = gpo->regbase + io_groups[index].regoffset;
+
+    raw_spin_lock_irqsave(&gpo->lock, flags);
+
     value = readl(regaddr + X3_IO_CTL);
     value &= ~(0x1 << (gpio - io_groups[index].start + X3_IO_DIR_SHIFT));
     writel(value, regaddr + X3_IO_CTL);
+
+    raw_spin_unlock_irqrestore(&gpo->lock, flags);
 
     return 0;
 }
 
 static int x3_gpio_direction_output(struct gpio_chip *chip, unsigned offset,
                                     int val) {
+    unsigned long flags;
     u32 value;
     int index;
     void __iomem *regaddr;
@@ -302,6 +315,9 @@ static int x3_gpio_direction_output(struct gpio_chip *chip, unsigned offset,
     if (index < 0)
         return -ENODEV;
     regaddr = gpo->regbase + io_groups[index].regoffset;
+
+    raw_spin_lock_irqsave(&gpo->lock, flags);
+
     value = readl(regaddr + X3_IO_CTL);
     value |= (0x1 << (gpio - io_groups[index].start + X3_IO_DIR_SHIFT));
 
@@ -311,6 +327,8 @@ static int x3_gpio_direction_output(struct gpio_chip *chip, unsigned offset,
         value |= (0x1 << (gpio - io_groups[index].start));
 
     writel(value, regaddr + X3_IO_CTL);
+
+    raw_spin_unlock_irqrestore(&gpo->lock, flags);
 
     return 0;
 }
@@ -446,6 +464,9 @@ static int x3_gpio_irq_set_type(struct irq_data *data, unsigned int type) {
     bank = find_irqbank(gpo, gpio);
     if (bank < GPIO_IRQ_BANK0 || bank > GPIO_IRQ_BANK3)
         return -EINVAL;
+
+    raw_spin_lock_irqsave(&gpo->lock, flags);
+
     value1 = readl(gpo->regbase + X3_IO_INT_POS);
     value2 = readl(gpo->regbase + X3_IO_INT_NEG);
     switch (type) {
@@ -462,9 +483,9 @@ static int x3_gpio_irq_set_type(struct irq_data *data, unsigned int type) {
             value2 |= BIT(bank);
             break;
         default:
+            raw_spin_unlock_irqrestore(&gpo->lock, flags);
             return -EINVAL;
     }
-    raw_spin_lock_irqsave(&gpo->lock, flags);
 
     writel(value1, gpo->regbase + X3_IO_INT_POS);
     writel(value2, gpo->regbase + X3_IO_INT_NEG);
