@@ -185,8 +185,11 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
 
     p_sbuf_ae = (sbuf_ae_t *)sbuf.buf_base;
     pr_debug("Get sbuf ok, idx: %u, status: %u, addr: %p.", sbuf.buf_idx, sbuf.buf_status, sbuf.buf_base );
-
-    ae_flow.frame_id_tracking = acamera_fsm_util_get_cur_frame_id( &p_fsm->cmn );
+	if(p_ctx->p_gfw->sif_isp_offline) {
+		ae_flow.frame_id_tracking = p_ctx->p_gfw->sw_frame_counter;
+	} else {
+		ae_flow.frame_id_tracking = acamera_fsm_util_get_cur_frame_id( &p_fsm->cmn);
+	}
     p_sbuf_ae->frame_id = ae_flow.frame_id_tracking;
 
     for ( i = 0; i < ISP_FULL_HISTOGRAM_SIZE; ++i ) {
@@ -365,7 +368,7 @@ void AE_fsm_process_interrupt( AE_fsm_const_ptr_t p_fsm, uint8_t irq_event )
 void ae_set_new_param( AE_fsm_ptr_t p_fsm, sbuf_ae_t *p_sbuf_ae )
 {
     if ( p_sbuf_ae->frame_id == p_fsm->frame_id_tracking ) {
-        pr_info("Same frame used twice, frame_id: %u. hw frmid %u", p_sbuf_ae->frame_id,
+        pr_info("ae Same frame used twice, frame_id: %u. hw frmid %u", p_sbuf_ae->frame_id,
                 acamera_fsm_util_get_cur_frame_id(&p_fsm->cmn));
         return;
     }
