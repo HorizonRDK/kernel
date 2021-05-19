@@ -104,24 +104,53 @@ static int32_t is_send_condition_ready(struct diag_event_id *event_id,
 	return ret;
 }
 
+static struct diag_module_event * try_to_free_event_element(void)
+{
+	struct diag_module_event *element = NULL;
+	unsigned long flags;
+
+	spin_lock_irqsave(&g_diag_info->prio_lock, flags);
+	if (!list_empty(&g_diag_info->low_prio_list)) {
+		element = list_first_entry(&g_diag_info->low_prio_list,
+					struct diag_module_event, list);
+	} else if (!list_empty(&g_diag_info->mid_prio_list)) {
+		element = list_first_entry(&g_diag_info->mid_prio_list,
+					struct diag_module_event, list);
+	} else {
+		element = list_first_entry(&g_diag_info->hig_prio_list,
+					struct diag_module_event, list);
+	}
+	list_del(&element->list);
+	spin_unlock_irqrestore(&g_diag_info->prio_lock, flags);
+
+	return element;
+}
+
 static int32_t module_event_add_to_list(struct diag_event *event)
 {
-	struct diag_module_event *module_event;
+	struct diag_module_event *module_event = NULL;
 	unsigned long flags;	/* PRQA S 5209 */
 
 	spin_lock_irqsave(&g_diag_info->empty_spinlock, flags); /* PRQA S ALL */
 	if (list_empty(&g_diag_info->empty_list)) { /* PRQA S ALL */
-		pr_err("event element is used up\n"); /* PRQA S ALL */
-
 		spin_unlock_irqrestore(&g_diag_info->empty_spinlock, flags);
-		return -1;
+		if (diag_is_ready()) {
+			pr_err("event element is used up,module:%hx event:%hx"
+					"sta:%hhx discard\n", event->module_id,
+					event->event_id, event->event_sta); /* PRQA S ALL */
+			return -1;
+		}
+		module_event = try_to_free_event_element();
+		pr_debug("event element used up,module:%hx event:%hx"
+				"sta:%hhx was chosen to discard\n", module_event->module_id,
+				module_event->event_id, module_event->event_sta);
+	} else {
+		/* get a node from empty_list */
+		module_event = list_first_entry(&g_diag_info->empty_list, /* PRQA S ALL */
+				struct diag_module_event, list);
+		list_del(&module_event->list);
+		spin_unlock_irqrestore(&g_diag_info->empty_spinlock, flags);
 	}
-
-	/* get a node from empty_list */
-	module_event = list_first_entry(&g_diag_info->empty_list, /* PRQA S ALL */
-			struct diag_module_event, list);
-	list_del(&module_event->list);
-	spin_unlock_irqrestore(&g_diag_info->empty_spinlock, flags);
 
 	/* initialize module_event */
 	module_event->module_id = event->module_id;
@@ -408,11 +437,10 @@ int32_t diagnose_send_event(struct diag_event *event)
 	/* insert to priority queue */
 	ret = module_event_add_to_list(event);
 	if (ret < 0) {
-		pr_err("insert to list fail\n");	/* PRQA S ALL */
 		return -1;
 	}
 
-	PDEBUG("module:%hx,event:%hx,sta:%hhx\n",
+	pr_debug("module:%hx,event:%hx,sta:%hhx\n",
 			event->module_id, event->event_id, event->event_sta);
 
 	schedule_work(&g_diag_info->diag_work);	/* PRQA S 3200 */
