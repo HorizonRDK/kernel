@@ -1308,6 +1308,16 @@ static int hb_spi_probe(struct platform_device *pdev)
 		ctlr->slave_abort = hb_spi_slave_abort;
 	}
 
+	hb_spi_init_hw(hbspi);
+
+#ifdef CONFIG_HB_SPI_DMA_SINGLE
+	ret = hb_spi_request_dma(hbspi);
+	if (ret < 0) {
+		dev_err(&pdev->dev, "failed to hobot spi request dma(%d)\n", ret);
+		goto clk_dis_mclk;
+	}
+#endif
+
 	/* register spi controller */
 	ret = devm_spi_register_controller(&pdev->dev, ctlr);
 	if (ret) {
@@ -1333,16 +1343,6 @@ static int hb_spi_probe(struct platform_device *pdev)
 	}
 	sched_setscheduler(hbspi->task, SCHED_FIFO, &param);
 	wake_up_process(hbspi->task);
-#endif
-
-	hb_spi_init_hw(hbspi);
-
-#ifdef CONFIG_HB_SPI_DMA_SINGLE
-	ret = hb_spi_request_dma(hbspi);
-	if (ret < 0) {
-		dev_err(&pdev->dev, "failed to hobot spi request dma(%d)\n", ret);
-		goto clk_dis_mclk;
-	}
 #endif
 
 #ifdef CONFIG_HOBOT_DIAG
