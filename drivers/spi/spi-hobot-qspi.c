@@ -903,7 +903,9 @@ exec_end:
 		dev_err(hbqspi->dev, "Exec op failed! cmd:%#02x err: %d\n",
 				op->cmd.opcode, ret);
 
+#ifdef CONFIG_HOBOT_DIAG
 	hb_qspiflash_diag_report(ret, op->cmd.opcode);
+#endif
 #if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
 	mutex_unlock(&(hbqspi->xfer_lock));
 #endif
@@ -1009,7 +1011,9 @@ static int hbqspi_dpm_callback(struct hobot_dpm *self,
 static irqreturn_t hb_qspi_irq_handler(int irq, void *dev_id)
 {
 	unsigned int err_status;
+#ifdef CONFIG_HOBOT_DIAG
 	int err = 0;
+#endif
 	struct hb_qspi *hbqspi = dev_id;
 #ifndef HB_QSPI_WORK_POLL
 	unsigned int irq_status;
@@ -1021,10 +1025,10 @@ static irqreturn_t hb_qspi_irq_handler(int irq, void *dev_id)
 		return IRQ_HANDLED;
 	}
 
+#ifdef CONFIG_HOBOT_DIAG
 	if (err_status & (HB_QSPI_RXWR_FULL | HB_QSPI_TXRD_EMPTY))
 		err = 1;
 
-#ifdef CONFIG_HOBOT_DIAG
 	hb_qspiflash_diag_report(err, err_status);
 #endif /* CONFIG_HOBOT_DIAG */
 #endif /* HB_QSPI_WORK_POLL */

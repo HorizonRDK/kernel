@@ -3336,7 +3336,9 @@ int dw_mci_probe(struct dw_mci *host)
 	u32 fifo_size;
 
 	/* Do not report any error before init is properly done */
+#ifdef CONFIG_HOBOT_DIAG
 	init_done = 0;
+#endif
 	if (!host->pdata) {
 		host->pdata = dw_mci_parse_dt(host);
 		if (PTR_ERR(host->pdata) == -EPROBE_DEFER) {
