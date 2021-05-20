@@ -102,11 +102,13 @@ reqregion_err:
 
 static void dwe_unregister(dwe_subdev_s *ptr)
 {
-	
-	iounmap(ptr->io_vaddr);
-	release_mem_region(ptr->io_paddr, ptr->io_memsize);
-	kfree(ptr);
-	ptr = NULL;
+	if (ptr->io_vaddr) {
+		iounmap(ptr->io_vaddr);
+		ptr->io_vaddr = NULL;
+	}
+	if (ptr->io_paddr && (ptr->io_memsize != 0)) {
+		release_mem_region(ptr->io_paddr, ptr->io_memsize);
+	}
 }
 
 static int dwe_dev_probe(struct platform_device *pdev)
@@ -127,6 +129,8 @@ static int dwe_dev_probe(struct platform_device *pdev)
 		if (dwe_dev.ldc_dev != NULL) {
 			LOG(LOG_ERR, "ldc_dev is not null, the addr is %p \n", dwe_dev.ldc_dev);
 			dwe_unregister(dwe_dev.ldc_dev);
+			kfree(dwe_dev.ldc_dev);
+			dwe_dev.ldc_dev = NULL;
 		}
 		ret = dwe_register(pdev, pres, &dwe_dev.ldc_dev);
 		if (ret < 0) {
@@ -136,6 +140,8 @@ static int dwe_dev_probe(struct platform_device *pdev)
 		if (dwe_dev.dis_dev != NULL) {
 			LOG(LOG_ERR, "dis_dev is not null, the addr is %p \n", dwe_dev.dis_dev);
 			dwe_unregister(dwe_dev.dis_dev);
+			kfree(dwe_dev.dis_dev);
+			dwe_dev.dis_dev = NULL;
 		}
 		ret = dwe_register(pdev, pres, &dwe_dev.dis_dev);
 		if (ret < 0) {
@@ -145,6 +151,8 @@ static int dwe_dev_probe(struct platform_device *pdev)
 		if (dwe_dev.dis1_dev != NULL) {
 			LOG(LOG_ERR, "dis1_dev is not null, the addr is %p \n", dwe_dev.dis1_dev);
 			dwe_unregister(dwe_dev.dis1_dev);
+			kfree(dwe_dev.dis1_dev);
+			dwe_dev.dis1_dev = NULL;
 		}
 		ret = dwe_register(pdev, pres, &dwe_dev.dis1_dev);
 		if (ret < 0) {
@@ -166,14 +174,20 @@ static int dwe_dev_remove(struct platform_device *pdev)
 	
 	if (dwe_dev.ldc_dev != NULL) {
 		dwe_unregister(dwe_dev.ldc_dev);
+		kfree(dwe_dev.ldc_dev);
+		dwe_dev.ldc_dev = NULL;
 	}
 	
 	if (dwe_dev.dis_dev != NULL) {
 		dwe_unregister(dwe_dev.dis_dev);
+		kfree(dwe_dev.dis_dev);
+		dwe_dev.dis_dev = NULL;
 	}
 
 	if (dwe_dev.dis1_dev != NULL) {
 		dwe_unregister(dwe_dev.dis1_dev);
+		kfree(dwe_dev.dis1_dev);
+		dwe_dev.dis1_dev = NULL;
 	}
 	return ret;
 }

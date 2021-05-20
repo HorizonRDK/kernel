@@ -480,9 +480,9 @@ int dwe_hw_init(void)
 	return ret;
 
 irq_err:
-	free_irq(dwe_ctx->dev_ctx->dis_dev->irq_num, x3_dis_irq);
+	free_irq(dwe_ctx->dev_ctx->dis_dev->irq_num, NULL);
 irqdis_err:
-	free_irq(dwe_ctx->dev_ctx->ldc_dev->irq_num, x3_ldc_irq);
+	free_irq(dwe_ctx->dev_ctx->ldc_dev->irq_num, NULL);
 irqldc_err:
 	return ret;
 }
@@ -497,10 +497,10 @@ void dwe_hw_deinit(void)
 		LOG(LOG_INFO, "dwe_ctx->dev_ctx is error! \n");
 	} else {
 		irq = dwe_ctx->dev_ctx->ldc_dev->irq_num;
-		free_irq(irq, x3_ldc_irq);
+		free_irq(irq, NULL);
 		
 		irq = dwe_ctx->dev_ctx->dis_dev->irq_num;
-		free_irq(irq, x3_dis_irq);
+		free_irq(irq, NULL);
 	}
 
 	dwe_deinit_api(&dwe_ctx->ctx);
