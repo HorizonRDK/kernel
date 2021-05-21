@@ -137,7 +137,20 @@ struct pym_subdev {
 	u8 poll_mask;
 };
 
-
+/**
+ * struct x3_pym_dev is used to describe pyramid module
+ * @instance: used as pipeline id.
+ * @rsccount: rsccount>0 pym is already enable
+ * @open_cnt: open_cnt>0 pym pm_qos/clk is already enable
+ * @shared_slock: lock access to this struct
+ * @sensor_fcount: frame start interrupt count
+ * @backup_fcount: count the number of prepared frames in frame_work func
+ * @enable_cnt: used for serial enable and disable operations
+ * @subdev: describe pym that support time-sharing for VIO_MAX_STREAM pipeline
+ * @group: pointer to iscore.chain[VIO_MAX_STREAM].group[GROUP_ID_IPU]
+ * @gtask: describe group's task, hold kthread worker
+ * @vwork: describe frame's work, hold kthread work entry for each frames(VIO_MP_MAX_FRAMES)
+ */
 struct x3_pym_dev {
 	/* channel information */
 	u32 __iomem *base_reg;

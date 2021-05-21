@@ -102,7 +102,10 @@ static int x3_ipu_open(struct inode *inode, struct file *file)
 	ipu_ctx->ipu_dev = ipu;
 	file->private_data = ipu_ctx;
 	ipu_ctx->state = BIT(VIO_VIDEO_OPEN);
-
+	/**
+	 * DONE_NODE_ID is /dev/ipu_done minor number
+	 * /dev/ipu_done used to notify HAL of ipu_frame_done(ds0/1/2/3/4 done)
+	 */
 	if (ipu_ctx->id == DONE_NODE_ID)
 		goto p_err;
 
@@ -783,7 +786,7 @@ void ipu_frame_work(struct vio_group *group)
 		vio_dbg("insert pipe %d index %d\n", instance, work_index);
 		vio_group_insert_work(group, &ipu->vwork[instance][work_index].work);
 	}
-
+	/* set shadow reg not ready */
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy & ~(1 << 4) & ~(1 << shadow_index);
 	ipu_set_shd_rdy(ipu->base_reg, rdy);
@@ -829,6 +832,7 @@ void ipu_frame_work(struct vio_group *group)
 		}
 	}
 
+	/* orderly traverse sbudev DS4/3/2/1/0,US,SRC */
 	for (i = MAX_DEVICE - 2; i >= 0; i--) {
 		subdev = group->sub_ctx[i];
 		if (!subdev)
@@ -869,6 +873,7 @@ void ipu_frame_work(struct vio_group *group)
 			goto end_req_to_pro;
 
 		frame = peek_frame(framemgr, FS_REQUEST);
+		/* set frameinfo to reg and transfer frame to FS_PROCESS queue */
 		if (frame) {
 			switch (i) {
 			case GROUP_ID_SRC:
@@ -3140,7 +3145,13 @@ ion_cleanup:
 	}
 	return -ENOMEM;
 }
-
+/**
+ * @brief: In multi-process share scenario, the slave process
+ * waits for the master process to complete init GROUP_ID_SRC
+ * @param {struct ipu_video_ctx} *ipu_ctx
+ * @param {unsigned long} arg
+ * @return 1:GROUP_ID_SRC initialized; 0: GROUP_ID_SRC not initialized
+ */
 int ipu_wait_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 {
 	int id = 0;
@@ -3190,7 +3201,13 @@ int ipu_wait_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 
 	return 0;
 }
-
+/**
+ * @brief: send signal SIGPOLL to waiting slave process,
+ * when IPU initialization is complete
+ * @param {struct ipu_video_ctx} *ipu_ctx
+ * @param {int} instance
+ * @return {int} ret: <0 failed, 0 sucess
+ */
 int ipu_init_end(struct ipu_video_ctx *ipu_ctx, int instance)
 {
 	int ret = 0;

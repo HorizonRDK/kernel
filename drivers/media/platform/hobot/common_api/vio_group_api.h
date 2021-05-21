@@ -148,6 +148,17 @@ struct vio_group_task {
 	u32 id;
 };
 
+/**
+ * struct vio_group used to describe processing modules on a pipeline
+ * include GROUP_ID_SIF_OUT/GROUP_ID_SIF_IN/GROUP_ID_IPU/GROUP_ID_PYM
+ * @id: identify different GROUP.
+ * @instance: identify different pipeline.
+ * @sema_flag: record which groups are done on the pipeline.
+ * @target_sema: wake up leadr group task sema value.
+ * @leader: leader group sequentially call next group->frame_work, and finally
+ * call leader->frame_work. make sure the output buf is ready before the input
+ * @gtask: pointer to dev(sif/ipu/pym) gtask
+ */
 struct vio_group {
 	spinlock_t 			slock;
 	void *sub_ctx[MAX_SUB_DEVICE];

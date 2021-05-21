@@ -108,7 +108,15 @@ struct ipu_status_statistic {
 	u32 enable_subdev[VIO_MAX_STREAM];
 	u32 err_stat_enable[VIO_MAX_STREAM];
 };
-
+/**
+ * struct ipu_video_ctx is used to describe video frames context of one process
+ * @framemgr: pointer to subdev->framemgr
+ * @frm_fst_ind: ipu_video_ctx frame first index in subdev->framemgr
+ * @frm_num: ipu_video_ctx frame number in subdev->framemgr
+ * frm_fst_ind,frm_num used to determine which ipu_video_ctx the frame belong to
+ * @id: minor devno
+ * @ctx_index: used to identify different processes
+ */
 struct ipu_video_ctx {
 	wait_queue_head_t	done_wq;
 	struct vio_framemgr 	*framemgr;
@@ -210,7 +218,21 @@ struct ipu_wait_init_info {
 	u32 instance;
 	int pid;
 };
-
+/**
+ * struct ipu_subdev is used to describe ipu channel, support multi-process sharing it
+ * @ctx: describe video frames context of one process alloced in open this subdev
+ * @val_ctx_mask: for example, 0x3 represent 2 processes sharing this subdev
+ * @id: subdev minor devno
+ * @pre_enable_flag: save ds2 dma enable state before FS INT
+ * @cur_enable_flag: ==1 call ipu_frame_done in FE INT
+ * @poll_mask: record the processes that poll this subdev, used to identify
+ * processes that need to wake_up after frame_done
+ * @lost_next_frame: if lost_next_frame disable channel output before frame start
+ * @lost_this_frame: if lost_this_frame call ipu_frame_ndone in frame_work
+ * @group: pointer to iscore.chain[VIO_MAX_STREAM].group[GROUP_ID_IPU]
+ * @gtask: describe group task, hold kthread worker
+ * @vwork: describe group work, hold kthread work entry for each frames(VIO_MP_MAX_FRAMES)
+ */
 struct ipu_subdev {
 	spinlock_t 		slock;
 	struct ipu_video_ctx	*ctx[VIO_MAX_SUB_PROCESS];
@@ -246,7 +268,20 @@ struct ipu_subdev {
 
 	int	wait_init_pid[VIO_MAX_SUB_PROCESS];
 };
-
+/**
+ * struct x3_ipu_dev is used to describe IPU(Image Process Unit).
+ * ipu have 6 channels, 1 input(src) channel and 5 output(us,ds0/1/2/3/4) channel.
+ * @instance: used as pipeline id.
+ * @rsccount: rsccount>0 ipu is already enable
+ * @open_cnt: open_cnt>0 ipu pm_qos/clk is already enable
+ * @sensor_fcount: frame start interrupt count
+ * @backup_fcount: count the number of prepared frames in frame_work func
+ * @enable_cnt: used for serial enable and disable operations
+ * @subdev: describe ipu channel, subdev support time-sharing for VIO_MAX_STREAM pipeline
+ * @group: pointer to iscore.chain[VIO_MAX_STREAM].group[GROUP_ID_IPU]
+ * @gtask: describe group's task, hold kthread worker
+ * @vwork: describe frame's work, hold kthread work entry for each frames(VIO_MP_MAX_FRAMES)
+ */
 struct x3_ipu_dev {
 	/* channel information */
 	u32 __iomem *base_reg;

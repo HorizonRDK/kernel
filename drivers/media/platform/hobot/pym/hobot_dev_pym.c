@@ -72,7 +72,7 @@ static int x3_pym_open(struct inode *inode, struct file *file)
 
 	ret = mutex_lock_interruptible(&pym_mutex);
 	if (ret) {
-		vio_err("open ipu mutex lock failed:%d", ret);
+		vio_err("open pym mutex lock failed:%d", ret);
 		goto p_err;
 	}
 	if (atomic_read(&pym->open_cnt) == 0) {
@@ -118,6 +118,7 @@ static u32 x3_pym_poll(struct file *file, struct poll_table_struct *wait)
 	pym = pym_ctx->pym_dev;
 
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	/* pym_frame_done will save subdev->poll_mask to frame->poll_mask */
 	pym_ctx->subdev->poll_mask |= (1 << pym_ctx->ctx_index);
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
@@ -356,7 +357,12 @@ int pym_check_phyaddr(u32 addr)
 
 	return ret;
 }
-
+/**
+ * @brief: set frameinfo to pym register
+ * @param {struct pym_subdev} *subdev
+ * @param {struct vio_frame} *frame
+ * @return {*}
+ */
 void pym_set_buffers(struct pym_subdev *subdev, struct vio_frame *frame)
 {
 	int i = 0;
@@ -445,7 +451,7 @@ static void pym_frame_work(struct vio_group *group)
 		shadow_index = instance;
 
 	atomic_inc(&pym->backup_fcount);
-
+	/* different instance time-sharing PYM */
 	atomic_set(&pym->instance, instance);
 
 	framemgr = &subdev->framemgr;
@@ -463,6 +469,7 @@ static void pym_frame_work(struct vio_group *group)
 	frame = peek_frame(framemgr, FS_REQUEST);
 	if (frame) {
 		pym_set_shd_rdy(pym->base_reg, shadow_index, 0);
+		/* 8 instances share 4 sest of shadow register */
 		if (test_bit(PYM_REUSE_SHADOW0, &pym->state) &&
 				shadow_index == 0)
 			pym_update_param(subdev);
@@ -685,6 +692,7 @@ int pym_bind_chain_group(struct pym_video_ctx *pym_ctx, int instance,
 	subdev->group = group;
 
 	spin_lock_irqsave(&subdev->slock, flags);
+	/* sequentially, assign pym_ctx->ctx_index 0 through VIO_MAX_SUB_PROCESS */
 	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
 		if(!test_bit(i, &subdev->val_ctx_mask)) {
 			subdev->ctx[i] = pym_ctx;
@@ -701,6 +709,7 @@ int pym_bind_chain_group(struct pym_video_ctx *pym_ctx, int instance,
 	if (atomic_inc_return(&subdev->refcount) == 1)
 		frame_manager_init_mp(pym_ctx->framemgr);
 	else
+		/* HAL use it to judge whether subdev is shared by multi-process */
 		*mp_share = 0xff;
 
 	group->frame_work = pym_frame_work;
@@ -811,7 +820,7 @@ int pym_video_streamon(struct pym_video_ctx *pym_ctx)
 
 	if (atomic_read(&pym_dev->rsccount) > 0)
 		goto p_inc;
-
+	/* pym online&leader wait for frame_work to completes outframe config*/
 	if (group->leader && test_bit(PYM_OTF_INPUT, &pym_dev->state)) {
 		while(1) {
 			if (test_bit(PYM_HW_CONFIG, &pym_dev->state))
