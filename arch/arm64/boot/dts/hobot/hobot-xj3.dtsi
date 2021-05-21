@@ -736,6 +736,7 @@
 			reg = <0 0xA6002000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 53 4>;
+			wakeup-source;
 			status = "disabled";
 		};
 

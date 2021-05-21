@@ -20,6 +20,7 @@
 #include <linux/bcd.h>
 #include <linux/rtc.h>
 #include <linux/delay.h>
+#include <linux/pm_wakeirq.h>
 
 /* Hobot RTC register offsets and bits */
 #define HOBOT_RTC_CTRL_REG           0x04
@@ -104,6 +105,7 @@ struct hobot_rtc {
 	struct rtc_device *rtc;
 	int irq;
 	void __iomem *rtc_base;
+	bool    wakeup;
 #ifdef CONFIG_PM
 	u32 rtc_regs[4];
 #endif
@@ -280,6 +282,8 @@ static int hobot_rtc_probe(struct platform_device *pdev)
 	int ret;
 	struct hobot_rtc *rtc;
 	struct resource *res;
+	struct device *dev = &pdev->dev;
+	struct device_node *node = dev->of_node;
 
 	rtc = devm_kzalloc(&pdev->dev, sizeof(*rtc), GFP_KERNEL);
 	if (!rtc)
@@ -311,8 +315,10 @@ static int hobot_rtc_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	device_set_wakeup_capable(&pdev->dev, true);
-	device_set_wakeup_enable(&pdev->dev, true);
+	rtc->wakeup = of_property_read_bool(node, "wakeup-source") ||
+			of_property_read_bool(node, "linux,wakeup");
+	device_init_wakeup(dev, rtc->wakeup);
+
 	rtc->rtc = devm_rtc_device_register(&pdev->dev, "hobot-rtc", &hobot_rtc_ops, THIS_MODULE);
 	if (IS_ERR(rtc->rtc)) {
 		dev_err(&pdev->dev, "can't register rtc device\n");
