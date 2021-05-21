@@ -2830,6 +2830,7 @@ static irqreturn_t sif_isr(int irq, void *data)
 				return IRQ_HANDLED;
 			}
 			group = sif->sif_input[instance];
+			subdev = group->sub_ctx[0];
 			vio_set_stat_info(group->instance, SIF_MOD, event_sif_in_fs,
 				group->frameid.frame_id, 0, subdev->framemgr.queued_count);
 	}
