@@ -528,8 +528,13 @@ static long x3_gdc_ioctl(struct file *file, unsigned int cmd,
 }
 
 #ifdef CONFIG_HOBOT_DIAG
-static void gdc_diag_report(uint8_t errsta, unsigned int status)
+static void gdc_diag_report(uint8_t errsta, unsigned int status,
+	uint32_t instance)
 {
+	uint32_t env_data[2];
+	env_data[0] = status;
+	env_data[1] = instance;
+
 	if (errsta) {
 		diag_send_event_stat_and_env_data(
 				DiagMsgPrioHigh,
@@ -537,8 +542,17 @@ static void gdc_diag_report(uint8_t errsta, unsigned int status)
 				EventIdVioGdcErr,
 				DiagEventStaFail,
 				DiagGenEnvdataWhenErr,
-				(uint8_t *)&status,
-				sizeof(unsigned int));
+				(uint8_t *)&env_data,
+				sizeof(unsigned int) * 2);
+	} else {
+		diag_send_event_stat_and_env_data(
+				DiagMsgPrioMid,
+				ModuleDiag_VIO,
+				EventIdVioGdcErr,
+				DiagEventStaSuccess,
+				DiagGenEnvdataWhenErr,
+				(uint8_t *)&env_data,
+				sizeof(unsigned int) * 2);
 	}
 
 	return;
@@ -601,7 +615,15 @@ static irqreturn_t gdc_isr(int irq, void *data)
 
 		gdc_ctx->event = VIO_FRAME_NDONE;
 #ifdef CONFIG_HOBOT_DIAG
-		gdc_diag_report(1, status);
+		atomic_set(&gdc->diag_state, 1);
+		gdc_diag_report(1, status, atomic_read(&gdc->instance));
+#endif
+	} else {
+#ifdef CONFIG_HOBOT_DIAG
+		if (atomic_read(&gdc->diag_state) == 1) {
+			atomic_set(&gdc->diag_state, 0);
+			gdc_diag_report(0, status, atomic_read(&gdc->instance));
+		}
 #endif
 	}
 
@@ -839,6 +861,7 @@ static int x3_gdc_probe(struct platform_device *pdev)
 					4, 74, DIAG_MSG_INTERVAL_MAX, NULL) < 0) {
 		vio_err("GDC diag register fail\n");
 	}
+	atomic_set(&gdc->diag_state, 0);
 #endif
 
 	return 0;

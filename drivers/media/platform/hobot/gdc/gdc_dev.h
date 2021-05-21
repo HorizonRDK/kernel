@@ -118,6 +118,10 @@ struct x3_gdc_dev {
 	struct gdc_group group[VIO_MAX_STREAM];
 	struct semaphore smp_gdc_enable;
 	struct mutex gdc_mutex;
+
+#ifdef CONFIG_HOBOT_DIAG
+	atomic_t			diag_state;
+#endif
 };
 
 #endif
