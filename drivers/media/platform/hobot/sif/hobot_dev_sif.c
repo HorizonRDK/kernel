@@ -615,10 +615,10 @@ static int sif_video_order(struct sif_video_ctx *sif_ctx,
 	pipeid = sif_ctx->group->instance;
 	queue = &sif->frame_queue[pipeid];
 
-	if (sif_ctx->id == 0) {
+	if (sif_ctx->id == GROUP_ID_SIF_OUT) {
 		vio_err("sif_order: sif_capture sequence not supported.\n");
 		return -EFAULT;
-	} else if (sif_ctx->id == 1) {
+	} else if (sif_ctx->id == GROUP_ID_SIF_IN) {
 		mutex_lock(&sif->shared_mutex);
 		if (!queue->enable) {
 			vio_err("sif_order: error: please enable pipe(%d) sequence\n",
@@ -1004,7 +1004,7 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 	mutex_lock(&sif->shared_mutex);
 	if ((subdev) && atomic_dec_return(&subdev->refcount) == 0) {
 		subdev->state = 0;
-		if (sif_ctx->id == 0) {
+		if (sif_ctx->id == GROUP_ID_SIF_OUT) {
 			clear_bit(subdev->mux_index, &sif->mux_mask);
 			clear_bit(subdev->ddr_mux_index, &sif->mux_mask);
 			clear_bit(subdev->ddr_mux_index, &sif->state);
@@ -1519,10 +1519,10 @@ int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 	sif = subdev->sif_dev;
 
 	mutex_lock(&sif->shared_mutex);
-	if (sif_ctx->id == 0) {
+	if (sif_ctx->id == GROUP_ID_SIF_OUT) {
 		ret = sif_mux_init(subdev, sif_config);
 		sif_fps_ctrl_init(subdev, sif_config);
-	} else if (sif_ctx->id == 1) {
+	} else if (sif_ctx->id == GROUP_ID_SIF_IN) {
 		if (seq_kthread_init(sif_ctx) < 0) {
 			mutex_unlock(&sif->shared_mutex);
 			return -EFAULT;
@@ -1574,7 +1574,7 @@ int sif_bind_chain_group(struct sif_video_ctx *sif_ctx, int instance)
 
 	sif = sif_ctx->sif_dev;
 
-	if (sif_ctx->id == 0) {
+	if (sif_ctx->id == GROUP_ID_SIF_OUT) {
 		subdev = &sif->sif_mux_subdev[instance];
 		group_id = GROUP_ID_SIF_OUT;
 		subdev->id = sif_ctx->id;
@@ -1615,7 +1615,7 @@ int sif_bind_chain_group(struct sif_video_ctx *sif_ctx, int instance)
 	}
 	atomic_inc(&subdev->refcount);
 
-	if(sif_ctx->id == 1){
+	if(sif_ctx->id == GROUP_ID_SIF_IN) {
 		sif->sif_input[instance] = group;
 		group->frame_work = sif_read_frame_work;
 		group->gtask = &sif->sifin_task;
@@ -1678,7 +1678,7 @@ int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 	splice_enable = subdev->splice_info.splice_enable;
 	pipe_num = subdev->splice_info.pipe_num;
 	mutex_lock(&sif_dev->shared_mutex);
-	if (sif_ctx->id == 0) {
+	if (sif_ctx->id == GROUP_ID_SIF_OUT) {
 		vio_info("[S%d][V%d]%s mux_index %d \n",
 			sif_ctx->group->instance, sif_ctx->id, __func__,
 			subdev->mux_index);
@@ -1772,7 +1772,7 @@ int sif_video_streamoff(struct sif_video_ctx *sif_ctx)
 	isp_flyby = subdev->sif_cfg.output.isp.func.enable_flyby;
 
 	mutex_lock(&sif_dev->shared_mutex);
-	if (sif_ctx->id == 0) {
+	if (sif_ctx->id == GROUP_ID_SIF_OUT) {
 		if (isp_enable && isp_flyby) {
 			vio_set_sif_exit_flag(1);
 		}
@@ -1867,7 +1867,7 @@ int sif_video_reqbufs(struct sif_video_ctx *sif_ctx, u32 buffers)
 
 	group = sif_ctx->group;
 	for (i = 0; i < buffers; i++) {
-		if (sif_ctx->id == 0) {
+		if (sif_ctx->id == GROUP_ID_SIF_OUT) {
 			framemgr->frames[i].mp_work = &sif->sifout_work[instance][i].work;
 			frame_work_init(&sif->sifout_work[instance][i].work);
 			sif->sifout_work[instance][i].group = group;
@@ -2339,7 +2339,7 @@ static struct file_operations x3_sif_fops = {
 	.mmap = x3_sif_mmap,
 };
 
-void sif_get_timestamps(struct vio_group *group, struct frame_id *info){
+void sif_get_timestamps(struct vio_group *group, struct frame_id *info) {
 	struct sif_subdev *subdev;
 
 	subdev = group->sub_ctx[0];
@@ -2347,80 +2347,34 @@ void sif_get_timestamps(struct vio_group *group, struct frame_id *info){
 	info = &subdev->info;
 }
 
-/*
-  * @brief
-  * SIF frame loss processing, when overflow occurs, frame loss is needed
-  * Put the buff in the process queue back into the request queue and reset the trigger
-  */
-void sif_frame_ndone(struct sif_subdev *subdev)
+static void sif_frame_ndone_process(struct sif_subdev *subdev,
+					struct sif_video_ctx *sif_ctx)
 {
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
 	struct vio_group *group;
-	struct sif_video_ctx *sif_ctx = NULL;
 	struct x3_sif_dev *sif;
 	unsigned long flags;
 	int i = 0;
 
-	BUG_ON(!subdev);
-
 	group = subdev->group;
 	sif = subdev->sif_dev;
+
 	framemgr = &subdev->framemgr;
 
-	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
-		if (test_bit(i, &subdev->val_ctx_mask)) {
-			sif_ctx = subdev->ctx[i];
-		}
-	}
-	if(subdev->splice_info.splice_enable && sif_ctx->id == 0) {
-		if (subdev->splice_info.splice_done && subdev->splice_info.frame_done) {
-			framemgr_e_barrier_irqs(framemgr, 0, flags);
-			frame = peek_frame(framemgr, FS_PROCESS);
-			if (frame) {
-		        vio_dbg("[S%d][V%d] bidx%d fid%d, proc->req.",
-						group->instance,
-						subdev->id,
-		               frame->frameinfo.bufferindex,
-		               frame->frameinfo.frame_id);
-				trans_frame(framemgr, frame, FS_REQUEST);
-				vio_group_start_trigger_mp(group, frame);
-			} else {
-				vio_err("[S%d][V%d][FRM][NDONE](FREE[%d] REQUEST[%d] PROCESS[%d] COMPLETE[%d] USED[%d])\n",
-					group->instance,
-					subdev->id,
-					framemgr->queued_count[FS_FREE],
-					framemgr->queued_count[FS_REQUEST],
-					framemgr->queued_count[FS_PROCESS],
-					framemgr->queued_count[FS_COMPLETE],
-					framemgr->queued_count[FS_USED]);
-			}
-			framemgr_x_barrier_irqr(framemgr, 0, flags);
-
-			spin_lock_irqsave(&subdev->slock, flags);
-			for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
-				if (test_bit(i, &subdev->val_ctx_mask)) {
-					sif_ctx = subdev->ctx[i];
-					sif_ctx->event = VIO_FRAME_DONE;
-					wake_up(&sif_ctx->done_wq);
-				}
-			}
-			spin_unlock_irqrestore(&subdev->slock, flags);
-			vio_dbg("%s: splice_enable mux_index = %d\n", __func__, subdev->mux_index);
-		}
+	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	frame = peek_frame(framemgr, FS_PROCESS);
+	if (frame) {
+		vio_dbg("[S%d][V%d] bidx%d fid%d, proc->req.",
+				group->instance,
+				subdev->id,
+				frame->frameinfo.bufferindex,
+				frame->frameinfo.frame_id);
+		trans_frame(framemgr, frame, FS_REQUEST);
+		vio_group_start_trigger_mp(group, frame);
 	} else {
-		framemgr_e_barrier_irqs(framemgr, 0, flags);
-		frame = peek_frame(framemgr, FS_PROCESS);
-		if (frame) {
-	        vio_dbg("[S%d][V%d] bidx%d fid%d, proc->req.",
-					group->instance,
-					subdev->id,
-	               frame->frameinfo.bufferindex,
-	               frame->frameinfo.frame_id);
-			trans_frame(framemgr, frame, FS_REQUEST);
-			vio_group_start_trigger_mp(group, frame);
-		} else {
-			vio_err("[S%d][V%d][FRM][NDONE](FREE[%d] REQUEST[%d] PROCESS[%d] COMPLETE[%d] USED[%d])\n",
+		vio_err("[S%d][V%d][FRM][NDONE](FREE[%d] REQUEST[%d]"
+			" PROCESS[%d] COMPLETE[%d] USED[%d])\n",
 				group->instance,
 				subdev->id,
 				framemgr->queued_count[FS_FREE],
@@ -2428,155 +2382,142 @@ void sif_frame_ndone(struct sif_subdev *subdev)
 				framemgr->queued_count[FS_PROCESS],
 				framemgr->queued_count[FS_COMPLETE],
 				framemgr->queued_count[FS_USED]);
-		}
-		framemgr_x_barrier_irqr(framemgr, 0, flags);
+	}
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
-		spin_lock_irqsave(&subdev->slock, flags);
-		for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
-			if (test_bit(i, &subdev->val_ctx_mask)) {
-				sif_ctx = subdev->ctx[i];
-				sif_ctx->event = VIO_FRAME_DONE;
-				wake_up(&sif_ctx->done_wq);
-			}
+	spin_lock_irqsave(&subdev->slock, flags);
+	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
+		if (test_bit(i, &subdev->val_ctx_mask)) {
+			sif_ctx = subdev->ctx[i];
+			sif_ctx->event = VIO_FRAME_DONE;
+			wake_up(&sif_ctx->done_wq);
 		}
-		spin_unlock_irqrestore(&subdev->slock, flags);
+	}
+	spin_unlock_irqrestore(&subdev->slock, flags);
+}
+
+/*
+  * @brief
+  * SIF frame loss processing, when overflow occurs, frame loss is needed
+  * Put the buff in the process queue back into the request queue and reset the trigger
+  */
+void sif_frame_ndone(struct sif_subdev *subdev) {
+	struct sif_video_ctx *sif_ctx = NULL;
+	int i = 0;
+
+	BUG_ON(!subdev);
+
+	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
+		if (test_bit(i, &subdev->val_ctx_mask)) {
+			sif_ctx = subdev->ctx[i];
+		}
+	}
+
+	if(subdev->splice_info.splice_enable && sif_ctx->id == GROUP_ID_SIF_OUT) {
+		if (subdev->splice_info.splice_done && subdev->splice_info.frame_done) {
+			sif_frame_ndone_process(subdev, sif_ctx);
+			vio_dbg("%s: splice_enable mux_index = %d\n", __func__, subdev->mux_index);
+		}
+	} else {
+		sif_frame_ndone_process(subdev, sif_ctx);
 		vio_dbg("%s: mux_index = %d\n", __func__, subdev->mux_index);
 	}
+}
+
+static void sif_frame_done_process(struct sif_subdev *subdev,
+					struct sif_video_ctx *sif_ctx)
+{
+	struct vio_framemgr *framemgr;
+	struct vio_frame *frame;
+	struct vio_group *group;
+	struct x3_sif_dev *sif;
+	unsigned long flags;
+	u32 event = 0;
+	int i = 0;
+
+	group = subdev->group;
+	sif = subdev->sif_dev;
+
+	framemgr = &subdev->framemgr;
+
+	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	frame = peek_frame(framemgr, FS_PROCESS);
+	if (frame) {
+		if (group->id == GROUP_ID_SIF_OUT) {
+			struct timeval tmp_tv;
+			do_gettimeofday(&tmp_tv);
+			g_sif_idx[group->instance]++;
+			if (tmp_tv.tv_sec > g_sif_fps_lasttime[group->instance]) {
+				g_sif_fps[group->instance] = g_sif_idx[group->instance];
+				g_sif_fps_lasttime[group->instance] = tmp_tv.tv_sec;
+				g_sif_idx[group->instance] = 0;
+			}
+		}
+		frame->frameinfo.frame_id = group->frameid.frame_id;
+		frame->frameinfo.timestamps = group->frameid.timestamps;
+		frame->frameinfo.tv = group->frameid.tv;
+		vio_set_stat_info(group->instance, SIF_MOD,
+						  event_sif_cap_fe + group->id * 2, group->frameid.frame_id,
+						  frame->frameinfo.addr[0], framemgr->queued_count);
+
+		trans_frame(framemgr, frame, FS_COMPLETE);
+		event = VIO_FRAME_DONE;
+		sif->statistic.fe_normal[group->instance][subdev->id]++;
+	} else {
+		sif->statistic.fe_lack_buf[group->instance][subdev->id]++;
+		event = VIO_FRAME_NDONE;
+		vio_err("[S%d][V%d]SIF PROCESS queue has no member;\n",
+				group->instance, subdev->id);
+		vio_err("[S%d][V%d][FRM][NDONE](FREE[%d] REQUEST[%d]"
+			" PROCESS[%d] COMPLETE[%d] USED[%d])\n",
+				group->instance,
+				subdev->id,
+				framemgr->queued_count[0],
+				framemgr->queued_count[1],
+				framemgr->queued_count[2],
+				framemgr->queued_count[3],
+				framemgr->queued_count[4]);
+		vio_set_stat_info(group->instance, SIF_MOD,
+						  event_err, group->frameid.frame_id,
+						  frame->frameinfo.addr[0], framemgr->queued_count);
+	}
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
+	spin_lock_irqsave(&subdev->slock, flags);
+	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
+		if (test_bit(i, &subdev->val_ctx_mask)) {
+			sif_ctx = subdev->ctx[i];
+			sif_ctx->event = event;
+			wake_up(&sif_ctx->done_wq);
+		}
+	}
+	spin_unlock_irqrestore(&subdev->slock, flags);
 }
 
 /*
   * @brief
   * SIF frame done
   * Put the buff in the complete queue
-  */
-void sif_frame_done(struct sif_subdev *subdev)
-{
-	struct vio_framemgr *framemgr;
-	struct vio_frame *frame;
-	struct vio_group *group;
+ */
+void sif_frame_done(struct sif_subdev *subdev) {
 	struct sif_video_ctx *sif_ctx = NULL;
-	struct x3_sif_dev *sif;
-	unsigned long flags;
-	u32 event = 0;
 	int i = 0;
 
 	BUG_ON(!subdev);
 
-	group = subdev->group;
-	sif = subdev->sif_dev;
-
-	framemgr = &subdev->framemgr;
 	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
 		if (test_bit(i, &subdev->val_ctx_mask)) {
 			sif_ctx = subdev->ctx[i];
 		}
 	}
-	if(subdev->splice_info.splice_enable && sif_ctx->id == 0) {
-		if (subdev->splice_info.splice_done && subdev->splice_info.frame_done) {
-			framemgr_e_barrier_irqs(framemgr, 0, flags);
-			frame = peek_frame(framemgr, FS_PROCESS);
-			if (frame) {
-				if (group->id == 0) {
-					struct timeval tmp_tv;
-					do_gettimeofday(&tmp_tv);
-					g_sif_idx[group->instance]++;
-					if (tmp_tv.tv_sec > g_sif_fps_lasttime[group->instance]) {
-						g_sif_fps[group->instance] = g_sif_idx[group->instance];
-						g_sif_fps_lasttime[group->instance] = tmp_tv.tv_sec;
-						g_sif_idx[group->instance] = 0;
-					}
-				}
-				frame->frameinfo.frame_id = group->frameid.frame_id;
-				frame->frameinfo.timestamps = group->frameid.timestamps;
-				frame->frameinfo.tv = group->frameid.tv;
-				vio_set_stat_info(group->instance, SIF_MOD,
-					event_sif_cap_fe + group->id * 2, group->frameid.frame_id,
-					frame->frameinfo.addr[0], framemgr->queued_count);
 
-				trans_frame(framemgr, frame, FS_COMPLETE);
-				event = VIO_FRAME_DONE;
-				sif->statistic.fe_normal[group->instance][subdev->id]++;
-			} else {
-				sif->statistic.fe_lack_buf[group->instance][subdev->id]++;
-				event = VIO_FRAME_NDONE;
-				vio_err("[S%d][V%d]SIF PROCESS queue has no member;\n",
-					group->instance, subdev->id);
-				vio_err("[S%d][V%d][FRM][NDONE](FREE[%d] REQUEST[%d] PROCESS[%d] COMPLETE[%d] USED[%d])\n",
-					group->instance,
-					subdev->id,
-					framemgr->queued_count[0],
-					framemgr->queued_count[1],
-					framemgr->queued_count[2],
-					framemgr->queued_count[3],
-					framemgr->queued_count[4]);
-				vio_set_stat_info(group->instance, SIF_MOD,
-					event_err, group->frameid.frame_id,
-					frame->frameinfo.addr[0], framemgr->queued_count);
-			}
-			framemgr_x_barrier_irqr(framemgr, 0, flags);
-			spin_lock_irqsave(&subdev->slock, flags);
-			for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
-				if (test_bit(i, &subdev->val_ctx_mask)) {
-					sif_ctx = subdev->ctx[i];
-					sif_ctx->event = event;
-					wake_up(&sif_ctx->done_wq);
-				}
-			}
-			spin_unlock_irqrestore(&subdev->slock, flags);
+	if (subdev->splice_info.splice_enable && sif_ctx->id == GROUP_ID_SIF_OUT) {
+		if (subdev->splice_info.splice_done && subdev->splice_info.frame_done) {
+			sif_frame_done_process(subdev, sif_ctx);
 			subdev->splice_info.splice_done = 0;
 			subdev->splice_info.frame_done = 0;
 		}
 	} else {
-			framemgr_e_barrier_irqs(framemgr, 0, flags);
-			frame = peek_frame(framemgr, FS_PROCESS);
-			if (frame) {
-				if (group->id == 0) {
-					struct timeval tmp_tv;
-					do_gettimeofday(&tmp_tv);
-					g_sif_idx[group->instance]++;
-					if (tmp_tv.tv_sec > g_sif_fps_lasttime[group->instance]) {
-						g_sif_fps[group->instance] = g_sif_idx[group->instance];
-						g_sif_fps_lasttime[group->instance] = tmp_tv.tv_sec;
-						g_sif_idx[group->instance] = 0;
-					}
-				}
-				frame->frameinfo.frame_id = group->frameid.frame_id;
-				frame->frameinfo.timestamps = group->frameid.timestamps;
-				frame->frameinfo.tv = group->frameid.tv;
-				vio_set_stat_info(group->instance, SIF_MOD,
-					event_sif_cap_fe + group->id * 2, group->frameid.frame_id,
-					frame->frameinfo.addr[0], framemgr->queued_count);
-
-				trans_frame(framemgr, frame, FS_COMPLETE);
-				event = VIO_FRAME_DONE;
-				sif->statistic.fe_normal[group->instance][subdev->id]++;
-			} else {
-				sif->statistic.fe_lack_buf[group->instance][subdev->id]++;
-				event = VIO_FRAME_NDONE;
-				vio_err("[S%d][V%d]SIF PROCESS queue has no member;\n",
-					group->instance, subdev->id);
-				vio_err("[S%d][V%d][FRM][NDONE](FREE[%d] REQUEST[%d] PROCESS[%d] COMPLETE[%d] USED[%d])\n",
-					group->instance,
-					subdev->id,
-					framemgr->queued_count[0],
-					framemgr->queued_count[1],
-					framemgr->queued_count[2],
-					framemgr->queued_count[3],
-					framemgr->queued_count[4]);
-				vio_set_stat_info(group->instance, SIF_MOD,
-					event_sif_cap_fe + group->id * 2, group->frameid.frame_id,
-					0, framemgr->queued_count);
-			}
-			framemgr_x_barrier_irqr(framemgr, 0, flags);
-			spin_lock_irqsave(&subdev->slock, flags);
-			for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
-				if (test_bit(i, &subdev->val_ctx_mask)) {
-					sif_ctx = subdev->ctx[i];
-					sif_ctx->event = event;
-					wake_up(&sif_ctx->done_wq);
-				}
-			}
-			spin_unlock_irqrestore(&subdev->slock, flags);
+		sif_frame_done_process(subdev, sif_ctx);
 	}
 	vio_dbg("%s: mux_index = %d\n", __func__, subdev->ddr_mux_index);
 }
@@ -2624,7 +2565,7 @@ static void subdev_balance_lost_next_frame(struct sif_subdev *subdev)
 	return;
 }
 static void subdev_set_frm_owner(struct sif_subdev *subdev,
-									struct x3_sif_dev *sif, u32 mux_index)
+					struct x3_sif_dev *sif, u32 mux_index)
 {
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
