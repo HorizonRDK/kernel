@@ -1355,7 +1355,7 @@ int32_t acamera_interrupt_handler()
 	 }
     // read the irq vector from isp
     irq_mask = acamera_isp_isp_global_interrupt_status_vector_read( 0 );
-
+	pr_debug("[s%d] IRQ MASK is 0x%x\n", cur_ctx_id, irq_mask);
     // clear irq vector
     acamera_isp_isp_global_interrupt_clear_vector_write(0, irq_mask);
     acamera_isp_isp_global_interrupt_clear_write( 0, 0 );
@@ -1383,19 +1383,17 @@ int32_t acamera_interrupt_handler()
             return 0;
         }
     }
-
     // Update frame counter
 	if ( irq_mask & 1 << ISP_INTERRUPT_EVENT_ISP_START_FRAME_START ) {
-		vio_get_sif_frame_info(cur_ctx_id, &frmid);
-		p_ctx->isp_frame_counter = frmid.frame_id;
-		p_ctx->timestamps = frmid.timestamps;
-		p_ctx->tv = frmid.tv;
+		if (p_ctx->p_gfw->sif_isp_offline == 1) {
+			vio_get_sif_frame_info(cur_ctx_id, &frmid);
+			p_ctx->isp_frame_counter = frmid.frame_id;
+			p_ctx->timestamps = frmid.timestamps;
+			p_ctx->tv = frmid.tv;
+			pr_debug("[s%d] frame id %d \n", cur_ctx_id, frmid.frame_id);
+		}
         do_gettimeofday(&tv1);
 	}
-
-    pr_debug("[s%d] IRQ MASK is 0x%x, frame id %d timestamps %llu ms\n",
-		cur_ctx_id,
-		irq_mask, p_ctx->isp_frame_counter, p_ctx->timestamps);
 
     if ( irq_mask > 0 ) {
         //check for errors in the interrupt
@@ -1577,7 +1575,14 @@ int32_t acamera_interrupt_handler()
                         }
                     } //if ( acamera_event_queue_empty( &p_ctx->fsm_mgr.event_queue ) )
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_ISP_END_FRAME_END ) {
-                    struct timeval tmp_tv;
+					if (p_ctx->p_gfw->sif_isp_offline == 0) {
+						vio_get_sif_frame_info(cur_ctx_id, &frmid);
+						p_ctx->isp_frame_counter = frmid.frame_id;
+						p_ctx->timestamps = frmid.timestamps;
+						p_ctx->tv = frmid.tv;
+						pr_debug("[s%d] frame id %d\n", cur_ctx_id, frmid.frame_id);
+					}
+	                struct timeval tmp_tv;
                     pr_debug("frame done, ctx id %d\n", cur_ctx_id);
                     acamera_dma_alarms_error_occur();
                     p_ctx->sts.fe_irq_cnt++;
