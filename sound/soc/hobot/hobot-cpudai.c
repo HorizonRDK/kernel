@@ -222,7 +222,6 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 		}
 
 	} else {/* play */
-
 		if (i2s->i2sdsp == 0) {	/* i2s mode */
 			lrck_div = i2s->wordlength * i2s->channel_num;
 			if (lrck_div < 32)
@@ -304,19 +303,30 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 			}
 #endif
 		} else {
+			lrck_div = i2s->wordlength * i2s->channel_num;
 			ws_h = 0;
-			ws_l = (i2s->channel_num) * (i2s->wordlength) - 2;
-
-
-		reg_val = readl(i2s->regaddr_tx + I2S_DIV_WS);
-		writel(UPDATE_VALUE_FIELD
-				(reg_val, ws_l, I2S_DIV_WS_DIV_WS_L_BIT,
-				I2S_DIV_WS_DIV_WS_L_FIELD),
-				i2s->regaddr_tx + I2S_DIV_WS);
-		writel(UPDATE_VALUE_FIELD
-				(reg_val, ws_h, I2S_DIV_WS_DIV_WS_H_BIT,
-				I2S_DIV_WS_DIV_WS_H_FIELD),
-				i2s->regaddr_tx + I2S_DIV_WS);
+			ws_l = lrck_div - 2;
+			if (i2s->samplerate == 32000)
+				bclk_div = 6;
+			i2s->clk = i2s->samplerate * lrck_div;
+			spin_unlock_irqrestore(&i2s->lock, flags);
+			if (i2s->ms == 1) {
+				ret = change_clk(i2s->dev, "i2s-mclk",
+					i2s->clk * bclk_div);
+				if (ret < 0) {
+					pr_err("change i2s mclk failed\n");
+					return ret;
+				}
+				ret = change_clk(i2s->dev, "i2s-bclk",
+					i2s->clk);
+				if (ret < 0) {
+					pr_err("change i2s bclk failed\n");
+					return ret;
+				}
+			}
+			spin_lock_irqsave(&i2s->lock, flags);
+			writel(ws_l | (ws_h << 8), i2s->regaddr_tx +
+				I2S_DIV_WS);
 		}
 	}
 	spin_unlock_irqrestore(&i2s->lock, flags);

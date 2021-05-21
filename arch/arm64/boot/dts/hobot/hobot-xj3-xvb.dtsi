@@ -629,7 +629,6 @@
                         sound-dai = <&i2s0>;
                 };
                 codec {
-                        //sound-dai = <&ac101>;    //duplex
                         sound-dai = <&ac108_0 0>;
                 };
                 platform {
@@ -637,16 +636,16 @@
                 };
         };
         dai-link@1 {
-                dai-format = "i2s";
-                bitclock-master;   //not need setting in duplex
-                frame-master;      //not need setting in duplex
-                frame-inversion;
+                dai-format = "dsp_a";
+                bitclock-master;
+                frame-master;
+                //frame-inversion;
                 link-name = "hobotdailink1";
                 cpu {
                         sound-dai = <&i2s1>;
                 };
                 codec {
-                        sound-dai = <&ac102_0 0>;
+                        sound-dai = <&ac101>;
                 };
                 platform {
                         sound-dai = <&i2sidma1>;
