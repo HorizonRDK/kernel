@@ -566,6 +566,10 @@ void hobot_iar_dump(void)
 }
 EXPORT_SYMBOL_GPL(hobot_iar_dump);
 
+/**
+ * Set iar module pixel clock phase invert
+ * only used in XJ2 platform
+ */
 static void set_iar_pixel_clk_inv(void)
 {
 	void __iomem *regaddr;
@@ -585,104 +589,10 @@ buf_addr_t iar_addr_convert(phys_addr_t paddr)
 	return addr;
 }
 
-int32_t iar_config_pixeladdr(void)
-{
-	int i = 0;
-	if (NULL == g_iar_dev) {
-		printk(KERN_ERR "IAR dev not inited!");
-		return -1;
-	}
-	for (i = 0; i < IAR_CHANNEL_MAX; i++) {
-		if (i == IAR_CHANNEL_1 || i == IAR_CHANNEL_2) {
-			switch (g_iar_dev->channel_format[i]) {
-			case FORMAT_YUV420P_VU:
-				{
-					unsigned uoffset, voffset;
-					voffset = g_iar_dev->buf_w_h[i][0] * g_iar_dev->buf_w_h[i][1];
-					uoffset = g_iar_dev->buf_w_h[i][0] * g_iar_dev->buf_w_h[i][1] * 5 / 4;
-					g_iar_dev->pingpong_buf[i].pixel_addr[0].Yaddr = g_iar_dev->pingpong_buf[i].framebuf[0].paddr;
-					g_iar_dev->pingpong_buf[i].pixel_addr[0].Uaddr = g_iar_dev->pingpong_buf[i].framebuf[0].paddr + uoffset;
-					g_iar_dev->pingpong_buf[i].pixel_addr[0].Vaddr = g_iar_dev->pingpong_buf[i].framebuf[0].paddr + voffset;
-					g_iar_dev->pingpong_buf[i].pixel_addr[1].Yaddr = g_iar_dev->pingpong_buf[i].framebuf[1].paddr;
-					g_iar_dev->pingpong_buf[i].pixel_addr[1].Uaddr = g_iar_dev->pingpong_buf[i].framebuf[1].paddr + uoffset;
-					g_iar_dev->pingpong_buf[i].pixel_addr[1].Vaddr = g_iar_dev->pingpong_buf[i].framebuf[1].paddr + voffset;
-				}
-				break;
-			case FORMAT_YUV420P_UV:
-				{
-					unsigned uoffset, voffset;
-					uoffset = g_iar_dev->buf_w_h[i][0] * g_iar_dev->buf_w_h[i][1];
-					voffset = g_iar_dev->buf_w_h[i][0] * g_iar_dev->buf_w_h[i][1] * 5 / 4;
-					g_iar_dev->pingpong_buf[i].pixel_addr[0].Yaddr = g_iar_dev->pingpong_buf[i].framebuf[0].paddr;
-					g_iar_dev->pingpong_buf[i].pixel_addr[0].Uaddr = g_iar_dev->pingpong_buf[i].framebuf[0].paddr + uoffset;
-					g_iar_dev->pingpong_buf[i].pixel_addr[0].Vaddr = g_iar_dev->pingpong_buf[i].framebuf[0].paddr + voffset;
-					g_iar_dev->pingpong_buf[i].pixel_addr[1].Yaddr = g_iar_dev->pingpong_buf[i].framebuf[1].paddr;
-					g_iar_dev->pingpong_buf[i].pixel_addr[1].Uaddr = g_iar_dev->pingpong_buf[i].framebuf[1].paddr + uoffset;
-					g_iar_dev->pingpong_buf[i].pixel_addr[1].Vaddr = g_iar_dev->pingpong_buf[i].framebuf[1].paddr + voffset;
-				}
-				break;
-			case FORMAT_YUV420SP_UV:
-			case FORMAT_YUV420SP_VU:
-			case FORMAT_YUV422SP_UV:
-			case FORMAT_YUV422SP_VU:
-				{
-					unsigned uoffset, voffset;
-					uoffset = voffset = g_iar_dev->buf_w_h[i][0] * g_iar_dev->buf_w_h[i][1];
-					g_iar_dev->pingpong_buf[i].pixel_addr[0].Yaddr = g_iar_dev->pingpong_buf[i].framebuf[0].paddr;
-					g_iar_dev->pingpong_buf[i].pixel_addr[0].Uaddr = g_iar_dev->pingpong_buf[i].framebuf[0].paddr + uoffset;
-					g_iar_dev->pingpong_buf[i].pixel_addr[0].Vaddr = 0;
-					g_iar_dev->pingpong_buf[i].pixel_addr[1].Yaddr = g_iar_dev->pingpong_buf[i].framebuf[1].paddr;
-					g_iar_dev->pingpong_buf[i].pixel_addr[1].Uaddr = g_iar_dev->pingpong_buf[i].framebuf[1].paddr + uoffset;
-					g_iar_dev->pingpong_buf[i].pixel_addr[1].Vaddr = 0;
-				}
-				break;
-			case FORMAT_YUV422P_UV:
-				{
-					unsigned uoffset, voffset;
-					uoffset = g_iar_dev->buf_w_h[i][0] * g_iar_dev->buf_w_h[i][1];
-					voffset = g_iar_dev->buf_w_h[i][0] * g_iar_dev->buf_w_h[i][1] * 3 / 2;
-					g_iar_dev->pingpong_buf[i].pixel_addr[0].Yaddr = g_iar_dev->pingpong_buf[i].framebuf[0].paddr;
-					g_iar_dev->pingpong_buf[i].pixel_addr[0].Uaddr = g_iar_dev->pingpong_buf[i].framebuf[0].paddr + uoffset;
-					g_iar_dev->pingpong_buf[i].pixel_addr[0].Vaddr = g_iar_dev->pingpong_buf[i].framebuf[0].paddr + voffset;
-					g_iar_dev->pingpong_buf[i].pixel_addr[1].Yaddr = g_iar_dev->pingpong_buf[i].framebuf[1].paddr;
-					g_iar_dev->pingpong_buf[i].pixel_addr[1].Uaddr = g_iar_dev->pingpong_buf[i].framebuf[1].paddr + uoffset;
-					g_iar_dev->pingpong_buf[i].pixel_addr[1].Vaddr = g_iar_dev->pingpong_buf[i].framebuf[1].paddr + voffset;
-				}
-				break;
-			case FORMAT_YUV422P_VU:
-				{
-					unsigned uoffset, voffset;
-					voffset = g_iar_dev->buf_w_h[i][0] * g_iar_dev->buf_w_h[i][1];
-					uoffset = g_iar_dev->buf_w_h[i][0] * g_iar_dev->buf_w_h[i][1] * 3 / 2;
-					g_iar_dev->pingpong_buf[i].pixel_addr[0].Yaddr = g_iar_dev->pingpong_buf[i].framebuf[0].paddr;
-					g_iar_dev->pingpong_buf[i].pixel_addr[0].Uaddr = g_iar_dev->pingpong_buf[i].framebuf[0].paddr + uoffset;
-					g_iar_dev->pingpong_buf[i].pixel_addr[0].Vaddr = g_iar_dev->pingpong_buf[i].framebuf[0].paddr + voffset;
-					g_iar_dev->pingpong_buf[i].pixel_addr[1].Yaddr = g_iar_dev->pingpong_buf[i].framebuf[1].paddr;
-					g_iar_dev->pingpong_buf[i].pixel_addr[1].Uaddr = g_iar_dev->pingpong_buf[i].framebuf[1].paddr + uoffset;
-					g_iar_dev->pingpong_buf[i].pixel_addr[1].Vaddr = g_iar_dev->pingpong_buf[i].framebuf[1].paddr + voffset;
-				}
-				break;
-			case FORMAT_YUV422_UYVY:
-			case FORMAT_YUV422_VYUY:
-			case FORMAT_YUV422_YVYU:
-			case FORMAT_YUV422_YUYV:
-				{
-					g_iar_dev->pingpong_buf[i].pixel_addr[0].Yaddr = g_iar_dev->pingpong_buf[i].framebuf[0].paddr;
-					g_iar_dev->pingpong_buf[i].pixel_addr[1].Yaddr = g_iar_dev->pingpong_buf[i].framebuf[1].paddr;
-				}
-				break;
-			default:
-				printk("not supported format\n");
-				break;
-			}
-		} else {
-			g_iar_dev->pingpong_buf[i].pixel_addr[0].addr = g_iar_dev->pingpong_buf[i].framebuf[0].paddr;
-			g_iar_dev->pingpong_buf[i].pixel_addr[1].addr = g_iar_dev->pingpong_buf[i].framebuf[1].paddr;
-		}
-	}
-	return 0;
-}
-
+/**
+ * Set output interlace mode
+ * only used for bt1120 output mode
+ */
 int disp_set_interlace_mode(void)
 {
 	uint32_t value;
@@ -743,6 +653,9 @@ int disp_set_display_position(struct position_cfg_t *position_cfg)
 }
 EXPORT_SYMBOL_GPL(disp_set_display_position);
 
+/**
+ * Set display module timing paraters
+ */
 int disp_set_panel_timing(struct disp_timing *timing)
 {
 	uint32_t value;
@@ -888,8 +801,6 @@ int32_t iar_channel_base_cfg(channel_base_cfg_t *cfg)
 	value = IAR_REG_SET_FILED(IAR_EN_OVERLAY_PRI3, 0x1, value);
 	value = IAR_REG_SET_FILED(IAR_EN_OVERLAY_PRI4, 0x1, value);
 
-//	target_filed = IAR_EN_RD_CHANNEL1 - channelid; //enable this channel
-//	value = IAR_REG_SET_FILED(target_filed, cfg->enable, value);
 	target_filed = IAR_ALPHA_SELECT_PRI1 - pri; //set alpha sel
 	value = IAR_REG_SET_FILED(target_filed, cfg->alpha_sel, value);
 	target_filed = IAR_OV_MODE_PRI1 - pri; //set overlay mode
@@ -900,11 +811,8 @@ int32_t iar_channel_base_cfg(channel_base_cfg_t *cfg)
 
 	g_iar_dev->buf_w_h[channelid][0] = cfg->buf_width;
 	g_iar_dev->buf_w_h[channelid][1] = cfg->buf_height;
-	//writel(cfg->buf_height << 16 | cfg->buf_width,
-	//	g_iar_dev->regaddr + REG_IAR_CROPPED_WINDOW_RD1 - channelid*4);
 	writel(cfg->crop_height << 16 | cfg->crop_width,
                 g_iar_dev->regaddr + REG_IAR_CROPPED_WINDOW_RD1 - channelid*4);
-//	iar_config_pixeladdr();
 
 	return 0;
 }
@@ -1063,7 +971,6 @@ int8_t disp_set_pixel_clk(uint64_t pixel_clk)
 	else
 		ips_set_iar_clk32(0);
 #endif
-	//clk_disable_unprepare(g_iar_dev->iar_pixel_clk);
 	if (pixel_clk == 148350000) {
 		iar_clk_reg_addr = ioremap_nocache(0xA1000000 + 0x240, 4);
                 reg_val = readl(iar_clk_reg_addr);
@@ -1086,13 +993,7 @@ int8_t disp_set_pixel_clk(uint64_t pixel_clk)
 			return -1;
 		}
 	}
-#if 0
-	ret = clk_prepare_enable(g_iar_dev->iar_pixel_clk);
-	if (ret) {
-		pr_err("%s: err enable iar pixel clock!!\n", __func__);
-		return -1;
-	}
-#endif
+
 	pixel_rate = clk_get_rate(g_iar_dev->iar_pixel_clk);
 	pr_debug("%s: iar pixel rate is %lld\n", __func__, pixel_rate);
 	return 0;
@@ -1489,12 +1390,6 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 		pr_err("%s: off contrast exceed 255, exit!!\n", __func__);
 		return -1;
 	}
-	//if ((cfg->ppcon2.off_bright >= 0 && cfg->ppcon2.off_bright <= 0x7f) ||
-	//		(cfg->ppcon2.off_bright >= 0xffffff80 &&
-	//		cfg->ppcon2.off_bright <= 0xffffffff)) {
-	//	pr_err("%s: off bright value error, exit!!\n", __func__);
-	//	return -1;
-	//}
 	if (cfg->ppcon2.off_bright > 0x7f && cfg->ppcon2.off_bright < 0xffffff80) {
 		pr_err("%s: off bright value error, exit!!\n", __func__);
 		return -1;
@@ -1701,19 +1596,6 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 	}
 	writel(value, g_iar_dev->regaddr + REG_IAR_FORMAT_ORGANIZATION);
 #endif
-#if 0
-	value = IAR_REG_SET_FILED(IAR_DBI_REFRESH_MODE, cfg->refresh_cfg.dbi_refresh_mode, 0);
-	value = IAR_REG_SET_FILED(IAR_PANEL_COLOR_TYPE, cfg->refresh_cfg.panel_corlor_type, value);
-	value = IAR_REG_SET_FILED(IAR_INTERLACE_SEL, cfg->refresh_cfg.interlace_sel, value);
-	value = IAR_REG_SET_FILED(IAR_ODD_POLARITY, cfg->refresh_cfg.odd_polarity, value);
-	value = IAR_REG_SET_FILED(IAR_PIXEL_RATE, cfg->refresh_cfg.pixel_rate, value);
-	value = IAR_REG_SET_FILED(IAR_YCBCR_OUTPUT, cfg->refresh_cfg.ycbcr_out, value);
-	value = IAR_REG_SET_FILED(IAR_UV_SEQUENCE, cfg->refresh_cfg.uv_sequence, value);
-	value = IAR_REG_SET_FILED(IAR_ITU_R_656_EN, cfg->refresh_cfg.itu_r656_en, value);
-	value = IAR_REG_SET_FILED(IAR_PIXEL_RATE, 0, value);
-	writel(value, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
-#endif
-
 	return 0;
 }
 EXPORT_SYMBOL_GPL(iar_output_cfg);
@@ -1748,6 +1630,9 @@ int32_t iar_idma_init(void)
 	return 0;
 }
 
+/**
+ * get actual display address currently
+ */
 frame_buf_t* iar_get_framebuf_addr(uint32_t channel)
 {
 	int index;
@@ -1760,6 +1645,10 @@ frame_buf_t* iar_get_framebuf_addr(uint32_t channel)
 }
 EXPORT_SYMBOL_GPL(iar_get_framebuf_addr);
 
+/**
+ * vio module get display address according to channel and current index
+ * only used in XJ2 platform
+ */
 void *ipu_get_iar_framebuf_addr(uint32_t channel, unsigned int index)
 {
 	if (g_iar_dev == NULL) {
@@ -1811,6 +1700,9 @@ int32_t iar_set_bufaddr(uint32_t channel, buf_addr_t *addr)
 }
 EXPORT_SYMBOL_GPL(iar_set_bufaddr);
 
+/**
+ * Switch ping-pong buffer
+ */
 int32_t iar_switch_buf(uint32_t channel)
 {
 	uint32_t index;
@@ -1826,6 +1718,9 @@ int32_t iar_switch_buf(uint32_t channel)
 }
 EXPORT_SYMBOL_GPL(iar_switch_buf);
 
+/**
+ * Only used for XJ2 platform
+ */
 int32_t iar_set_video_buffer(uint32_t slot_id)
 {
 	if (disp_user_config_done == 1 && disp_user_update == 0) {
@@ -1837,6 +1732,12 @@ int32_t iar_set_video_buffer(uint32_t slot_id)
 }
 EXPORT_SYMBOL_GPL(iar_set_video_buffer);
 
+/**
+ * VIO module set graphic address to be displayed
+ * @disp_layer: display layer to be used
+ * @yaddr: the y address of the graphic
+ * @caddr: the uv address of the graphic
+ */
 int32_t ipu_set_display_addr(uint32_t disp_layer,
 		uint32_t yaddr, uint32_t caddr)
 {
@@ -1844,7 +1745,6 @@ int32_t ipu_set_display_addr(uint32_t disp_layer,
 	pr_debug("layer is %d, yaddr is 0x%x, caddr is 0x%x\n",
 			disp_layer, yaddr, caddr);
 	disp_user_config_done = 1;//for debug
-	//disp_user_update = 0;//for debug
 	if (disp_user_config_done == 1 && disp_user_update == 0) {
 		if (disp_layer == 0) {
 			g_disp_yaddr = yaddr;
@@ -1862,6 +1762,10 @@ int32_t ipu_set_display_addr(uint32_t disp_layer,
 
 EXPORT_SYMBOL_GPL(ipu_set_display_addr);
 
+/**
+ * VIO module get pipeline number and vio output channel
+ * user wanted to be displayed
+ */
 u32 ipu_get_iar_display_type(u8 pipeline[], u8 channel[])
 {
 	if (disp_user_update == 1) {
@@ -1876,6 +1780,10 @@ u32 ipu_get_iar_display_type(u8 pipeline[], u8 channel[])
 }
 EXPORT_SYMBOL_GPL(ipu_get_iar_display_type);
 
+/**
+ * Checkout display camera number
+ * only used for XJ2 platform
+ */
 int8_t iar_checkout_display_camera(uint8_t camera_no)
 {
 #ifdef CONFIG_HOBOT_XJ2
@@ -1919,6 +1827,10 @@ int set_video_display_channel(uint8_t channel_no)
 }
 EXPORT_SYMBOL_GPL(set_video_display_channel);
 
+/**
+ * Set output channel of VIO module user want to be displayed
+ * only used for XJ2 platform
+ */
 int set_video_display_ddr_layer(uint8_t ddr_layer_no)
 {
 	int ret = 0;
@@ -1946,6 +1858,9 @@ int set_video_display_ddr_layer(uint8_t ddr_layer_no)
 }
 EXPORT_SYMBOL_GPL(set_video_display_ddr_layer);
 
+/**
+ * The thread that IAR display the output of VIO module
+ */
 static int iar_thread(void *data)
 {
 	buf_addr_t display_addr;
@@ -2077,7 +1992,6 @@ int32_t iar_close(void)
 		return -1;
 	}
 	disp_user_config_done = 0;
-	//iar_stop();
 
 	disable_irq(g_iar_dev->irq);
 	frame_manager_close(&g_iar_dev->framemgr);
@@ -2142,7 +2056,6 @@ int32_t iar_start(int update)
 		if (ret)
 			pr_err("error pinmux rgb func!!\n");
 	} else if (display_type == SIF_IPI) {
-		//ipi_clk_enable();
 		if (ipi_clk_enable() != 0)
 			return -1;
 	}
@@ -2184,6 +2097,9 @@ int32_t iar_stop(void)
 }
 EXPORT_SYMBOL_GPL(iar_stop);
 
+/**
+ * Bring the configuartion of iar registers into effect
+ */
 int32_t iar_update(void)
 {
 	if (NULL == g_iar_dev) {
@@ -2195,34 +2111,6 @@ int32_t iar_update(void)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(iar_update);
-
-int32_t iar_pre_init(void)
-{
-	buf_addr_t * bufaddr_channe1,*bufaddr_channe3;
-
-	if (NULL == g_iar_dev) {
-		printk(KERN_ERR "IAR dev not inited!");
-		return -1;
-	}
-
-	iar_idma_init();
-	bufaddr_channe1 = &g_iar_dev->pingpong_buf[IAR_CHANNEL_1].pixel_addr[0];
-	bufaddr_channe1->Yaddr =
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr;
-	bufaddr_channe1->Uaddr =
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr +
-		1280*720;
-	iar_set_bufaddr(IAR_CHANNEL_1, bufaddr_channe1);
-
-	bufaddr_channe3 = &g_iar_dev->pingpong_buf[IAR_CHANNEL_3].pixel_addr[0];
-	bufaddr_channe3->addr =
-		g_iar_dev->pingpong_buf[IAR_CHANNEL_3].framebuf[0].paddr;
-	iar_set_bufaddr(IAR_CHANNEL_3, bufaddr_channe3);
-
-	writel(0x7ffffff, g_iar_dev->regaddr + REG_IAR_DE_SETMASK);
-
-	return 0;
-}
 
 frame_buf_t* hobot_iar_get_framebuf_addr(int channel)
 {
@@ -2237,6 +2125,7 @@ frame_buf_t* hobot_iar_get_framebuf_addr(int channel)
 	return &g_iar_dev->frambuf[channel];
 }
 EXPORT_SYMBOL_GPL(hobot_iar_get_framebuf_addr);
+
 int hobot_iar_get_layer_size(unsigned int *width, unsigned int *height) {
 	if (width == NULL || height == NULL)
 		return -1;
@@ -2245,7 +2134,7 @@ int hobot_iar_get_layer_size(unsigned int *width, unsigned int *height) {
 	return 0;
 }
 EXPORT_SYMBOL_GPL(hobot_iar_get_layer_size);
-/////////////iar wb
+
 
 int iar_wb_stream_on(void)
 {
@@ -2299,10 +2188,6 @@ int iar_wb_reqbufs(u32 buffers)
 			g_iar_dev->state);
 		return -EINVAL;
 	}
-	// if (!(g_iar_dev->state & ( BIT(VIO_VIDEO_REBUFS) ))) {
-	// 	pr_err("invalid REQBUFS.\n");
-	// 	return -EINVAL;
-	// }
 
 	framemgr = &g_iar_dev->framemgr;
 	ret = frame_manager_open(framemgr, buffers);
@@ -2311,11 +2196,6 @@ int iar_wb_reqbufs(u32 buffers)
 		return ret;
 	}
 
-	//	for (i = 0; i < buffers; i++) {
-	//		framemgr->frames[i].data = pym_ctx->group;
-	//	}
-
-	// g_iar_dev->capture_state = 0;
 	g_iar_dev->state = BIT(IAR_WB_REBUFS);
 
 	return ret;
@@ -2326,7 +2206,6 @@ int iar_wb_qbuf(struct frame_info *frameinfo)
 	int ret = 0;
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
-	//struct vio_group *group;
 	unsigned long flags;
 	int index;
 
@@ -2345,10 +2224,6 @@ int iar_wb_qbuf(struct frame_info *frameinfo)
 		ret = -EINVAL;
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
-
-	// group = pym_ctx->group;
-	// if(group->leader == true)
-	// 	vio_group_start_trigger(group->gtask, frame);
 
 	return ret;
 }
@@ -2400,10 +2275,6 @@ void iar_wb_setcfg(int value)
 	} else if (g_iar_dev->wb_format > 6) {
 		g_iar_dev->wb_format = 4;
 	}
-
-	// printk("cfg: %x, sel: %d, format: %d, wbcon: %x\n", value,
-	// 	g_iar_dev->wb_sel, g_iar_dev->wb_format,
-	// 	((g_iar_dev->wb_sel&0x3) << 3) + (g_iar_dev->wb_format & 0x7));
 }
 
 int iar_wb_getcfg()
@@ -2429,16 +2300,16 @@ EXPORT_SYMBOL_GPL(iar_wb_getcfg);
 
 int iar_wb_capture_start(void)
 {
-	//
 	int ret = 0;
-	//
-	// REG_IAR_CURRENT_CBUF_ADDR_WR_Y  0x140
-	// REG_IAR_CURRENT_CBUF_ADDR_WR_UV 0x144
-	// REG_IAR_CAPTURE_CON             0x8c
-	//   #[4:3] SOURCE_SEL 0:Overlay 1:UP-Scale, 2: DE_PUT(*)
-    //   #[2:0] OUTPUT_FMT: 100b:NV12 110b:Unpacked RGB888
-	// REG_IAR_UPDATE                  0x98
-	// REG_IAR_DE_CONTROL_WO           0x31c
+	/**
+	 * REG_IAR_CURRENT_CBUF_ADDR_WR_Y  0x140
+	 * REG_IAR_CURRENT_CBUF_ADDR_WR_UV 0x144
+	 * REG_IAR_CAPTURE_CON             0x8c
+	 * #[4:3] SOURCE_SEL 0:Overlay 1:UP-Scale, 2: DE_PUT(*)
+	 * #[2:0] OUTPUT_FMT: 100b:NV12 110b:Unpacked RGB888
+	 * REG_IAR_UPDATE                  0x98
+	 * REG_IAR_DE_CONTROL_WO           0x31c
+	 */
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
 	unsigned long flags;
@@ -2522,16 +2393,12 @@ int iar_wb_capture_start(void)
 			g_iar_dev->regaddr + REG_IAR_CURRENT_CBUF_ADDR_WR_Y);
 		writel(frame->frameinfo.addr[1],
 			g_iar_dev->regaddr + REG_IAR_CURRENT_CBUF_ADDR_WR_UV);
-		// printk("Y: %x, UV: %x\n", frame->frameinfo.addr[0],
-		// frame->frameinfo.addr[1]);
 		writel(wbcon, g_iar_dev->regaddr + REG_IAR_CAPTURE_CON);
 		regval = readl(g_iar_dev->regaddr + REG_IAR_UPDATE);
 		regval |= 0x1;
 		writel(regval, g_iar_dev->regaddr + REG_IAR_UPDATE);
-		// printk("REG_IAR_UPDATE: %x\n", regval);
 		regval = readl(g_iar_dev->regaddr + REG_IAR_DE_CONTROL_WO);
 		regval |= 0x1;
-		// printk("REG_IAR_DE_CONTROL_WO: %x\n", regval);
 		writel(regval, g_iar_dev->regaddr + REG_IAR_DE_CONTROL_WO);
 
 		trans_frame(framemgr, frame, FS_PROCESS);
@@ -2576,10 +2443,8 @@ int iar_wb_capture_done(void)
 {
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
-	//struct vio_group *group;
 	unsigned long flags;
 
-	// group = pym_ctx->group;
 	if (g_iar_dev == NULL) {
 		pr_err("%s: iar not init!!\n", __func__);
 		return -1;
@@ -2588,19 +2453,9 @@ int iar_wb_capture_done(void)
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_PROCESS);
 	if (frame) {
-		// if(group->get_timestamps){
-		// 	frame->frameinfo.frame_id = group->frameid.frame_id;
-		// 	frame->frameinfo.timestamps =
-		// 	    group->frameid.timestamps;
-		// }
-		// printk("iar_wb_done: %d\n", frame->frameinfo.bufferindex);
 		do_gettimeofday(&frame->frameinfo.tv);
-
-		// pym_set_iar_output(pym_ctx, frame);
-		// pym_ctx->event = VIO_FRAME_DONE;
 		trans_frame(framemgr, frame, FS_COMPLETE);
 	} else {
-		// pym_ctx->event = VIO_FRAME_NDONE;
 		// pr_err("%s PROCESS queue has no member;\n", __func__);
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
@@ -2611,18 +2466,11 @@ int iar_wb_capture_done(void)
 
 int iar_output_stream_on(layer_no)
 {
-	//
-	// if (!(g_iar_dev->state & (BIT(IAR_WB_STOP) | BIT(IAR_WB_REBUFS)
-	// 		| BIT(IAR_WB_INIT)))) {
-	// 	pr_err("invalid STREAM ON is requested(%lX)", g_iar_dev->state);
-	// 	return -EINVAL;
-	// }
 	if (g_iar_dev == NULL) {
 		pr_err("%s: iar not init!!\n", __func__);
 		return -1;
         }
 	g_iar_dev->output_state[layer_no] = 1;
-	// g_iar_dev->state = BIT(IAR_WB_START);
 
 	return 0;
 }
@@ -2630,10 +2478,6 @@ EXPORT_SYMBOL_GPL(iar_output_stream_on);
 
 int iar_output_stream_off(layer_no)
 {
-	// if (!(g_iar_dev->state & BIT(IAR_WB_START))) {
-	// 	pr_err("invalid STREAMOFF is requested(%lX)", g_iar_dev->state);
-	// 	return -EINVAL;
-	// }
 	if (g_iar_dev == NULL) {
 		pr_err("%s: iar not init!!\n", __func__);
 		return -1;
@@ -2643,10 +2487,6 @@ int iar_output_stream_off(layer_no)
 		frame_manager_close(&g_iar_dev->framemgr_layer[layer_no]);
 		g_iar_dev->output_state[layer_no] = 0;
 	}
-	//frame_manager_flush(&g_iar_dev->framemgr_layer[1]);
-	// frame_manager_close(&g_iar_dev->framemgr);
-
-	// g_iar_dev->state = BIT(IAR_WB_STOP);
 
 	return 0;
 }
@@ -2773,7 +2613,6 @@ int iar_output_done(int layer_no)
 	unsigned long flags;
 	int ret = -1;
 
-	// group = pym_ctx->group;
 	if (g_iar_dev == NULL) {
 		pr_err("%s: iar not init!!\n", __func__);
 		return -1;
@@ -2787,14 +2626,12 @@ int iar_output_done(int layer_no)
 		trans_frame(framemgr, frame, FS_COMPLETE);
 		ret = 0;
 	} else {
-		// pym_ctx->event = VIO_FRAME_NDONE;
 		// pr_err("%s PROCESS queue has no member;\n", __func__);
 		ret = -1;
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 	if (ret == 0) {
 		wake_up(&g_iar_dev->output_done_wq[layer_no]);
-		// printk("wake up\n");
 	}
 	return ret;
 }
@@ -2805,7 +2642,6 @@ int iar_output_start(int layer_no)
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
 	unsigned long flags;
-	// int regval = 0;
 	buf_addr_t display_addr;
 
 	if (g_iar_dev == NULL) {
@@ -2817,8 +2653,6 @@ int iar_output_start(int layer_no)
 	frame = peek_frame(framemgr, FS_REQUEST);
 
 	if (frame) {
-		// printk("iar_wb_capture from request: %d\n",
-		// frame->frameinfo.bufferindex);
 		int size = frame->frameinfo.width * frame->frameinfo.height;
 		display_addr.Yaddr = frame->frameinfo.addr[0];
 		if (frame->frameinfo.addr[1] != 0)
@@ -2829,8 +2663,6 @@ int iar_output_start(int layer_no)
 		iar_set_bufaddr(layer_no, &display_addr);
 		iar_update();
 		trans_frame(framemgr, frame, FS_PROCESS);
-		// printk("output start: %dx%d, %x",
-		// frame->frameinfo.width, frame->frameinfo.height, display_addr.Yaddr);
 	} else {
 		// printk
 	}
@@ -2839,19 +2671,22 @@ int iar_output_start(int layer_no)
 	return ret;
 }
 
+/**
+ * IAR module interrupt handler
+ * interrupt status register meaning:
+ * @bit0: DE starts refreshing a new frame
+ * @bit22: DE finished refreshing current frame
+ * @bit23: Capture path finishes capturing current frame
+ */
 static irqreturn_t hobot_iar_irq(int this_irq, void *data)
 {
-	//struct iar_dev_s *iar = data;
 	int regval = 0;
 	disable_irq_nosync(this_irq);
 	//TODO
 	regval = readl(g_iar_dev->regaddr + REG_IAR_DE_SRCPNDREG);
-	//printk("hobot_iar_irq: %x\n", regval);
 
 	if (regval & BIT(0)) {
 		writel(BIT(0), g_iar_dev->regaddr + REG_IAR_DE_SRCPNDREG);
-		//frequency_iar++;
-		//printk("isr 22\n");
 		if (g_iar_dev->output_state[0] == 1)
 			iar_output_start(0);
 		if (g_iar_dev->output_state[1] == 1)
@@ -2860,10 +2695,7 @@ static irqreturn_t hobot_iar_irq(int this_irq, void *data)
 
 	if (regval & BIT(22)) {
 		writel(BIT(22), g_iar_dev->regaddr + REG_IAR_DE_SRCPNDREG);
-		//frequency_iar++;
-		//printk("isr 22\n");
 		if(g_iar_dev->capture_state == 1) {
-			//printk("wb_start\n");
 			int ret = iar_wb_capture_start();
 			if (ret == 0) {
 				g_iar_dev->capture_state = 2;
@@ -2878,7 +2710,6 @@ static irqreturn_t hobot_iar_irq(int this_irq, void *data)
 	}
 
 	if (regval & BIT(23)) {
-		//printk("isr 23");
 		writel(BIT(23), g_iar_dev->regaddr + REG_IAR_DE_SRCPNDREG);
 		// cbuf done
 		iar_wb_capture_done();
@@ -2912,6 +2743,12 @@ int enable_iar_irq(void)
 	return 0;
 }
 
+/**
+ * Display one frame using ping-pong buffer machanism
+ * @layer_no: display layer of IAR module
+ * @yaddr: y address of the frame to be displayed
+ * @caddr: uv address of the frame to be displayed
+ */
 int disp_set_ppbuf_addr(uint8_t layer_no, void *yaddr, void *caddr)
 {
 	buf_addr_t display_addr;
@@ -2965,6 +2802,10 @@ int disp_set_ppbuf_addr(uint8_t layer_no, void *yaddr, void *caddr)
 }
 EXPORT_SYMBOL_GPL(disp_set_ppbuf_addr);
 
+/**
+ * Rotate one frame
+ * only used for XJ2 platform
+ */
 int iar_rotate_video_buffer(phys_addr_t yaddr,
 		phys_addr_t uaddr, phys_addr_t vaddr)
 {
@@ -3022,71 +2863,6 @@ int iar_rotate_video_buffer(phys_addr_t yaddr,
 
 	return 0;
 }
-
-/*
-#define IAR_DRAW_WIDTH	(1920)
-#define IAR_DRAW_HEIGHT	(1080)
-#define IAR_DRAW_PBYTE	(4)
-static void hobot_iar_draw_dot(char *frame, int x, int y, int color)
-{
-	int pbyte = IAR_DRAW_PBYTE;
-
-	if (x >= IAR_DRAW_WIDTH || y >= IAR_DRAW_HEIGHT)
-		return;
-
-	frame += ((y * IAR_DRAW_WIDTH) + x) * pbyte;
-	while (pbyte) {
-		pbyte--;
-		frame[pbyte] = (color >> (pbyte * 8)) & 0xFF;
-	}
-}
-
-static void hobot_iar_draw_hline(char *frame, int x0, int x1, int y, int color)
-{
-	int xi, xa;
-
-	xi = (x0 < x1) ? x0 : x1;
-	xa = (x0 > x1) ? x0 : x1;
-	while (xi <= xa) {
-		hobot_iar_draw_dot(frame, xi, y, color);
-		xi++;
-	}
-}
-
-static void hobot_iar_draw_vline(char *frame, int x, int y0, int y1, int color)
-{
-	int yi, ya;
-
-	yi = (y0 < y1) ? y0 : y1;
-	ya = (y0 > y1) ? y0 : y1;
-	while (yi <= ya) {
-		hobot_iar_draw_dot(frame, x, yi, color);
-		yi++;
-	}
-}
-
-static void hobot_iar_draw_rect(char *frame, int x0, int y0, int x1, int y1,
-							int color, int fill)
-{
-	int xi, xa, yi, ya;
-
-	xi = (x0 < x1) ? x0 : x1;
-	xa = (x0 > x1) ? x0 : x1;
-	yi = (y0 < y1) ? y0 : y1;
-	ya = (y0 > y1) ? y0 : y1;
-	if (fill) {
-		while (yi <= ya) {
-			hobot_iar_draw_hline(frame, xi, xa, yi, color);
-			yi++;
-		}
-	} else {
-		hobot_iar_draw_hline(frame, xi, xa, yi, color);
-		hobot_iar_draw_hline(frame, xi, xa, ya, color);
-		hobot_iar_draw_vline(frame, xi, yi, ya, color);
-		hobot_iar_draw_vline(frame, xa, yi, ya, color);
-	}
-}
-*/
 
 int panel_hardware_reset(void)
 {
@@ -3480,6 +3256,10 @@ static const struct file_operations iar_debug_fops = {
         .release = single_release,
 };
 
+/**
+ * Config IAR module accroding to target display panel
+ * this interface mainly used for fb(frame-buffer) driver
+ */
 int user_config_display(enum DISPLAY_TYPE d_type)
 {
 	buf_addr_t graphic_display_paddr;
@@ -4153,7 +3933,6 @@ static int hobot_iar_probe(struct platform_device *pdev)
         if (IS_ERR_OR_NULL(g_iar_dev->sif_mclk)) {
                 dev_err(&pdev->dev, "failed to get sif_mclk\n");
                 goto err1;
-		//return PTR_ERR(g_iar_dev->sif_mclk);
         }
 	sif_mclk_is_open = __clk_is_enabled(g_iar_dev->sif_mclk);
 	if (iar_enable_sif_mclk() != 0) {
@@ -4166,7 +3945,6 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		pr_err("Error remap resource of iar register!\n");
 		goto err1;
 	}
-		//return PTR_ERR(g_iar_dev->regaddr);
 #ifdef CONFIG_HOBOT_XJ3
 	res_mipi = platform_get_resource(pdev, IORESOURCE_MEM, 1);
 	g_iar_dev->mipi_dsi_regaddr =
@@ -4486,7 +4264,6 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		pr_debug("iar reserved memory size is %lld\n", resource_size(&r));
 		if (resource_size(&r) < MAX_FRAME_BUF_SIZE) {
 			pr_debug("iar logo memory size is not large enough!(<1buffer)\n");
-			//return -1;
 		} else {
 			logo_paddr = r.start;
 			logo_vaddr = ioremap_nocache(r.start, MAX_FRAME_BUF_SIZE);
@@ -4659,34 +4436,6 @@ static int hobot_iar_probe(struct platform_device *pdev)
 			display_color_bar(1920, 1080, g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
 		}
 		pr_debug("set HDMI done!\n");
-#if 0
-		temp1 = g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr;
-		#define IAR_DRAW_X(c, p)	(IAR_DRAW_WIDTH * c / p)
-		#define IAR_DRAW_XL(c, p)	((IAR_DRAW_WIDTH * c / p) - 1)
-		#define IAR_DRAW_Y(c, p)	(IAR_DRAW_HEIGHT * c / p)
-		#define IAR_DRAW_YL(c, p)	((IAR_DRAW_HEIGHT * c / p) - 1)
-		// color: [0:3]-BGRA -> 0x[A][R][G][B]
-		// white all.
-		deta = 0xFFFFFFFF;
-		hobot_iar_draw_rect(temp1, IAR_DRAW_X(0, 1), IAR_DRAW_Y(0, 1),
-			IAR_DRAW_XL(1, 1), IAR_DRAW_YL(1, 1), deta, 1);
-		// blue rect +1/10.
-		deta = 0xFF0000FF;
-		hobot_iar_draw_rect(temp1, IAR_DRAW_X(1, 10), IAR_DRAW_Y(1, 10),
-			IAR_DRAW_XL(9, 10), IAR_DRAW_YL(9, 10), deta, 1);
-		// green rect +1/10.
-		deta = 0xFF00FF00;
-		hobot_iar_draw_rect(temp1, IAR_DRAW_X(2, 10), IAR_DRAW_Y(2, 10),
-			IAR_DRAW_XL(8, 10), IAR_DRAW_YL(8, 10), deta, 1);
-		// red rect +1/10.
-		deta = 0xFFFF0000;
-		hobot_iar_draw_rect(temp1, IAR_DRAW_X(3, 10), IAR_DRAW_Y(3, 10),
-			IAR_DRAW_XL(7, 10), IAR_DRAW_YL(7, 10), deta, 1);
-		// black rect +1/10.
-		deta = 0xFF000000;
-		hobot_iar_draw_rect(temp1, IAR_DRAW_X(4, 10), IAR_DRAW_Y(4, 10),
-			IAR_DRAW_XL(6, 10), IAR_DRAW_YL(6, 10), deta, 1);
-#endif
 	} else if (display_type == MIPI_1080P) {
 		pr_debug("iar_driver: disp set mipi 1080p!\n");
 		pr_debug("iar_driver: output 1080*1920 color bar bgr!\n");
@@ -4737,21 +4486,6 @@ static int hobot_iar_remove(struct platform_device *pdev)
 	return 0;
 }
 
-/*int iar_is_enabled(void)
- *{
- *	//IAR NOT enabled cases as follow:
- *	// 1.disabled in dts not probe
- *
- *	if (g_iar_dev == NULL)
- *		return 0;
- *	// 2.disabled dynamic
- *
- *	//enabled case
- *	return 1;
- *}
- *EXPORT_SYMBOL_GPL(iar_is_enabled);
- */
-
 #ifdef CONFIG_OF
 static const struct of_device_id hobot_iar_of_match[] = {
 	{.compatible = "hobot,hobot-iar"},
@@ -4760,7 +4494,6 @@ static const struct of_device_id hobot_iar_of_match[] = {
 MODULE_DEVICE_TABLE(of, hobot_iar_of_match);
 #endif
 
-//#ifdef CONFIG_PM
 int hobot_iar_suspend(struct device *dev)
 {
 	pr_info("%s:%s, enter suspend...\n", __FILE__, __func__);
@@ -4778,7 +4511,6 @@ int hobot_iar_resume(struct device *dev)
 
 	return 0;
 }
-//#endif
 
 static const struct dev_pm_ops hobot_iar_pm = {
 	SET_SYSTEM_SLEEP_PM_OPS(hobot_iar_suspend,

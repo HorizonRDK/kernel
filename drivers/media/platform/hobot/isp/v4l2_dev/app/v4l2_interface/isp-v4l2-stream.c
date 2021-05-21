@@ -405,7 +405,9 @@ void callback_dma_free_coherent( uint32_t ctx_id, uint64_t size, void *virt_addr
 }
 #endif
 
-
+/*
+ * get one frame from vb2
+ */
 int callback_stream_get_frame( uint32_t ctx_id, acamera_stream_type_t type, aframe_t *aframes, uint64_t num_planes )
 {
     int rc;
@@ -523,6 +525,10 @@ int callback_stream_get_frame( uint32_t ctx_id, acamera_stream_type_t type, afra
     return 0;
 }
 
+/*
+ * give back frame buffer to vb2 for user to dqbuf.
+ * called when isp fr y/uv done.
+ */
 int callback_stream_put_frame( uint32_t ctx_id, acamera_stream_type_t type, aframe_t *aframes, uint64_t num_planes, uint8_t flag )
 {
     int rc;

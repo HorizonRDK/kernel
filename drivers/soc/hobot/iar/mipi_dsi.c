@@ -8,7 +8,6 @@
 #include <linux/module.h>
 #include <linux/cpumask.h>
 #include <linux/err.h>
-//#include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/delay.h>
 
@@ -379,15 +378,6 @@ static int mipi_dsi_core_start(void)
 
 static int mipi_dsi_core_pre_init(uint8_t panel_no)
 {
-	//void __iomem *hitm1_reg_addr;
-
-/*	hitm1_reg_addr = ioremap_nocache(0xA4300000 + 0xe0, 4);
-	writel(0x1, hitm1_reg_addr);
-	hitm1_reg_addr = ioremap_nocache(0xA4300000 + 0x84, 4);
-	writel(0x08100000, hitm1_reg_addr);//20bit
-	hitm1_reg_addr = ioremap_nocache(0xA4300000 + 0x8c, 4);
-	writel(0x1c23, hitm1_reg_addr);
-*/
 	mipi_dphy_set_lanemode(MIPI_DPHY_TYPE_DSI, 0, 1);
 	mipi_dphy_set_freqrange(MIPI_DPHY_TYPE_DSI, 0, MIPI_CFGCLKFREQRANGE, 0x1c);
 	if (panel_no == 0)
@@ -413,34 +403,7 @@ static int mipi_dsi_core_pre_init(uint8_t panel_no)
 
 	return 0;
 }
-/*
-static int mipi_dsi_core_pre_init(void)
-{
-	uint32_t value;
 
-	value = readl(g_iar_dev->mipi_dsi_regaddr + CLKMGR_CFG);
-	value = MIPI_DSI_REG_SET_FILED(TX_ESC_CLK_DIVISION_FILED, 0x2, value);
-	writel(value, g_iar_dev->mipi_dsi_regaddr + CLKMGR_CFG);//0x8
-
-	value = readl(g_iar_dev->mipi_dsi_regaddr + LPCLK_CTRL);
-	value = MIPI_DSI_REG_SET_FILED(PHY_TX_REQUEST_CLK_HS_FILED, 0x1, value);
-	value = MIPI_DSI_REG_SET_FILED(AUTO_CLKLANE_CTRL_FILED, 0x1, value);
-	writel(value, g_iar_dev->mipi_dsi_regaddr + LPCLK_CTRL);//0x94
-
-	value = readl(g_iar_dev->mipi_dsi_regaddr + PHY_IF_CFG);
-	value = MIPI_DSI_REG_SET_FILED(N_LANES_FILED, 0x3, value);
-	value = MIPI_DSI_REG_SET_FILED(PHY_STOP_WAIT_TIME_FILED, 0x4, value);
-	writel(value, g_iar_dev->mipi_dsi_regaddr + PHY_IF_CFG);//0xa4
-
-	value = readl(g_iar_dev->mipi_dsi_regaddr + PHY_RSTZ);
-	value = MIPI_DSI_REG_SET_FILED(PHY_SHUTDOWNZ_FILED, 0x1, value);
-	value = MIPI_DSI_REG_SET_FILED(PHY_RSTZ_FILED, 0x1, value);
-	value = MIPI_DSI_REG_SET_FILED(PHY_ENABLE_CLK_FILED, 0x1, value);
-	value = MIPI_DSI_REG_SET_FILED(PHY_FORCE_PLL_FILED, 0x1, value);
-	writel(value, g_iar_dev->mipi_dsi_regaddr + PHY_RSTZ);//0xa0
-	return 0;
-}
-*/
 static int mipi_dsi_dpi_config(uint8_t panel_no)
 {
 	uint32_t value;

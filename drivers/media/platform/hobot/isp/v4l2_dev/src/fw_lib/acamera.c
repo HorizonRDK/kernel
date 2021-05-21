@@ -492,6 +492,9 @@ int32_t acamera_init( acamera_settings *settings, uint32_t ctx_num )
     return result;
 }
 
+/*
+ * init use only, update sram data to isp hw
+ */
 void acamera_update_cur_settings_to_isp( uint32_t fw_ctx_id )
 {
     pr_debug("[s%d] sram update to isp hw\n", fw_ctx_id);
@@ -661,6 +664,9 @@ void dma_writer_status(acamera_context_ptr_t p_ctx)
     pr_info("uv blk sts %x\n", v);
 }
 
+/*
+ * trigger fsm event process, called when idma transfer done
+ */
 static void start_processing_frame(int ctx_id)
 {
 	pr_debug("ctx id %d, start processing new frame\n", ctx_id);
@@ -686,6 +692,9 @@ void dma_writer_config_done(void)
 }
 EXPORT_SYMBOL(dma_writer_config_done);
 
+/*
+ * isp sw register dump, exclude metering data
+ */
 static void isp_ctxsv_work(struct work_struct *w)
 {
     int rc = -1;
@@ -715,7 +724,9 @@ static void isp_ctxsv_work(struct work_struct *w)
     }
 }
 
-//Note: tasklet context
+/*
+ * callback function, called when idma transfer done
+ */
 static void dma_complete_context_func( void *arg )
 {
     int ctx_id = cur_ctx_id;
@@ -744,6 +755,9 @@ static void dma_complete_context_func( void *arg )
     system_dma_unmap_sg( arg );
 }
 
+/*
+ * callback function, called when idma transfer done
+ */
 static void dma_complete_metering_func( void *arg )
 {
     int ctx_id = cur_ctx_id;
@@ -883,6 +897,13 @@ static void set_dma_cmd_queue(dma_cmd *cmd, uint32_t ping_pong_sel)
 }
 #endif /* FW_USE_HOBOT_DMA*/
 
+/*
+ * isp hw/sw register transfer.
+ * two direction transfer:
+ * 1. isp config, SRAM -> isp hw register, prepare for next frame
+ * 2. isp metering data, isp hw register -> SRAM, last frame metering data,
+ *    used for algorithmic process.
+ */
 void isp_ctx_transfer(int ctx_pre, int ctx_next, int ppf)
 {
     pr_debug("chn_pre %d, chn_next %d, ppf %d\n", ctx_pre, ctx_next, ppf);
@@ -915,6 +936,10 @@ void _fsm_isp_base_update(acamera_context_ptr_t p_ctx)
     dh->pipe[dma_fr].settings.isp_base = (uintptr_t)p_ctx->sw_reg_map.isp_sw_config_map;
 }
 
+/*
+ * record context id to frame_list in sequence.
+ * which context will be selected for swapping out base on this frame_list.
+ */
 void _ctx_chn_idx_update(int ctx_id)
 {
     int i = 0;
@@ -981,6 +1006,17 @@ void _ctx_chn_idx_update(int ctx_id)
     frame_list[FIRMWARE_CONTEXT_NUMBER-1] = cur_ctx_id;
 }
 
+/*
+ * isp_ctx_prepare - swap data between DDR and SRAM
+ * @p_ctx - which context will be swap in
+ * copy to SRAM - swap in
+ * copy to DDR - swap out
+ * SRAM is 512KB, holding only 4 context content.
+ * if more than 4 context we used, DDR will be used for
+ * saving isp hw register infomation. IDMA transfer data between SRAM and ISP,
+ * it cannot transfer data between DDR and ISP, so we need swap data between DDR and SRAM.
+ * used only > 4 context running in total.
+ */
 int isp_ctx_prepare(acamera_context_ptr_t p_ctx)
 {
     int ret = 0;
@@ -1065,6 +1101,9 @@ extern void isp_input_port_size_config(sensor_fsm_ptr_t p_fsm);
 extern int ips_get_isp_frameid(void);
 extern int dma_writer_configure_pipe( dma_pipe *pipe );
 extern void dma_writer_fr_dma_disable(dma_pipe *pipe, int plane, int flip);
+/*
+ * offline isp only, isp hw/sw register transfer.
+ */
 int sif_isp_ctx_sync_func(int ctx_id)
 {
     int ret = 0;
@@ -1308,6 +1347,9 @@ static void isp_diag_report(int errsta, isp_status_t *sts)
 
 volatile int y_done = 0;
 volatile int uv_done = 0;
+/*
+ * raise event, that will ultimately call v4l2 api to put buffer to vb2
+ */
 void inline acamera_buffer_done(acamera_context_ptr_t p_ctx)
 {
     if (y_done && uv_done) {
@@ -1321,6 +1363,11 @@ void inline acamera_buffer_done(acamera_context_ptr_t p_ctx)
     }
 }
 
+/*
+ * isp frame start, frame done, fr dma y done, fr dma uv done and some error interrupt handler.
+ * online isp, isp hw/sw register will be transferred in this function.
+ * offline isp, isp hw/sw register will be transferred at function sif_isp_ctx_sync_func().
+ */
 int32_t acamera_interrupt_handler()
 {
     int32_t result = 0;
@@ -1671,6 +1718,9 @@ int32_t acamera_interrupt_handler()
     return result;
 }
 
+/*
+ * isp event process thread, dynamically started, 8 context in total, one each.
+ */
 int isp_fw_process( void *data )
 {
     uint8_t ctx_id = *((uint8_t *)data);

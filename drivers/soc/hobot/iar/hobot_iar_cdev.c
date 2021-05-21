@@ -83,8 +83,6 @@
 
 unsigned int iar_open_cnt = 0;
 unsigned int iar_start_cnt = 0;
-//extern int disp_config_hdmi(unsigned short vmode,
-//		unsigned short VideoFormat, unsigned short Afs);
 extern bool iar_video_not_pause;
 typedef struct _update_cmd_t {
 	unsigned int enable_flag[IAR_CHANNEL_MAX];
@@ -137,6 +135,12 @@ static void iar_edma_callback(void *data)
 	complete(&g_iar_cdev->completion);
 }
 
+/**
+ * Display one frame through DMA method
+ * @channel: display layer of IAR module
+ * @srcaddr: frame address to be displayed
+ * @size: frame size to be displayed
+ */
 int32_t iar_write_framebuf_dma(uint32_t channel, phys_addr_t srcaddr, uint32_t size)
 {
 	struct dma_chan *ch;
@@ -375,8 +379,6 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 			if (copy_from_user(&channel_number, arg,
 						sizeof(unsigned int)))
 				return -EFAULT;
-			//pr_info("\niar_cdev_driver: camera channel
-			//number is %d!!\n", channel_number);
 #ifdef CONFIG_HOBOT_XJ2
 			ret = set_video_display_channel(channel_number);
 #else
@@ -392,8 +394,6 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 			if (copy_from_user(&ddr_layer_number, arg,
 						sizeof(unsigned int)))
 				return -EFAULT;
-			//pr_info("\niar_cdev_driver: display ddr layer
-			//number is %d!!\n", ddr_layer_number);
 #ifdef CONFIG_HOBOT_XJ2
 			ret = set_video_display_ddr_layer(ddr_layer_number);
 #else
@@ -415,12 +415,8 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 				return -1;
 			ret = disp_set_ppbuf_addr(0,
 			disp_vaddr.channel0_y_addr, disp_vaddr.channel0_c_addr);
-			//if (ret)
-			//	pr_err("%s: channel 0 not display\n", __func__);
 			ret += disp_set_ppbuf_addr(1,
 			disp_vaddr.channel1_y_addr, disp_vaddr.channel1_c_addr);
-			//if (ret)
-			//	pr_err("%s: channel 1 not display\n", __func__);
 			iar_update();
 		}
 		break;
@@ -446,9 +442,6 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		 {
 			uint8_t display_done;
 
-			//display_done = disp_get_display_done();
-			//display_done = (uint8_t)((readl(g_iar_dev->regaddr +
-			//	REG_IAR_DE_SRCPNDREG) & 0x00400000) >> 22);
 			display_done = disp_copy_done;
 			if (copy_to_user(arg, &display_done,
 						sizeof(uint8_t)))
@@ -600,7 +593,6 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 			int value = iar_wb_getcfg();
 			ret = copy_to_user((void __user *) arg, (char *) &value,
 				 sizeof(int));
-			// pr_info("=====IAR_WB_DQBUF==ret %d===========\n", ret);
 			if (ret)
 				return -EFAULT;
 		}
@@ -636,10 +628,8 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		 {
 			struct frame_info frameinfo;
 
-			// pr_err("iar_wb_qbuf.\n");
 			ret = copy_from_user((char *) &frameinfo, (u32 __user *) arg,
 				   sizeof(struct frame_info));
-			// pr_info("=====IAR_WB_QBUF==ret %d===========\n", ret);
 			if (ret) {
 				pr_err("IAR_WB_QBUF, copy failed\n");
 				return -EFAULT;
@@ -652,11 +642,9 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		 {
 			struct frame_info frameinfo;
 
-			// pr_err("iar_wb_qbuf.\n");
 			iar_wb_dqbuf(&frameinfo);
 			ret = copy_to_user((void __user *) arg, (char *) &frameinfo,
 				 sizeof(struct frame_info));
-			// pr_info("=====IAR_WB_DQBUF==ret %d===========\n", ret);
 			if (ret)
 				return -EFAULT;
 		}
@@ -665,11 +653,9 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		 {
       		struct frame_info frameinfo;
 
-      		// pr_err("iar_wb_qbuf.\n");
       		iar_output_dqbuf(0, &frameinfo);
       		ret = copy_to_user((void __user *)arg, (char *)&frameinfo,
                          sizeof(struct frame_info));
-      		// pr_info("=====IAR_WB_DQBUF==ret %d===========\n", ret);
       		if (ret) return -EFAULT;
     	}
 		break;
@@ -688,10 +674,8 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		 {
 			struct frame_info frameinfo;
 
-			// pr_err("iar_wb_qbuf.\n");
 			ret = copy_from_user((char *)&frameinfo, (u32 __user *)arg,
 							sizeof(struct frame_info));
-			// pr_info("=====IAR_WB_QBUF==ret %d===========\n", ret);
 			if (ret) {
 				pr_err("IAR_OUTPUT_QBUF, copy failed\n");
 				return -EFAULT;
@@ -704,11 +688,9 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		 {
 			struct frame_info frameinfo;
 
-			// pr_err("iar_wb_qbuf.\n");
 			iar_output_dqbuf(1, &frameinfo);
 			ret = copy_to_user((void __user *)arg, (char *)&frameinfo,
 								sizeof(struct frame_info));
-			// pr_info("=====IAR_WB_DQBUF==ret %d===========\n", ret);
 			if (ret)
 				return -EFAULT;
 		}
@@ -728,10 +710,8 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		 {
 			struct frame_info frameinfo;
 
-			// pr_err("iar_wb_qbuf.\n");
 			ret = copy_from_user((char *)&frameinfo, (u32 __user *)arg,
 								sizeof(struct frame_info));
-			// pr_info("=====IAR_WB_QBUF==ret %d===========\n", ret);
 			if (ret) {
 				pr_err("IAR_WB_QBUF, copy failed\n");
 				return -EFAULT;
@@ -931,8 +911,6 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 			goto err;
 		}
 		tmp = tmp + 1;
-		//memcpy((void *)(value), (void *)(tmp), 1);
-                //valuie[1] = '\0';
 		ret = kstrtoul(tmp, 0, &disp_vio_addr_type);
 		if (ret == 0) {
 			if (disp_vio_addr_type > 38) {
@@ -1099,7 +1077,6 @@ static struct attribute_group attr_group = {
 int __init iar_cdev_init(void)
 {
 	int ret = 0;
-	//struct device *dev;
 
 	g_iar_cdev = kmalloc(sizeof(struct iar_cdev_s), GFP_KERNEL);
 	if (!g_iar_cdev) {
