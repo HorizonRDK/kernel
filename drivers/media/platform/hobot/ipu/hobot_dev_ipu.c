@@ -722,6 +722,8 @@ void ipu_frame_work(struct vio_group *group)
 	struct x3_ipu_dev *ipu;
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
+	ipu_ds_info_t *ds_info = NULL;
+	ipu_src_ctrl_t *ctrl_info = NULL;
 	unsigned long flags;
 	int i = 0;
 	u32 instance = 0;
@@ -806,6 +808,25 @@ void ipu_frame_work(struct vio_group *group)
 		subdev = group->sub_ctx[0];
 		if (subdev)
 			ipu_update_hw_param(subdev);
+	}
+
+	/*
+	 * ds2 's roi_en and sc_en will be clear in ipu_disable_all_channels(),
+	 * if not clear, other pipe which not use ds2 will lost alldone irq when
+	 * use same shadow(like pipe0 ds2 to ddr and pipe4 no use ds2);
+	 * if ds2 write to ddr, roi_en and sc_en will be set by
+	 * ipu_hw_enable_channel(), if ds2 not write ddr but online pym,
+	 * roi_en and sc_en need update there;
+	 */
+	ds_info = &src_subdev->ipu_cfg.ds_info[2];
+	ctrl_info = &src_subdev->ipu_cfg.ctrl_info;
+	if (ds_info->ds_roi_en || ds_info->ds_sc_en) {
+		if (!ctrl_info->ds2_to_pym_en) {
+			ipu_set_ds_roi_enable(ipu->base_reg, shadow_index, 2,
+					ds_info->ds_roi_en);
+			ipu_set_ds_enable(ipu->base_reg, shadow_index, 2,
+					ds_info->ds_sc_en);
+		}
 	}
 
 	for (i = MAX_DEVICE - 2; i >= 0; i--) {
@@ -1374,10 +1395,9 @@ void ipu_disable_all_channels(void __iomem *base_reg, u8 instance)
 	for (i = 0; i < 5; i++) {
 		if (i == 2) {
 			ipu_set_ds2_wdma_enable(base_reg, shadow_index, 0);
-		} else {
-			ipu_set_ds_enable(base_reg, shadow_index, i, false);
-			ipu_set_ds_roi_enable(base_reg, shadow_index, i, false);
 		}
+		ipu_set_ds_enable(base_reg, shadow_index, i, false);
+		ipu_set_ds_roi_enable(base_reg, shadow_index, i, false);
 	}
 
 	vio_dbg("G%d: %s shadow %d\n", instance, __func__, shadow_index);
