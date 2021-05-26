@@ -116,7 +116,8 @@ enum diag_vio_module_eventid {
 	EventIdVioSifErr,
 	EventIdVioIpuErr,
 	EventIdVioIspErr,
-	EventIdVioGdcErr,
+	EventIdVioGdc0Err,
+	EventIdVioGdc1Err,
 	EventIdVioLdcErr,
 	EventIdVioPymErr,
 	EventIdVioFrameLost
