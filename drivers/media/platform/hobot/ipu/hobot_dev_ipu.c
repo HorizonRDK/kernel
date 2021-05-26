@@ -1403,6 +1403,39 @@ void ipu_disable_all_channels(void __iomem *base_reg, u8 instance)
 	vio_dbg("G%d: %s shadow %d\n", instance, __func__, shadow_index);
 }
 
+void ipu_disable_output(void __iomem *base_reg, struct vio_group *group)
+{
+	int i = 0;
+	u8 shadow_index = 0;
+
+	if (group->instance < MAX_SHADOW_NUM)
+		shadow_index = group->instance;
+
+	ipu_set_us_enable(base_reg, shadow_index, false);
+	ipu_set_us_roi_enable(base_reg, shadow_index, false);
+	for (i = 0; i < 5; i++) {
+		if (i == 2) {
+			ipu_set_ds2_wdma_enable(base_reg, shadow_index, 0);
+			/*
+			 * all online scene do not clear ds2's roien & scen,
+			 * because of ds2 online pym but not write ddr,
+			 * ipu frame work does not work, will miss set,
+			 * btw, all online scene only support one pipeline,
+			 * it not involve shadow reg reuse.
+			 */
+			if (!vio_check_all_online_state(group)) {
+				ipu_set_ds_enable(base_reg, shadow_index, i, false);
+				ipu_set_ds_roi_enable(base_reg, shadow_index, i, false);
+			}
+		} else {
+			ipu_set_ds_enable(base_reg, shadow_index, i, false);
+			ipu_set_ds_roi_enable(base_reg, shadow_index, i, false);
+		}
+	}
+
+	vio_dbg("G%d: %s shadow %d\n", group->instance, __func__, shadow_index);
+}
+
 void ipu_hw_set_roi_cfg(struct ipu_subdev *subdev, u32 shadow_index,
 			ipu_roi_box_t *roi)
 {
@@ -3946,12 +3979,12 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		prev_fs_has_no_fe = 0;
 		if (!group->leader && (test_bit(IPU_OTF_INPUT, &ipu->state))) {
 			vio_dbg("[S%d]ipu not leader", instance);
-			ipu_disable_all_channels(ipu->base_reg, group->instance);
+			ipu_disable_output(ipu->base_reg, group);
 			vio_group_done(group);
 		}
 
 		if (group->leader && (test_bit(IPU_DMA_INPUT, &ipu->state)))
-			ipu_disable_all_channels(ipu->base_reg, group->instance);
+			ipu_disable_output(ipu->base_reg, group);
 
 		if (test_bit(IPU_DMA_INPUT, &ipu->state)) {
 			vio_group_done(group);
@@ -4088,7 +4121,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		if (group->leader && !test_bit(IPU_DMA_INPUT, &ipu->state)) {
 			if (atomic_read(&ipu->enable_cnt)) {
 				atomic_dec(&ipu->enable_cnt);
-				ipu_disable_all_channels(ipu->base_reg, group->instance);
+				ipu_disable_output(ipu->base_reg, group);
 			}
 
 			ipu_set_all_lost_next_frame_flags(group);
