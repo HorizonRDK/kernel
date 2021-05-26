@@ -12,6 +12,7 @@
 #include <linux/usb/ch9.h>
 #include <linux/usb/gadget.h>
 #include <linux/usb/video.h>
+#include <linux/delay.h>
 
 #include <media/v4l2-dev.h>
 
@@ -349,6 +350,19 @@ int uvcg_video_enable(struct uvc_video *video, int enable)
 		for (i = 0; i < UVC_NUM_REQUESTS; ++i)
 			if (video->req[i])
 				usb_ep_dequeue(video->ep, video->req[i]);
+
+		/*
+		* Race Condition Issue:
+		* above usb_ep_dequeue is an asynchronous function,
+		* delay 20ms to wait ep dequeue function complete.
+		* otherwise, below uvc_video_free_requests will free urbs...
+		* and uvc_video_complete will access the freed memory...
+		*
+		* It is complex and needs more code if use completion value to
+		* do this synchronous operation, so just sleep 20ms to
+		* wait usb dequeue done.
+		*/
+		msleep(20);
 
 		uvc_video_free_requests(video);
 		uvcg_queue_enable(&video->queue, 0);
