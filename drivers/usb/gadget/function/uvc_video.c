@@ -158,9 +158,22 @@ uvc_video_complete(struct usb_ep *ep, struct usb_request *req)
 		break;
 
 	case -ESHUTDOWN:	/* disconnect from host. */
-		uvcg_dbg(&video->uvc->func, "VS request cancelled.\n");
+		uvcg_dbg(&video->uvc->func, "VS request cancelled with status %d.\n",
+				req->status);
 		uvcg_queue_cancel(queue, 1);
 		break;
+
+	case -ECONNRESET:
+		/*
+		 * usb_ep_dequeue to clean cancelled_list or
+		 * some real connect reset(eg. DEPEVT_STATUS_BUSERR),
+		 * usually happened when stream off or some bus error case,
+		 * no need to continue pump uvc data
+		 */
+		uvcg_dbg(&video->uvc->func, "VS request cancelled with status %d.\n",
+				req->status);
+		uvcg_queue_cancel(queue, 1);
+		goto no_requeue;
 
 	default:
 		uvcg_info(&video->uvc->func,
@@ -174,6 +187,9 @@ uvc_video_complete(struct usb_ep *ep, struct usb_request *req)
 	spin_unlock_irqrestore(&video->req_lock, flags);
 
 	schedule_work(&video->pump);
+
+no_requeue:
+	return;
 }
 
 static int
