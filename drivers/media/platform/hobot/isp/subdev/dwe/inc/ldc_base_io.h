@@ -218,6 +218,15 @@ typedef union _ldc_woi_u {
 	ldc_woi_s woi_b;
 } ldc_woi_u;
 
+/*
+ * y_start_addr : iram y start addr
+ * c_start_addr : iram uv start addr
+ * ldc_picsize_u : pic size
+ *  width = pic_width - 1
+ *  height = pic_height - 1
+ * ldc_algoparam_u : ldc param
+ * note : the param should tuning
+ */
 typedef struct _ldc_param_s {
 	uint32_t ldc_enable;
 	ldc_path_sel_u path_sel;

@@ -57,12 +57,12 @@
 /* global variable define */
 typedef struct _subdev_dwe_ctx {
 	struct v4l2_subdev soc_dwe;
-	dwe_param_t *ptr_param;
+	dwe_param_t *ptr_param;  /* param used for ldc/dis */
 	//void *ptr_mem;
 	struct dwe_dev_s *dev_ctx;
-	spinlock_t ldclock;
-	spinlock_t dislock;
-	dwe_context_t ctx;
+	spinlock_t ldclock; /* spin lock to protect ldc data */
+	spinlock_t dislock; /* spin lock to protect dis data */
+	dwe_context_t ctx;  /* data used for ctx */
 	uint32_t ldc_irqstatus;
 	uint32_t dis_irqstatus;
 	struct work_struct ldc_work;
@@ -74,10 +74,12 @@ static int ldc_error_sts = 0;
 
 void ldc_printk(void)
 {
+	// no func
 }
 
 void dis_printk(void)
 {
+	// no func
 }
 
 int ldc_status_check(void)
@@ -86,6 +88,11 @@ int ldc_status_check(void)
 }
 EXPORT_SYMBOL(ldc_status_check);
 
+/*
+ * update ldc param
+ * note : only update shadow info ldc_hwparam_set
+ * ldc_hwpath_set update after fe
+ */
 static void update_ldc_param(void)
 {
 	//set param when next port is setting
@@ -102,6 +109,11 @@ static void update_ldc_param(void)
 	}
 }
 
+/*
+ * update dis param
+ * note : only update shadow info in dis_hwparam_set
+ * dis_hwpath_set update after fe
+ */
 void update_dis_param(void)
 {
 	//set param when next port is setting
@@ -144,6 +156,9 @@ static void dis_task_work(struct work_struct *work)
 	dwe_printk_info();
 }
 
+/*
+ * reset ctx param
+ */
 void reset_dwe_ctx(void)
 {
 	dwe_ctx->ctx.dis_running = 0;
@@ -159,7 +174,7 @@ void reset_dwe_ctx(void)
 }
 EXPORT_SYMBOL(reset_dwe_ctx);
 
-//switch dwe port
+// switch ldc port
 int ldc_set_ioctl(uint32_t port, uint32_t online)
 {
 	unsigned long flags;
@@ -183,6 +198,7 @@ int ldc_set_ioctl(uint32_t port, uint32_t online)
 }
 EXPORT_SYMBOL(ldc_set_ioctl);
 
+// switch dis port
 int dis_set_ioctl(uint32_t port, uint32_t online)
 {
 	unsigned long flags;
@@ -208,13 +224,13 @@ EXPORT_SYMBOL(dis_set_ioctl);
 
 /* dis model irq
  * pg_done:
- * error : 
+ * error :
  * frame_done: change setting & buffer
  * note:
  *   if  FIRMWARE_CONTEXT_NUMBER < 4
  *       using setting[0-4]
  *   else
- *       using setting[0-1] 
+ *       using setting[0-1]
  *
  */
 
@@ -312,18 +328,18 @@ static void ldc_diag_report(uint8_t errsta, unsigned int status)
  * frame start: clear ldc_update
  * overflow:  debug ldc param info
  * output_frame_done: change setting
- * input_fram_done: 
- * 
+ * input_fram_done:
+ *
  * if ldc == bypass
  *    set bypass_ldc == 1
  * else
  *    set bypass_ldc == 0
- *    set setting 
+ *    set setting
  * note:
  *   if  FIRMWARE_CONTEXT_NUMBER < 4
  *       using setting[0-4]
  *   else
- *       using setting[0-1] 
+ *       using setting[0-1]
  */
 static irqreturn_t x3_ldc_irq(int this_irq, void *data)
 {
@@ -351,8 +367,6 @@ static irqreturn_t x3_ldc_irq(int this_irq, void *data)
 		addr = 0x240;
 		ldc_debug_info(dwe_ctx->dev_ctx->ldc_dev->io_vaddr, addr, &tmp);
 		pr_debug("[dump] addr 0x%x, data 0x%x", addr, tmp);
-		//
-		LOG(LOG_INFO, "----ldc_irqstatus %x----", dwe_ctx->ldc_irqstatus);
 
 		ldc_error_sts = 0;
 
@@ -433,6 +447,11 @@ int check_dev(struct dwe_dev_s *check)
 	return ret;
 }
 
+/*
+ * init dwe hardware
+ * 1. request irq
+ * 2. request ion buffer
+ */
 int dwe_hw_init(void)
 {
 	int ret = 0;
@@ -487,6 +506,11 @@ irqldc_err:
 	return ret;
 }
 
+/*
+ * deinit dwe hardware
+ * 1. free irq
+ * 2. free ion buffer
+ */
 void dwe_hw_deinit(void)
 {
 	int ret = 0;
@@ -517,9 +541,7 @@ static int soc_dwe_init(struct v4l2_subdev *sd, u32 val)
 {
 	int rc = 0;
 
-	if (val < FIRMWARE_CONTEXT_NUMBER) {
-		return rc;
-	} else {
+	if (val >= FIRMWARE_CONTEXT_NUMBER) {
 		rc = -EINVAL;
 	}
 
@@ -529,8 +551,7 @@ static int soc_dwe_init(struct v4l2_subdev *sd, u32 val)
 static int soc_dwe_reset(struct v4l2_subdev *sd, u32 val)
 {
 	int rc = 0;
-	if (val < FIRMWARE_CONTEXT_NUMBER) {
-	} else {
+	if (val >= FIRMWARE_CONTEXT_NUMBER) {
 		rc = -EINVAL;
 	}
 

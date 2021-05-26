@@ -182,6 +182,9 @@ typedef union _pg_blanking_u {
         pg_blanking_s blank_b;
 } pg_blanking_u;
 
+/*
+ * use for testpattern
+ */
 typedef struct _pg_param_s {
         dis_picsize_u size;
         pg_blanking_u blank;
@@ -248,6 +251,13 @@ typedef union _dis_crop_u {
 	dis_crop_s crop_b;
 } dis_crop_u;
 
+/*
+ * dis_picsize_u : pic size
+ *   width = pic_width - 1
+ *   height = pic_height - 1
+ * dis_path_sel_u : get data form isp or sif
+ * dis_crop_u : no crop
+ * */
 typedef struct _dis_param_s {
 	dis_picsize_u picsize;	
 	dis_path_sel_u path;

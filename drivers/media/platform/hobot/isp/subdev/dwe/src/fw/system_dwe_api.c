@@ -465,10 +465,12 @@ int dwe_init_api(dwe_context_t *ctx, struct dwe_dev_s *pdev, dwe_param_t **ppara
 	return ret;
 out2:
 	ion_free(ctx->client, ctx->handle);
+	ctx->handle = NULL;
 	ctx->phy_mem = 0;
 	ctx->mem_size = 0;
 	dma_addr = 0;
 	ion_client_destroy(ctx->client);
+	ctx->client = NULL;
 out1:
 	return ret;
 }
@@ -634,11 +636,13 @@ void dwe_deinit_api(dwe_context_t *ctx)
 		if (IS_ERR(ctx->handle) == 0) {
 			ion_unmap_kernel(ctx->client, ctx->handle);
 			ion_free(ctx->client, ctx->handle);
+			ctx->handle = NULL;
 			ctx->phy_mem = 0;
 			ctx->mem_size = 0;
 			dma_addr = 0;
 		}
 		ion_client_destroy(ctx->client);
+		ctx->client = NULL;
 	}
 	LOG(LOG_DEBUG, "dwe_deinit_api is success");
 }
@@ -854,7 +858,7 @@ int dis_hwparam_set(dwe_context_t *ctx, uint32_t port)
 			LOG(LOG_ERR, "port %d get buffer failed!\n", port);
 		} else {
 			tmp_addr = ctx->dframes[port].address;
-			LOG(LOG_INFO, "port %d, addr is %d !\n", port, ctx->dframes[port].address);
+			LOG(LOG_DEBUG, "port %d, addr is %d !\n", port, ctx->dframes[port].address);
 		}
 		tmp_cur = dwe_param[port].dis_param.path.path_b.rg_dis_enable + (dwe_param[port].dis_param.path.path_b.rg_dis_path_sel << 1);
 		set_chn_dis_setting(dev_ptr->dis_dev->io_vaddr, &tmp_cur, ctx->dis_dev_num);

@@ -385,6 +385,7 @@ static long dwe_fop_ioctl(struct file *pfile, unsigned int cmd,
 	ldc_param_s tmp_ldc;
 	pg_param_s  tmp_pg;
 	uint32_t tmp_enable = 0;
+	/* used for dis stats */
 	struct v4l2_buffer tmp_b;
 	struct v4l2_requestbuffers tmp_p;
 	struct v4l2_format tmp_f;
@@ -802,6 +803,7 @@ int __init dwe_dev_init(uint32_t port)
 
 register_err:
 	kzfree(dwe_mod[port]);
+	dwe_mod[port] = NULL;
 	return ret;
 }
 EXPORT_SYMBOL(dwe_dev_init);
