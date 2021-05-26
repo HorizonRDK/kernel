@@ -65,6 +65,7 @@
 #define CUR_MOD_NAME LOG_MODULE_COLOR_MATRIX
 #endif
 
+void color_matrix_update_CCMs( color_matrix_fsm_t *p_fsm );
 
 static void matrix_matrix_multiply( int16_t *a1, int16_t *a2, int16_t *result, int dim1, int dim2, int dim3 )
 {
@@ -244,16 +245,35 @@ static void write_CCM_to_purple_fringe( color_matrix_fsm_t *p_fsm )
 {
     int16_t ccm_coeff[9];
     int16_t *pf_ccm;
+    uint32_t ccm_blend_flag = 0;
+
+    uint32_t ccm_threshold_len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CCM_TEMPER_THRESHOLD );
+    const uint32_t *p_ccm_threshold = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CCM_TEMPER_THRESHOLD );
+    if (ccm_threshold_len > 7) {
+	ccm_blend_flag = p_ccm_threshold[6];
+    }
 
     switch ( p_fsm->light_source_ccm ) {
     case AWB_LIGHT_SOURCE_A:
-        pf_ccm = p_fsm->color_matrix_A;
+	if (ccm_blend_flag) {
+		pf_ccm = p_fsm->color_matrix_CCM;
+	} else {
+		pf_ccm = p_fsm->color_matrix_A;
+	}
         break;
     case AWB_LIGHT_SOURCE_D40:
-        pf_ccm = p_fsm->color_matrix_D40;
+	if (ccm_blend_flag) {
+		pf_ccm = p_fsm->color_matrix_CCM;
+	} else {
+		pf_ccm = p_fsm->color_matrix_D40;
+	}
         break;
     case AWB_LIGHT_SOURCE_D50:
-        pf_ccm = p_fsm->color_matrix_D50;
+	if (ccm_blend_flag) {
+		pf_ccm = p_fsm->color_matrix_CCM;
+	} else {
+		pf_ccm = p_fsm->color_matrix_D50;
+	}
         break;
     default:
         pf_ccm = p_fsm->color_matrix_one;
@@ -336,17 +356,25 @@ void color_matrix_initialize( color_matrix_fsm_t *p_fsm )
     p_fsm->temperature_threshold[6] = 4099;
     p_fsm->temperature_threshold[7] = 4899;
 
+    p_fsm->ccm_threshold[0] = 2750;
+    p_fsm->ccm_threshold[1] = 3100;
+    p_fsm->ccm_threshold[2] = 3400;
+    p_fsm->ccm_threshold[3] = 3600;
+    p_fsm->ccm_threshold[4] = 4100;
+    p_fsm->ccm_threshold[5] = 4500;
+
     ACAMERA_FSM2CTX_PTR( p_fsm )
         ->stab.global_manual_saturation = ( 0 );
 
-	{
-	uint32_t i = 0;
-	uint32_t lut3d_mem_len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_LUT3D_MEM );
-	const uint32_t *p_lut3d_mem = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_LUT3D_MEM );
-	for ( i = 0; i < lut3d_mem_len; i++ ) {
-		acamera_lut3d_mem_array_data_write( p_fsm->cmn.isp_base, i, p_lut3d_mem[i] );
-	}
-	}
+   {
+        uint32_t i = 0;
+        uint32_t lut3d_mem_len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_LUT3D_MEM );
+        const uint32_t *p_lut3d_mem = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_LUT3D_MEM );
+        LOG( LOG_INFO, "lut3d_mem_len: %d", lut3d_mem_len );
+        for ( i = 0; i < lut3d_mem_len; i++ ) {
+            acamera_lut3d_mem_array_data_write( p_fsm->cmn.isp_base, i, p_lut3d_mem[i] );
+        }
+    }
 
 #endif // FW_DO_INITIALIZATION
 }
@@ -411,8 +439,20 @@ void color_matrix_write( color_matrix_fsm_t *p_fsm )
 
 void color_matrix_update( color_matrix_fsm_t *p_fsm )
 {
+	uint32_t ccm_blend_flag = 0;
+
+	/* update ccm threshold when CCM_TEMPER_THRESHOLD is right */
+	uint32_t ccm_threshold_len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CCM_TEMPER_THRESHOLD );
+	const uint32_t *p_ccm_threshold = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CCM_TEMPER_THRESHOLD );
+	if (ccm_threshold_len > 7) {
+		ccm_blend_flag = p_ccm_threshold[6];
+	}
+	// tuning param enable blend func
+	if (ccm_blend_flag) {
+		color_matrix_update_CCMs(p_fsm);
+	}
     //    For CCM switching
-    if ( p_fsm->light_source_change_frames_left != 0 ) {
+    if ((p_fsm->light_source_change_frames_left != 0) && (!ccm_blend_flag)) {
         int16_t *p_ccm_prev;
         int16_t *p_ccm_cur = p_fsm->color_correction_matrix;
         int16_t *p_ccm_target;
@@ -466,6 +506,32 @@ void color_matrix_update( color_matrix_fsm_t *p_fsm )
         //uint32_t fixed_table = 0;
         // if temp less < 3250 go to A
         // LSC is completely based on alpha blending and the AWB color temp.
+
+	{ /* only update shading_threshold when SHADING_TEMPER_THRESHOLD is right */
+		// update shading threshold
+		uint32_t shading_threshold_len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_TEMPER_THRESHOLD );
+		const uint32_t *p_shading_threshold = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_TEMPER_THRESHOLD );
+
+		if (shading_threshold_len >= 8) {
+			if ((p_shading_threshold[0] > p_shading_threshold[1]) ||
+				(p_shading_threshold[1] > p_shading_threshold[2]) ||
+				(p_shading_threshold[2] > p_shading_threshold[3]) ||
+				(p_shading_threshold[3] > p_shading_threshold[4]) ||
+				(p_shading_threshold[4] > p_shading_threshold[5]) ||
+				(p_shading_threshold[5] > p_shading_threshold[6]) ||
+				(p_shading_threshold[6] > p_shading_threshold[7])) {
+			} else {
+				p_fsm->temperature_threshold[0] = p_shading_threshold[0];
+				p_fsm->temperature_threshold[1] = p_shading_threshold[1];
+				p_fsm->temperature_threshold[2] = p_shading_threshold[2];
+				p_fsm->temperature_threshold[3] = p_shading_threshold[3];
+				p_fsm->temperature_threshold[4] = p_shading_threshold[4];
+				p_fsm->temperature_threshold[5] = p_shading_threshold[5];
+				p_fsm->temperature_threshold[6] = p_shading_threshold[6];
+				p_fsm->temperature_threshold[7] = p_shading_threshold[7];
+			}
+		}
+	}
 
         if ( ( wb_info.temperature_detected < p_fsm->temperature_threshold[0] ) ) //0->1
         {
@@ -535,53 +601,139 @@ void color_matrix_update( color_matrix_fsm_t *p_fsm )
     color_matrix_write( p_fsm );
     mesh_shading_modulate_strength( p_fsm );
 
-	// update 3d_lut
-	{
+    // update 3d_lut
+    {
 	fsm_param_awb_info_t wb_info;
-	uint32_t i = 0;
 	acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_AWB_INFO, NULL, 0, &wb_info, sizeof( wb_info ) );
+	uint32_t i = 0;
 	const uint32_t *p_lut3d_mem_a = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_LUT3D_MEM_A );
+        uint32_t lut3d_mem_len_a = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_LUT3D_MEM_A );
 	const uint32_t *p_lut3d_mem_d40 = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_LUT3D_MEM_D40 );
+        uint32_t lut3d_mem_len_d40 = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_LUT3D_MEM_D40 );
 	const uint32_t *p_lut3d_mem_d50 = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_LUT3D_MEM_D50 );
+        uint32_t lut3d_mem_len_d50 = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_LUT3D_MEM_D50 );
 	if (p_lut3d_mem_a && p_lut3d_mem_d40 &&  p_lut3d_mem_d50) {
 		if (wb_info.temperature_detected < AWB_DLS_LIGHT_SOURCE_A_D40_BORDER) {
-			for ( i = 0; i < 1000; i++ ) {
-				acamera_lut3d_mem_array_data_write(p_fsm->cmn.isp_base, i, p_fsm->lut3d_a[i]);
+			for ( i = 0; i < lut3d_mem_len_a; i++ ) {
+				acamera_lut3d_mem_array_data_write(p_fsm->cmn.isp_base, i, p_lut3d_mem_a[i]);
 			}
 		} else if (wb_info.temperature_detected > AWB_DLS_LIGHT_SOURCE_D40_D50_BORDER) {
-			for ( i = 0; i < 1000; i++ ) {
-				acamera_lut3d_mem_array_data_write(p_fsm->cmn.isp_base, i, p_fsm->lut3d_d50[i]);
+			for ( i = 0; i < lut3d_mem_len_d40; i++ ) {
+				acamera_lut3d_mem_array_data_write(p_fsm->cmn.isp_base, i, p_lut3d_mem_d40[i]);
 			}
 		} else {
-			for ( i = 0; i < 1000; i++ ) {
-				acamera_lut3d_mem_array_data_write(p_fsm->cmn.isp_base, i, p_fsm->lut3d_d40[i]);
+			for ( i = 0; i < lut3d_mem_len_d50; i++ ) {
+				acamera_lut3d_mem_array_data_write(p_fsm->cmn.isp_base, i, p_lut3d_mem_d50[i]);
 			}
 		}
 	}
-	}
+    }
 
     if ( p_fsm->light_source_change_frames_left > 0 ) {
         p_fsm->light_source_change_frames_left--;
     }
 }
 
+/*
+ * func : used for ccm interpolation
+ * input : ccm_a + ccm_b + temper + threshold
+ *
+ */
+void color_matrix_interpolation_ccm(int16_t *pa, int16_t *pb, int16_t *pout, uint32_t temper, uint32_t threshold_a, uint32_t threshold_b)
+{
+       uint32_t i = 0;
+       int32_t a_ccm[9] = {0};
+       int32_t b_ccm[9] = {0};
+
+        if (temper <= threshold_a) {
+               for (i = 0; i < 9; i++) {
+                       pout[i] = pa[i];
+               }
+        } else if (temper >= threshold_b) {
+               for (i = 0; i < 9; i++) {
+                       pout[i] = pb[i];
+               }
+        } else {
+               for (i = 0; i < 9; i++) {
+                       a_ccm[i] = pa[i];
+                       b_ccm[i] = pb[i];
+                       if (b_ccm[i] >= a_ccm[i]) {
+                               pout[i] = (int16_t)(a_ccm[i] + ((((b_ccm[i] - a_ccm[i])*(temper - threshold_a))/(threshold_b - threshold_a))));
+                       } else {
+                               pout[i] = (int16_t)(a_ccm[i] - ((((a_ccm[i] - b_ccm[i])*(temper - threshold_a))/(threshold_b - threshold_a))));
+                       }
+               }
+	}
+}
+
 void color_matrix_change_CCMs( color_matrix_fsm_t *p_fsm )
 {
     uint8_t i;
     uint16_t *p_mtrx;
+    uint32_t ccm_blend_flag = 0;
     //    For CCM switching
-
 
     p_mtrx = _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_MT_ABSOLUTE_LS_A_CCM );
     color_matrix_setup( &p_fsm->color_matrix_A[0], p_mtrx[0], p_mtrx[1], p_mtrx[2], p_mtrx[3], p_mtrx[4], p_mtrx[5], p_mtrx[6], p_mtrx[7], p_mtrx[8] );
+    if (_GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_MT_ABSOLUTE_LS_U30_CCM ) > 8) {
+	p_mtrx = _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_MT_ABSOLUTE_LS_U30_CCM );
+	color_matrix_setup( &p_fsm->color_matrix_U30[0], p_mtrx[0], p_mtrx[1], p_mtrx[2], p_mtrx[3], p_mtrx[4], p_mtrx[5], p_mtrx[6], p_mtrx[7], p_mtrx[8] );
+    }
     p_mtrx = _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_MT_ABSOLUTE_LS_D40_CCM );
     color_matrix_setup( &p_fsm->color_matrix_D40[0], p_mtrx[0], p_mtrx[1], p_mtrx[2], p_mtrx[3], p_mtrx[4], p_mtrx[5], p_mtrx[6], p_mtrx[7], p_mtrx[8] );
     p_mtrx = _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_MT_ABSOLUTE_LS_D50_CCM );
     color_matrix_setup( &p_fsm->color_matrix_D50[0], p_mtrx[0], p_mtrx[1], p_mtrx[2], p_mtrx[3], p_mtrx[4], p_mtrx[5], p_mtrx[6], p_mtrx[7], p_mtrx[8] );
     color_matrix_setup( p_fsm->color_matrix_one, 256, 0, 0, 0, 256, 0, 0, 0, 256 );
 
+    /* update ccm threshold when CCM_TEMPER_THRESHOLD is right */
+	uint32_t ccm_threshold_len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CCM_TEMPER_THRESHOLD );
+	const uint32_t *p_ccm_threshold = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CCM_TEMPER_THRESHOLD );
+	if (ccm_threshold_len > 7) {
+		ccm_blend_flag = p_ccm_threshold[6];
+	}
 
-    if ( p_fsm->light_source_change_frames_left != 0 ) {
+	if ((ccm_threshold_len >= 6) && (ccm_blend_flag)) {
+		if ((p_ccm_threshold[0] >= p_ccm_threshold[1]) ||
+			(p_ccm_threshold[1] >= p_ccm_threshold[2]) ||
+			(p_ccm_threshold[2] >= p_ccm_threshold[3]) ||
+			(p_ccm_threshold[3] >= p_ccm_threshold[4]) ||
+			(p_ccm_threshold[4] >= p_ccm_threshold[5])) {
+			// null
+		} else {
+			p_fsm->ccm_threshold[0] = p_ccm_threshold[0];
+			p_fsm->ccm_threshold[1] = p_ccm_threshold[1];
+			p_fsm->ccm_threshold[2] = p_ccm_threshold[2];
+			p_fsm->ccm_threshold[3] = p_ccm_threshold[3];
+			p_fsm->ccm_threshold[4] = p_ccm_threshold[4];
+			p_fsm->ccm_threshold[5] = p_ccm_threshold[5];
+		}
+	}
+
+    /* ccm interpolation when a/u30/d40/d50 is valid */
+    /*
+     * blend rules
+     * ------th0------th1------th2------th3------th4------th5------
+     *  a     |  a+u30 |  u30   | u30+d40|   d40  | d40+d50|  d50
+     *
+     */
+	if (ccm_blend_flag) {
+		fsm_param_awb_info_t wb_info;
+		acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_AWB_INFO, NULL, 0, &wb_info, sizeof( wb_info ) );
+		if (_GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_MT_ABSOLUTE_LS_U30_CCM ) > 8) {
+			if (wb_info.temperature_detected <= p_fsm->ccm_threshold[2]) {
+				color_matrix_interpolation_ccm(&p_fsm->color_matrix_A[0], &p_fsm->color_matrix_U30[0], &p_fsm->color_matrix_CCM[0],
+					wb_info.temperature_detected, p_fsm->ccm_threshold[0], p_fsm->ccm_threshold[1]);
+			} else if ((wb_info.temperature_detected > p_fsm->ccm_threshold[2]) && (wb_info.temperature_detected <= p_fsm->ccm_threshold[4])) {
+				color_matrix_interpolation_ccm(&p_fsm->color_matrix_U30[0], &p_fsm->color_matrix_D40[0], &p_fsm->color_matrix_CCM[0],
+					wb_info.temperature_detected, p_fsm->ccm_threshold[2], p_fsm->ccm_threshold[3]);
+			} else {
+				color_matrix_interpolation_ccm(&p_fsm->color_matrix_D40[0], &p_fsm->color_matrix_D50[0], &p_fsm->color_matrix_CCM[0],
+					wb_info.temperature_detected, p_fsm->ccm_threshold[4], p_fsm->ccm_threshold[5]);
+			}
+		}
+	}
+
+    if ((p_fsm->light_source_change_frames_left != 0) && (!ccm_blend_flag)) {
         // In CCM switching
         // call CCM switcher to update CCM
         // (note: this does mean CCM switching takes one frame less than normal)
@@ -593,13 +745,25 @@ void color_matrix_change_CCMs( color_matrix_fsm_t *p_fsm )
 
         switch ( p_fsm->light_source_ccm ) {
         case AWB_LIGHT_SOURCE_A:
-            p_ccm_next = p_fsm->color_matrix_A;
+	    if (ccm_blend_flag) {
+		    p_ccm_next = p_fsm->color_matrix_CCM;
+	    } else {
+		p_ccm_next = p_fsm->color_matrix_A;
+	    }
             break;
         case AWB_LIGHT_SOURCE_D40:
-            p_ccm_next = p_fsm->color_matrix_D40;
+	    if (ccm_blend_flag) {
+		    p_ccm_next = p_fsm->color_matrix_CCM;
+	    } else {
+		p_ccm_next = p_fsm->color_matrix_D40;
+	    }
             break;
         case AWB_LIGHT_SOURCE_D50:
-            p_ccm_next = p_fsm->color_matrix_D50;
+	    if (ccm_blend_flag) {
+		    p_ccm_next = p_fsm->color_matrix_CCM;
+	    } else {
+		p_ccm_next = p_fsm->color_matrix_D50;
+	    }
             break;
         default:
             p_ccm_next = p_fsm->color_matrix_one;
@@ -611,27 +775,92 @@ void color_matrix_change_CCMs( color_matrix_fsm_t *p_fsm )
         }
     }
 
-	// update 3d_lut
-	{
-	uint32_t i = 0;
-	uint32_t lut3d_mem_len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_LUT3D_MEM );
-	const uint32_t *p_lut3d_mem = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_LUT3D_MEM );
-	const uint32_t *p_lut3d_mem_a = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_LUT3D_MEM_A );
-	const uint32_t *p_lut3d_mem_d40 = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_LUT3D_MEM_D40 );
-	const uint32_t *p_lut3d_mem_d50 = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_LUT3D_MEM_D50 );
-	if (p_lut3d_mem_a && p_lut3d_mem_d40 && p_lut3d_mem_d50) {
-		memcpy(p_fsm->lut3d_a, p_lut3d_mem_a, 1000 * sizeof(uint32_t));
-		memcpy(p_fsm->lut3d_d40, p_lut3d_mem_d40, 1000 * sizeof(uint32_t));
-		memcpy(p_fsm->lut3d_d50, p_lut3d_mem_d50, 1000 * sizeof(uint32_t));
-	} else {
-		memcpy(p_fsm->lut3d_a, p_lut3d_mem, 1000 * sizeof(uint32_t));
-	}
+}
 
-	if (!p_lut3d_mem_a || !p_lut3d_mem_d40 || !p_lut3d_mem_d50) {
-		for ( i = 0; i < lut3d_mem_len; i++ ) {
-			acamera_lut3d_mem_array_data_write(p_fsm->cmn.isp_base, i, p_fsm->lut3d_a[i]);
+/*
+ * CALIBRATION_CCM_TEMPER_THRESHOLD [7]:
+ * [0-5] used for ccm threshold
+ * [6] used for ccm blend enable/disbale 0:disable blend 1:enable blend
+ *
+ */
+void color_matrix_update_CCMs( color_matrix_fsm_t *p_fsm )
+{
+	uint8_t i = 0;
+	uint16_t *p_mtrx = NULL;
+
+	/* update ccm threshold when CCM_TEMPER_THRESHOLD is right */
+	uint32_t ccm_threshold_len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CCM_TEMPER_THRESHOLD );
+	const uint32_t *p_ccm_threshold = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CCM_TEMPER_THRESHOLD );
+
+	if (ccm_threshold_len >= 6) {
+		if ((p_ccm_threshold[0] >= p_ccm_threshold[1]) ||
+			(p_ccm_threshold[1] >= p_ccm_threshold[2]) ||
+			(p_ccm_threshold[2] >= p_ccm_threshold[3]) ||
+			(p_ccm_threshold[3] >= p_ccm_threshold[4]) ||
+			(p_ccm_threshold[4] >= p_ccm_threshold[5])) {
+			// null
+		} else {
+			p_fsm->ccm_threshold[0] = p_ccm_threshold[0];
+			p_fsm->ccm_threshold[1] = p_ccm_threshold[1];
+			p_fsm->ccm_threshold[2] = p_ccm_threshold[2];
+			p_fsm->ccm_threshold[3] = p_ccm_threshold[3];
+			p_fsm->ccm_threshold[4] = p_ccm_threshold[4];
+			p_fsm->ccm_threshold[5] = p_ccm_threshold[5];
 		}
 	}
+
+	p_mtrx = _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_MT_ABSOLUTE_LS_A_CCM );
+	color_matrix_setup( &p_fsm->color_matrix_A[0], p_mtrx[0], p_mtrx[1], p_mtrx[2], p_mtrx[3], p_mtrx[4], p_mtrx[5], p_mtrx[6], p_mtrx[7], p_mtrx[8] );
+	if (_GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_MT_ABSOLUTE_LS_U30_CCM ) > 8) {
+	    p_mtrx = _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_MT_ABSOLUTE_LS_U30_CCM );
+	    color_matrix_setup( &p_fsm->color_matrix_U30[0], p_mtrx[0], p_mtrx[1], p_mtrx[2], p_mtrx[3], p_mtrx[4], p_mtrx[5], p_mtrx[6], p_mtrx[7], p_mtrx[8] );
+	}
+	p_mtrx = _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_MT_ABSOLUTE_LS_D40_CCM );
+	color_matrix_setup( &p_fsm->color_matrix_D40[0], p_mtrx[0], p_mtrx[1], p_mtrx[2], p_mtrx[3], p_mtrx[4], p_mtrx[5], p_mtrx[6], p_mtrx[7], p_mtrx[8] );
+	p_mtrx = _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_MT_ABSOLUTE_LS_D50_CCM );
+	color_matrix_setup( &p_fsm->color_matrix_D50[0], p_mtrx[0], p_mtrx[1], p_mtrx[2], p_mtrx[3], p_mtrx[4], p_mtrx[5], p_mtrx[6], p_mtrx[7], p_mtrx[8] );
+	color_matrix_setup( p_fsm->color_matrix_one, 256, 0, 0, 0, 256, 0, 0, 0, 256 );
+
+	/* ccm interpolation when a/u30/d40/d50 is valid */
+	/*
+	 * blend rules
+	 * ------th0------th1------th2------th3------th4------th5------
+	 *  a     |  a+u30 |  u30   | u30+d40|   d40  | d40+d50|  d50
+	 *
+	 */
+	{
+	    fsm_param_awb_info_t wb_info;
+	    acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_AWB_INFO, NULL, 0, &wb_info, sizeof( wb_info ) );
+	    if (_GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_MT_ABSOLUTE_LS_U30_CCM ) > 8) {
+	    	if (wb_info.temperature_detected <= p_fsm->ccm_threshold[2]) {
+	    		color_matrix_interpolation_ccm(&p_fsm->color_matrix_A[0], &p_fsm->color_matrix_U30[0], &p_fsm->color_matrix_CCM[0],
+	    			wb_info.temperature_detected, p_fsm->ccm_threshold[0], p_fsm->ccm_threshold[1]);
+	    	} else if ((wb_info.temperature_detected > p_fsm->ccm_threshold[2]) && (wb_info.temperature_detected <= p_fsm->ccm_threshold[4])) {
+	    		color_matrix_interpolation_ccm(&p_fsm->color_matrix_U30[0], &p_fsm->color_matrix_D40[0], &p_fsm->color_matrix_CCM[0],
+	    			wb_info.temperature_detected, p_fsm->ccm_threshold[2], p_fsm->ccm_threshold[3]);
+	    	} else {
+	    		color_matrix_interpolation_ccm(&p_fsm->color_matrix_D40[0], &p_fsm->color_matrix_D50[0], &p_fsm->color_matrix_CCM[0],
+	    			wb_info.temperature_detected, p_fsm->ccm_threshold[4], p_fsm->ccm_threshold[5]);
+	    	}
+	    }
 	}
 
+        // Not moving, update current CCMs
+
+        int16_t *p_ccm_next;
+
+        switch ( p_fsm->light_source_ccm ) {
+        case AWB_LIGHT_SOURCE_A:
+        case AWB_LIGHT_SOURCE_D40:
+        case AWB_LIGHT_SOURCE_D50:
+            p_ccm_next = p_fsm->color_matrix_CCM;
+            break;
+        default:
+            p_ccm_next = p_fsm->color_matrix_one;
+            break;
+        }
+
+        for ( i = 0; i < 9; i++ ) {
+            p_fsm->color_correction_matrix[i] = p_ccm_next[i];
+        }
 }

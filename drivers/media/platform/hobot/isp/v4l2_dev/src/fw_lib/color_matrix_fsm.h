@@ -57,7 +57,9 @@ struct _color_matrix_fsm_t {
     uint8_t light_source_ccm_previous;
     uint8_t light_source_change_frames;
     uint8_t light_source_change_frames_left;
+    int16_t color_matrix_CCM[9];
     int16_t color_matrix_A[9];
+    int16_t color_matrix_U30[9];
     int16_t color_matrix_D40[9];
     int16_t color_matrix_D50[9];
     int16_t color_matrix_one[9];
@@ -70,6 +72,8 @@ struct _color_matrix_fsm_t {
     int32_t lut3d_a[1000];
     int32_t lut3d_d40[1000];
     int32_t lut3d_d50[1000];
+
+    int32_t ccm_threshold[6];
 
     int32_t shading_mesh_strength;
     int32_t manual_shading_mesh_strength;

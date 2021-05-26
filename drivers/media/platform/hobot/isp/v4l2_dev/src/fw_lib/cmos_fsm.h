@@ -75,7 +75,25 @@ typedef struct _cmos_control_param_t {
     uint32_t global_analog_gain_last_priority;
     uint32_t global_analog_gain_reserve;
     uint32_t global_sensor_awb_mode; // 0 use isp awb, 1 use sensor awb
+    uint32_t global_flicker_ratio; // used for flicker dection
+    uint32_t global_flicker_out;
+    uint32_t global_flicker_mode;
+    uint32_t global_dark_enh;
+    uint32_t global_dark_count;
+    uint32_t global_interval;
+    uint32_t global_threshold;
+    uint32_t global_change_threshold;
 } cmos_control_param_t;
+
+#define SENSOR_AWB_MODE_NUM         19
+#define SENSOR_FLICKER_RATIO_NUM     20
+#define SENSOR_FLICKER_OUT_NUM     21
+#define SENSOR_FLICKER_MODE_NUM     22
+#define SENSOR_FLICKER_DARK_ENH_NUM     23
+#define SENSOR_FLICKER_DARK_COUNT_NUM     24
+#define SENSOR_FLICKER_INTERVAL_NUM     25
+#define SENSOR_FLICKER_THRESHOLD_NUM     26
+#define SENSOR_FLICKER_LUMVAR_CHANGE_NUM     27
 
 /*
 typedef struct _exposure_data_set_t
@@ -182,8 +200,26 @@ struct _cmos_fsm_t {
 
     uint32_t exp_lut[SYSTEM_EXPOSURE_PARTITION_VALUE_COUNT];
     ae_out_info_t ae_out_info;
+    /* used for ctrl external ae 0 : used arm3a 1 : extern ae */
     uint16_t external_ae_enable;
+    /* used for ctrl update ae 0 : ae update disable 1 : ae update enable */
     uint16_t sensor_ctrl_enable;
+
+    /* flicker logic data*/
+    uint32_t outdoor_flag;
+    uint32_t count;
+    uint32_t count1;
+    uint32_t count2;
+    uint32_t lumvar[512];
+    uint32_t history_lumvar[512]; // lumvar history
+    uint32_t fdetect[16][10]; // flicker history
+    uint32_t lumvar_y_flicker;
+    uint32_t lumvar_n_flicker;
+    uint32_t temp_f;
+    uint32_t count_th;
+    uint32_t flicker_status;
+    uint32_t lumvar_mean;
+    uint32_t lumvar_change;
 };
 
 

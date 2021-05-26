@@ -23,6 +23,7 @@
 #include "system_timer.h"
 #include "acamera_command_api.h"
 #include "cmos_fsm.h"
+#include "ae_manual_fsm.h"
 
 #include "acamera_logger.h"
 #include "isp_ctxsv.h"
@@ -1136,9 +1137,175 @@ void cmos_digital_gain_update( cmos_fsm_ptr_t p_fsm )
     LOG( LOG_INFO, "again %d, dgain %d, isp_dgain %d", p_fsm->again_val_log2[0], p_fsm->dgain_val_log2[0], p_fsm->isp_dgain_log2);
 }
 
+/*
+ * flicker detection
+ * input:
+ *	lumvar : lumvar stats ptr
+ *	time : short shutter
+ *	per_half :
+ * output:
+ *	flicker status
+ * note : dectection flicker by lumvar info
+ *  lumvar : 32 x 16
+ */
+void flicker_detection(cmos_fsm_ptr_t p_fsm, uint32_t *lumvar, uint32_t time, uint32_t per_half)
+{
+	uint32_t sum = 0;
+	uint32_t y = 0;
+	uint32_t x = 0;
+	uint32_t interval = 3;
+	uint32_t threshold = 100;
+	uint32_t lumvar_sub[16] = {0};
+	uint32_t lumvar_max = 0;
+	uint32_t lumvar_min = 10000000;
+	uint32_t lumvar_high = 0;
+	uint32_t lumvar_low = 0;
+	uint32_t f_flag[16] = {0};
+	uint32_t lumvar_high_flag = 0;
+	uint32_t lumvar_low_flag = 0;
+	uint32_t move_flag = 0;
+
+	cmos_control_param_t *param = (cmos_control_param_t *)_GET_UINT_PTR( ACAMERA_FSM2CTX_PTR(p_fsm), CALIBRATION_CMOS_CONTROL );
+	if (_GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CMOS_CONTROL ) >= SENSOR_FLICKER_INTERVAL_NUM) {
+		interval = param->global_interval;
+		if (interval > 8) {
+			interval = 8;
+			param->global_interval = 8;
+		}
+		if (interval < 1) {
+			interval = 1;
+			param->global_interval = 1;
+		}
+	}
+
+	if (_GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CMOS_CONTROL ) >= SENSOR_FLICKER_THRESHOLD_NUM) {
+		threshold = param->global_threshold;
+		if (threshold < 80) {
+			threshold = 80;
+			param->global_threshold = 80;
+		}
+		if (threshold > 1023) {
+			threshold = 1023;
+			param->global_threshold = 1023;
+		}
+	}
+
+	for (y = 0; y < 16; y++) {
+		sum = 0;
+		for (x = 0; x < 32; x++) {
+			sum += lumvar[y * 32 + x] & 0x3ff;
+		}
+		p_fsm->fdetect[y][p_fsm->temp_f] = sum;
+	}
+	if (p_fsm->temp_f == 1) {
+		memcpy(p_fsm->history_lumvar, p_fsm->lumvar, sizeof(p_fsm->lumvar));
+	}
+	if (p_fsm->temp_f > interval) {
+		if (p_fsm->flicker_status) {
+			pr_info("---------------------------- flicker detect %d",  p_fsm->flicker_status);
+		}
+		for (y = 0; y < 16; y++) {
+			lumvar_sub[y] = 100000 + p_fsm->fdetect[y][p_fsm->temp_f] - p_fsm->fdetect[y][p_fsm->temp_f - interval];
+			// pr_debug("a %d, b %d, sub %d ", p_fsm->fdetect[y][p_fsm->temp_f], p_fsm->fdetect[y][p_fsm->temp_f - interval], lumvar_sub[y]);
+			if (lumvar_sub[y] > lumvar_max) {
+				lumvar_max = lumvar_sub[y];
+			}
+			if (lumvar_sub[y] < lumvar_min) {
+				lumvar_min = lumvar_sub[y];
+			}
+			if (lumvar_sub[y] >= 100000 + threshold) {
+				f_flag[y] = 2;
+				lumvar_high_flag++;
+				lumvar_low_flag = 0;
+				if (lumvar_high_flag == 1) {
+					lumvar_high++;
+				}
+			} else if (lumvar_sub[y] <= 100000 - threshold) {
+				f_flag[y] = 1;
+				lumvar_high_flag = 0;
+				lumvar_low_flag++;
+				if (lumvar_low_flag == 1) {
+					lumvar_low++;
+				}
+			}
+			// pr_info(" %d, ", f_flag[y]);
+		}
+		pr_debug("high %d, low %d", lumvar_high, lumvar_low);
+		for (y = 0; y < 16; y++) {
+			if (f_flag[y] == 2) {
+				for (x = 0; x < 32; x++) {
+					if ((p_fsm->history_lumvar[y*32 +x] & 0x3ff)  > 5 + (lumvar[y * 32 + x] & 0x3ff)) {
+						move_flag++;
+					}
+				}
+			}
+
+			if (f_flag[y] == 1) {
+				for (x = 0; x < 32; x++) {
+					if ((p_fsm->history_lumvar[y*32 +x] & 0x3ff) + 5  < (lumvar[y * 32 + x] & 0x3ff)) {
+						move_flag++;
+					}
+				}
+			}
+		}
+		pr_debug(" move flag, count %d", move_flag);
+		p_fsm->temp_f = 0;
+		if ((lumvar_max < 100000) || (lumvar_min > 100000) || (lumvar_high > 5) || (lumvar_low > 5) || (move_flag > 40 + (lumvar_low + lumvar_high) *2)) {
+			p_fsm->lumvar_y_flicker = 0;
+			p_fsm->lumvar_n_flicker = 0;
+			p_fsm->flicker_status = 0;
+			return;
+		}
+		if ((lumvar_max >= 100000 + threshold) && (lumvar_min <= 100000 - threshold) && (lumvar_high > 0) && (lumvar_low > 0) && ((lumvar_high + lumvar_low) > 2)) {
+			p_fsm->lumvar_y_flicker++;
+			p_fsm->lumvar_n_flicker = 0;
+		} else if ((lumvar_high == 0) && (lumvar_low == 0)) {
+			p_fsm->lumvar_y_flicker = 0;
+			p_fsm->lumvar_n_flicker++;
+		} else {
+			if (p_fsm->lumvar_y_flicker > 2) {
+				p_fsm->lumvar_y_flicker = p_fsm->lumvar_y_flicker - 2;
+			} else {
+				p_fsm->lumvar_y_flicker = 0;
+			}
+			p_fsm->lumvar_n_flicker = 0;
+		}
+
+		if (p_fsm->lumvar_y_flicker > 8) {
+			p_fsm->flicker_status = 1;
+			p_fsm->lumvar_y_flicker = 0;
+			p_fsm->lumvar_n_flicker = 0;
+		}
+		if (p_fsm->lumvar_n_flicker > 4) {
+			p_fsm->flicker_status = 0;
+			p_fsm->lumvar_y_flicker = 0;
+			p_fsm->lumvar_n_flicker = 0;
+		}
+	}
+	p_fsm->temp_f++;
+}
+
 uint32_t get_quantised_integration_time( cmos_fsm_ptr_t p_fsm, uint32_t int_time )
 {
+    uint32_t temp = 0;
+    uint32_t temp_1 = 0;
+    uint32_t comp_ae_t = 3;
+    uint32_t sensor_flicker_out = 750;
+    uint32_t lumvar_dark_enh = 512;
+    uint32_t lumvar_dark_countenh = 300;
+    uint32_t lumvar_dark_count = 0;
+    uint32_t i = 0;
+    uint32_t lum_mean = 0;
+    uint32_t lumvar_change = 0;
+    uint32_t lumvar_change_enh = 200;
+
     if ( !p_fsm->flicker_freq || p_fsm->manual_gain_mode ) {
+	if (p_fsm->count_th) {
+		acamera_command(p_fsm->cmn.ctx_id, TALGORITHMS, AE_COMPENSATION_ID, 0, COMMAND_GET, &temp);
+		temp_1 = temp - (comp_ae_t * p_fsm->count_th);
+		acamera_command(p_fsm->cmn.ctx_id, TALGORITHMS, AE_COMPENSATION_ID, temp_1, COMMAND_SET, &temp);
+		p_fsm->count_th = 0;
+	}
         return int_time;
     }
 
@@ -1146,6 +1313,124 @@ uint32_t get_quantised_integration_time( cmos_fsm_ptr_t p_fsm, uint32_t int_time
     acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_SENSOR_INFO, NULL, 0, &sensor_info, sizeof( sensor_info ) );
 
     uint32_t line_per_half_period = ( sensor_info.lines_per_second << 8 ) / ( p_fsm->flicker_freq * 2 ); // division by zero is checked
+
+    /* check cmos control param */
+    if (_GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CMOS_CONTROL ) >= SENSOR_FLICKER_THRESHOLD_NUM) {
+	cmos_control_param_t *param = (cmos_control_param_t *)_GET_UINT_PTR( ACAMERA_FSM2CTX_PTR(p_fsm), CALIBRATION_CMOS_CONTROL );
+	/* get lumvar info */
+	get_lumvar_info(p_fsm->lumvar);
+
+	if (p_fsm->outdoor_flag == 1) {
+		p_fsm->count1 = 0;
+
+		if (p_fsm->count2 < 15) {
+			p_fsm->count2++;
+		}
+		for (i = 0; i < 512; i++) {
+			lum_mean += (p_fsm->lumvar[i] & 0x3ff);
+		}
+		lum_mean = lum_mean / 512;
+		if (p_fsm->count2 == 9) {
+			p_fsm->lumvar_mean = lum_mean;
+		} else if (p_fsm->count2 > 9) {
+			if (lum_mean > p_fsm->lumvar_mean) {
+				lumvar_change = lum_mean - p_fsm->lumvar_mean;
+			} else {
+				lumvar_change = p_fsm->lumvar_mean - lum_mean;
+			}
+		} else {
+			lumvar_change = 0;
+		}
+
+		p_fsm->lumvar_change++;
+		if (((p_fsm->count_th < 15) || ((int_time > line_per_half_period)))) {
+			if (int_time < (line_per_half_period * 3 / 5)) {
+				p_fsm->count_th++;
+				acamera_command(p_fsm->cmn.ctx_id, TALGORITHMS, AE_COMPENSATION_ID, 0, COMMAND_GET, &temp);
+				temp_1 = temp + comp_ae_t;
+				acamera_command(p_fsm->cmn.ctx_id, TALGORITHMS, AE_COMPENSATION_ID, temp_1, COMMAND_SET, &temp);
+			} else if ((int_time > line_per_half_period) && (p_fsm->count_th) && (p_fsm->lumvar_change > 3)) {
+				p_fsm->lumvar_change = 0;
+				p_fsm->count_th--;
+				acamera_command(p_fsm->cmn.ctx_id, TALGORITHMS, AE_COMPENSATION_ID, 0, COMMAND_GET, &temp);
+				temp_1 = temp - comp_ae_t;
+				acamera_command(p_fsm->cmn.ctx_id, TALGORITHMS, AE_COMPENSATION_ID, temp_1, COMMAND_SET, &temp);
+			}
+		}
+		// if ((lum_mean > sensor_flicker_out) && (lumvar_change > lumvar_change_enh)) {
+		if ((lumvar_change > lumvar_change_enh)) {
+		        p_fsm->count++;
+		} else {
+		        p_fsm->count = 0;
+		}
+
+		if (p_fsm->count > 30) {
+		        p_fsm->count = 0;
+		        p_fsm->outdoor_flag = 2;
+		}
+
+		if (int_time < line_per_half_period) {
+			int_time = line_per_half_period;
+		}
+	} else if (p_fsm->outdoor_flag == 2) {
+		p_fsm->count = 0;
+		p_fsm->count2 = 0;
+		lumvar_dark_count = 0;
+
+		if (p_fsm->count_th) {
+			p_fsm->count_th--;
+			acamera_command(p_fsm->cmn.ctx_id, TALGORITHMS, AE_COMPENSATION_ID, 0, COMMAND_GET, &temp);
+			temp_1 = temp - comp_ae_t;
+			acamera_command(p_fsm->cmn.ctx_id, TALGORITHMS, AE_COMPENSATION_ID, temp_1, COMMAND_SET, &temp);
+		}
+
+		for (i = 0; i < 512; i++) {
+			if ((p_fsm->lumvar[i] & 0x3ff) < lumvar_dark_enh) {
+				lumvar_dark_count++;
+			}
+		}
+		for (i = 0; i < 512; i++) {
+			lum_mean += (p_fsm->lumvar[i] & 0x3ff);
+		}
+		lum_mean = lum_mean / 512;
+		// if ((lum_mean > sensor_flicker_out)
+		flicker_detection(p_fsm , p_fsm->lumvar, int_time, line_per_half_period);
+		if (((lum_mean < sensor_flicker_out) && (lumvar_dark_count > lumvar_dark_countenh)) || (p_fsm->flicker_status)) {
+			p_fsm->count1++;
+		} else {
+			p_fsm->count1 = 0;
+		}
+		if (p_fsm->count1 > 10) {
+			p_fsm->count1 = 0;
+			p_fsm->outdoor_flag = 1;
+		}
+	} else {
+		p_fsm->count = 0;
+		p_fsm->count1 = 0;
+		if (p_fsm->count_th) {
+			p_fsm->count_th--;
+			acamera_command(p_fsm->cmn.ctx_id, TALGORITHMS, AE_COMPENSATION_ID, 0, COMMAND_GET, &temp);
+			temp_1 = temp - comp_ae_t;
+			acamera_command(p_fsm->cmn.ctx_id, TALGORITHMS, AE_COMPENSATION_ID, temp_1, COMMAND_SET, &temp);
+		}
+
+		if (p_fsm->flicker_status) {
+			p_fsm->count2++;
+		} else  {
+			p_fsm->count2 = 0;
+		}
+		if (p_fsm->count2 > 10) {
+			p_fsm->count2 = 0;
+			p_fsm->outdoor_flag = 1;
+		}
+	}
+	if (_GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CMOS_CONTROL ) >= SENSOR_FLICKER_MODE_NUM) {
+		param->global_flicker_mode = p_fsm->outdoor_flag;
+	}
+	pr_debug("int_time %d, mode %d, count %d, count1 %d, count2 %d, lum_mean %d, lumvar_dark_count %d\n",
+			int_time, p_fsm->outdoor_flag, p_fsm->count, p_fsm->count1, p_fsm->count2, lum_mean, lumvar_dark_count);
+    }
+
     if ( line_per_half_period != 0 && ( int_time >= line_per_half_period && int_time <= ( line_per_half_period << 2 ) ) ) {
         uint32_t N = int_time / line_per_half_period; // division by zero is checked
         if ( N < 1 ) {

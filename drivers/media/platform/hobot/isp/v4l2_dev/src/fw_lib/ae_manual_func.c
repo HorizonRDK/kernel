@@ -343,6 +343,12 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
     LOG( LOG_INFO, "AE flow: INPUT_READY: frame_id_tracking: %d, cur frame_id: %u.", ae_flow.frame_id_tracking, ae_flow.frame_id_current );
 }
 
+// get lumvar stats
+void get_lumvar_info(uint32_t *lumvard)
+{
+       memcpy(lumvard, lumvar, sizeof(lumvar));
+}
+
 void ae_update_zone_weight_data( AE_fsm_ptr_t p_fsm )
 {
         uint32_t i;

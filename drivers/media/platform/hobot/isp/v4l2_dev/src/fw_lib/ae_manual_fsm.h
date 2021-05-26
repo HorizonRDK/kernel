@@ -80,4 +80,6 @@ void AE_fsm_process_interrupt( AE_fsm_const_ptr_t p_fsm, uint8_t irq_event );
 
 void AE_request_interrupt( AE_fsm_ptr_t p_fsm, system_fw_interrupt_mask_t mask );
 
+void get_lumvar_info(uint32_t *lumvard);
+
 #endif /* __AE_FSM_H__ */
