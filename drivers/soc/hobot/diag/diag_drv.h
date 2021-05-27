@@ -45,6 +45,7 @@ struct diag_event_id {
 	struct diag_event_id_handle id_handle;
 	uint8_t last_sta;				//event last status
 	uint32_t last_snd_time;			//event last send time
+	struct list_head list;
 };
 
 /*
@@ -52,7 +53,7 @@ struct diag_event_id {
  */
 struct diag_module {
 	uint16_t module_id;
-	struct diag_event_id event_id[EVENT_ID_MAX];
+	struct list_head events;
 	uint8_t event_cnt;
 
 	struct list_head list;

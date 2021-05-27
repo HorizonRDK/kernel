@@ -324,6 +324,11 @@ extern int32_t diagnose_send_event(struct diag_event *event);
 /*
  * unregister to the diagnose driver.
  */
-extern int32_t diagnose_unregister(uint8_t module_id);
+extern int32_t diagnose_unregister(uint16_t module);
+
+/*
+ * unregister to the diagnose event.
+ */
+extern int32_t diag_event_unregister(uint16_t module, uint16_t event);
 
 #endif

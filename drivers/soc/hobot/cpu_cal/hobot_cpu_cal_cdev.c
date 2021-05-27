@@ -265,6 +265,7 @@ static int cpu_cal_test_remove(struct platform_device *pdev)
 	class_destroy(cpu_cal_test_class);
 	cdev_del(&cpu_cal_test_cdev);
 	unregister_chrdev_region(MKDEV(cpu_cal_test_major, 0), 1);
+	diagnose_unregister(ModuleDiag_cpu_cal);
 	return 0;
 }
 

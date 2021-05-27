@@ -151,7 +151,8 @@ static long diag_dev_ioctl(struct file *file, uint32_t cmd, unsigned long arg) /
 			if (ret < 0) {
 				break;
 			}
-			ret = diagnose_unregister((uint8_t)ModuleDiagDriver);
+			ret = diag_event_unregister((uint8_t)ModuleDiagDriver,
+							EventIdKernelToUserSelfTest);
 			if (ret < 0) {
 				break;
 			}

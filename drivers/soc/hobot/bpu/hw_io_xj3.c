@@ -533,6 +533,16 @@ static int32_t bpu_core_hw_disable(struct bpu_core *core)
 			core->fc_base[0], core->fc_base_addr[0]);/*PRQA S ALL*/
 	core->fc_base[0] = NULL;
 
+#ifdef CONFIG_HOBOT_DIAG
+	if ((EventIdBpu0Err + core->index) <= EventIdBpu1Err) {
+		if (diag_event_unregister(ModuleDiag_bpu, EventIdBpu0Err + core->index) < 0)
+			pr_err("bpu%d diag unregister fail\n", core->index);
+	} else {
+		dev_err(core->dev, "bpu event id overun: max = 2,but now is:%d\n",
+			EventIdBpu0Err + core->index);
+	}
+#endif
+
 	return ret;
 }
 

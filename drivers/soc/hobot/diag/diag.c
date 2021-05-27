@@ -45,13 +45,13 @@ struct diag *g_diag_info = NULL;
 static int32_t diag_had_init;
 
 /* wether the module_id & event_id is registered or not,
- * if registerd, diag_module and event_idx will be returned */
+ * if registerd, diag_module and event_id will be returned */
 struct diag_module *is_module_event_registered(struct diag_event *event,
-		int32_t *event_idx)
+		struct diag_event_id **event_id)
 {
 	struct diag_module *pos;
 	struct diag_module *target = NULL;
-	uint8_t i;
+	struct diag_event_id *tmp_event = NULL;
 
 	if (g_diag_info == NULL) {
 		pr_err("diagnose driver unintialized\n");
@@ -61,13 +61,12 @@ struct diag_module *is_module_event_registered(struct diag_event *event,
 		list_for_each_entry(pos, &g_diag_info->module_list, list) {
 			if (pos->module_id != event->module_id)
 				continue;
-
 			/* module_id has been registerd */
-			for (i = 0; i < pos->event_cnt; i++) {
-				if (pos->event_id[i].id_handle.event_id == event->event_id) {
+			list_for_each_entry(tmp_event, &pos->events, list) {
+				if (tmp_event->id_handle.event_id == event->event_id) {
 					/* event_id has been registerd */
 					target = pos;
-					*event_idx = (int32_t)i;
+					*event_id = tmp_event;
 					return target;
 				}
 			}
@@ -75,7 +74,7 @@ struct diag_module *is_module_event_registered(struct diag_event *event,
 	}
 
 	/* module & event_id not registerd */
-	*event_idx = -1;
+	*event_id = NULL;
 	return target;
 }
 EXPORT_SYMBOL(is_module_event_registered);
@@ -399,8 +398,7 @@ again2:
 int32_t diagnose_send_event(struct diag_event *event)
 {
 	struct diag_module *module;
-	struct diag_event_id *event_id;
-	int32_t event_idx = -1;
+	struct diag_event_id *event_id = NULL;
 	int32_t ret;
 
 	/* sanity check */
@@ -416,22 +414,20 @@ int32_t diagnose_send_event(struct diag_event *event)
 		return -1;
 	}
 
-	module = is_module_event_registered(event, &event_idx);
+	module = is_module_event_registered(event, &event_id);
 	if (module == NULL) {
 		/* PRQA S 3200 ++ */
-		pr_err("module or event not registered: module_id = %d, event_id = %d\n",
+		pr_err("module:%hx event:%hx not registered,send fail\n",
 				event->module_id, event->event_id);
 		/* PRQA S 3200 -- */
 		return -1;
 	}
 
-	/* get the specific event ID */
-	event_id = &module->event_id[event_idx];
-
 	/* check send time interval */
 	ret = is_send_condition_ready(event_id, event);
 	if (ret == 0) {
-		pr_debug("event send condition not meet\n");	/* PRQA S ALL */
+		pr_debug("module:%hx event:%hx send condition not meet\n",
+					module->module_id, event_id->id_handle.event_id);	/* PRQA S ALL */
 		return -1;
 	}
 
@@ -453,7 +449,8 @@ EXPORT_SYMBOL(diagnose_send_event); /* PRQA S ALL */
 int32_t diagnose_register(const struct diag_register_info *register_info)
 {
 	struct diag_module *module = NULL;
-	uint8_t i, j;
+	struct diag_event_id *event = NULL;
+	uint8_t j;
 	uint8_t event_count;
 
 	if (register_info == NULL) {
@@ -467,8 +464,6 @@ int32_t diagnose_register(const struct diag_register_info *register_info)
 		if (register_info->module_id == module->module_id) {
 			/* module has been registered, and we need continue to check
 			 * event_ids */
-			PDEBUG("module: %d has been registered, event_cnt = %d\n",
-					module->module_id, module->event_cnt);
 			event_count = module->event_cnt;
 			for (j = 0; j < register_info->event_cnt; j++) {
 				if (event_count >= (uint8_t)EVENT_ID_MAX) {
@@ -476,36 +471,39 @@ int32_t diagnose_register(const struct diag_register_info *register_info)
 					pr_err("event count out of range\n");
 					return -EINVAL;
 				}
-				/* check whether event has been registered */
-				for (i = 0; i < module->event_cnt; i++) {
+				list_for_each_entry(event, &module->events, list) {
 					if (register_info->event_handle[j].event_id ==
-							module->event_id[i].id_handle.event_id) {
+							event->id_handle.event_id) {
 						mutex_unlock(&g_diag_info->module_list_mutex);
-						pr_err("module:%#x event:%#x register failed\n",
+						pr_err("module:%#x event:%#x already registered\n",
 								module->module_id,
 								register_info->event_handle[j].event_id);
 						return -EEXIST;
 					}
 				}
-
 				/* register new event */
-				PDEBUG("Module %d resgtered, new event_id = %d\n",
-						module->module_id, register_info->event_handle[j].event_id);
-
-				memcpy(&module->event_id[event_count].id_handle,
-						&register_info->event_handle[j],
-						sizeof(struct diag_event_id_handle));
-				module->event_id[event_count].last_sta = (uint8_t)DiagEventStaUnknown;
-				module->event_id[event_count].last_snd_time = 0;
-
+				event = (struct diag_event_id *)kzalloc(sizeof(*event),
+								GFP_KERNEL);
+				if (event == NULL) {
+					mutex_unlock(&g_diag_info->module_list_mutex);
+					pr_err("module:%hx event:%hx register fail\n",
+								module->module_id,
+								register_info->event_handle[j].event_id);
+					return -ENOMEM;
+				}
+				event->id_handle = register_info->event_handle[j];
+				event->last_sta = (uint8_t)DiagEventStaUnknown;
+				event->last_snd_time = 0;
+				list_add_tail(&event->list, &module->events);
 				event_count++;
 				/* update the event count value */
 				module->event_cnt = event_count;
+				pr_debug("module:%hx event:%hx registered,event count:%hhu\n",
+								module->module_id,
+								register_info->event_handle[j].event_id,
+								module->event_cnt);
 			}
 			mutex_unlock(&g_diag_info->module_list_mutex);
-
-			PDEBUG("module: %d has been registered, event_cnt = %d\n",
-					module->module_id, module->event_cnt);
 
 			return 0;
 		}
@@ -514,19 +512,26 @@ int32_t diagnose_register(const struct diag_register_info *register_info)
 
 	module = (struct diag_module *)kzalloc(sizeof(struct diag_module), GFP_KERNEL);
 	if (module == NULL) {
-		pr_err("diag_module allocate fail\n");
+		pr_err("module:%hx register fail\n", register_info->module_id);
 		return -ENOMEM;
 	}
 
 	/* initialize diag_module */
 	module->module_id = register_info->module_id;
 	module->event_cnt = register_info->event_cnt;
-	for (i = 0; (i < module->event_cnt) && (i < (uint8_t)EVENT_ID_MAX); i++) {
-		memcpy(&module->event_id[i].id_handle,
-				&register_info->event_handle[i],
-				sizeof(struct diag_event_id_handle));
-		module->event_id[i].last_sta = (uint8_t)DiagEventStaUnknown;
-		module->event_id[i].last_snd_time = 0;
+	INIT_LIST_HEAD(&module->events);
+	for (j = 0; (j < module->event_cnt) && (j < (uint8_t)EVENT_ID_MAX); j++) {
+		event = (struct diag_event_id *)kzalloc(sizeof(*event), GFP_KERNEL);
+		if (event == NULL) {
+			pr_err("module:%hx register fail\n", module->module_id);
+			return -ENOMEM;
+		}
+		event->id_handle = register_info->event_handle[j];
+		event->last_sta = (uint8_t)DiagEventStaUnknown;
+		event->last_snd_time = 0;
+		list_add_tail(&event->list, &module->events);
+		pr_debug("module:%hx event:%hx will be resgtered\n", module->module_id,
+						register_info->event_handle[j].event_id);
 	}
 
 	/* add to module_list */
@@ -538,33 +543,63 @@ int32_t diagnose_register(const struct diag_register_info *register_info)
 }
 EXPORT_SYMBOL(diagnose_register); /* PRQA S ALL */
 
-int32_t diagnose_unregister(uint8_t module_id)
+int32_t diagnose_unregister(uint16_t module_id)
 {
 	struct diag_module *module = NULL;
-	int32_t mark = 0;
-
-	PDEBUG("module: %d, will be unregistered\n", module_id);
+	struct diag_event_id *event, *next;
 
 	list_for_each_entry(module, &g_diag_info->module_list, list) { /* PRQA S 0497, 0602 */
-		if (module->module_id == module_id) {
-			mark = 1;
-			break;
+		if (module->module_id != module_id)
+			continue;
+		list_for_each_entry_safe(event, next, &module->events, list) {
+			list_del(&event->list);
+			pr_debug("module:%hx event:%hx unregistered\n", module_id,
+							event->id_handle.event_id);
+			kfree(event);
 		}
-	}
-
-	if (mark == 1) {
 		mutex_lock(&g_diag_info->module_list_mutex);
 		list_del(&module->list);
 		mutex_unlock(&g_diag_info->module_list_mutex);
 		kfree(module);
-	} else {
-		pr_err("module_id: %d not registered\n", module_id);
-		return -1;
+		return 0;
 	}
 
-	return 0;
+	pr_err("module:%hx unregister fail\n", module_id);
+	return -EINVAL;
 }
 EXPORT_SYMBOL(diagnose_unregister); /* PRQA S ALL */
+
+int32_t diag_event_unregister(uint16_t module, uint16_t event)
+{
+	struct diag_module *module_tmp = NULL;
+	struct diag_event_id *event_tmp = NULL;
+
+	list_for_each_entry(module_tmp, &g_diag_info->module_list, list) {
+		if (module_tmp->module_id != module)
+			continue;
+		list_for_each_entry(event_tmp, &module_tmp->events, list) {
+			if (event_tmp->id_handle.event_id == event) {
+				list_del(&event_tmp->list);
+				kfree(event_tmp);
+				module_tmp->event_cnt--;
+				if (module_tmp->event_cnt == 0) {
+					mutex_lock(&g_diag_info->module_list_mutex);
+					list_del(&module_tmp->list);
+					mutex_unlock(&g_diag_info->module_list_mutex);
+					kfree(module_tmp);
+				}
+				pr_debug("module:%hx event:%hx unregistered,event count:%hhu\n",
+								module, event, module_tmp->event_cnt);
+				return 0;
+			}
+		}
+	}
+
+	pr_err("module:%hx event:%hx unregister fail\n",
+				module, event);
+	return -EINVAL;
+}
+EXPORT_SYMBOL(diag_event_unregister); /* PRQA S ALL */
 
 /* Compatible with previous interfaces
  * The interfaces below may be discarded in the near future.
