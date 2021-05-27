@@ -283,6 +283,7 @@ cmd=$1
 
 function clean()
 {
+    make mrproper
     make ARCH=${ARCH_KERNEL} O=${BUILD_OUTPUT_PATH} distclean
 }
 
