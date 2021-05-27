@@ -252,6 +252,8 @@ static int hobot_pwm_probe(struct platform_device *pdev)
 	hbpwm->chip.ops  = &hobot_pwm_ops;
 	hbpwm->chip.npwm = PWM_NPWM;
 	hbpwm->chip.base = -1;
+	hbpwm->chip.of_xlate = of_pwm_xlate_with_flags;
+	hbpwm->chip.of_pwm_n_cells = 3;
 
 	ret = pwmchip_add(&hbpwm->chip);
 	if (ret < 0) {

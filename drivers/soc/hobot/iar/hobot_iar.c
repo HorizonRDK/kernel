@@ -125,7 +125,6 @@ static int stop_flag = 0;
 phys_addr_t logo_paddr;
 void *logo_vaddr = NULL;
 static int pwm0_request_status = 0;
-static int pwm_no = 0;
 static int pwm_period = 1000;
 static int pwm_duty = 10;
 static int bt656_output_pin_group = 0;// default output through low 8bit
@@ -1242,12 +1241,12 @@ int screen_backlight_init(void)
 	if (pwm0_request_status == 1)
 		return 0;
 
-	screen_backlight_pwm = pwm_request(pwm_no, "lcd-pwm");
+	screen_backlight_pwm = pwm_get(&g_iar_dev->pdev->dev, "backlight");
 	if (IS_ERR(screen_backlight_pwm)) {
-		pr_err("\nNo pwm device %d!!!!\n", pwm_no);
+		pr_err("\niar:No pwm device!!!!\n");
 		return -ENODEV;
 	}
-	pr_debug("pwm request %d is okay!!!\n", pwm_no);
+	pr_debug("pwm get is okay!!!\n");
 	/**
 	 * pwm_config(struct pwm_device *pwm, int duty_ns,
 	 * int period_ns) - change a PWM device configuration
@@ -1294,7 +1293,7 @@ int screen_backlight_deinit(void)
 		pr_err("pwm is not init!!\n");
 		return -1;
 	}
-	pwm_free(screen_backlight_pwm);
+	pwm_put(screen_backlight_pwm);
 	screen_backlight_pwm = NULL;
 	pwm0_request_status = 0;
 	return 0;
@@ -4114,7 +4113,6 @@ static int hobot_iar_probe(struct platform_device *pdev)
 	char* fb_num_str = NULL;
 	char* temp = NULL;
 	uint32_t timing[7] = {0};
-	uint32_t pwm[3] = {0};
 	uint32_t need_startup_img = 0;
 	uint32_t size_wh = 0;
 	uint32_t size_nv12 = 0;
@@ -4315,14 +4313,6 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		need_startup_img = 0;
 	}
 
-	ret = of_property_read_u32_array(pdev->dev.of_node, "pwm", pwm, 3);
-	if (ret) {
-		pr_err("error get pwm config from dts!!\n");
-	} else {
-		pwm_no = pwm[0];
-		pwm_period = pwm[1];
-		pwm_duty = pwm[2];
-	}
 	ret = of_property_read_u32_array(pdev->dev.of_node,
 			"timing_1920x1080", timing, 7);
 	if (ret == 0) {

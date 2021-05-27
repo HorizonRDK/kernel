@@ -333,7 +333,8 @@
 	timing_720x480 = <27000000 276 0 0 19 3 0>;
 	timing_1280x720 = <74250000 220 150 40 20 10 5>;
 	startup-img = <0>;
-	pwm = <0 1000 10>;//pwm-no, period, duty
+	pwms = <&pwm_c0 0 1000 0>;
+	pwm-names = "backlight";
 	bt656_pin_group = <0>;
 	btclk_invert = <0>;
 };
