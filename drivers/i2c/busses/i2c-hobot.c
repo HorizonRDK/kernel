@@ -70,7 +70,8 @@ struct hobot_i2c_dev {
 };
 
 static int timeout_enable = 0;
-
+/*log the error status of the previous interrupt on the I2C IP*/
+static int pre_errsta = 0;
 module_param(timeout_enable, int, S_IRUGO|S_IWUSR);
 MODULE_PARM_DESC(timeout_enable, "i2c:i2c hardware timeout 0:off 1:on");
 
@@ -295,11 +296,12 @@ static void hobot_i2c_diag_process(u32 errsta, struct hobot_i2c_dev *i2c_contro)
 		diag_send_event_stat_and_env_data(DiagMsgPrioHigh,
 						ModuleDiag_i2c, i2c_event, sta,
 						envgen_timing, envdata, 5);
-	} else {
+	} else if (pre_errsta == 1 && errsta == 0) {
 		sta = DiagEventStaSuccess;
 		diag_send_event_stat(DiagMsgPrioHigh, ModuleDiag_i2c,
 								i2c_event, sta);
 	}
+	pre_errsta = errsta;
 }
 #endif
 
