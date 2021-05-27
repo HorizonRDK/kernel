@@ -51,6 +51,8 @@
 #define HOBOT_UART_OVERRUN_FIFO_SIZE 16
 
 unsigned int early_console_baud;
+/*log the error status of the previous interrupt on the UART IP*/
+static int pre_errflag = 0;
 
 /* Rx Trigger level */
 static int rx_trigger_level = 4;
@@ -594,6 +596,12 @@ static void uart_diag_report(uint8_t errsta, uint32_t srcpndreg,
 				DiagGenEnvdataWhenErr,
 				(uint8_t *)&srcpndreg,
 				4);
+	} else {
+		diag_send_event_stat(
+			DiagMsgPrioHigh,
+			ModuleDiag_uart,
+			EventIdUart0Err + hbuart->uart_id,
+			DiagEventStaSuccess);
 	}
 }
 #endif
@@ -669,6 +677,9 @@ static irqreturn_t hobot_uart_isr(int irq, void *dev_id)
 #ifdef CONFIG_HOBOT_DIAG
 	if (errflag)
 		uart_diag_report(1, status, hobot_uart);
+	if (pre_errflag == 1 && errflag == 0)
+		uart_diag_report(0, status, hobot_uart);
+	pre_errflag = errflag;
 #endif
 
 	return IRQ_HANDLED;
