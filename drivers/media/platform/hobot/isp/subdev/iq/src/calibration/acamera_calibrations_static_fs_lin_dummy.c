@@ -416,6 +416,9 @@ uint32_t get_calibrations_static_fs_lin_dummy( ACameraCalibrations *c ) {
         c->calibrations[CALIBRATION_SHADING_LS_D65_R] = &calibration_shading_ls_d65_r;
         c->calibrations[CALIBRATION_SHADING_LS_D65_G] = &calibration_shading_ls_d65_g;
         c->calibrations[CALIBRATION_SHADING_LS_D65_B] = &calibration_shading_ls_d65_b;
+        c->calibrations[CALIBRATION_SHADING_LS_D50_R] = &calibration_shading_ls_d65_r;
+        c->calibrations[CALIBRATION_SHADING_LS_D50_G] = &calibration_shading_ls_d65_g;
+        c->calibrations[CALIBRATION_SHADING_LS_D50_B] = &calibration_shading_ls_d65_b;
         c->calibrations[CALIBRATION_GAMMA] = &calibration_gamma;
         c->calibrations[CALIBRATION_MT_ABSOLUTE_LS_A_CCM] = &calibration_mt_absolute_ls_a_ccm;
         c->calibrations[CALIBRATION_MT_ABSOLUTE_LS_D40_CCM] = &calibration_mt_absolute_ls_d40_ccm;

@@ -46,10 +46,22 @@
 
 #define SHADING_SET_TABLE
 
+/*
+    register          actually light    name in calibration
+    --------------------------------------------------------
+    bank0/page[0]     A			        A
+    bank1/page[1]     U30		        TL84
+    bank2/page[2]     TL84		        D50
+    bank3/page[3]     D50		        D65
+*/
+#define MESH_SHADING_LS_A_BANK 0
+#define MESH_SHADING_LS_U30_BANK 1
+#define MESH_SHADING_LS_TL84_BANK 2
+#define MESH_SHADING_LS_D50_BANK 3
+
 #define OV_08835_MESH_SHADING_LS_A_BANK 0
 #define OV_08835_MESH_SHADING_LS_D40_BANK 1
 #define OV_08835_MESH_SHADING_LS_D50_BANK 2
-
 
 // threshold for the LSC table hysterisis.
 #define AWB_DLS_LIGHT_SOURCE_D40_D50_BORDER_low ( ( AWB_LIGHT_SOURCE_D50_TEMPERATURE + AWB_LIGHT_SOURCE_D40_TEMPERATURE ) >> 1 ) - 200
@@ -166,7 +178,7 @@ static void mesh_shading_modulate_strength( color_matrix_fsm_ptr_t p_fsm )
 void color_matrix_shading_mesh_reload( color_matrix_fsm_ptr_t p_fsm )
 {
     int i, j, k, p;
-    uint8_t *mesh_page[4][3] = {{NULL, NULL, NULL}, {NULL, NULL, NULL}, {NULL, NULL, NULL}};
+    uint8_t *mesh_page[4][3] = {{NULL, NULL, NULL}, {NULL, NULL, NULL}, {NULL, NULL, NULL}, {NULL, NULL, NULL}};
 
     uint8_t mirror = !acamera_isp_top_bypass_mirror_read( p_fsm->cmn.isp_base );
 
@@ -177,7 +189,8 @@ void color_matrix_shading_mesh_reload( color_matrix_fsm_ptr_t p_fsm )
 
     // determine the shading size. assume the tables have identical dimentions NxN
     uint32_t dim = acamera_sqrt32(mesh_size);
-    
+
+    uint32_t shading_threshold_len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_TEMPER_THRESHOLD );
 
     //for mesh shading light switching
     // acamera_isp_top_bypass_mesh_shading_write( p_fsm->cmn.isp_base, 0 );
@@ -196,9 +209,17 @@ void color_matrix_shading_mesh_reload( color_matrix_fsm_ptr_t p_fsm )
     mesh_page[1][0] = _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_LS_TL84_R );
     mesh_page[1][1] = _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_LS_TL84_G );
     mesh_page[1][2] = _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_LS_TL84_B );
-    mesh_page[2][0] = _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_LS_D65_R );
-    mesh_page[2][1] = _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_LS_D65_G );
-    mesh_page[2][2] = _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_LS_D65_B );
+    if (shading_threshold_len == 8) {
+        pr_debug("use new shading update logic\n");
+        mesh_page[2][0] = _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_LS_D50_R );
+        mesh_page[2][1] = _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_LS_D50_G );
+        mesh_page[2][2] = _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_LS_D50_B );
+    } else {
+        pr_debug("use default shading update logic\n");
+        mesh_page[2][0] = _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_LS_D65_R );
+        mesh_page[2][1] = _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_LS_D65_G );
+        mesh_page[2][2] = _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_LS_D65_B );
+    }
     mesh_page[3][0] = _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_LS_D65_R );
     mesh_page[3][1] = _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_LS_D65_G );
     mesh_page[3][2] = _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_LS_D65_B );
@@ -339,9 +360,9 @@ void color_matrix_initialize( color_matrix_fsm_t *p_fsm )
     p_fsm->shading_source_previous = AWB_LIGHT_SOURCE_D50;
     p_fsm->manual_shading_mesh_strength = 2048;
 
-    acamera_isp_mesh_shading_mesh_alpha_bank_r_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_D50_BANK );
-    acamera_isp_mesh_shading_mesh_alpha_bank_g_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_D50_BANK );
-    acamera_isp_mesh_shading_mesh_alpha_bank_b_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_D50_BANK );
+    acamera_isp_mesh_shading_mesh_alpha_bank_r_write( p_fsm->cmn.isp_base, MESH_SHADING_LS_TL84_BANK );
+    acamera_isp_mesh_shading_mesh_alpha_bank_g_write( p_fsm->cmn.isp_base, MESH_SHADING_LS_TL84_BANK );
+    acamera_isp_mesh_shading_mesh_alpha_bank_b_write( p_fsm->cmn.isp_base, MESH_SHADING_LS_TL84_BANK );
 
     acamera_isp_mesh_shading_mesh_alpha_r_write( p_fsm->cmn.isp_base, 0 );
     acamera_isp_mesh_shading_mesh_alpha_g_write( p_fsm->cmn.isp_base, 0 );
@@ -397,9 +418,9 @@ void color_matrix_write( color_matrix_fsm_t *p_fsm )
          acamera_isp_ccm_coefft_b_b_write( p_fsm->cmn.isp_base, ccm_matrix[8] );
 
     } else if ( p_fsm->manual_CCM ) {
-        acamera_isp_mesh_shading_mesh_alpha_bank_r_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_D50_BANK );
-        acamera_isp_mesh_shading_mesh_alpha_bank_g_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_D50_BANK );
-        acamera_isp_mesh_shading_mesh_alpha_bank_b_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_D50_BANK );
+        acamera_isp_mesh_shading_mesh_alpha_bank_r_write( p_fsm->cmn.isp_base, MESH_SHADING_LS_TL84_BANK );
+        acamera_isp_mesh_shading_mesh_alpha_bank_g_write( p_fsm->cmn.isp_base, MESH_SHADING_LS_TL84_BANK );
+        acamera_isp_mesh_shading_mesh_alpha_bank_b_write( p_fsm->cmn.isp_base, MESH_SHADING_LS_TL84_BANK );
         acamera_isp_mesh_shading_mesh_alpha_r_write( p_fsm->cmn.isp_base, 0 );
         acamera_isp_mesh_shading_mesh_alpha_g_write( p_fsm->cmn.isp_base, 0 );
         acamera_isp_mesh_shading_mesh_alpha_b_write( p_fsm->cmn.isp_base, 0 );
@@ -502,13 +523,6 @@ void color_matrix_update( color_matrix_fsm_t *p_fsm )
     if ( ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_manual_shading == 0 ) {
         fsm_param_awb_info_t wb_info;
         acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_AWB_INFO, NULL, 0, &wb_info, sizeof( wb_info ) );
-
-        //uint32_t fixed_table = 0;
-        // if temp less < 3250 go to A
-        // LSC is completely based on alpha blending and the AWB color temp.
-
-	{ /* only update shading_threshold when SHADING_TEMPER_THRESHOLD is right */
-		// update shading threshold
 		uint32_t shading_threshold_len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_TEMPER_THRESHOLD );
 		const uint32_t *p_shading_threshold = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_TEMPER_THRESHOLD );
 
@@ -520,6 +534,7 @@ void color_matrix_update( color_matrix_fsm_t *p_fsm )
 				(p_shading_threshold[4] > p_shading_threshold[5]) ||
 				(p_shading_threshold[5] > p_shading_threshold[6]) ||
 				(p_shading_threshold[6] > p_shading_threshold[7])) {
+                    pr_err("invalid shading threshold.\n");
 			} else {
 				p_fsm->temperature_threshold[0] = p_shading_threshold[0];
 				p_fsm->temperature_threshold[1] = p_shading_threshold[1];
@@ -531,63 +546,140 @@ void color_matrix_update( color_matrix_fsm_t *p_fsm )
 				p_fsm->temperature_threshold[7] = p_shading_threshold[7];
 			}
 		}
-	}
 
-        if ( ( wb_info.temperature_detected < p_fsm->temperature_threshold[0] ) ) //0->1
-        {
-            acamera_isp_mesh_shading_mesh_alpha_bank_r_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_A_BANK );
-            acamera_isp_mesh_shading_mesh_alpha_bank_g_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_A_BANK );
-            acamera_isp_mesh_shading_mesh_alpha_bank_b_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_A_BANK );
-            p_fsm->shading_alpha = 0;
-            p_fsm->shading_source_previous = AWB_LIGHT_SOURCE_A;
+        if (shading_threshold_len >= 8) {
+            pr_debug("use new shading update logic\n");
+            // LSC is completely based on alpha blending and the AWB color temp.
+            /* only update shading_threshold when SHADING_TEMPER_THRESHOLD is right */
+            pr_debug("temperature %d\n", wb_info.temperature_detected);
+            // if temp less < 2750 go to A
+            if ( ( wb_info.temperature_detected < p_fsm->temperature_threshold[0] ) )
+            {
+                acamera_isp_mesh_shading_mesh_alpha_bank_r_write( p_fsm->cmn.isp_base, MESH_SHADING_LS_A_BANK );
+                acamera_isp_mesh_shading_mesh_alpha_bank_g_write( p_fsm->cmn.isp_base, MESH_SHADING_LS_A_BANK );
+                acamera_isp_mesh_shading_mesh_alpha_bank_b_write( p_fsm->cmn.isp_base, MESH_SHADING_LS_A_BANK );
+                p_fsm->shading_alpha = 0;
+                pr_debug("temp < %d\n", p_fsm->temperature_threshold[0]);
+            }
+            // if current temp between 2750 and 3100 use blending
+            else if ( ( wb_info.temperature_detected > p_fsm->temperature_threshold[0] ) && ( wb_info.temperature_detected < p_fsm->temperature_threshold[1] ) )
+            {
+                acamera_isp_mesh_shading_mesh_alpha_bank_r_write( p_fsm->cmn.isp_base, MESH_SHADING_LS_A_BANK );
+                acamera_isp_mesh_shading_mesh_alpha_bank_g_write( p_fsm->cmn.isp_base, MESH_SHADING_LS_A_BANK );
+                acamera_isp_mesh_shading_mesh_alpha_bank_b_write( p_fsm->cmn.isp_base, MESH_SHADING_LS_A_BANK );
+                if ( p_fsm->temperature_threshold[0] != p_fsm->temperature_threshold[1] )
+                    p_fsm->shading_alpha = ( 255 * ( wb_info.temperature_detected - p_fsm->temperature_threshold[0] ) ) / ( p_fsm->temperature_threshold[1] - p_fsm->temperature_threshold[0] );
+                    pr_debug("temp between %d and %d\n", p_fsm->temperature_threshold[0], p_fsm->temperature_threshold[1]);
+            }
+            // if current temp between 3100 and 3400 go to u30
+            else if( ( wb_info.temperature_detected > p_fsm->temperature_threshold[1] ) && ( wb_info.temperature_detected < p_fsm->temperature_threshold[2] ) )
+            {
+                acamera_isp_mesh_shading_mesh_alpha_bank_r_write( p_fsm->cmn.isp_base, MESH_SHADING_LS_U30_BANK );
+                acamera_isp_mesh_shading_mesh_alpha_bank_g_write( p_fsm->cmn.isp_base, MESH_SHADING_LS_U30_BANK );
+                acamera_isp_mesh_shading_mesh_alpha_bank_b_write( p_fsm->cmn.isp_base, MESH_SHADING_LS_U30_BANK );
+                p_fsm->shading_alpha = 0;
+                pr_debug("temp between %d and %d\n", p_fsm->temperature_threshold[1], p_fsm->temperature_threshold[2]);
+            }
+            // if current temp between 3400 and 3600 use blending
+            else if ( ( wb_info.temperature_detected > p_fsm->temperature_threshold[2] ) && ( wb_info.temperature_detected < p_fsm->temperature_threshold[3] ) )
+            {
+                acamera_isp_mesh_shading_mesh_alpha_bank_r_write( p_fsm->cmn.isp_base, MESH_SHADING_LS_U30_BANK );
+                acamera_isp_mesh_shading_mesh_alpha_bank_g_write( p_fsm->cmn.isp_base, MESH_SHADING_LS_U30_BANK );
+                acamera_isp_mesh_shading_mesh_alpha_bank_b_write( p_fsm->cmn.isp_base, MESH_SHADING_LS_U30_BANK );
+                if ( p_fsm->temperature_threshold[2] != p_fsm->temperature_threshold[3] )
+                    p_fsm->shading_alpha = ( 255 * ( wb_info.temperature_detected - p_fsm->temperature_threshold[2] ) ) / ( p_fsm->temperature_threshold[3] - p_fsm->temperature_threshold[2] );
+                    pr_debug("temp between %d and %d\n", p_fsm->temperature_threshold[2], p_fsm->temperature_threshold[3]);
+            }
+            // if current temp between 3600 and 4100 go to tl84
+            else if ( ( wb_info.temperature_detected > p_fsm->temperature_threshold[3] ) && ( wb_info.temperature_detected < p_fsm->temperature_threshold[4] ) )
+            {
+                acamera_isp_mesh_shading_mesh_alpha_bank_r_write( p_fsm->cmn.isp_base, MESH_SHADING_LS_TL84_BANK );
+                acamera_isp_mesh_shading_mesh_alpha_bank_g_write( p_fsm->cmn.isp_base, MESH_SHADING_LS_TL84_BANK );
+                acamera_isp_mesh_shading_mesh_alpha_bank_b_write( p_fsm->cmn.isp_base, MESH_SHADING_LS_TL84_BANK );
+                p_fsm->shading_alpha = 0;
+                pr_debug("temp between %d and %d\n", p_fsm->temperature_threshold[3], p_fsm->temperature_threshold[4]);
+            }
+            // if current temp between 4100 and 4500 use blending
+            else if ( ( wb_info.temperature_detected > p_fsm->temperature_threshold[4] ) && ( wb_info.temperature_detected < p_fsm->temperature_threshold[5] ) )
+            {
+                acamera_isp_mesh_shading_mesh_alpha_bank_r_write( p_fsm->cmn.isp_base, MESH_SHADING_LS_TL84_BANK );
+                acamera_isp_mesh_shading_mesh_alpha_bank_g_write( p_fsm->cmn.isp_base, MESH_SHADING_LS_TL84_BANK );
+                acamera_isp_mesh_shading_mesh_alpha_bank_b_write( p_fsm->cmn.isp_base, MESH_SHADING_LS_TL84_BANK );
+                if ( p_fsm->temperature_threshold[4] != p_fsm->temperature_threshold[5] )
+                    p_fsm->shading_alpha = ( 255 * ( wb_info.temperature_detected - p_fsm->temperature_threshold[4] ) ) / ( p_fsm->temperature_threshold[5] - p_fsm->temperature_threshold[4] );
+                    pr_debug("temp between %d and %d\n", p_fsm->temperature_threshold[4], p_fsm->temperature_threshold[5]);
+            }
+            // if current temp > 4500 go to d50
+            else if ( ( wb_info.temperature_detected > p_fsm->temperature_threshold[5] ) )
+            {
+                acamera_isp_mesh_shading_mesh_alpha_bank_r_write( p_fsm->cmn.isp_base, MESH_SHADING_LS_D50_BANK );
+                acamera_isp_mesh_shading_mesh_alpha_bank_g_write( p_fsm->cmn.isp_base, MESH_SHADING_LS_D50_BANK );
+                acamera_isp_mesh_shading_mesh_alpha_bank_b_write( p_fsm->cmn.isp_base, MESH_SHADING_LS_D50_BANK );
+                p_fsm->shading_alpha = 0;
+                pr_debug("temp > %d\n", p_fsm->temperature_threshold[5]);
+            }
+        } else {
+            pr_debug("use default shading update logic\n");
+            //uint32_t fixed_table = 0;
+            // if temp less < 3250 go to A
+            // LSC is completely based on alpha blending and the AWB color temp.
+            if ( ( wb_info.temperature_detected < p_fsm->temperature_threshold[0] ) ) //0->1
+            {
+                acamera_isp_mesh_shading_mesh_alpha_bank_r_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_A_BANK );
+                acamera_isp_mesh_shading_mesh_alpha_bank_g_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_A_BANK );
+                acamera_isp_mesh_shading_mesh_alpha_bank_b_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_A_BANK );
+                p_fsm->shading_alpha = 0;
+                p_fsm->shading_source_previous = AWB_LIGHT_SOURCE_A;
 
+            }
+            // if  current temp  between 4100 and 3900 use D40
+            else if ( ( wb_info.temperature_detected > p_fsm->temperature_threshold[1] ) && ( wb_info.temperature_detected < p_fsm->temperature_threshold[2] ) ) //1->2
+            {
+                acamera_isp_mesh_shading_mesh_alpha_bank_r_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_D40_BANK );
+                acamera_isp_mesh_shading_mesh_alpha_bank_g_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_D40_BANK );
+                acamera_isp_mesh_shading_mesh_alpha_bank_b_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_D40_BANK );
+                p_fsm->shading_direction = 1; //0 ->inc  1->dec
+                p_fsm->shading_alpha = 0;
+                p_fsm->shading_source_previous = AWB_LIGHT_SOURCE_D40;
+
+            }
+            // if  current temp > 4900 go to d65
+            else if ( ( wb_info.temperature_detected > p_fsm->temperature_threshold[3] ) ) //2->1
+            {
+                acamera_isp_mesh_shading_mesh_alpha_bank_r_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_D50_BANK );
+                acamera_isp_mesh_shading_mesh_alpha_bank_g_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_D50_BANK );
+                acamera_isp_mesh_shading_mesh_alpha_bank_b_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_D50_BANK );
+                p_fsm->shading_direction = 0; //0 ->inc  1->dec
+                p_fsm->shading_alpha = 0;
+                p_fsm->shading_source_previous = AWB_LIGHT_SOURCE_D50;
+
+            }
+
+            // if prev if d50 and current temp < 3700 go to d40
+            else if ( ( wb_info.temperature_detected > p_fsm->temperature_threshold[4] ) && ( wb_info.temperature_detected < p_fsm->temperature_threshold[5] ) ) //2->0
+            {
+                acamera_isp_mesh_shading_mesh_alpha_bank_r_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_A_BANK );
+                acamera_isp_mesh_shading_mesh_alpha_bank_g_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_A_BANK );
+                acamera_isp_mesh_shading_mesh_alpha_bank_b_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_A_BANK );
+
+                if ( p_fsm->temperature_threshold[5] != p_fsm->temperature_threshold[4] )
+                    p_fsm->shading_alpha = ( 255 * ( wb_info.temperature_detected - p_fsm->temperature_threshold[4] ) ) / ( p_fsm->temperature_threshold[5] - p_fsm->temperature_threshold[4] ); // division by zero is checked
+                                                                                                                                                                                                //p_fsm->shading_source_previous = AWB_LIGHT_SOURCE_D40;
+
+            }
+            // if  current temp > 4750 go to d65
+            else if ( ( wb_info.temperature_detected > p_fsm->temperature_threshold[6] ) && ( wb_info.temperature_detected < p_fsm->temperature_threshold[7] ) ) //2->1
+            {
+                acamera_isp_mesh_shading_mesh_alpha_bank_r_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_D40_BANK );
+                acamera_isp_mesh_shading_mesh_alpha_bank_g_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_D40_BANK );
+                acamera_isp_mesh_shading_mesh_alpha_bank_b_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_D40_BANK );
+
+                if ( p_fsm->temperature_threshold[7] != p_fsm->temperature_threshold[6] )
+                    p_fsm->shading_alpha = ( 255 * ( wb_info.temperature_detected - p_fsm->temperature_threshold[6] ) ) / ( p_fsm->temperature_threshold[7] - p_fsm->temperature_threshold[6] ); // division by zero is checked
+                                                                                                                                                                                                //p_fsm->shading_source_previous = AWB_LIGHT_SOURCE_D50;
+            }
         }
-        // if  current temp  between 4100 and 3900 use D40
-        else if ( ( wb_info.temperature_detected > p_fsm->temperature_threshold[1] ) && ( wb_info.temperature_detected < p_fsm->temperature_threshold[2] ) ) //1->2
-        {
-            acamera_isp_mesh_shading_mesh_alpha_bank_r_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_D40_BANK );
-            acamera_isp_mesh_shading_mesh_alpha_bank_g_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_D40_BANK );
-            acamera_isp_mesh_shading_mesh_alpha_bank_b_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_D40_BANK );
-            p_fsm->shading_direction = 1; //0 ->inc  1->dec
-            p_fsm->shading_alpha = 0;
-            p_fsm->shading_source_previous = AWB_LIGHT_SOURCE_D40;
 
-        }
-        // if  current temp > 4900 go to d65
-        else if ( ( wb_info.temperature_detected > p_fsm->temperature_threshold[3] ) ) //2->1
-        {
-            acamera_isp_mesh_shading_mesh_alpha_bank_r_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_D50_BANK );
-            acamera_isp_mesh_shading_mesh_alpha_bank_g_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_D50_BANK );
-            acamera_isp_mesh_shading_mesh_alpha_bank_b_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_D50_BANK );
-            p_fsm->shading_direction = 0; //0 ->inc  1->dec
-            p_fsm->shading_alpha = 0;
-            p_fsm->shading_source_previous = AWB_LIGHT_SOURCE_D50;
-
-        }
-
-        // if prev if d50 and current temp < 3700 go to d40
-        else if ( ( wb_info.temperature_detected > p_fsm->temperature_threshold[4] ) && ( wb_info.temperature_detected < p_fsm->temperature_threshold[5] ) ) //2->0
-        {
-            acamera_isp_mesh_shading_mesh_alpha_bank_r_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_A_BANK );
-            acamera_isp_mesh_shading_mesh_alpha_bank_g_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_A_BANK );
-            acamera_isp_mesh_shading_mesh_alpha_bank_b_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_A_BANK );
-
-            if ( p_fsm->temperature_threshold[5] != p_fsm->temperature_threshold[4] )
-                p_fsm->shading_alpha = ( 255 * ( wb_info.temperature_detected - p_fsm->temperature_threshold[4] ) ) / ( p_fsm->temperature_threshold[5] - p_fsm->temperature_threshold[4] ); // division by zero is checked
-                                                                                                                                                                                             //p_fsm->shading_source_previous = AWB_LIGHT_SOURCE_D40;
-
-        }
-        // if  current temp > 4750 go to d65
-        else if ( ( wb_info.temperature_detected > p_fsm->temperature_threshold[6] ) && ( wb_info.temperature_detected < p_fsm->temperature_threshold[7] ) ) //2->1
-        {
-            acamera_isp_mesh_shading_mesh_alpha_bank_r_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_D40_BANK );
-            acamera_isp_mesh_shading_mesh_alpha_bank_g_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_D40_BANK );
-            acamera_isp_mesh_shading_mesh_alpha_bank_b_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_D40_BANK );
-
-            if ( p_fsm->temperature_threshold[7] != p_fsm->temperature_threshold[6] )
-                p_fsm->shading_alpha = ( 255 * ( wb_info.temperature_detected - p_fsm->temperature_threshold[6] ) ) / ( p_fsm->temperature_threshold[7] - p_fsm->temperature_threshold[6] ); // division by zero is checked
-                                                                                                                                                                                             //p_fsm->shading_source_previous = AWB_LIGHT_SOURCE_D50;
-        }
         acamera_isp_mesh_shading_mesh_alpha_r_write( p_fsm->cmn.isp_base, p_fsm->shading_alpha );
         acamera_isp_mesh_shading_mesh_alpha_g_write( p_fsm->cmn.isp_base, p_fsm->shading_alpha );
         acamera_isp_mesh_shading_mesh_alpha_b_write( p_fsm->cmn.isp_base, p_fsm->shading_alpha );
