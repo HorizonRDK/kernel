@@ -205,16 +205,17 @@
 #define CALIBRATION_IRIDIX_ASYMMETRY_EV1                  0x00000087
 #define CALIBRATION_IRIDIX_ASYMMETRY_EV2                  0x00000088
 #define CALIBRATION_IRIDIX_THRESHOLD                      0x00000089
-
-// dynamic
-#define CALIBRATION_USER_TEMPER_NOISE_LUT                 0x0000008a
-#define CALIBRATION_USER_SINTER_LUT                       0x0000008b
+#define CALIBRATION_TEMPER_THRESHOLD                      0x0000008a
+#define CALIBRATION_USER_TEMPER_NOISE_LUT                 0x0000008b
+#define CALIBRATION_USER_TEMPER_NOISE_LUT_1               0x0000008c
+#define CALIBRATION_USER_TEMPER_NOISE_LUT_2               0x0000008d
+#define CALIBRATION_USER_SINTER_LUT                       0x0000008e
 
 // ------------------------------------------------------------------------------ //
 //		DYNAMIC STATE VALUES
 // ------------------------------------------------------------------------------ //
 
-#define CALIBRATION_TOTAL_SIZE 140
+#define CALIBRATION_TOTAL_SIZE 143
 //------------------FILE TRANSFER-------------------
 
 
@@ -396,7 +397,7 @@
 #define SHADING_STRENGTH_ID                               0x00000090
 #define HUE_THETA_ID                                      0x00000091
 #define SYSTEM_DYNAMIC_GAMMA_ENABLE                       0x00000092
-
+#define SYSTEM_DYNAMIC_TEMPER_ENABLE                      0x00000093
 
 #define LOG_LIST_LEVEL                                    0x00000094 // add API by myself
 #define LOG_LIST_MASK                                     0x00000095 // add API by myself

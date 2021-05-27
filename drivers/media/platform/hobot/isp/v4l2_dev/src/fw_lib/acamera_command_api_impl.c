@@ -1280,6 +1280,29 @@ uint8_t system_dynamic_gamma_enable( acamera_fsm_mgr_t *instance, uint32_t value
 }
 #endif
 
+#ifdef SYSTEM_DYNAMIC_TEMPER_ENABLE
+uint8_t system_dynamic_temper_enable( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
+{
+    *ret_value = 0;
+    const uint32_t temper_threshold_num = _GET_LEN(ACAMERA_MGR2CTX_PTR(instance), CALIBRATION_TEMPER_THRESHOLD);
+
+    if (temper_threshold_num < 3) {
+	    return NOT_SUPPORTED;
+    }
+
+    if ( direction == COMMAND_GET ) {
+	    *ret_value = _GET_UINT_PTR(ACAMERA_MGR2CTX_PTR(instance), CALIBRATION_TEMPER_THRESHOLD)[2];
+	    return SUCCESS;
+    } else if ( direction == COMMAND_SET ) {
+	    _GET_UINT_PTR(ACAMERA_MGR2CTX_PTR(instance), CALIBRATION_TEMPER_THRESHOLD)[2] = !!(value);
+	    return SUCCESS;
+    } else {
+        return NOT_SUPPORTED;
+    }
+    return NOT_SUPPORTED;
+}
+#endif
+
 #ifdef SYSTEM_MANUAL_SATURATION
 uint8_t system_manual_saturation( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
 {

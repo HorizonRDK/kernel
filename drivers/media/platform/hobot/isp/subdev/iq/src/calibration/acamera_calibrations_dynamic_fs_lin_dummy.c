@@ -72,7 +72,15 @@ static uint16_t _calibration_sinter_strength_MC_contrast[][2] = {
 // {100, 100},
 // {250, 100}};
 
+static uint32_t _calibration_temper_threshold[] = {100000, 2000000};
+
 static uint8_t _calibration_user_temper_noise_lut[] =
+  {0,0,0,0,0,0,0,1,25,36,41,45,47,50,51,53,54,56,57,58,59,60,60,61,62,63,63,63,64,65,65,66,66,67,67,68,68,68,69,69,69,70,70,70,71,71,71,72,72,72,73,73,73,73,74,74,74,74,74,75,75,75,75,76,76,76,76,76,77,77,77,77,77,77,78,78,78,78,78,78,79,79,79,79,79,79,80,80,80,80,80,80,80,81,81,81,81,81,81,81,81,82,82,82,82,82,82,82,82,82,83,83,83,83,83,83,83,83,83,84,84,84,84,84,84,84,84,84};
+
+static uint8_t _calibration_user_temper_noise_lut_1[] =
+  {0,0,0,0,0,0,0,1,25,36,41,45,47,50,51,53,54,56,57,58,59,60,60,61,62,63,63,63,64,65,65,66,66,67,67,68,68,68,69,69,69,70,70,70,71,71,71,72,72,72,73,73,73,73,74,74,74,74,74,75,75,75,75,76,76,76,76,76,77,77,77,77,77,77,78,78,78,78,78,78,79,79,79,79,79,79,80,80,80,80,80,80,80,81,81,81,81,81,81,81,81,82,82,82,82,82,82,82,82,82,83,83,83,83,83,83,83,83,83,84,84,84,84,84,84,84,84,84};
+
+static uint8_t _calibration_user_temper_noise_lut_2[] =
   {0,0,0,0,0,0,0,1,25,36,41,45,47,50,51,53,54,56,57,58,59,60,60,61,62,63,63,63,64,65,65,66,66,67,67,68,68,68,69,69,69,70,70,70,71,71,71,72,72,72,73,73,73,73,74,74,74,74,74,75,75,75,75,76,76,76,76,76,77,77,77,77,77,77,78,78,78,78,78,78,79,79,79,79,79,79,80,80,80,80,80,80,80,81,81,81,81,81,81,81,81,82,82,82,82,82,82,82,82,82,83,83,83,83,83,83,83,83,83,84,84,84,84,84,84,84,84,84};
 
 static uint8_t _calibration_user_sinter_lut[] =
@@ -678,13 +686,11 @@ static LookupTable calibration_gamma_threshold = {.ptr = _calibration_gamma_thre
 static LookupTable calibration_bypass_control = {.ptr = _calibration_bypass_control, .rows = 1, .cols = sizeof(_calibration_bypass_control) / sizeof(_calibration_bypass_control[0]), .width = sizeof( _calibration_bypass_control[0])};
 static LookupTable calibration_sinter_strength4 = {.ptr = _calibration_sinter_strength4, .rows = sizeof(_calibration_sinter_strength4) / sizeof(_calibration_sinter_strength4[0]), .cols = 2, .width = sizeof(_calibration_sinter_strength4[0][0])};
 
- static LookupTable calibration_iridix_bright_pr = { .ptr = _calibration_iridix_bright_pr, .cols = 2, .rows = sizeof(_calibration_iridix_bright_pr) / sizeof(_calibration_iridix_bright_pr[0]), .width = sizeof(_calibration_iridix_bright_pr[0][0] ) };
- static LookupTable calibration_iridix_svariance = { .ptr = _calibration_iridix_svariance, .cols = 2, .rows = sizeof(_calibration_iridix_svariance) / sizeof(_calibration_iridix_svariance[0]), .width = sizeof(_calibration_iridix_svariance[0][0] ) };
-
-
+static LookupTable calibration_temper_threshold = {.ptr = _calibration_temper_threshold, .rows = 1, .cols = sizeof( _calibration_temper_threshold ) / sizeof( _calibration_temper_threshold[0] ), .width = sizeof( _calibration_temper_threshold[0] )};
 static LookupTable calibration_user_temper_noise_lut = { .ptr = _calibration_user_temper_noise_lut, .rows = 1, .cols = sizeof(_calibration_user_temper_noise_lut) / sizeof(_calibration_user_temper_noise_lut[0]), .width = sizeof(_calibration_user_temper_noise_lut[0] ) };
+static LookupTable calibration_user_temper_noise_lut_1 = { .ptr = _calibration_user_temper_noise_lut_1, .rows = 1, .cols = sizeof(_calibration_user_temper_noise_lut_1) / sizeof(_calibration_user_temper_noise_lut_1[0]), .width = sizeof(_calibration_user_temper_noise_lut_1[0] ) };
+static LookupTable calibration_user_temper_noise_lut_2 = { .ptr = _calibration_user_temper_noise_lut_2, .rows = 1, .cols = sizeof(_calibration_user_temper_noise_lut_2) / sizeof(_calibration_user_temper_noise_lut_2[0]), .width = sizeof(_calibration_user_temper_noise_lut_2[0] ) };
 static LookupTable calibration_user_sinter_lut = { .ptr = _calibration_user_sinter_lut, .rows = 1, .cols = sizeof(_calibration_user_sinter_lut) / sizeof(_calibration_user_sinter_lut[0]), .width = sizeof(_calibration_user_sinter_lut[0] ) };
-
 
 uint32_t get_calibrations_dynamic_fs_lin_dummy( ACameraCalibrations *c )
 {
@@ -758,9 +764,10 @@ uint32_t get_calibrations_dynamic_fs_lin_dummy( ACameraCalibrations *c )
 	c->calibrations[CALIBRATION_GAMMA_THRESHOLD] = &calibration_gamma_threshold;
 	c->calibrations[CALIBRATION_BYPASS_CONTROL] = &calibration_bypass_control;
 	c->calibrations[CALIBRATION_SINTER_STRENGTH4] = &calibration_sinter_strength4;
-	c->calibrations[CALIBRATION_IRIDIX_BRIGHT_PR] = NULL;
-	c->calibrations[CALIBRATION_IRIDIX_SVARIANCE] = NULL;
-	c->calibrations[CALIBRATION_USER_TEMPER_NOISE_LUT] = &calibration_user_temper_noise_lut;
+	c->calibrations[CALIBRATION_TEMPER_THRESHOLD] = &calibration_temper_threshold;
+    c->calibrations[CALIBRATION_USER_TEMPER_NOISE_LUT] = &calibration_user_temper_noise_lut;
+    c->calibrations[CALIBRATION_USER_TEMPER_NOISE_LUT_1] = &calibration_user_temper_noise_lut_1;
+    c->calibrations[CALIBRATION_USER_TEMPER_NOISE_LUT_2] = &calibration_user_temper_noise_lut_2;
 	c->calibrations[CALIBRATION_USER_SINTER_LUT] = &calibration_user_sinter_lut;
     } else {
         result = -1;

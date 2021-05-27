@@ -225,6 +225,9 @@ case  TSYSTEM:
 		case  SYSTEM_DYNAMIC_GAMMA_ENABLE:
 		        ret = system_dynamic_gamma_enable(instance, value, direction, ret_value);
 		        break;
+		case  SYSTEM_DYNAMIC_TEMPER_ENABLE:
+		        ret = system_dynamic_temper_enable(instance, value, direction, ret_value);
+		        break;
 		case  SYSTEM_MANUAL_CCM:
 			ret = system_manual_ccm(instance, value, direction, ret_value);
 			break;

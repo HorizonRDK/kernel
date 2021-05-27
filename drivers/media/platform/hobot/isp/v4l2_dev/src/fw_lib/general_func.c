@@ -684,6 +684,48 @@ static void general_dynamic_gamma_update( general_fsm_ptr_t p_fsm )
     }
 }
 
+static void general_dynamic_temper_lut_update( general_fsm_ptr_t p_fsm )
+{
+    // update temper lut here
+    const uint8_t *temper_lut_1 = _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_USER_TEMPER_NOISE_LUT_1 );
+    const uint8_t *temper_lut_2 = _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_USER_TEMPER_NOISE_LUT_2 );
+    const uint32_t temper_len_lut_1 = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_USER_TEMPER_NOISE_LUT_1 );
+    const uint32_t temper_len_lut_2 = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_USER_TEMPER_NOISE_LUT_2 );
+
+    uint32_t expected_temper_lut_size = 0x80;
+
+    if ((temper_len_lut_1 == expected_temper_lut_size) && (temper_len_lut_2 == expected_temper_lut_size)) {
+        fsm_param_ae_info_t ae_info;
+        uint32_t i = 0;
+        const uint8_t *lut_temper;
+        // get current exposure value
+        acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_AE_INFO, NULL, 0, &ae_info, sizeof( ae_info ) );
+        uint32_t exposure_log2 = ae_info.exposure_log2;
+        uint32_t ev1_thresh = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_TEMPER_THRESHOLD )[0];
+        uint32_t ev2_thresh = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_TEMPER_THRESHOLD )[1];
+
+        pr_debug("ev %u, ev1_thresh %u, ev2_thresh %u\n", exposure_log2, ev1_thresh, ev2_thresh);
+        if (exposure_log2 < ev1_thresh) {
+            pr_debug("switch to lut1\n");
+            lut_temper = _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_USER_TEMPER_NOISE_LUT_1);
+        } else if (exposure_log2 > ev2_thresh) {
+            pr_debug("switch to lut2\n");
+            lut_temper = _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_USER_TEMPER_NOISE_LUT_2);
+        } else {
+            pr_debug("switch to default lut\n");
+            lut_temper = _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_USER_TEMPER_NOISE_LUT);
+        }
+
+        for ( i = 0; i < _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_USER_TEMPER_NOISE_LUT ); i++ ) {
+            acamera_isp_temper_noise_profile_lut_weight_lut_write( p_fsm->cmn.isp_base, i, lut_temper[i] );
+        }
+    } else {
+        // wrong temper lut size
+        LOG( LOG_ERR, "invalid temper lut size, lut_1 %d, lut_2 %d, expected %d",
+            (int)temper_len_lut_1, (int)temper_len_lut_2, (int)expected_temper_lut_size );
+    }
+}
+
 static void adjust_exposure( general_fsm_ptr_t p_fsm, int32_t corr )
 {
 #if defined( ISP_HAS_CMOS_FSM )
@@ -766,23 +808,22 @@ void general_frame_start( general_fsm_ptr_t p_fsm )
     }
 #endif
 
+    uint32_t dynamic_enable = 0;
 	const uint32_t gamma_threshold_num = _GET_LEN(ACAMERA_FSM2CTX_PTR(p_fsm), CALIBRATION_GAMMA_THRESHOLD);
-	if (gamma_threshold_num < 3) {
-		return;
-	}
-        uint32_t dynamic_enable = _GET_UINT_PTR(ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_GAMMA_THRESHOLD)[2];
-	if (dynamic_enable) {
-		general_dynamic_gamma_update( p_fsm );
-	}
+	const uint32_t gain_threshold_num = _GET_LEN(ACAMERA_FSM2CTX_PTR(p_fsm), CALIBRATION_TEMPER_THRESHOLD);
 
-	const uint32_t iridix_threshold_num = _GET_LEN(ACAMERA_FSM2CTX_PTR(p_fsm), CALIBRATION_IRIDIX_THRESHOLD);
-	if (iridix_threshold_num < 3) {
-		return;
-	}
-        uint32_t dynamic_iridix = _GET_UINT_PTR(ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_IRIDIX_THRESHOLD)[2];
-	if (dynamic_iridix) {
-		general_dynamic_iridix_lut_update( p_fsm );
-	}
+    if (gamma_threshold_num == 3) {
+        dynamic_enable = _GET_UINT_PTR(ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_GAMMA_THRESHOLD)[2];
+        if (dynamic_enable) {
+            general_dynamic_gamma_update( p_fsm );
+        }
+    }
+    if (gain_threshold_num == 3) {
+        dynamic_enable = _GET_UINT_PTR(ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_TEMPER_THRESHOLD)[2];
+        if (dynamic_enable) {
+            general_dynamic_temper_lut_update( p_fsm );
+        }
+    }
 }
 
 void general_frame_end( general_fsm_ptr_t p_fsm )

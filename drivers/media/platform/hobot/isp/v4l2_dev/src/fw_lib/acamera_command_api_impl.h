@@ -184,6 +184,7 @@ uint8_t ldc_woi_x_start_control(acamera_fsm_mgr_t *instance, uint32_t value, uin
 uint8_t ldc_ldc_bypass_control(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value);
 uint8_t ldc_param_update_control(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value);
 uint8_t system_dynamic_gamma_enable(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value);
+uint8_t system_dynamic_temper_enable( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value );
 uint8_t af_kernel_manual_control(acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value);
 
 #endif//_ACAMERA_COMMAND_API_IMPL_H_
