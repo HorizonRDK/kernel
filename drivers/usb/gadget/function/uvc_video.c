@@ -316,7 +316,10 @@ static void uvcg_video_pump(struct work_struct *work)
 		spin_unlock_irqrestore(&queue->irqlock, flags);
 
 		if (ret < 0) {
-			uvcg_queue_cancel(queue, 0);
+			if (ret == -ESHUTDOWN)
+				uvcg_queue_cancel(queue, 1);
+			else
+				uvcg_queue_cancel(queue, 0);
 			break;
 		}
 	}
