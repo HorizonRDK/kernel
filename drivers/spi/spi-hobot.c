@@ -170,6 +170,8 @@
 static int debug;
 static int slave_tout = 2000;
 static int master_tout = 1000;
+/*log the error status of the previous interrupt on the SPI IP*/
+static int pre_errflg = 0;
 module_param(debug, int, 0644);
 MODULE_PARM_DESC(debug, "spi: 0 close debug, other open debug");
 module_param(slave_tout, int, 0644);
@@ -595,6 +597,12 @@ static void spi_diag_report(uint8_t errsta, uint32_t srcpndreg,
 				DiagGenEnvdataWhenErr,
 				(uint8_t *)&srcpndreg,
 				4);
+	} else {
+		diag_send_event_stat(
+			DiagMsgPrioHigh,
+			ModuleDiag_spi,
+			EventIdSpi0Err + hbspi->spi_id,
+			DiagEventStaSuccess);
 	}
 }
 #endif
@@ -655,6 +663,9 @@ static irqreturn_t hb_spi_int_handle(int irq, void *data)
 #ifdef CONFIG_HOBOT_DIAG
 	if (errflg)
 		spi_diag_report(1, pnd, hbspi);
+	if (pre_errflg == 1 && errflg == 0)
+		spi_diag_report(0, pnd, hbspi);
+	pre_errflg = errflg;
 #endif
 
 	return IRQ_HANDLED;
