@@ -150,6 +150,7 @@
 					 | IRQ_TYPE_LEVEL_LOW)>;
 		interrupt-parent = <&gic>;
 		clock-frequency = <24000000>;
+		arm,no-tick-in-suspend;
 	};
 
 	rst: reset-controller {
