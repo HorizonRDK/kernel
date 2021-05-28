@@ -206,20 +206,20 @@ function all()
     fi
 
     # make modules_install to INSTALL_MOD_PATH for debug ko (default: /)
-    make ARCH=${ARCH_KERNEL} O=${BUILD_OUTPUT_PATH} INSTALL_MOD_PATH=${BUILD_OUTPUT_PATH}/_debug INSTALL_NO_SUBDIR=1 modules_install || {
+    make ARCH=${ARCH_KERNEL} O=${BUILD_OUTPUT_PATH} INSTALL_MOD_PATH=${BUILD_OUTPUT_PATH}/_debug INSTALL_NO_SUBDIR=1 MODULE_SIG_KEY_SRCPREFIX=${BUILD_OUTPUT_PATH}/ modules_install || {
         echo "make modules_install to INSTALL_MOD_PATH for debug ko failed"
         exit 1
     }
 
     # make modules_install to INSTALL_MOD_PATH release ko (default: /)
-    make ARCH=${ARCH_KERNEL} O=${BUILD_OUTPUT_PATH} INSTALL_MOD_PATH=${TARGET_TMPROOTFS_DIR}/ INSTALL_MOD_STRIP=1 INSTALL_NO_SUBDIR=1 modules_install || {
+	make ARCH=${ARCH_KERNEL} O=${BUILD_OUTPUT_PATH} INSTALL_MOD_PATH=${TARGET_TMPROOTFS_DIR}/ INSTALL_MOD_STRIP=1 INSTALL_NO_SUBDIR=1 MODULE_SIG_KEY_SRCPREFIX=${BUILD_OUTPUT_PATH}/ modules_install || {
         echo "make modules_install to INSTALL_MOD_PATH for release ko failed"
         exit 1
     }
 
    # strip kernel modules
     [ -z "${KERNEL_VER}" ] && { KERNEL_VER=$(cat ${BUILD_OUTPUT_PATH}/include/config/kernel.release 2> /dev/null); }
-    ${CROSS_COMPILE}strip -v -g $TARGET_TMPROOTFS_DIR/lib/modules/${KERNEL_VER}/*.ko
+    #${CROSS_COMPILE}strip -v -g $TARGET_TMPROOTFS_DIR/lib/modules/${KERNEL_VER}/*.ko
 
     # copy firmware
     cpfiles "$SRC_KERNEL_DIR/drivers/staging/marvell/FwImage/sd8801_uapsta.bin" "$TARGET_TMPROOTFS_DIR/lib/firmware/mrvl/"
