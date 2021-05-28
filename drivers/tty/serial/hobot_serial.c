@@ -1170,6 +1170,8 @@ static void hobot_uart_shutdown(struct uart_port *port)
 #ifdef CONFIG_HOBOT_TTY_DMA_MODE
 	dma_free_coherent(port->dev, HOBOT_UART_DMA_SIZE,
 			(void *)hobot_uart->rx_buf, hobot_uart->rx_dma_buf);
+	dma_unmap_single(port->dev, hobot_uart->tx_dma_buf,
+			UART_XMIT_SIZE, DMA_TO_DEVICE);
 	hobot_uart->rx_off = 0;
 #endif
 	free_irq(port->irq, port);
