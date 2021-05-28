@@ -94,6 +94,10 @@
 #define RTC_ALARM_GET_YEAR_L(n)   (((n) >>16) & 0xFF)
 #define RTC_ALARM_GET_YEAR_H(n)   (((n) >>24) & 0xFF)
 
+#define DECIMAL_WIDTH	10
+#define	KEEP_ALIVE_TIME	5000
+#define UNLOCK	"unlock"
+
 #define hobot_rtc_rd(dev, reg)       ioread32((dev)->rtc_base + (reg))
 #define hobot_rtc_wr(dev, reg, val) \
 	do { \
@@ -106,6 +110,7 @@ struct hobot_rtc {
 	int irq;
 	void __iomem *rtc_base;
 	bool    wakeup;
+	uint32_t keep_alive_time;
 #ifdef CONFIG_PM
 	u32 rtc_regs[4];
 #endif
@@ -277,6 +282,48 @@ static const struct rtc_class_ops hobot_rtc_ops = {
 	.alarm_irq_enable = hobot_rtc_alarm_irq_enable,
 };
 
+static ssize_t wake_unlock_store(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf,
+		size_t len)
+{
+	if (!strncmp(buf, UNLOCK, strlen(UNLOCK)))
+		pm_relax(dev);
+
+	return len;
+}
+static ssize_t wake_active_time_show(struct device *dev,
+		struct device_attribute *attr,
+		char *buf)
+{
+	struct hobot_rtc *rtc = dev_get_drvdata(dev);
+
+	return snprintf(buf, DECIMAL_WIDTH + 1, "%d\n", rtc->keep_alive_time);
+}
+
+static ssize_t wake_active_time_store(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf,
+		size_t len)
+{
+	int ret;
+	unsigned int input;
+	struct hobot_rtc *rtc = dev_get_drvdata(dev);
+
+	ret = kstrtou32(buf, 10, &input);
+	if (ret)
+		return ret;
+
+	if (input < 1000)
+		return -EINVAL;
+
+	rtc->keep_alive_time = input;
+
+	return len;
+}
+static DEVICE_ATTR_WO(wake_unlock);
+static DEVICE_ATTR_RW(wake_active_time);
+
 static int hobot_rtc_probe(struct platform_device *pdev)
 {
 	int ret;
@@ -315,6 +362,7 @@ static int hobot_rtc_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+	rtc->keep_alive_time = KEEP_ALIVE_TIME;
 	rtc->wakeup = of_property_read_bool(node, "wakeup-source") ||
 			of_property_read_bool(node, "linux,wakeup");
 	device_init_wakeup(dev, rtc->wakeup);
@@ -325,6 +373,9 @@ static int hobot_rtc_probe(struct platform_device *pdev)
 		ret = PTR_ERR(rtc->rtc);
 		return ret;
 	}
+
+	device_create_file(&pdev->dev, &dev_attr_wake_unlock);
+	device_create_file(&pdev->dev, &dev_attr_wake_active_time);
 
 	return 0;
 }
@@ -345,6 +396,7 @@ static int hobot_rtc_remove(struct platform_device *pdev)
 #ifdef CONFIG_PM
 int hobot_rtc_suspend(struct device *dev)
 {
+#if 0
 	struct hobot_rtc *rtc = dev_get_drvdata(dev);
 
 	pr_info("%s:%s, enter suspend...\n", __FILE__, __func__);
@@ -358,13 +410,14 @@ int hobot_rtc_suspend(struct device *dev)
 	hobot_rtc_wr(rtc, HOBOT_RTC_CTRL_REG, 0x0);
 	hobot_rtc_wr(rtc, HOBOT_RTC_INT_SETMASK_REG, 0x3);
 	hobot_rtc_wr(rtc, HOBOT_RTC_INT_UNMASK_REG, 0X0);
-
+#endif
 	return 0;
 }
 
 int hobot_rtc_resume(struct device *dev)
 {
 	struct hobot_rtc *rtc = dev_get_drvdata(dev);
+#if 0
 
 	pr_info("%s:%s, enter resume...\n", __FILE__, __func__);
 
@@ -379,7 +432,8 @@ int hobot_rtc_resume(struct device *dev)
 	hobot_rtc_wr(rtc, HOBOT_RTC_DATE_CFG_REG, rtc->rtc_regs[2]);
 	hobot_rtc_wr(rtc, HOBOT_RTC_TIME_CFG_REG, rtc->rtc_regs[3]);
 	hobot_rtc_wr(rtc, HOBOT_RTC_CTRL_REG, rtc->rtc_regs[0]);
-
+#endif
+	pm_wakeup_dev_event(dev, rtc->keep_alive_time, true);
 	return 0;
 }
 #endif
@@ -401,7 +455,7 @@ static struct platform_driver hobot_rtc_driver = {
 	.driver	= {
 		.name = "hobot-rtc",
 		.of_match_table	= hobot_rtc_match,
-		//.pm = &hobot_rtc_dev_pm_ops,
+		.pm = &hobot_rtc_dev_pm_ops,
 	},
 };
 module_platform_driver(hobot_rtc_driver);
