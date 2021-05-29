@@ -185,13 +185,14 @@ function all()
     }
 
     # Moving Close Source kos to target/tmprootfs
-    [ ! -d ${TARGET_TMPROOTFS_DIR}/ -a -d ${TOPDIR}/ko ] && mkdir -p ${TARGET_TMPROOTFS_DIR}/
+    rel_ko_path="${SRC_PREBUILTS_DIR}/ko"
+    [ ! -d ${TARGET_TMPROOTFS_DIR}/ -a -d ${rel_ko_path} ] && mkdir -p ${TARGET_TMPROOTFS_DIR}/
     if [ "$TARGET_MODE" = "debug" ];then
-        [ -d ${TOPDIR}/ko/ko_debug/ ] && cp -raf ${TOPDIR}/ko/ko_debug/* ${TARGET_TMPROOTFS_DIR}/
+        [ -d ${rel_ko_path}/ko_debug/ ] && cp -raf ${rel_ko_path}/ko_debug/* ${TARGET_TMPROOTFS_DIR}/
     elif [ "$TARGET_MODE" = "release" ];then
-        [ -d ${TOPDIR}/ko/ko_release/ ] && cp -raf ${TOPDIR}/ko/ko_release/* ${TARGET_TMPROOTFS_DIR}/
+        [ -d ${rel_ko_path}/ko_release/ ] && cp -raf ${rel_ko_path}/ko_release/* ${TARGET_TMPROOTFS_DIR}/
     elif [ "$TARGET_MODE" = "docker" ];then
-        [ -d ${TOPDIR}/ko/ko_docker/ ] && cp -raf ${TOPDIR}/ko/ko_docker/* ${TARGET_TMPROOTFS_DIR}/
+        [ -d ${rel_ko_path}/ko_docker/ ] && cp -raf ${rel_ko_path}/ko_docker/* ${TARGET_TMPROOTFS_DIR}/
     else
         echo "TARGET_MODE:$TARGET_MODE has not support yet"
         exit 1
