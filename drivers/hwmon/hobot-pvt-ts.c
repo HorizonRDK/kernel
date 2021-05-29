@@ -43,7 +43,7 @@ static int max_diff = 20000;
 module_param(max_diff, int, 0644);
 
 /* For test, 0: default; 1: force calib, 2: force uncalib */
-static int force_calib = 0;
+static int force_calib = 2;
 module_param(force_calib, int, 0644);
 
 static int interval_ms = 300;
