@@ -26,7 +26,7 @@
 #include "awb_manual_fsm.h"
 #include "sbuf.h"
 #include "isp_ctxsv.h"
-
+#include "vio_group_api.h"
 
 #if defined( CUR_MOD_NAME)
 #undef CUR_MOD_NAME
@@ -301,11 +301,12 @@ void awb_read_statistics( AWB_fsm_t *p_fsm )
         rc = system_chardev_lock();
         if (rc == 0) {
             isp_ctx_node_t *cn;
+            struct vio_frame_id frmid;
             cn = isp_ctx_get_node(fw_id, ISP_AWB, FREEQ);
             if (cn) {
-                cn->ctx.frame_id = p_ctx->isp_frame_counter;
-                cn->ctx.timestamps = p_ctx->timestamps;
-                //memcpy(cn->base, p_sbuf_awb_stats->stats_data, sizeof(p_sbuf_awb_stats->stats_data));
+                vio_get_sif_frame_info(fw_id, &frmid);
+                cn->ctx.frame_id = frmid.frame_id;
+                cn->ctx.timestamps = frmid.timestamps;
                 memcpy(cn->base, p_fsm->awb_stats, sizeof(p_sbuf_awb_stats->stats_data));
                 cn->ctx.crc16 = crc16(~0, cn->base, sizeof(p_sbuf_awb_stats->stats_data));
                 isp_ctx_put_node(fw_id, cn, ISP_AWB, DONEQ);

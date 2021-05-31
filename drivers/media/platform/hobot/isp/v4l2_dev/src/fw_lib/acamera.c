@@ -692,14 +692,16 @@ static void isp_ctxsv_work(struct work_struct *w)
     isp_ctx_node_t *cn;
     volatile void *offset;
     uint8_t ctx_id = cur_ctx_id;
+    struct vio_frame_id frmid;
     acamera_context_t *p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[ctx_id];
 
     rc = system_chardev_lock();
 	if (rc == 0 && p_ctx->isp_ctxsv_on) {
 		cn = isp_ctx_get_node(ctx_id, ISP_CTX, FREEQ);
 		if (cn) {
-			cn->ctx.frame_id = p_ctx->isp_frame_counter;
-            cn->ctx.timestamps = p_ctx->timestamps;
+            vio_get_sif_frame_info(ctx_id, &frmid);
+		    cn->ctx.frame_id = frmid.frame_id;
+            cn->ctx.timestamps = frmid.timestamps;
 			offset = p_ctx->sw_reg_map.isp_sw_config_map + ACAMERA_DECOMPANDER0_MEM_BASE_ADDR;
 			memcpy_fromio(cn->base, offset, CTX_SIZE);
 			cn->ctx.crc16 = crc16(~0, cn->base, CTX_SIZE);

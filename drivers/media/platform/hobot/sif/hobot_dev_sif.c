@@ -179,14 +179,32 @@ void sif_read_frame_work(struct vio_group *group)
 
 	instance = group->instance;
 
-	if (sif_isp_ctx_sync != NULL) {
-		ret = (*sif_isp_ctx_sync)(instance);
-	}
-
 	subdev = group->sub_ctx[0];
 	if (unlikely(!subdev)) {
 		vio_err("%s error subdev null,instance %d", __func__, instance);
 		return;
+	}
+
+	framemgr = &subdev->framemgr;
+	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	frame = peek_frame(framemgr, FS_REQUEST);
+	if (frame) {
+		frameinfo = &frame->frameinfo;
+		group->frameid.frame_id = frameinfo->frame_id;
+		group->frameid.timestamps = frameinfo->timestamps;
+		group->frameid.tv = frameinfo->tv;
+		if (frameinfo->timestamps != 0) {
+			sif_frame_info[instance].frame_id = frameinfo->frame_id;
+			sif_frame_info[instance].timestamps = frameinfo->timestamps;
+			sif_frame_info[instance].tv = frameinfo->tv;
+		} else {   /*raw feedback*/
+			sif_frame_info[instance].frame_id++;
+		}
+	}
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
+
+	if (sif_isp_ctx_sync != NULL) {
+		ret = (*sif_isp_ctx_sync)(instance);
 	}
 
 	sif = subdev->sif_dev;
@@ -194,9 +212,7 @@ void sif_read_frame_work(struct vio_group *group)
 	vio_get_ldc_rst_flag(&ldc_rst_flag);
 	atomic_set(&sif->instance, instance);
 
-	framemgr = &subdev->framemgr;
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
-	frame = peek_frame(framemgr, FS_REQUEST);
 	if (frame) {
 		if(ldc_rst_flag == 1) {
 			vio_dbg("[S%d]%s:ret %d ldc_rst_flag %d", group->instance,
@@ -204,18 +220,6 @@ void sif_read_frame_work(struct vio_group *group)
 			trans_frame(framemgr, frame, FS_COMPLETE);
 		} else {
 			if (ret == 0) {
-				frameinfo = &frame->frameinfo;
-				group->frameid.frame_id = frameinfo->frame_id;
-				group->frameid.timestamps = frameinfo->timestamps;
-				group->frameid.tv = frameinfo->tv;
-				if (frameinfo->timestamps != 0) {
-					sif_frame_info[instance].frame_id = frameinfo->frame_id;
-					sif_frame_info[instance].timestamps = frameinfo->timestamps;
-					sif_frame_info[instance].tv = frameinfo->tv;
-				} else {   /*raw feedback*/
-					sif_frame_info[instance].frame_id++;
-				}
-
 				vio_dbg("sif_read_frame_work frame_id %d pipe_id %d",
 						frameinfo->frame_id, instance);
 				sif_config_rdma_cfg(subdev, 0, frameinfo);

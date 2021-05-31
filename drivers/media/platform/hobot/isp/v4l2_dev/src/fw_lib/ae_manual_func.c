@@ -30,7 +30,7 @@
 
 #include "acamera_math.h"
 #include "ae_manual_fsm.h"
-
+#include "vio_group_api.h"
 
 #include "sbuf.h"
 
@@ -213,10 +213,12 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
     rc = system_chardev_lock();
     if (rc == 0 && p_ctx->isp_ae_stats_on) {
 	    isp_ctx_node_t *cn;
+        struct vio_frame_id frmid;
 	    cn = isp_ctx_get_node(fw_id, ISP_AE, FREEQ);
 	    if (cn) {
-		    cn->ctx.frame_id = p_ctx->isp_frame_counter;
-            cn->ctx.timestamps = p_ctx->timestamps;
+            vio_get_sif_frame_info(fw_id, &frmid);
+		    cn->ctx.frame_id = frmid.frame_id;
+            cn->ctx.timestamps = frmid.timestamps;
 		    memcpy(cn->base, p_fsm->fullhist, sizeof(p_sbuf_ae->stats_data));
 		    cn->ctx.crc16 = crc16(~0, cn->base, sizeof(p_sbuf_ae->stats_data));
 		    isp_ctx_put_node(fw_id, cn, ISP_AE, DONEQ);
@@ -272,10 +274,12 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
         rc = system_chardev_lock();
         if (rc == 0) {
             isp_ctx_node_t *cn;
+            struct vio_frame_id frmid;
             cn = isp_ctx_get_node(fw_id, ISP_AE_5BIN, FREEQ);
             if (cn) {
-                cn->ctx.frame_id = p_ctx->isp_frame_counter;
-                cn->ctx.timestamps = p_ctx->timestamps;
+                vio_get_sif_frame_info(fw_id, &frmid);
+                cn->ctx.frame_id = frmid.frame_id;
+                cn->ctx.timestamps = frmid.timestamps;
                 memcpy(cn->base, p_sbuf_ae->hist4, sizeof(p_sbuf_ae->hist4));
                 cn->ctx.crc16 = crc16(~0, cn->base, sizeof(p_sbuf_ae->hist4));
                 isp_ctx_put_node(fw_id, cn, ISP_AE_5BIN, DONEQ);
@@ -296,10 +300,12 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
         rc = system_chardev_lock();
         if (rc == 0) {
             isp_ctx_node_t *cn;
+            struct vio_frame_id frmid;
             cn = isp_ctx_get_node(fw_id, ISP_LUMVAR, FREEQ);
             if (cn) {
-                cn->ctx.frame_id = p_ctx->isp_frame_counter;
-                cn->ctx.timestamps = p_ctx->timestamps;
+                vio_get_sif_frame_info(fw_id, &frmid);
+                cn->ctx.frame_id = frmid.frame_id;
+                cn->ctx.timestamps = frmid.timestamps;
                 memcpy(cn->base, lumvar, sizeof(lumvar));
                 cn->ctx.crc16 = crc16(~0, cn->base, sizeof(lumvar));
                 isp_ctx_put_node(fw_id, cn, ISP_LUMVAR, DONEQ);
