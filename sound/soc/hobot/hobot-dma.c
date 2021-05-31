@@ -480,6 +480,7 @@ static void iis_diag_report(uint8_t errsta, uint32_t status, uint8_t channel)
 	uint32_t sta;
 	unsigned char eventid;
 	u8 envdata[5]; // channel num + srcpnd reg value.
+	static uint8_t last_status = DiagEventStaUnknown;
 
 	if (channel > 1)
 		return;
@@ -502,13 +503,14 @@ static void iis_diag_report(uint8_t errsta, uint32_t status, uint8_t channel)
 				DiagGenEnvdataWhenErr,
 				envdata,
 				sizeof(uint32_t) + 1);
-	} else {
+	} else if (last_status != DiagEventStaSuccess) {
 		diag_send_event_stat(
 				DiagMsgPrioHigh,
 				ModuleDiag_sound,
 				eventid,
 				DiagEventStaSuccess);
 	}
+	last_status = !errsta ? DiagEventStaSuccess : DiagEventStaFail;
 }
 #endif
 

@@ -2770,6 +2770,7 @@ static void dwceqos_diag_process(u32 errsta, uint32_t regval) {
     u8 sta;
     u8 envgen_timing;
     u32 int_status;
+	static uint8_t last_status = DiagEventStaUnknown;
 
     int_status = regval;
     if (errsta) {
@@ -2781,7 +2782,7 @@ static void dwceqos_diag_process(u32 errsta, uint32_t regval) {
             pr_debug("eth: event %d snd diag msg with env data error\n",
                      EventIdEthDmaBusErr);
         }
-    } else {
+    } else if (last_status != DiagEventStaSuccess) {
         sta = DiagEventStaSuccess;
         if (diag_send_event_stat(DiagMsgPrioHigh, ModuleDiag_eth,
                                  EventIdEthDmaBusErr, sta) < 0) {
@@ -2789,6 +2790,7 @@ static void dwceqos_diag_process(u32 errsta, uint32_t regval) {
                      EventIdEthDmaBusErr);
         }
     }
+	last_status = !errsta ? DiagEventStaSuccess : DiagEventStaFail;
 }
 #endif
 

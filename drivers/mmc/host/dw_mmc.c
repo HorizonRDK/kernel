@@ -2744,6 +2744,7 @@ static void hb_emmc_diag_process(u32 errsta, u32 envdata)
 {
 	u8 sta;
 	u8 envgen_timing;
+	static u8 last_status = DiagEventStaUnknown;
 
 	if (errsta > 0) {
 		sta = DiagEventStaFail;
@@ -2751,11 +2752,12 @@ static void hb_emmc_diag_process(u32 errsta, u32 envdata)
 		diag_send_event_stat_and_env_data(DiagMsgPrioHigh,
 					ModuleDiag_emmc, EventIdEmmcErr, sta,
 					envgen_timing, (uint8_t *)&envdata, 4);
-	} else {
+	} else if (last_status != DiagEventStaSuccess) {
 		sta = DiagEventStaSuccess;
 		diag_send_event_stat(DiagMsgPrioMid, ModuleDiag_emmc,
 							EventIdEmmcErr, sta);
 	}
+	last_status = !errsta ? DiagEventStaSuccess : DiagEventStaFail;
 }
 #endif
 

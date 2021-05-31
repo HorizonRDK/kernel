@@ -2003,6 +2003,7 @@ void pym_frame_ndone(struct pym_subdev *subdev)
 static void pym_diag_report(uint8_t errsta, unsigned int status)
 {
 	unsigned int sta;
+	static uint8_t last_status = DiagEventStaUnknown;
 
 	sta = status;
 	if (errsta) {
@@ -2014,13 +2015,14 @@ static void pym_diag_report(uint8_t errsta, unsigned int status)
 				DiagGenEnvdataWhenErr,
 				(uint8_t *)&sta,
 				sizeof(unsigned int));
-	} else {
+	} else if (last_status != DiagEventStaSuccess) {
 		diag_send_event_stat(
 				DiagMsgPrioMid,
 				ModuleDiag_VIO,
 				EventIdVioPymErr,
 				DiagEventStaSuccess);
 	}
+	last_status = !errsta ? DiagEventStaSuccess : DiagEventStaFail;
 }
 #endif
 

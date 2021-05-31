@@ -3828,6 +3828,7 @@ void ipu_frame_ndone(struct ipu_subdev *subdev)
 static void ipu_diag_report(uint8_t errsta, unsigned int status)
 {
 	unsigned int sta;
+	static uint8_t last_status = DiagEventStaUnknown;
 
 	sta = status;
 	if (errsta) {
@@ -3839,24 +3840,28 @@ static void ipu_diag_report(uint8_t errsta, unsigned int status)
 				DiagGenEnvdataWhenErr,
 				(uint8_t *)&sta,
 				sizeof(unsigned int));
-	} else {
+	} else if (last_status != DiagEventStaSuccess) {
 		diag_send_event_stat(
 				DiagMsgPrioMid,
 				ModuleDiag_VIO,
 				EventIdVioIpuErr,
 				DiagEventStaSuccess);
 	}
+	last_status = !errsta ? DiagEventStaSuccess : DiagEventStaFail;
 }
 
 static void lost_fps_send(uint8_t errsta)
 {
+	static uint8_t last_status = DiagEventStaUnknown;
+
    if (errsta == 1) {
        diag_send_event_stat(DiagMsgPrioHigh,
            ModuleDiag_VIO, EventIdVioFrameLost, DiagEventStaFail);
-   } else if (errsta == 0) {
+	} else if ((errsta == 0) && (last_status != DiagEventStaSuccess)) {
        diag_send_event_stat(DiagMsgPrioHigh,
            ModuleDiag_VIO, EventIdVioFrameLost, DiagEventStaSuccess);
    }
+	last_status = (errsta == 1) ? DiagEventStaFail : DiagEventStaSuccess;
 }
 #endif
 
@@ -4974,7 +4979,7 @@ static int x3_ipu_probe(struct platform_device *pdev)
 			4, DIAG_MSG_INTERVAL_MIN, DIAG_MSG_INTERVAL_MAX, NULL) < 0)
 		pr_err("ipu dual diag register fail\n");
 	if (diag_register(ModuleDiag_VIO, EventIdVioFrameLost,
-					4, 380, 8000, NULL) < 0)
+			4, DIAG_MSG_INTERVAL_MIN, DIAG_MSG_INTERVAL_MAX, NULL) < 0)
 		pr_err("ipu dual diag register fail\n");
 	g_diag_last_frame = 0;
 #endif

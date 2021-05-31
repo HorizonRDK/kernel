@@ -962,6 +962,8 @@ static const struct spi_controller_mem_ops hb_mem_ops = {
 #ifdef CONFIG_HOBOT_DIAG
 static void hb_qspiflash_diag_report(uint8_t errsta, uint32_t sta_reg)
 {
+	static uint8_t last_status = DiagEventStaUnknown;
+
 	if (errsta) {
 		diag_send_event_stat_and_env_data(
 				DiagMsgPrioHigh,
@@ -971,13 +973,14 @@ static void hb_qspiflash_diag_report(uint8_t errsta, uint32_t sta_reg)
 				DiagGenEnvdataWhenErr,
 				(uint8_t *)&sta_reg,
 				4);
-	} else {
+	} else if (last_status != DiagEventStaSuccess) {
 		diag_send_event_stat(
 				DiagMsgPrioMid,
 				ModuleDiag_qspi,
 				EventIdqspiErr,
 				DiagEventStaSuccess);
 	}
+	last_status = !errsta ? DiagEventStaSuccess : DiagEventStaFail;
 }
 #endif
 
@@ -1010,8 +1013,8 @@ static int hbqspi_dpm_callback(struct hobot_dpm *self,
 
 static irqreturn_t hb_qspi_irq_handler(int irq, void *dev_id)
 {
-	unsigned int err_status;
 #ifdef CONFIG_HOBOT_DIAG
+	unsigned int err_status;
 	int err = 0;
 #endif
 	struct hb_qspi *hbqspi = dev_id;
@@ -1026,13 +1029,13 @@ static irqreturn_t hb_qspi_irq_handler(int irq, void *dev_id)
 	}
 
 #ifdef CONFIG_HOBOT_DIAG
+	err_status = hb_qspi_rd_reg(hbqspi, HB_QSPI_ST2_REG);
 	if (err_status & (HB_QSPI_RXWR_FULL | HB_QSPI_TXRD_EMPTY))
 		err = 1;
 
 	hb_qspiflash_diag_report(err, err_status);
 #endif /* CONFIG_HOBOT_DIAG */
 #endif /* HB_QSPI_WORK_POLL */
-	err_status = hb_qspi_rd_reg(hbqspi, HB_QSPI_ST2_REG);
 	hb_qspi_wr_reg(hbqspi, HB_QSPI_ST2_REG,
 			HB_QSPI_RXWR_FULL | HB_QSPI_TXRD_EMPTY);
 	return IRQ_HANDLED;
