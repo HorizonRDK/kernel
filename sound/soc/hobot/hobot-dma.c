@@ -101,6 +101,7 @@ struct idma_ctrl_s {
 	int buffer_num;
 	int buffer_int_index;
 	int buffer_set_index;
+	char *tmp_buf;
 };
 
 static struct idma_info_s {
@@ -114,6 +115,25 @@ static struct idma_info_s {
 	int stream;
 } hobot_i2sidma[2];
 
+struct timespec tstamp[4] = {0};
+static int tstamp_mode=0;
+
+static int tstamp_mode_set(const char *val, const struct kernel_param *kp) {
+	int ret;
+	ret = param_set_bool(val, kp);
+	if (ret < 0)
+		return ret;
+
+	return ret;
+}
+
+static const struct kernel_param_ops tstamp_mode_param_ops = {
+	.set = tstamp_mode_set,
+	.get = param_get_bool,
+};
+module_param_cb(tstamp_mode, &tstamp_mode_param_ops, &tstamp_mode, 0644);
+MODULE_PARM_DESC(tstamp_mode, "enable/disable tstamp printk");
+
 static int hobot_copy_usr(struct snd_pcm_substream *substream,
 		int channel, unsigned long hwoff,
 		void *buf, unsigned long bytes)
@@ -122,55 +142,86 @@ static int hobot_copy_usr(struct snd_pcm_substream *substream,
 	int channel_buf_offset, i, j;
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct idma_ctrl_s *dma_ctrl = substream->runtime->private_data;
-	char *tmp_buf;
+	//char *tmp_buf;
+	uint8_t count;
+	uint8_t bytes_count;
 
 	//dma_ptr = runtime->dma_area + hwoff + channel * bytes;
 	channel_buf_offset = (dma_ctrl->periodsz) / (dma_ctrl->ch_num);
 
-	tmp_buf = kzalloc(bytes, GFP_KERNEL);
-	if (!tmp_buf)
-		return -ENOMEM;
+	//tmp_buf = kzalloc(bytes, GFP_KERNEL);
+	//if (!tmp_buf)
+	//	return -ENOMEM;
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		if (runtime->access == SNDRV_PCM_ACCESS_RW_INTERLEAVED) {
 			dma_ptr = runtime->dma_area + hwoff;
-			if (copy_from_user(tmp_buf, (void __user *)buf, bytes))
+			if (copy_from_user(dma_ctrl->tmp_buf, (void __user *)buf, bytes))
 				return -EFAULT;
 			for (i = 0; i < bytes;) {
 				for (j = 0; j < dma_ctrl->ch_num; j++) {
 					memcpy(&dma_ptr[j*channel_buf_offset],
-						&tmp_buf[i+j*dma_ctrl->word_len],
+						&dma_ctrl->tmp_buf[i+j*dma_ctrl->word_len],
 						dma_ctrl->word_len);
 				}
 				dma_ptr = dma_ptr + dma_ctrl->word_len;
 				i = i + dma_ctrl->ch_num * dma_ctrl->word_len;
 			}
+			dma_sync_single_for_device(hobot_i2sidma[dma_ctrl->id].dev, runtime->dma_addr+hwoff,
+                                bytes, DMA_TO_DEVICE);
 		} else {
 			dma_ptr = runtime->dma_area + hwoff*dma_ctrl->ch_num + channel * bytes;
 			if (copy_from_user(dma_ptr, (void __user *)buf, bytes))
 				return -EFAULT;
+			dma_sync_single_for_device(hobot_i2sidma[dma_ctrl->id].dev, runtime->dma_addr+hwoff*dma_ctrl->ch_num+channel*bytes,
+				bytes, DMA_TO_DEVICE);
 		}
 	} else {
 		if (runtime->access == SNDRV_PCM_ACCESS_RW_INTERLEAVED) {
+			dma_sync_single_for_cpu(hobot_i2sidma[dma_ctrl->id].dev,
+				runtime->dma_addr + hwoff,
+				bytes, DMA_FROM_DEVICE);
 			dma_ptr = runtime->dma_area + hwoff;
 			for (i = 0; i < bytes;) {
 				for (j = 0; j < dma_ctrl->ch_num; j++) {
-					memcpy(&tmp_buf[i+j*dma_ctrl->word_len],
+					memcpy(&dma_ctrl->tmp_buf[i+j*dma_ctrl->word_len],
 						&dma_ptr[j*channel_buf_offset],
 						dma_ctrl->word_len);
 				}
 				dma_ptr = dma_ptr + dma_ctrl->word_len;
 				i = i + dma_ctrl->ch_num * dma_ctrl->word_len;
 			}
-			if (copy_to_user((void __user *)buf, tmp_buf, bytes))
-				return -EFAULT;
+			//tstamp info
+			if (tstamp_mode == 1) {
+				count = hwoff / (runtime->dma_bytes / runtime->periods);
+				bytes_count = bytes / (runtime->period_size * dma_ctrl->word_len * runtime->channels);
+				if (bytes_count > 1)
+					pr_debug("[***%s] tstamp[%d]=%ld, byes_count=%d, hwoff=%d, tstamp_mode=%d, bytes=%d, periods_size=%d\n",
+						__func__, count, tstamp[count].tv_sec*1000+tstamp[count].tv_nsec/1000/1000,
+						bytes_count, hwoff, tstamp_mode, bytes, runtime->period_size);
+				for (i = 0; i < bytes_count; i++) {
+					if (copy_to_user((void __user *)buf+(count+i)*sizeof(struct timespec) + i*runtime->period_size*dma_ctrl->word_len*runtime->channels,
+						&tstamp[count+i], sizeof(struct timespec)))
+						return -EFAULT;
+					if (copy_to_user((void __user *)buf+(i+count+1)*sizeof(struct timespec)+i*runtime->period_size*dma_ctrl->word_len*runtime->channels,
+						dma_ctrl->tmp_buf+i*runtime->period_size * dma_ctrl->word_len * runtime->channels,
+						runtime->period_size * dma_ctrl->word_len * runtime->channels))
+						return -EFAULT;
+				}
+			} else {
+				if (copy_to_user((void __user *)buf, dma_ctrl->tmp_buf, bytes))
+					return -EFAULT;
+			}
 		} else {
+			dma_sync_single_for_cpu(hobot_i2sidma[dma_ctrl->id].dev,
+				runtime->dma_addr + hwoff*dma_ctrl->ch_num+channel*bytes,
+				bytes, DMA_FROM_DEVICE);
 			dma_ptr = runtime->dma_area + hwoff*dma_ctrl->ch_num + channel * bytes;
 			if (copy_to_user((void __user *)buf, dma_ptr, bytes))
 				return -EFAULT;
 		}
 	}
-	kfree(tmp_buf);
+	//kfree(tmp_buf);
 	return 0;
 }
 
@@ -284,8 +335,8 @@ static void i2sidma_control(int op, int stream, struct idma_ctrl_s *dma_ctrl)
 static void i2sidma_done(void *id, int bytes_xfer)
 {
 	struct snd_pcm_substream *substream = id;
+	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct idma_ctrl_s *dma_ctrl = substream->runtime->private_data;
-
 	if (dma_ctrl && (dma_ctrl->state & ST_RUNNING))
 		snd_pcm_period_elapsed(substream);
 }
@@ -454,6 +505,16 @@ static snd_pcm_uframes_t i2sidma_pointer(struct snd_pcm_substream *substream)
 	/* pr_err("i2sidma_pointer, get pos is %llx\n", src); */
 	res = src - dma_ctrl->start;
 
+	if (tstamp_mode == 1 && substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
+		uint8_t count;
+		struct timespec curr_tstamp;
+		snd_pcm_uframes_t hw_ptr;
+		snd_pcm_uframes_t hw_ofs;
+		hw_ptr = runtime->status->hw_ptr / runtime->period_size;
+		count = hw_ptr % runtime->periods;
+		snd_pcm_gettime(runtime, (struct timespec *)&curr_tstamp);
+		tstamp[count] = curr_tstamp;
+	}
 	spin_unlock_irqrestore(&dma_ctrl->lock, flags);
 
 	return bytes_to_frames(substream->runtime, res);
@@ -551,7 +612,6 @@ static irqreturn_t iis_irq0(int irqno, void *dev_id)
 			I2S_BUF0_ADDR);
 		writel(0x1, hobot_i2sidma[dma_ctrl->id].regaddr_rx +
 			I2S_BUF0_RDY);
-
 
 	} else if (intstatus == 0x8) {
 
@@ -770,6 +830,10 @@ static int i2sidma_open(struct snd_pcm_substream *substream)
 
 	spin_lock_init(&dma_ctrl->lock);
 
+	dma_ctrl->tmp_buf = kzalloc(i2sidma_hardware.buffer_bytes_max, GFP_KERNEL);
+	if (!dma_ctrl->tmp_buf)
+		return -ENOMEM;
+
 	/* this critical action */
 	runtime->private_data = dma_ctrl;
 
@@ -782,6 +846,7 @@ static int i2sidma_close(struct snd_pcm_substream *substream)
 	struct idma_ctrl_s *dma_ctrl = runtime->private_data;
 
 	free_irq(hobot_i2sidma[dma_ctrl->id].idma_irq, dma_ctrl);
+	kfree(dma_ctrl->tmp_buf);
 	kfree(dma_ctrl);
 
 	return 0;
@@ -816,8 +881,10 @@ static void i2sidma_free(struct snd_pcm *pcm)
 		if (!buf->area)
 			continue;
 
-		dmam_free_coherent(pcm->card->dev, buf->bytes, buf->area,
-				   buf->addr);
+		/*dmam_free_coherent(pcm->card->dev, buf->bytes, buf->area,
+				   buf->addr);*/
+		dma_unmap_single(pcm->card->dev, buf->addr, i2sidma_hardware.buffer_bytes_max,
+			DMA_BIDIRECTIONAL);
 
 		buf->area = NULL;
 		buf->addr = 0;
@@ -845,8 +912,19 @@ static int preallocate_idma_buffer(struct snd_pcm *pcm, int stream)
 
 
 	/* No matter play or capture */
-	buf->area = dmam_alloc_coherent(pcm->card->dev,
-			i2sidma_hardware.buffer_bytes_max, &phy, GFP_KERNEL);
+	/*buf->area = dmam_alloc_coherent(pcm->card->dev,
+			i2sidma_hardware.buffer_bytes_max, &phy, GFP_KERNEL);*/
+	buf->area = kzalloc(i2sidma_hardware.buffer_bytes_max, GFP_DMA | GFP_KERNEL);
+	if (!buf->area)
+		return -ENOMEM;
+	phy = dma_map_single(pcm->card->dev, buf->area,
+		i2sidma_hardware.buffer_bytes_max, DMA_BIDIRECTIONAL);
+	if (dma_mapping_error(pcm->card->dev, phy)) {
+		dev_err(pcm->card->dev, "dma %zu bytes error\n",
+			i2sidma_hardware.buffer_bytes_max);
+		return -ENOMEM;
+	}
+	//phy = (dma_addr_t)virt_to_phys(buf->area);
 	dma_vm = buf->area;
 	buf->addr = phy;
 	buf->bytes = i2sidma_hardware.buffer_bytes_max;	/* 160K */
@@ -862,9 +940,9 @@ static int i2sidma_new(struct snd_soc_pcm_runtime *rtd)
 	struct snd_pcm *pcm = rtd->pcm;
 	int ret;
 
-	ret = dma_coerce_mask_and_coherent(card->dev, DMA_BIT_MASK(32));
+	/*ret = dma_coerce_mask_and_coherent(card->dev, DMA_BIT_MASK(32));
 	if (ret)
-		return ret;
+		return ret;*/
 	if (pcm->streams[SNDRV_PCM_STREAM_PLAYBACK].substream)
 		ret = preallocate_idma_buffer(pcm, SNDRV_PCM_STREAM_PLAYBACK);
 
@@ -938,6 +1016,7 @@ static int asoc_i2sidma_platform_probe(struct platform_device *pdev)
 	hobot_i2sidma[id].idma_irq = ret;
 	hobot_i2sidma[id].dev = &pdev->dev;
 
+	hobot_i2sidma[id].dev = &pdev->dev;
 	spin_lock_init(&(hobot_i2sidma[id].lock));
 
 	ret =  devm_snd_soc_register_platform(&pdev->dev,
