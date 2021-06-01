@@ -1911,7 +1911,7 @@ static void __exit hbfb_cleanup(void)
 	iar_pixel_clk_disable();
 }
 
-late_initcall(hbfb_init);
+late_initcall_sync(hbfb_init);
 module_exit(hbfb_cleanup);
 
 //module_platform_driver(hbfb_driver);

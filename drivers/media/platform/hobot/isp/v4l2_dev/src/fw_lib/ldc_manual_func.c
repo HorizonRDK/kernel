@@ -48,7 +48,7 @@ static LDC_fsm_t ldc_fsm_ctxs[FIRMWARE_CONTEXT_NUMBER];
 extern int set_ldc_param(uint32_t port, uint32_t *ptr, uint32_t size);
 extern int get_ldc_param(uint32_t port, uint32_t *ptr, uint32_t size);
 
-int update_ldc_param(void *fsm)
+static int update_ldc_param(void *fsm)
 {
 	int ret = 0;
 	LDC_fsm_t *p_fsm = (LDC_fsm_t *)fsm;

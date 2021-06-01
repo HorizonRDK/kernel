@@ -304,7 +304,7 @@ void __exit camera_subdev_driver_exit(void)
 	pr_info("[KeyMsg] camera subdevice exit done");
 }
 
-module_init(camera_subdev_driver_init);
+late_initcall(camera_subdev_driver_init);
 module_exit(camera_subdev_driver_exit);
 
 MODULE_LICENSE("GPL");

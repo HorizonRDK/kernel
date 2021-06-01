@@ -175,7 +175,7 @@ void __exit iar_mmap_exit(void)
 	unregister_chrdev_region(g_iar_mmap->dev_num, 1);
 }
 
-module_init(iar_mmap_init);
+late_initcall(iar_mmap_init);
 module_exit(iar_mmap_exit);
 
 MODULE_LICENSE("GPL");

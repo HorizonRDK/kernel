@@ -86,7 +86,7 @@ int ldc_status_check(void)
 }
 EXPORT_SYMBOL(ldc_status_check);
 
-void update_ldc_param(void)
+static void update_ldc_param(void)
 {
 	//set param when next port is setting
 	if ((dwe_ctx->ctx.ldc_next_port >= 0) && (dwe_ctx->ctx.ldc_next_port < 0xff)) {
@@ -795,7 +795,7 @@ void __exit acamera_soc_dwe_exit(void)
 	LOG(LOG_DEBUG, "[KeyMsg] dwe subdevice exit done");
 }
 
-module_init(acamera_soc_dwe_init);
+late_initcall(acamera_soc_dwe_init);
 module_exit(acamera_soc_dwe_exit);
 
 MODULE_AUTHOR("IE&E");

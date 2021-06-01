@@ -3901,7 +3901,7 @@ static int __init x3_sif_init(void)
 	return ret;
 }
 
-late_initcall(x3_sif_init);
+module_init(x3_sif_init);
 
 static void __exit x3_sif_exit(void)
 {

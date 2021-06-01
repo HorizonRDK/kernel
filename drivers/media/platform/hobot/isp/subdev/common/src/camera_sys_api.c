@@ -671,7 +671,7 @@ void camera_common_alloc_lut_dgain(uint32_t port, uint32_t *d_gain)
 	*d_gain = camera_sys_sensor_gain_alloc(port, *d_gain, 2);
 }
 
-struct sensor_ctrl_ops sensor_ops[] = {
+static struct sensor_ctrl_ops sensor_ops[] = {
 	{
 		.ctrl_name = "imx327",
 		.camera_gain_control = camera_sys_imxsensor_turning_control,

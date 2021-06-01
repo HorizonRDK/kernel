@@ -244,7 +244,7 @@ void __exit acamera_soc_lens_exit( void )
 }
 
 
-module_init( acamera_soc_lens_init );
+late_initcall(acamera_soc_lens_init);
 module_exit( acamera_soc_lens_exit );
 MODULE_LICENSE( "GPL v2" );
 MODULE_AUTHOR( "ARM IVG AC" );

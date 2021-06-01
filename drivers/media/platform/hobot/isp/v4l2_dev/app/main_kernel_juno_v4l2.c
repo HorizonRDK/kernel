@@ -538,7 +538,7 @@ static void __exit fw_module_exit( void )
     pr_info("ISP module exit done.\n");
 }
 
-module_init( fw_module_init );
+late_initcall(fw_module_init);
 module_exit( fw_module_exit );
 MODULE_LICENSE( "GPL v2" );
 MODULE_AUTHOR( "ARM IVG AC" );

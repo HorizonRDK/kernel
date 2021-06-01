@@ -1170,7 +1170,7 @@ void __exit iar_cdev_exit(void)
 	}
 }
 
-module_init(iar_cdev_init);
+late_initcall(iar_cdev_init);
 module_exit(iar_cdev_exit);
 
 MODULE_LICENSE("GPL");

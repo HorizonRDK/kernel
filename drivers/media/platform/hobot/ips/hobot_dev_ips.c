@@ -660,7 +660,7 @@ static int __init x3_ips_init(void)
 	return ret;
 }
 
-late_initcall(x3_ips_init);
+module_init(x3_ips_init);
 
 static void __exit x3_ips_exit(void)
 {

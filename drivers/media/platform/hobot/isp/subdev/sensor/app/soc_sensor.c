@@ -395,7 +395,7 @@ void __exit acamera_camera_sensor_exit( void )
 }
 
 
-module_init( acamera_camera_sensor_init );
+late_initcall(acamera_camera_sensor_init);
 module_exit( acamera_camera_sensor_exit );
 MODULE_LICENSE( "GPL v2" );
 MODULE_AUTHOR( "ARM IVG AC" );

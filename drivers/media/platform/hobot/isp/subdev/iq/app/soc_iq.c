@@ -251,7 +251,7 @@ void __exit acamera_iq_iq_exit( void )
 module_param( otp_enable, int, 0000 );
 MODULE_PARM_DESC( otp_enable, "Use OTP memory for calibrations" );
 
-module_init( acamera_iq_iq_init );
+late_initcall(acamera_iq_iq_init);
 module_exit( acamera_iq_iq_exit );
 MODULE_LICENSE( "GPL v2" );
 MODULE_AUTHOR( "ARM IVG AC" );

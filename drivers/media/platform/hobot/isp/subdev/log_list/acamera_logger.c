@@ -272,7 +272,7 @@ void __exit acamera_loglist_exit( void )
 }
 
 
-module_init( acamera_loglist_init );
+late_initcall(acamera_loglist_init);
 module_exit( acamera_loglist_exit );
 MODULE_LICENSE( "GPL v2" );
 MODULE_AUTHOR( "ARM IVG AC" );

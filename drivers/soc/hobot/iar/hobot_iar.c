@@ -4795,5 +4795,21 @@ static struct platform_driver hobot_iar_driver = {
 	},
 };
 
-module_platform_driver(hobot_iar_driver);
+static int __init x3_iar_init(void)
+{
+    int ret = platform_driver_register(&hobot_iar_driver);
+    if (ret)
+        vio_err("platform_driver_register failed: %d\n", ret);
+
+    return ret;
+}
+
+late_initcall(x3_iar_init);
+
+static void __exit x3_iar_exit(void)
+{
+    platform_driver_unregister(&hobot_iar_driver);
+}
+
+module_exit(x3_iar_exit);
 MODULE_LICENSE("GPL");

@@ -868,7 +868,7 @@ static void __exit hdmi_sii_exit(void)
 	pr_info("Module is leaving..\n");
 }
 
-module_init(hdmi_sii_init);
+late_initcall(hdmi_sii_init);
 module_exit(hdmi_sii_exit);
 MODULE_LICENSE("GPL v2");
 //MODULE_VERSION("1.4");

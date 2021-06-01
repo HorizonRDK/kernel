@@ -68,7 +68,7 @@ typedef struct _sensor_context_t {
 } sensor_context_t;
 
 static sensor_context_t s_ctx[FIRMWARE_CONTEXT_NUMBER];
-struct sensor_operations *sensor_ops[FIRMWARE_CONTEXT_NUMBER];
+static struct sensor_operations *sensor_ops[FIRMWARE_CONTEXT_NUMBER];
 struct sensor_priv_old sensor_data[FIRMWARE_CONTEXT_NUMBER];
 
 //--------------------RESET------------------------------------------------------------
