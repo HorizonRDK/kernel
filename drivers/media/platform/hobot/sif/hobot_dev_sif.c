@@ -38,7 +38,7 @@
 extern struct vio_frame_id  sif_frame_info[VIO_MAX_STREAM];
 
 char sif_node_name[MAX_DEVICE][8] = {"capture", "ddrin"};
-static int mismatch_limit = 1;
+static int mismatch_limit = 10;
 module_param(mismatch_limit, int, 0644);
 int testpattern_fps = 30;
 module_param(testpattern_fps, int, 0644);
@@ -1010,6 +1010,7 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 			clear_bit(subdev->ddr_mux_index, &sif->state);
 			temp_flow = 0;
 			subdev->overflow = 0;
+			atomic_set(&subdev->diag_state, 0);
 			if (subdev->dol_num > 1)
 				clear_bit(SIF_DOL2_MODE + subdev->mux_index + 1, &sif->state);
 			if (subdev->dol_num > 2)
@@ -2523,11 +2524,13 @@ void sif_frame_done(struct sif_subdev *subdev) {
 }
 
 #ifdef CONFIG_HOBOT_DIAG
-static void sif_diag_report(uint8_t errsta, unsigned int status)
+static void sif_diag_report(uint8_t errsta, unsigned int status,
+	uint32_t instance)
 {
-	unsigned int sta;
+	uint32_t env_data[2];
+	env_data[0] = status;
+	env_data[1] = instance;
 
-	sta = status;
 	if (errsta) {
 		diag_send_event_stat_and_env_data(
 				DiagMsgPrioHigh,
@@ -2535,8 +2538,18 @@ static void sif_diag_report(uint8_t errsta, unsigned int status)
 				EventIdVioSifErr,
 				DiagEventStaFail,
 				DiagGenEnvdataWhenErr,
-				(uint8_t *)&sta,
-				sizeof(unsigned int));
+				(uint8_t *)&env_data,
+				sizeof(uint32_t) * 2);
+	} else {
+		diag_send_event_stat_and_env_data(
+				DiagMsgPrioMid,
+				ModuleDiag_VIO,
+				EventIdVioSifErr,
+				DiagEventStaSuccess,
+				DiagGenEnvdataWhenErr,
+				(uint8_t *)&env_data,
+				sizeof(uint32_t) * 2);
+
 	}
 }
 #endif
@@ -2586,6 +2599,81 @@ static void subdev_set_frm_owner(struct sif_subdev *subdev,
 	return;
 }
 
+u32 sif_find_overflow_instance(uint32_t mux_index,
+	struct sif_subdev *subdev, u32 of_value)
+{
+	if(subdev->dol_num > 1) {
+		if ((BIT2CHN(of_value, mux_index)) ||
+				(BIT2CHN(of_value, subdev->mux_index1)))
+				subdev->overflow = ((0x1 << mux_index) | (0x1 << subdev->mux_index1));
+	} else if (subdev->dol_num > 2) {
+		if ((BIT2CHN(of_value, mux_index)) ||
+			(BIT2CHN(of_value, subdev->mux_index1)) ||
+			(BIT2CHN(of_value, subdev->mux_index2)))
+			subdev->overflow = ((0x1 << mux_index) | (0x1 << subdev->mux_index1) |
+				(0x1 << subdev->mux_index2));
+	} else if (subdev->format == HW_FORMAT_YUV422) {
+		if ((BIT2CHN(of_value, mux_index)) ||
+			(BIT2CHN(of_value, subdev->mux_index1)))
+			subdev->overflow = ((0x1 << mux_index) | (0x1 << subdev->mux_index1));
+	} else if (subdev->splice_info.splice_enable) {
+		if ((BIT2CHN(of_value, mux_index)) ||
+			(BIT2CHN(of_value, subdev->mux_index1)))
+			subdev->overflow = ((0x1 << mux_index) | (0x1 << subdev->mux_index1));
+	} else {
+		if (BIT2CHN(of_value, mux_index)) {
+			vio_err("overflow FE mux_index %d\n", mux_index);
+			subdev->overflow = (0x1 << mux_index);
+		}
+	}
+	return subdev->overflow;
+}
+
+void sif_overflow_diag_report(struct x3_sif_dev *sif, uint32_t mux_index,
+	u32 of_value, u32 sif_frm_int)
+{
+	struct sif_subdev *subdev;
+	struct vio_group *group;
+
+	group = sif->sif_mux[mux_index];
+	if(group == NULL)
+		return;
+	subdev = group->sub_ctx[0];
+	subdev->overflow = sif_find_overflow_instance(mux_index, subdev, of_value);
+	if(subdev->overflow != 0) {
+		atomic_set(&subdev->diag_state, 1);
+		sif_diag_report(1, sif_frm_int, subdev->group->instance);
+	} else {
+		if (atomic_read(&subdev->diag_state) == 1) {
+			atomic_set(&subdev->diag_state, 0);
+			sif_diag_report(0, sif_frm_int, subdev->group->instance);
+		}
+	}
+	return;
+}
+
+void sif_mismatch_diag_report(struct x3_sif_dev *sif, uint32_t mux_index,
+	u32 err_status, u32 sif_frm_int)
+{
+	struct sif_subdev *subdev;
+	struct vio_group *group;
+
+	group = sif->sif_mux[mux_index];
+	if(group == NULL)
+		return;
+	subdev = group->sub_ctx[0];
+	if ((err_status & 1 << subdev->ipi_index) ||
+		(err_status & 1 << (subdev->ipi_index + 16))) {
+		atomic_set(&subdev->diag_state, 1);
+		sif_diag_report(1, sif_frm_int, subdev->group->instance);
+	} else {
+		if (atomic_read(&subdev->diag_state) == 1) {
+			atomic_set(&subdev->diag_state, 0);
+			sif_diag_report(0, sif_frm_int, subdev->group->instance);
+		}
+	}
+	return;
+}
 static irqreturn_t sif_isr(int irq, void *data)
 {
 	int ret = 0, i;
@@ -2620,38 +2708,27 @@ static irqreturn_t sif_isr(int irq, void *data)
 			sif_statics_err_overflow_clr(sif->base_reg);
 			vio_err("input buffer overflow(0x%x) temp_flow 0x%x \n",
 				irq_src.sif_in_buf_overflow, temp_flow);
+#ifdef CONFIG_HOBOT_DIAG
+			for (mux_index = 0; mux_index < SIF_MUX_MAX; mux_index++) {
+				sif_overflow_diag_report(sif, mux_index,
+					temp_flow, irq_src.sif_frm_int);
+			}
+		} else {
+			for (mux_index = 0; mux_index < SIF_MUX_MAX; mux_index++) {
+				sif_overflow_diag_report(sif, mux_index,
+					temp_flow, irq_src.sif_frm_int);
+			}
+#endif
 		}
-		for (mux_index = 0; mux_index <= 7; mux_index++) {
+		for (mux_index = 0; mux_index < SIF_MUX_MAX; mux_index++) {
 			if (test_bit(mux_index + SIF_DOL2_MODE, &sif->state))
 				continue;
 
 			if (status & 1 << (mux_index + INTR_SIF_MUX0_FRAME_DONE)) {
 				group = sif->sif_mux[mux_index];
 				subdev = group->sub_ctx[0];
-				if(subdev->dol_num > 1) {
-					if ((BIT2CHN(temp_flow, mux_index)) ||
-						(BIT2CHN(temp_flow, subdev->mux_index1)))
-						subdev->overflow = ((0x1 << mux_index) | (0x1 << subdev->mux_index1));
-				} else if (subdev->dol_num > 2) {
-					if ((BIT2CHN(temp_flow, mux_index)) ||
-						(BIT2CHN(temp_flow, subdev->mux_index1)) ||
-						(BIT2CHN(temp_flow, subdev->mux_index2)))
-						subdev->overflow = ((0x1 << mux_index) | (0x1 << subdev->mux_index1) |
-							(0x1 << subdev->mux_index2));
-				} else if (subdev->format == HW_FORMAT_YUV422) {
-					if ((BIT2CHN(temp_flow, mux_index)) ||
-						(BIT2CHN(temp_flow, subdev->mux_index1)))
-						subdev->overflow = ((0x1 << mux_index) | (0x1 << subdev->mux_index1));
-				} else if (subdev->splice_info.splice_enable) {
-					if ((BIT2CHN(temp_flow, mux_index)) ||
-						(BIT2CHN(temp_flow, subdev->mux_index1)))
-						subdev->overflow = ((0x1 << mux_index) | (0x1 << subdev->mux_index1));
-				} else {
-					if (BIT2CHN(temp_flow, mux_index)) {
-						vio_err("overflow FE mux_index %d\n", mux_index);
-						subdev->overflow = (0x1 << mux_index);
-					}
-				}
+				subdev->overflow = sif_find_overflow_instance(mux_index,
+					subdev, temp_flow);
 				temp_flow &= ~(subdev->overflow);
 				if (subdev->splice_info.splice_enable) {
 					if (test_bit(mux_index + SIF_SPLICE_OP, &sif->state)) {
@@ -2795,6 +2872,17 @@ static irqreturn_t sif_isr(int irq, void *data)
 		err_occured = 1;
 		instance = atomic_read(&sif->instance);
 		sif->statistic.hard_mismatch[instance]++;
+#ifdef CONFIG_HOBOT_DIAG
+		for (mux_index = 0; mux_index < SIF_MUX_MAX; mux_index++) {
+			sif_mismatch_diag_report(sif, mux_index,
+				irq_src.sif_err_status, irq_src.sif_frm_int);
+		}
+	} else {
+		for (mux_index = 0; mux_index < SIF_MUX_MAX; mux_index++) {
+			sif_mismatch_diag_report(sif, mux_index,
+				irq_src.sif_err_status, irq_src.sif_frm_int);
+		}
+#endif
 	}
 
 	if (irq_src.sif_frm_int & 1 << INTR_SIF_OUT_BUF_ERROR) {
@@ -2803,15 +2891,16 @@ static irqreturn_t sif_isr(int irq, void *data)
 		err_occured = 1;
 		instance = atomic_read(&sif->instance);
 		sif->statistic.hard_buf_err[instance]++;
+#ifdef CONFIG_HOBOT_DIAG
+		sif_diag_report(err_occured, irq_src.sif_frm_int,
+				atomic_read(&sif->instance));
+#endif
 	}
 
 	if (sif->error_count >= SIF_ERR_COUNT) {
 		// sif_hw_dump(sif->base_reg);
 		sif->error_count = 0;
 	}
-#ifdef CONFIG_HOBOT_DIAG
-	sif_diag_report(err_occured, irq_src.sif_frm_int);
-#endif
 	return IRQ_HANDLED;
 }
 

@@ -1654,7 +1654,7 @@ void sif_print_rx_status(u32 __iomem *base_reg, u32 err_status)
 	int i = 0;
 	int value = 0;
 
-	for (i = 0; i < 13; i++) {
+	for (i = 0; i < SIF_IPI_MAX; i++) {
 		if ((err_status & 1 << i) || (err_status & 1 << (i + 16))) {
 			value = vio_hw_get_reg(base_reg, &sif_regs[SIF_MIPI_RX_STATUS0 + i]);
 			vio_err("ipi%d rx status = 0x%x\n", i, value);

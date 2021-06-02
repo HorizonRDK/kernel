@@ -261,6 +261,9 @@ struct sif_subdev {
 	u32 id;
 	struct splice_info  splice_info;
 	fps_ctrl_t fps_ctrl;
+#ifdef CONFIG_HOBOT_DIAG
+	atomic_t diag_state;
+#endif
 };
 
 #define SEQ_KTHREAD_STOP  (1 << VIO_MAX_STREAM)

@@ -10,6 +10,8 @@
 #include "vio_hw_common_api.h"
 #include "hobot_dev_sif.h"
 
+#define SIF_IPI_MAX	13
+
 enum sif_reg {
 	SIF_SETTING,
 	SIF_SHD_UP_SEL,
