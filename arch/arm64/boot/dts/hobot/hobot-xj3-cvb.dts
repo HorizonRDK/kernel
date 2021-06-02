@@ -85,12 +85,6 @@
 		opp-microvolt = <800730>;
 		clock-latency-ns = <500000>;
 	};
-	opp04 {
-		opp-hz = /bits/ 64 <1500000000>;
-		opp-microvolt = <1003842>;
-		clock-latency-ns = <500000>;
-		turbo-mode;
-	};
 };
 
 &cnn_opp_table {
