@@ -165,6 +165,8 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 
 		if (i2s->i2sdsp == 0) {	/* i2s mode */
 			lrck_div = i2s->wordlength * i2s->channel_num;
+			if (lrck_div < 32)
+				lrck_div = 32;
 			if (i2s->samplerate == 32000)
 				bclk_div = 6;
 			ws_h = ws_l = (lrck_div / 2) - 1;
@@ -209,6 +211,8 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 
 		if (i2s->i2sdsp == 0) {	/* i2s mode */
 			lrck_div = i2s->wordlength * i2s->channel_num;
+			if (lrck_div < 32)
+				lrck_div = 32;
 			if (i2s->samplerate == 32000)
 				bclk_div = 6;
 			ws_h = ws_l = (lrck_div / 2) - 1;

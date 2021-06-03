@@ -1087,6 +1087,8 @@ int ac101_hw_params(struct snd_pcm_substream *substream,
 
 	/* set LRCK/BCLK ratio */
 	aif1_lrck_div = aif1_slot_size * channels;
+	if (aif1_lrck_div < 32)
+		aif1_lrck_div = 32;
 	#if 0
 	switch(params_rate(params)) {
 	case 16000:
