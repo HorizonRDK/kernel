@@ -2337,6 +2337,7 @@ static int ipu_flush_mp_prepare(struct ipu_video_ctx *ipu_ctx)
 		this->index_state[i] = FRAME_IND_STREAMOFF;
 	}
 	this->ctx_mask &= ~(1 << proc_id);
+	subdev->poll_mask &= ~(1 << proc_id);
 	/* clear the frame mask bit of this ctx*/
 	for (i = 0; i < VIO_MP_MAX_FRAMES; i++) {
 		if ((this->index_state[i] != FRAME_IND_USING)
@@ -2379,22 +2380,10 @@ static int ipu_flush_mp_prepare(struct ipu_video_ctx *ipu_ctx)
 
 static int ipu_wake_up_poll(struct ipu_video_ctx *ipu_ctx)
 {
-	int i;
-	unsigned long flags;
-	struct ipu_subdev *subdev;
-
-	subdev = ipu_ctx->subdev;
-	spin_lock_irqsave(&subdev->slock, flags);
-	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
-		if (test_bit(i, &subdev->val_ctx_mask)) {
-			ipu_ctx = subdev->ctx[i];
-			if (ipu_ctx) {
-				ipu_ctx->event = VIO_FRAME_DONE;
-				wake_up(&ipu_ctx->done_wq);
-			}
-		}
+	if (ipu_ctx) {
+		ipu_ctx->event = VIO_FRAME_DONE;
+		wake_up(&ipu_ctx->done_wq);
 	}
-	spin_unlock_irqrestore(&subdev->slock, flags);
 	return 0;
 }
 
@@ -2630,10 +2619,12 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 				frame->frameinfo.addr[0],
 				frame->frameinfo.addr[1]);
 		} else {
-			vio_dbg("[S%d][V%d] q:USED->REQ,proc%d bidx%d,disp_mask0x%x,(%d %d %d %d %d)",
+			vio_dbg("[S%d][V%d] q:USED->REQ,proc%d bidx%d,"
+				"disp_mask0x%x, poll_mask0x%x,(%d %d %d %d %d)",
 				group->instance, ipu_ctx->id,
 				ipu_ctx->ctx_index, index,
 				frame->dispatch_mask,
+				frame->poll_mask,
 				framemgr->queued_count[FS_FREE],
 				framemgr->queued_count[FS_REQUEST],
 				framemgr->queued_count[FS_PROCESS],
@@ -3204,7 +3195,6 @@ int ipu_init_end(struct ipu_video_ctx *ipu_ctx, int instance)
 {
 	int ret = 0;
 	int id = 0;
-	struct vio_group *group;
 	struct x3_ipu_dev *ipu;
 	struct ipu_subdev *subdev;
 	int i;
