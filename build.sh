@@ -32,6 +32,9 @@ function choose()
 
 function make_recovery_img()
 {
+    if [ -f "${BUILD_OUTPUT_PATH}/vmlinux" ];then
+        mv "${BUILD_OUTPUT_PATH}/vmlinux" "${BUILD_OUTPUT_PATH}/vmlinux_ori"
+    fi
     prefix=$TARGET_KERNEL_DIR
     mkdir -p ${BUILD_OUTPUT_PATH}/usr/prerootfs/
 
@@ -48,6 +51,10 @@ function make_recovery_img()
     # put binaries to dest directory
     runcmd "mkdir -p ${prefix}"
     runcmd "cp ${BUILD_OUTPUT_PATH}/arch/$ARCH_KERNEL/boot/Image.gz $prefix/recovery.gz"
+    if [ -f "${BUILD_OUTPUT_PATH}/vmlinux_ori" ];then
+        mv "${BUILD_OUTPUT_PATH}/vmlinux" "${BUILD_OUTPUT_PATH}/vmlinux_recovery"
+        mv "${BUILD_OUTPUT_PATH}/vmlinux_ori" "${BUILD_OUTPUT_PATH}/vmlinux"
+    fi
 }
 
 function build_dtbmapping()
