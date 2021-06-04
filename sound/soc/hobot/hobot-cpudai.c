@@ -193,8 +193,22 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 			ws_h = 0;
 			ws_l = i2s->slot_width - 2;
 			i2s->clk = i2s->samplerate * i2s->slot_width;
+			switch (i2s->samplerate) {
+			case 44100:
+			case 22050:
+				i2s->mclk_set = 11289600;
+				break;
+			case 8000:
+				i2s->mclk_set = 4096000;
+				break;
+			default:
+				i2s->mclk_set = 12288000;
+				break;
+			}
 			spin_unlock_irqrestore(&i2s->lock, flags);
 			if (i2s->ms == 1) {
+				ret = change_clk(i2s->dev, "i2s-bclk",
+					i2s->mclk_set);
 				ret = change_clk(i2s->dev, "i2s-bclk",
 					i2s->clk);
 				if (ret < 0) {

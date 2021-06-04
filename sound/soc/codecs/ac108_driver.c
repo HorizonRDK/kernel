@@ -1155,6 +1155,8 @@ static int ac108_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 static int ac108_hw_params(struct snd_pcm_substream *substream, struct snd_pcm_hw_params *params, struct snd_soc_dai *dai)
 {
 	u16 i, channels, channels_en, sample_resolution;
+	unsigned int mclk;
+	unsigned int freq_out;
 
 	AC108_DEBUG("\n--->%s\n",__FUNCTION__);
 
@@ -1238,6 +1240,23 @@ static int ac108_hw_params(struct snd_pcm_substream *substream, struct snd_pcm_h
 	//AC108 TX enable, Globle enable
 	ac108_multi_chips_update_bits(I2S_CTRL, 0x1<<TXEN | 0x1<<GEN, 0x1<<TXEN | 0x1<<GEN);
 
+	switch (params_rate(params)) {
+	case 44100:
+	case 22050:
+		mclk = 11289600;
+		freq_out = 22579200;
+		break;
+	case 8000:
+		mclk = 4096000;
+		freq_out = 24576000;
+		break;
+	default:
+		mclk = 12288000;
+		freq_out = 24576000;
+		break;
+	}
+	ac108_set_pll(dai, 0, 0, mclk, freq_out);
+
 	return 0;
 }
 
@@ -1286,7 +1305,7 @@ static int ac108_hw_free(struct snd_pcm_substream *substream, struct snd_soc_dai
 
 	//AC108_DEBUG("AC108 reset all register to their default value\n\n");
 	//if config TX Encoding mode, also disable BCLK
-	//ac108_multi_chips_reset(CHIP_AUDIO_RST, 0x12);
+	ac108_multi_chips_reset(CHIP_AUDIO_RST, 0x12);
 #endif
 
 	return 0;
