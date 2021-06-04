@@ -237,17 +237,15 @@ void sif_set_bypass_cfg(u32 __iomem *base_reg, sif_input_bypass_t *cfg)
 }
 
 extern int testpattern_fps;
+
 /*
- * Config Pattern Gen Engine
+ * Config Pattern config framerate
  *
  * @param pat_index 0:DVP, 1:IPI0, 2:IPI1, 3:IPI2, 4:IPI3
  */
-void sif_set_pattern_gen(u32 __iomem *base_reg, u32 pat_index,
-				sif_data_desc_t* p_data, u32 framerate)
+void sif_set_pattern_config_framerate(u32 __iomem *base_reg,
+				u32 pat_index, sif_data_desc_t* p_data, u32 framerate)
 {
-	const u32 padding = 1;
-	u32 is_raw = (p_data->format == 0);
-	u32 y, cb, cr;
 	u32 h_time;
 	u32 v_line;
 	const u32 clk_hz = vio_get_clk_rate("sif_mclk");
@@ -267,22 +265,34 @@ void sif_set_pattern_gen(u32 __iomem *base_reg, u32 pat_index,
 	}
 	if (h_time <= p_data->width) {
 		vio_err("wrong fps%d, h_time(%d) <= width(%d), force set h_time\n",
-				framerate, h_time, p_data->width);
+			framerate, h_time, p_data->width);
 		h_time = 4096;
 	}
-
-	y = 128;
-	cr = 160;
-	cb = 192;
-
-	if (v_line < p_data->height)
-		vio_err("Wrong argument: v_line:%d height%d", v_line, p_data->height);
 
 	vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN0_SIZE + pat_index * 6],
 			&sif_fields[SW_PAT_GEN0_HLINE_TIME + pat_index * 10], h_time);
 
 	vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN0_SIZE + pat_index * 6],
 			&sif_fields[SW_PAT_GEN0_VTOTAL_LINE + pat_index * 10], v_line);
+}
+
+/*
+ * Config Pattern Gen Engine
+ *
+ * @param pat_index 0:DVP, 1:IPI0, 2:IPI1, 3:IPI2, 4:IPI3
+ */
+static void sif_set_pattern_gen(u32 __iomem *base_reg, u32 pat_index,
+				sif_data_desc_t* p_data, u32 framerate)
+{
+	const u32 padding = 1;
+	u32 is_raw = (p_data->format == 0);
+	u32 y, cb, cr;
+
+	y = 128;
+	cr = 160;
+	cb = 192;
+
+	sif_set_pattern_config_framerate(base_reg, pat_index, p_data, framerate);
 
 	vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN0_IMG + pat_index * 6],
 			&sif_fields[SW_PAT_GEN0_HACTIVE_PIX + pat_index * 10],

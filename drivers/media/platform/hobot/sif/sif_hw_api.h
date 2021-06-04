@@ -52,8 +52,8 @@ void sif_enable_init_frameid(u32 __iomem *base_reg, u32 index, bool enable);
 void sif_print_rx_status(u32 __iomem *base_reg, u32 err_status);
 void sif_print_buffer_status(u32 __iomem *base_reg);
 void sif_set_md_output(u32 __iomem *base_reg, sif_output_md_t *p_md);
-void sif_set_pattern_gen(u32 __iomem *base_reg, u32 pat_index,
-				sif_data_desc_t* p_data, u32 framerate);
+void sif_set_pattern_config_framerate(u32 __iomem *base_reg,
+				u32 pat_index, sif_data_desc_t* p_data, u32 framerate);
 void sif_set_bypass_cfg(u32 __iomem *base_reg, sif_input_bypass_t *cfg);
 void sif_enable_frame_intr(void __iomem *base_reg, u32 mux_index,
 				bool enable);

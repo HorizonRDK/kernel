@@ -1670,8 +1670,6 @@ int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 		return ret;
 	}
 	sif_dev = sif_ctx->sif_dev;
-	sif_start_pattern_gen(sif_dev->base_reg, 0);
-
 	p_mipi = &subdev->sif_cfg.input.mipi;
 	ipi_mode = p_mipi->ipi_mode;
 
@@ -1706,6 +1704,14 @@ int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 			vio_set_sif_exit_flag(0);
 		}
 	}
+
+	/* start the stream, when the last pipe stream on */
+	if (atomic_read(&sif_dev->rsccount) + 1 == atomic_read(&sif_dev->open_cnt)) {
+		vio_info("sif_start_pattern_gen: open stream instances: %d, open_cnt: %d\n",
+			atomic_read(&sif_dev->rsccount) + 1, atomic_read(&sif_dev->open_cnt));
+		sif_start_pattern_gen(sif_dev->base_reg, 0);
+	}
+
 	if (atomic_read(&sif_dev->rsccount) > 0) {
 		goto p_inc;
 	}
@@ -2113,8 +2119,8 @@ int sif_set_pattern_cfg(struct sif_video_ctx *sif_ctx, unsigned long arg)
 	sif = sif_ctx->sif_dev;
 	subdev = &sif->sif_mux_subdev[cfg.instance];
 
-	sif_set_pattern_gen(sif->base_reg, subdev->vc_index + 1, &subdev->fmt,
-				cfg.framerate);
+	sif_set_pattern_config_framerate(sif->base_reg, subdev->vc_index + 1,
+						&subdev->fmt, cfg.framerate);
 
 	vio_info("[%d]%s: frame_rate %d\n", cfg.instance, __func__, cfg.framerate);
 	return ret;
