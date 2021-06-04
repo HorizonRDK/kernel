@@ -3851,6 +3851,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	u32 size_err = 0;
 	u32 err_status = 0;
 	u32 err_occured = 0;
+	u32 enable_flag_set = 0;
 	struct x3_ipu_dev *ipu;
 	struct vio_group *group;
 	struct vio_group_task *gtask;
@@ -3878,6 +3879,26 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		vio_dbg("IPU size error detection(0x%x)\n", size_err);
 		vio_dbg("IPU size error status(0x%x)\n", err_status);
 		err_occured = 1;
+	}
+
+	/*
+	 * in some abnormal scene, FS & FE maybe occurs at same time
+	 * cur_enable_flag set in FS hanle behind FE handle, it will lost wakeup
+	 * so check if abnormal happens, set cur_enable_flag in advance
+	 */
+	if (status & (1 << INTR_IPU_FRAME_START) &&
+			status & (1 << INTR_IPU_DS2_FRAME_DONE)) {
+		vio_err("FS and FE occur at same time\n");
+		if (test_bit(VIO_GROUP_IPU_DS2_DMA_OUTPUT, &group->state)) {
+			subdev = group->sub_ctx[GROUP_ID_DS2];
+			if (subdev) {
+				subdev->cur_enable_flag = atomic_read(&subdev->pre_enable_flag);
+				atomic_set(&subdev->pre_enable_flag, 0);
+				vio_dbg("[S%d]FS subdev->cur_enable_flag %d\n", instance,
+						subdev->cur_enable_flag);
+				enable_flag_set = 1;
+			}
+		}
 	}
 
 	if (status & (1 << INTR_IPU_US_FRAME_DROP)) {
@@ -4117,13 +4138,15 @@ static irqreturn_t ipu_isr(int irq, void *data)
 			ipu_set_all_lost_next_frame_flags(group);
 		}
 
-		if (test_bit(VIO_GROUP_IPU_DS2_DMA_OUTPUT, &group->state)) {
+		if (test_bit(VIO_GROUP_IPU_DS2_DMA_OUTPUT, &group->state) &&
+				!enable_flag_set) {
 			subdev = group->sub_ctx[GROUP_ID_DS2];
 			if (subdev) {
 				subdev->cur_enable_flag = atomic_read(&subdev->pre_enable_flag);
 				atomic_set(&subdev->pre_enable_flag, 0);
 				vio_dbg("[S%d]FS subdev->cur_enable_flag %d\n", instance,
 											subdev->cur_enable_flag);
+				enable_flag_set = 1;
 			}
 		}
 
