@@ -77,7 +77,7 @@ struct hobot_wdt {
 	struct notifier_block panic_blk;
 
 	struct task_struct *watchdog_thread;
-	struct timer_list pet_timer;
+	struct hrtimer pet_timer;
 	wait_queue_head_t  pet_wait;
 	bool timer_expired;
 	u64 thread_wakeup_time;
@@ -196,7 +196,7 @@ static int hobot_wdt_stop(struct watchdog_device *wdd)
 
 	pr_debug("\n");
 	if (!kthread_disabled)
-		del_timer(&hbwdt->pet_timer);
+		hrtimer_cancel(&hbwdt->pet_timer);
 
 	spin_lock(&hbwdt->io_lock);
 
@@ -279,8 +279,11 @@ static int hobot_wdt_start(struct watchdog_device *wdd)
 	hbwdt->enabled = true;
 	spin_unlock(&hbwdt->io_lock);
 
-	if (!kthread_disabled && !timer_pending(&hbwdt->pet_timer))
-		add_timer(&hbwdt->pet_timer);
+	if (!kthread_disabled && !hrtimer_active(&hbwdt->pet_timer)) {
+		hobot_wdt_reload(&hbwdt->hobot_wdd);
+		hrtimer_start(&hbwdt->pet_timer,
+			ms_to_ktime(hbwdt->pet_time * 1000), HRTIMER_MODE_REL);
+	}
 
 	return 0;
 }
@@ -463,15 +466,18 @@ static void pet_watchdog(struct hobot_wdt *hbwdt)
 /*
  * This timer handler wakes up thread, then thread pet the watchdog
  */
-static void pet_timer_wakeup(unsigned long data)
+static enum hrtimer_restart pet_timer_wakeup(struct hrtimer *hrt)
 {
-	struct hobot_wdt *hbwdt = (struct hobot_wdt *)data;
+	struct hobot_wdt *hbwdt =
+		container_of(hrt, struct hobot_wdt, pet_timer);
 
 	pr_debug("\n");
 
 	hbwdt->timer_expired = true;
 	hbwdt->last_pet = sched_clock();
 	wake_up(&hbwdt->pet_wait);
+
+	return HRTIMER_NORESTART;
 }
 
 static void ipi_report_alive(void *data)
@@ -500,7 +506,6 @@ static void hobot_wdt_ipi_ping(struct hobot_wdt *hbwdt)
 static __ref int watchdog_kthread(void *arg)
 {
 	struct hobot_wdt *hbwdt = (struct hobot_wdt *)arg;
-	unsigned long expired_time = 0;
 	struct sched_param param = {.sched_priority = MAX_RT_PRIO-1};
 	int ret;
 
@@ -521,9 +526,9 @@ static __ref int watchdog_kthread(void *arg)
 		hbwdt->timer_expired = false;
 
 		if (hbwdt->enabled) {
-			expired_time = msecs_to_jiffies(hbwdt->pet_time * 1000);
 			pet_watchdog(hbwdt);
-			mod_timer(&hbwdt->pet_timer, jiffies + expired_time);
+			hrtimer_start(&hbwdt->pet_timer,
+				ms_to_ktime(hbwdt->pet_time * 1000), HRTIMER_MODE_REL);
 		}
 	}
 
@@ -688,10 +693,11 @@ static int hobot_wdt_probe(struct platform_device *pdev)
 
 
 	wake_up_process(hbwdt->watchdog_thread);
-	init_timer(&hbwdt->pet_timer);
-	hbwdt->pet_timer.data = (unsigned long)hbwdt;
+
+	hrtimer_init(&hbwdt->pet_timer, CLOCK_MONOTONIC,
+				HRTIMER_MODE_REL_PINNED_HARD);
 	hbwdt->pet_timer.function = pet_timer_wakeup;
-	hbwdt->pet_timer.expires = jiffies + expired_time;
+	hrtimer_cancel(&hbwdt->pet_timer);
 
 	if (!kthread_disabled) {
 		hobot_wdt_start(&hbwdt->hobot_wdd);
