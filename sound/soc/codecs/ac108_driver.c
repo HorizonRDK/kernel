@@ -71,6 +71,9 @@ static int AC108_LRCK_PERIOD;
 #define AC108_RATES 			(SNDRV_PCM_RATE_8000_96000 | SNDRV_PCM_RATE_KNOT)
 #define AC108_FORMATS			(SNDRV_PCM_FMTBIT_S8 | SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S20_3LE | SNDRV_PCM_FMTBIT_S24_LE | SNDRV_PCM_FMTBIT_S32_LE)
 
+static int pll = 0;
+module_param(pll, uint, S_IRUGO);
+MODULE_PARM_DESC(pll, "set pll or not");
 
 struct i2c_client *i2c_driver_clt[(AC108_CHANNELS_MAX+3)/4];
 int	regulator_driver_en;
@@ -1240,22 +1243,24 @@ static int ac108_hw_params(struct snd_pcm_substream *substream, struct snd_pcm_h
 	//AC108 TX enable, Globle enable
 	ac108_multi_chips_update_bits(I2S_CTRL, 0x1<<TXEN | 0x1<<GEN, 0x1<<TXEN | 0x1<<GEN);
 
-	switch (params_rate(params)) {
-	case 44100:
-	case 22050:
-		mclk = 11289600;
-		freq_out = 22579200;
-		break;
-	case 8000:
-		mclk = 4096000;
-		freq_out = 24576000;
-		break;
-	default:
-		mclk = 12288000;
-		freq_out = 24576000;
-		break;
+	if (pll) {
+		switch (params_rate(params)) {
+		case 44100:
+		case 22050:
+			mclk = 11289600;
+			freq_out = 22579200;
+			break;
+		case 8000:
+			mclk = 4096000;
+			freq_out = 24576000;
+			break;
+		default:
+			mclk = 12288000;
+			freq_out = 24576000;
+			break;
+		}
+		ac108_set_pll(dai, 0, 0, mclk, freq_out);
 	}
-	ac108_set_pll(dai, 0, 0, mclk, freq_out);
 
 	return 0;
 }
