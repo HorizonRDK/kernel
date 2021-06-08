@@ -7,7 +7,6 @@ obj-$(CONFIG_HOBOT_COMMON_CLK)		+= divider.o
 obj-$(CONFIG_HOBOT_COMMON_CLK)		+= gate.o
 obj-$(CONFIG_HOBOT_COMMON_CLK)		+= fixed-factor.o
 obj-$(CONFIG_HOBOT_COMMON_CLK)		+= gpio.o
-obj-$(CONFIG_HOBOT_COMMON_CLK)		+= clk-suspend.o
 obj-$(CONFIG_HOBOT_COMMON_CLK)		+= div-comm.o
 obj-$(CONFIG_HOBOT_COMMON_CLK)		+= div-gate.o
 obj-$(CONFIG_HOBOT_COMMON_CLK)		+= endiv.o
