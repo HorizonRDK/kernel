@@ -1709,6 +1709,96 @@ static inline void hobot_fast_imageblit(const struct fb_image *image,
 	}
 }
 
+void hbfb_fillrect(struct fb_info *p, const struct fb_fillrect *rect)
+{
+#ifndef CONFIG_HOBOT_XJ3
+	unsigned long pat, pat2, fg;
+	unsigned long width = rect->width, height = rect->height;
+	int bits = BITS_PER_LONG, bytes = bits >> 3;
+	u32 bpp = p->var.bits_per_pixel;
+	unsigned long __iomem *dst;
+	int dst_idx, left;
+
+	if (p->state != FBINFO_STATE_RUNNING)
+		return;
+
+	if (p->fix.visual == FB_VISUAL_TRUECOLOR ||
+		p->fix.visual == FB_VISUAL_DIRECTCOLOR )
+		fg = ((u32 *) (p->pseudo_palette))[rect->color];
+	else
+		fg = rect->color;
+
+	pat = pixel_to_pat(bpp, fg);
+
+	dst = (unsigned long __iomem *)((unsigned long)p->screen_base & ~(bytes-1));
+	dst_idx = ((unsigned long)p->screen_base & (bytes - 1))*8;
+	dst_idx += rect->dy*p->fix.line_length*8+rect->dx*bpp;
+	/* FIXME For now we support 1-32 bpp only */
+	left = bits % bpp;
+	if (p->fbops->fb_sync)
+		p->fbops->fb_sync(p);
+	if (!left) {
+		u32 bswapmask = fb_compute_bswapmask(p);
+		void (*fill_op32)(struct fb_info *p,
+				unsigned long __iomem *dst, int dst_idx,
+				unsigned long pat, unsigned n, int bits,
+				u32 bswapmask) = NULL;
+
+		switch (rect->rop) {
+		case ROP_XOR:
+			fill_op32 = bitfill_aligned_rev;
+			break;
+		case ROP_COPY:
+			fill_op32 = bitfill_aligned;
+			break;
+		default:
+			pr_err("cfb_fillrect(): unknown rop, defaulting to ROP_COPY\n");
+			fill_op32 = bitfill_aligned;
+			break;
+		}
+		while (height--) {
+			dst += dst_idx >> (ffs(bits) - 1);
+			dst_idx &= (bits - 1);
+			fill_op32(p, dst, dst_idx, pat, width*bpp, bits,
+				bswapmask);
+			dst_idx += p->fix.line_length*8;
+		}
+	} else {
+		int right, r;
+		void (*fill_op)(struct fb_info *p, unsigned long __iomem *dst,
+				int dst_idx, unsigned long pat, int left,
+				int right, unsigned n, int bits) = NULL;
+#ifdef __LITTLE_ENDIAN
+		right = left;
+		left = bpp - right;
+#else
+		right = bpp - left;
+#endif
+		switch (rect->rop) {
+		case ROP_XOR:
+			fill_op = bitfill_unaligned_rev;
+			break;
+		case ROP_COPY:
+			fill_op = bitfill_unaligned;
+			break;
+		default:
+			printk(KERN_ERR "cfb_fillrect(): unknown rop, defaulting to ROP_COPY\n");
+			fill_op = bitfill_unaligned;
+			break;
+		}
+		while (height--) {
+			dst += dst_idx / bits;
+			dst_idx &= (bits - 1);
+			r = dst_idx % bpp;
+			/* rotate pattern to the correct start position */
+			pat2 = le_long_to_cpu(rolx(cpu_to_le_long(pat), r, bpp));
+			fill_op(p, dst, dst_idx, pat2, left, right,
+				width*bpp, bits);
+			dst_idx += p->fix.line_length*8;
+		}
+	}
+#endif
+}
 
 static struct fb_ops hbfb_ops = {
 	.fb_check_var	= hbfb_check_var,
@@ -1716,7 +1806,7 @@ static struct fb_ops hbfb_ops = {
 	.fb_setcolreg	= hbfb_setcolreg,
 	.fb_pan_display	= hbfb_pan_display,
 	.fb_blank	= hbfb_blank,
-	.fb_fillrect	= cfb_fillrect,
+	.fb_fillrect	= hbfb_fillrect,
 	.fb_copyarea	= cfb_copyarea,
 //	.fb_imageblit	= cfb_imageblit,
 	.fb_imageblit   = hbfb_imageblit,

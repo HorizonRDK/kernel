@@ -87,6 +87,7 @@
 #  define DPRINTK(fmt, args...)
 #endif
 
+#define MODULE
 enum {
 	FBCON_LOGO_CANSHOW	= -1,	/* the logo can be shown */
 	FBCON_LOGO_DRAW		= -2,	/* draw the logo to a console */
