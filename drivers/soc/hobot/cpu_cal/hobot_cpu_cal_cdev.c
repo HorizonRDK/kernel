@@ -56,7 +56,7 @@ static char test_id_no_fp[] = {1, 2, 3, 4, 5,
 								35, 36, 37,
 								38, 39, 40};
 static char total_test_num = 0;
-uint32_t cpu_cal_test_init(void)
+uint32_t cpu_cal_test_init(void)
 {
 	uint32_t result;
 	uint32_t *base;
@@ -69,40 +69,31 @@ static char total_test_num = 0;
 	result = A53_STL_init(CFG_MODE_UNUSED, base);
 	return result;
 }
-static int align_is_en(void)
+static void cpu_cal_diag_report(uint8_t err_id)
 {
-	int ret = 0;
-	__asm volatile (
-		"mrs x25, SCTLR_EL1\n\t"
-        "mov %0, x25\n\t"
-		:"=g"(ret)
-	);
-//	printk("%s %x\n",__func__,ret);
-	return ret;
-}
-static void cpu_cal_diag_report(uint16_t err_id)
-{
+	uint8_t env_data = err_id;
 	if(err_id >= 1 && err_id <= total_test_num + 1) {
 		diag_send_event_stat_and_env_data(
 							   DiagMsgPrioHigh,
 							   ModuleDiag_cpu_cal,
-							   err_id,
+							   EventIdCpuCalTestErr,
 							   DiagEventStaFail,
 							   DiagGenEnvdataWhenErr,
-							   NULL,
-							   0);
+							   (uint8_t *)(&env_data),
+							   sizeof(uint8_t));
 	}
 }
 static int cpu_cal_test_kthread(void *data)
 {
 	int i = 0;
 	uint32_t result;
-	uint16_t err_event_id = 0;
+	uint8_t err_event_id = 0;
 	struct cpu_cal_test_data *cpu_cal_data = (struct cpu_cal_test_data *)data;
 	result = cpu_cal_test_init();
 	if(result != A53_STL_RET_OK || err_test_id == 1) {
 		err_test_id = -1;
-		cpu_cal_diag_report(EventIdCpuCalTestInitErr);
+		err_event_id = 1;
+		cpu_cal_diag_report(err_event_id);
 		return 0;
 	}
 	while (1) {
@@ -149,10 +140,7 @@ static int cpu_cal_test_release(struct inode *inode, struct file *filp)
 static long cpu_cal_test_ioctrl(struct file *filp,
 		unsigned int cmd, unsigned long arg)
 {
-	struct timeval tv_temp;
 	int	retval = 0;
-	int copied = 0;
-
 	switch (cmd) {
 	default:
 	break;
@@ -215,13 +203,11 @@ static int cpu_cal_diag_init(void)
 	struct diag_register_info cpu_cal_info;
 	int i = 0, ret = 0;
 	cpu_cal_info.module_id = (uint8_t)ModuleDiag_cpu_cal;
-	cpu_cal_info.event_cnt = total_test_num + 1;
-	for(i = 0; i < total_test_num + 1; ++i) {
-		cpu_cal_info.event_handle[i].event_id = (uint8_t)(i + 1);
-		cpu_cal_info.event_handle[i].min_snd_ms = 100;
-		cpu_cal_info.event_handle[i].max_snd_ms = 148;
-		cpu_cal_info.event_handle[i].cb = NULL;
-	}
+	cpu_cal_info.event_cnt = 1;
+	cpu_cal_info.event_handle[0].event_id = (uint8_t)1;
+	cpu_cal_info.event_handle[0].min_snd_ms = DIAG_MSG_INTERVAL_MIN;
+	cpu_cal_info.event_handle[0].max_snd_ms = DIAG_MSG_INTERVAL_MAX;
+	cpu_cal_info.event_handle[0].cb = NULL;
 	ret = diagnose_register(&cpu_cal_info);
 	if (ret < 0) {
 		pr_err("cpu_cal diagnose register fail\n");

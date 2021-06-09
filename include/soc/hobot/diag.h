@@ -155,28 +155,7 @@ enum diag_qspi_module_eventid {
 
 /* cpu cal module event id */
 enum diag_cpu_cal_module_eventid {
-	EventIdCpuCalTestInitErr = 1,
-	EventIdCpuCalTestDivErr,
-	EventIdCpuCalTestBitANDORRErr,
-	EventIdCpuCalTestAddSubErr,
-	EventIdCpuCalTestADRPErr,
-	EventIdCpuCalTestAdd1Err,
-	EventIdCpuCalTestAdd2rr,
-	EventIdCpuCalTestBitBICErr,
-	EventIdCpuCalTestASRVrr,
-	EventIdCpuCalTestCRCErr,
-	EventIdCpuCalTestBitOpErr,
-	EventIdCpuCalTestCondSel1rr,
-	EventIdCpuCalTestLoadErr,
-	EventIdCpuCalTestJumpBranErr,
-	EventIdCpuCalTestGenRegErr,
-	EventIdCpuCalTestMultiErr,
-	EventIdCpuCalTestStoreErr,
-	EventIdCpuCalTestSBFMErr,
-	EventIdCpuCalTestSUB1Err,
-	EventIdCpuCalTestSUB2Err,
-	EventIdCpuCalTestLogicErr,
-	EventIdCpuCalTestConSel2Err,
+	EventIdCpuCalTestErr = 1,
 };
 /* spi module event id */
 enum diag_spi_module_eventid {
