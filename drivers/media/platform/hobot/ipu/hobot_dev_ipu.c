@@ -63,6 +63,7 @@ void ipu_frame_ndone(struct ipu_subdev *subdev);
 void ipu_frame_done(struct ipu_subdev *subdev);
 #ifdef CONFIG_HOBOT_DIAG
 uint16_t get_fps_from_mipi_host(void);
+uint16_t get_fps_from_sif(void);
 #endif
 
 
@@ -120,6 +121,9 @@ static int x3_ipu_open(struct inode *inode, struct file *file)
 		atomic_set(&ipu->backup_fcount, 0);
 		atomic_set(&ipu->sensor_fcount, 0);
 		atomic_set(&ipu->enable_cnt, 0);
+#ifdef CONFIG_HOBOT_DIAG
+		g_diag_last_frame = 0;
+#endif
 		if (sif_mclk_freq)
 			vio_set_clk_rate("sif_mclk", sif_mclk_freq);
 		ips_set_clk_ctrl(IPU0_CLOCK_GATE, true);
@@ -4213,9 +4217,15 @@ static irqreturn_t ipu_isr(int irq, void *data)
 			group->frameid.frame_id, 0, src_subdev->framemgr.queued_count);
 #ifdef CONFIG_HOBOT_DIAG
 		frame_fps = get_fps_from_mipi_host();
+		/* mipi host should not configured,when sif test pattern used */
+		if (!frame_fps)
+			frame_fps = get_fps_from_sif();
 		now_frame = jiffies_to_msecs(get_jiffies_64());
 		if (((now_frame - g_diag_last_frame) > (1000/frame_fps + 10)) &&
 				g_diag_last_frame != 0) {
+			pr_debug("vio frame lost fps:%d curts:%llu lasts:%llu diff:%llu\n",
+							frame_fps, now_frame, g_diag_last_frame,
+							now_frame - g_diag_last_frame);
 			err = 1;
 		} else {
 			err = 0;
