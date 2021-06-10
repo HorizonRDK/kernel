@@ -39,6 +39,29 @@
 #include <linux/sched/task.h>
 
 #include <linux/ion.h>
+#include <linux/io.h>
+#include <linux/of.h>
+#include <linux/of_address.h>
+#include <linux/cma.h>
+#include <linux/dma-contiguous.h>
+
+#ifdef IO_REGION_MMAP_CONTROL
+#define IO_REGION1_START 0xa1000000
+#define IO_REGION1_SIZE  0x100000
+#define IO_REGION2_START 0xa6000000
+#define IO_REGION2_SIZE  0x100000
+#endif
+
+struct ion_cma_info {
+	char *name;
+	phys_addr_t start;
+	phys_addr_t end;
+};
+
+static int get_ion_cma_area_flag = 0;
+static struct ion_cma_info ion_cma = {"ion_cma", 0, 0};
+static struct ion_cma_info ion_pool = {"ion-pool", 0, 0};
+static struct ion_cma_info reserved_cma = {"reserved", 0, 0};
 
 /* static struct ion_device *internal_dev; */
 static int heap_id;
@@ -1455,6 +1478,145 @@ static int ion_open(struct inode *inode, struct file *file)
 	return 0;
 }
 
+/*
+ * This is cma_for_each_area iterator, get start address and size
+ * for matched cma name.
+ */
+static int cma_get_range(struct cma *cma, void *data)
+{
+	struct ion_cma_info *info = (struct ion_cma_info *)data;
+	const char *name = cma_get_name(cma);
+
+	if (!strncmp(info->name, name, strlen(name))) {
+		info->start = cma_get_base(cma);
+		info->end = info->start + cma_get_size(cma);
+		pr_debug("got cma name:%s, cma_start:0x%08x, end:0x%08x\n",
+			info->name, (u32)info->start, (u32)info->end);
+		return 1;
+	}
+
+	return 0;
+}
+
+/*
+ * This is cma_for_each_area iterator, get start address and size
+ * for matched cma name.
+ */
+static int ion_get_range(struct ion_cma_info *info)
+{
+	struct device_node *node;
+	struct resource ion_res;
+	const char *status;
+
+	node = of_find_node_by_path("/reserved-memory");
+	if (node) {
+		node = of_find_compatible_node(node, NULL, info->name);
+		if (node) {
+			status = of_get_property(node, "status", NULL);
+			if ((!status) || (strcmp(status, "okay") == 0)
+					|| (strcmp(status, "ok") == 0)) {
+				if (!of_address_to_resource(node, 0, &ion_res)) {
+					pr_debug("%s:ION Carveout MEM start 0x%llx, size 0x%llx\n",
+							__func__, ion_res.start,
+							ion_res.end - ion_res.start + 1);
+					info->start = ion_res.start;
+					info->end = ion_res.end + 1;
+					return 1;
+				}
+			}
+		}
+	}
+
+	pr_debug("%s: failed to get range for %s\n", __func__, info->name);
+
+	return 0;
+}
+
+static int get_ion_cma_area(void)
+{
+	int ret;
+
+	if (get_ion_cma_area_flag == 1) {
+		return 0;
+	}
+
+	ret = cma_for_each_area(cma_get_range, &reserved_cma);
+	if (ret == 0) {
+		pr_err("reserved_cma not found\n");
+	}
+
+	/*
+	 * only protect two types of layout, skip if not matched
+	 * 1. one ion_cma or ion_pool area
+	 * 2. one ion_pool and one ion_cma
+	 */
+	ret = cma_for_each_area(cma_get_range, &ion_cma);
+	if (ret == 0) {
+		/* check ion_pool if ion_cma not enabled */
+		ret = ion_get_range(&ion_pool);
+		if (!ret) {
+			return -EINVAL;
+		}
+	} else {
+		/* check ion_pool when ion_cma enabled */
+		ret = ion_get_range(&ion_pool);
+	}
+
+	get_ion_cma_area_flag = 1;
+
+	return 0;
+}
+
+static int check_memory_validity(struct vm_area_struct *vma)
+{
+	size_t size = vma->vm_end - vma->vm_start;
+	phys_addr_t offset = (phys_addr_t)vma->vm_pgoff << PAGE_SHIFT;
+
+	get_ion_cma_area();
+
+	if (!((offset >= ion_cma.start && offset + size < ion_cma.end) ||
+		(offset >= ion_pool.start && offset + size < ion_pool.end) ||
+		(offset >= reserved_cma.start && offset + size < reserved_cma.end))) {
+#ifdef IO_REGION_MMAP_CONTROL
+		if (!((offset >= IO_REGION1_START &&
+				offset + size < IO_REGION1_START + IO_REGION1_SIZE) ||
+			(offset >= IO_REGION2_START &&
+				offset + size < IO_REGION2_START + IO_REGION2_SIZE))) {
+			pr_err("memory(0x%x  size: %d) mmap invalid range\n",
+				(u32)offset, (s32)size);
+			return -EINVAL;
+		}
+#else
+		return -EINVAL;
+#endif
+	}
+
+	return 0;
+}
+
+static int _ion_mmap(struct file *file, struct vm_area_struct *vma)
+{
+	size_t size = vma->vm_end - vma->vm_start;
+	phys_addr_t offset = (phys_addr_t)vma->vm_pgoff << PAGE_SHIFT;
+
+	if (check_memory_validity(vma))
+		return -EPERM;
+
+	/* It's illegal to wrap around the end of the physical address space. */
+	if (offset + (phys_addr_t)size - 1 < offset)
+		return -EINVAL;
+
+	if (file->f_flags & O_SYNC)
+		vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
+
+	/* Remap-pfn-range will mark the range VM_IO */
+	if (remap_pfn_range(vma,
+		vma->vm_start, vma->vm_pgoff, size, vma->vm_page_prot))
+		return -EAGAIN;
+
+	return 0;
+}
+
 static const struct file_operations ion_fops = {
 	.owner          = THIS_MODULE,
 	.open			= ion_open,
@@ -1463,6 +1625,7 @@ static const struct file_operations ion_fops = {
 #ifdef CONFIG_COMPAT
 	.compat_ioctl	= ion_ioctl,
 #endif
+	.mmap			= _ion_mmap,
 };
 
 static size_t ion_debug_heap_total(struct ion_client *client,
