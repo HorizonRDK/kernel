@@ -167,6 +167,23 @@ function build_boot_image()
     cpfiles "$path_otatool/boot.zip" "$TARGET_DEPLOY_DIR/ota"
 }
 
+function pre_pkg_preinst() {
+    # Get the signature algorithm used by the kernel.
+    local module_sig_hash="$(grep -Po '(?<=CONFIG_MODULE_SIG_HASH=").*(?=")' "${BUILD_OUTPUT_PATH}/.config")"
+    # Get the key file used by the kernel.
+    local module_sig_key="$(grep -Po '(?<=CONFIG_MODULE_SIG_KEY=").*(?=")' "${BUILD_OUTPUT_PATH}/.config")"
+    module_sig_key="${module_sig_key:-certs/signing_key.pem}"
+    # Path to the key file or PKCS11 URI
+    if [[ "${module_sig_key#pkcs11:}" == "${module_sig_key}" && "${module_sig_key#/}" == "${module_sig_key}" ]]; then
+        local key_path="${BUILD_OUTPUT_PATH}/${module_sig_key}"
+    else
+        local key_path="${module_sig_key}"
+    fi
+    # Certificate path
+    local cert_path="${BUILD_OUTPUT_PATH}/certs/signing_key.x509"
+    # Sign all installed modules before merging.
+    find $TARGET_TMPROOTFS_DIR/lib/modules/${KERNEL_VER}/ -name "*.ko" -exec "${BUILD_OUTPUT_PATH}/scripts/sign-file" "${module_sig_hash}" "${key_path}" "${cert_path}" '{}' \;
+}
 
 function all()
 {
@@ -219,7 +236,8 @@ function all()
 
    # strip kernel modules
     [ -z "${KERNEL_VER}" ] && { KERNEL_VER=$(cat ${BUILD_OUTPUT_PATH}/include/config/kernel.release 2> /dev/null); }
-    #${CROSS_COMPILE}strip -v -g $TARGET_TMPROOTFS_DIR/lib/modules/${KERNEL_VER}/*.ko
+    ${CROSS_COMPILE}strip -v -g $TARGET_TMPROOTFS_DIR/lib/modules/${KERNEL_VER}/*.ko
+    pre_pkg_preinst
 
     # copy firmware
     cpfiles "$SRC_KERNEL_DIR/drivers/staging/marvell/FwImage/sd8801_uapsta.bin" "$TARGET_TMPROOTFS_DIR/lib/firmware/mrvl/"
