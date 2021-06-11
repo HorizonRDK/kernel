@@ -152,6 +152,7 @@ config USB_DWC3_IMX8MP
 config USB_DWC3_POWERSAVE
 	tristate "Hobot DWC3 Power Save Feature"
 	depends on OF
+	depends on HOBOT_BUS_CLK_X3
 	default n
 	help
 	  Hobot SoCs with one DesignWare Core USB3 IP inside.
