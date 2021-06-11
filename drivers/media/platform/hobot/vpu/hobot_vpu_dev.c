@@ -1735,6 +1735,14 @@ static irqreturn_t vpu_irq_handler(int irq, void *dev_id)
 				wake_up_interruptible(&dev->poll_int_wait_q[idx]);
 			}
 		}
+		spin_lock(&dev->irq_spinlock);
+		if (dev->irq_trigger == 1 &&
+			test_bit(intr_inst_index, vpu_inst_bitmap) == 0) {
+			enable_irq(dev->irq);
+			dev->irq_trigger = 0;
+			dev->interrupt_flag[intr_inst_index] = 0;
+		}
+		spin_unlock(&dev->irq_spinlock);
 	}
 #else
 	dev->interrupt_flag = 1;
