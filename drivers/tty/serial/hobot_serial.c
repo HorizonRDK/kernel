@@ -118,9 +118,9 @@ struct hobot_uart {
 #if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
 	struct hobot_dpm uart_dpm;
 	atomic_t dmatx_flag;
-	int uart_id;
 	atomic_t uart_start;
 #endif
+	int uart_id;
 	u32 uartoutcnt;
 };
 
