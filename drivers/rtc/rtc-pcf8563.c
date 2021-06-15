@@ -22,6 +22,7 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/err.h>
+#include <linux/clk.h>
 
 #define PCF8563_REG_ST1		0x00 /* status */
 #define PCF8563_REG_ST2		0x01
@@ -641,10 +642,43 @@ static const struct of_device_id pcf8563_of_match[] = {
 MODULE_DEVICE_TABLE(of, pcf8563_of_match);
 #endif
 
+#ifdef CONFIG_PM
+int pcf8563_rtc_suspend(struct device *dev)
+{
+	struct pcf8563 *rtc = dev_get_drvdata(dev);
+
+	pr_info("%s:%s, enter suspend...\n", __FILE__, __func__);
+	/*enable 32K clockout*/
+	clk_prepare_enable(rtc->clkout_hw.clk);
+
+	return 0;
+}
+
+int pcf8563_rtc_resume(struct device *dev)
+{
+	struct pcf8563 *rtc = dev_get_drvdata(dev);
+
+	pr_info("%s:%s, enter resume...\n", __FILE__, __func__);
+
+	/*disable 32K clockout*/
+	clk_disable_unprepare(rtc->clkout_hw.clk);
+
+	return 0;
+}
+
+static const struct dev_pm_ops pcf8563_rtc_dev_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(pcf8563_rtc_suspend,
+			pcf8563_rtc_resume)
+};
+#endif
+
 static struct i2c_driver pcf8563_driver = {
 	.driver		= {
 		.name	= "rtc-pcf8563",
 		.of_match_table = of_match_ptr(pcf8563_of_match),
+#ifdef CONFIG_PM
+		.pm = &pcf8563_rtc_dev_pm_ops,
+#endif
 	},
 	.probe		= pcf8563_probe,
 	.id_table	= pcf8563_id,
