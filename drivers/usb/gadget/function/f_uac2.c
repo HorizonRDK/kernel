@@ -932,8 +932,14 @@ afunc_bind(struct usb_configuration *cfg, struct usb_function *fn)
 	hs_epin_fback_desc.bEndpointAddress = fs_epin_fback_desc.bEndpointAddress;
 	hs_epin_desc.bEndpointAddress = fs_epin_desc.bEndpointAddress;
 	ss_epout_desc.bEndpointAddress = fs_epout_desc.bEndpointAddress;
+	/* 
+	 * wBytesPerInterval = wMaxPacketSize*(bMaxBurst+1)*(Mult+1). 
+	 * According to UAC2 SuperSpeed company descriptor,  all bMaxBurst and Mult value is zero
+	 */
+	ss_epout_desc_comp.wBytesPerInterval = ss_epout_desc.wMaxPacketSize;
 	ss_epin_fback_desc.bEndpointAddress = fs_epin_desc.bEndpointAddress;
 	ss_epin_desc.bEndpointAddress = fs_epin_desc.bEndpointAddress;
+	ss_epin_desc_comp.wBytesPerInterval = ss_epin_desc.wMaxPacketSize;
 
 	setup_descriptor(uac2_opts);
 
