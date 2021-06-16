@@ -297,7 +297,7 @@ void awb_read_statistics( AWB_fsm_t *p_fsm )
     }
 
     if (p_ctx->isp_awb_stats_on) {
-        int rc = 0;
+        int rc = -1;
         rc = system_chardev_lock();
         if (rc == 0) {
             isp_ctx_node_t *cn;
@@ -313,9 +313,8 @@ void awb_read_statistics( AWB_fsm_t *p_fsm )
 
                 pr_debug("awb stats frame id %d\n", cn->ctx.frame_id);
             }
-        }
-        if (rc == 0)
             system_chardev_unlock();
+        }
     }
 
     p_sbuf_awb_stats->curr_AWB_ZONES = p_fsm->curr_AWB_ZONES;

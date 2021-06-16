@@ -159,6 +159,7 @@ uint32_t lumvar[512] = {0};
 void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
 {
     int i;
+    int rc = -1;
     int shift = 0;
     uint32_t sum = 0;
     uint32_t _metering_lut_entry;
@@ -209,26 +210,26 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
 
     p_fsm->fullhist_sum = sum;
 
-    int rc = 0;
-    rc = system_chardev_lock();
-    if (rc == 0 && p_ctx->isp_ae_stats_on) {
+    if (p_ctx->isp_ae_stats_on) {
 	    isp_ctx_node_t *cn;
         struct vio_frame_id frmid;
-	    cn = isp_ctx_get_node(fw_id, ISP_AE, FREEQ);
-	    if (cn) {
-            vio_get_sif_frame_info(fw_id, &frmid);
-		    cn->ctx.frame_id = frmid.frame_id;
-            cn->ctx.timestamps = frmid.timestamps;
-		    memcpy(cn->base, p_fsm->fullhist, sizeof(p_sbuf_ae->stats_data));
-		    cn->ctx.crc16 = crc16(~0, cn->base, sizeof(p_sbuf_ae->stats_data));
-		    isp_ctx_put_node(fw_id, cn, ISP_AE, DONEQ);
 
-		    pr_debug("ae stats frame id %d\n", cn->ctx.frame_id);
-	    }
+        rc = system_chardev_lock();
+        if (rc == 0) {
+            cn = isp_ctx_get_node(fw_id, ISP_AE, FREEQ);
+            if (cn) {
+                vio_get_sif_frame_info(fw_id, &frmid);
+                cn->ctx.frame_id = frmid.frame_id;
+                cn->ctx.timestamps = frmid.timestamps;
+                memcpy(cn->base, p_fsm->fullhist, sizeof(p_sbuf_ae->stats_data));
+                cn->ctx.crc16 = crc16(~0, cn->base, sizeof(p_sbuf_ae->stats_data));
+                isp_ctx_put_node(fw_id, cn, ISP_AE, DONEQ);
+
+                pr_debug("ae stats frame id %d\n", cn->ctx.frame_id);
+            }
+            system_chardev_unlock();
+        }
     }
-    if (rc == 0)
-        system_chardev_unlock();    
-
 
     /* NOTE: the size should match */
     memcpy( p_sbuf_ae->stats_data, p_fsm->fullhist, sizeof( p_sbuf_ae->stats_data ) );
@@ -286,9 +287,8 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
 
                 pr_debug("ae_5bin stats frame id %d\n", cn->ctx.frame_id);
             }
-        }
-        if (rc == 0)
             system_chardev_unlock();
+        }
     }//endif p_ctx->isp_ae_5bin_stats_on
 
 	// read lumvar
@@ -312,9 +312,8 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
 
                 pr_debug("lumvar stats frame id %d\n", cn->ctx.frame_id);
             }
-        }
-        if (rc == 0)
             system_chardev_unlock();
+        }
     }
 
     /* read done, set the buffer back for future using */

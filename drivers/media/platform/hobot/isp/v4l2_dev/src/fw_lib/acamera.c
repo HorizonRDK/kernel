@@ -688,30 +688,31 @@ EXPORT_SYMBOL(dma_writer_config_done);
 
 static void isp_ctxsv_work(struct work_struct *w)
 {
-    int rc = 0;
+    int rc = -1;
     isp_ctx_node_t *cn;
     volatile void *offset;
     uint8_t ctx_id = cur_ctx_id;
     struct vio_frame_id frmid;
     acamera_context_t *p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[ctx_id];
 
-    rc = system_chardev_lock();
-	if (rc == 0 && p_ctx->isp_ctxsv_on) {
-		cn = isp_ctx_get_node(ctx_id, ISP_CTX, FREEQ);
-		if (cn) {
-            vio_get_sif_frame_info(ctx_id, &frmid);
-		    cn->ctx.frame_id = frmid.frame_id;
-            cn->ctx.timestamps = frmid.timestamps;
-			offset = p_ctx->sw_reg_map.isp_sw_config_map + ACAMERA_DECOMPANDER0_MEM_BASE_ADDR;
-			memcpy_fromio(cn->base, offset, CTX_SIZE);
-			cn->ctx.crc16 = crc16(~0, cn->base, CTX_SIZE);
-			isp_ctx_put_node(ctx_id, cn, ISP_CTX, DONEQ);
+    if (p_ctx->isp_ctxsv_on) {
+        rc = system_chardev_lock();
+        if (rc == 0) {
+            cn = isp_ctx_get_node(ctx_id, ISP_CTX, FREEQ);
+            if (cn) {
+                vio_get_sif_frame_info(ctx_id, &frmid);
+                cn->ctx.frame_id = frmid.frame_id;
+                cn->ctx.timestamps = frmid.timestamps;
+                offset = p_ctx->sw_reg_map.isp_sw_config_map + ACAMERA_DECOMPANDER0_MEM_BASE_ADDR;
+                memcpy_fromio(cn->base, offset, CTX_SIZE);
+                cn->ctx.crc16 = crc16(~0, cn->base, CTX_SIZE);
+                isp_ctx_put_node(ctx_id, cn, ISP_CTX, DONEQ);
 
-			pr_debug("ctx dump frame id %d\n", cn->ctx.frame_id);
-		}
-	}
-    if (rc == 0)
-        system_chardev_unlock();
+                pr_debug("ctx dump frame id %d\n", cn->ctx.frame_id);
+            }
+            system_chardev_unlock();
+        }
+    }
 }
 
 //Note: tasklet context
@@ -1577,6 +1578,10 @@ int32_t acamera_interrupt_handler()
                         }
                     } //if ( acamera_event_queue_empty( &p_ctx->fsm_mgr.event_queue ) )
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_ISP_END_FRAME_END ) {
+                    struct timeval tmp_tv;
+
+                    pr_debug("frame done, ctx id %d\n", cur_ctx_id);
+
 					if (p_ctx->p_gfw->sif_isp_offline == 0) {
 						vio_get_sif_frame_info(cur_ctx_id, &frmid);
 						p_ctx->isp_frame_counter = frmid.frame_id;
@@ -1584,12 +1589,12 @@ int32_t acamera_interrupt_handler()
 						p_ctx->tv = frmid.tv;
 						pr_debug("[s%d] frame id %d\n", cur_ctx_id, frmid.frame_id);
 					}
-	                struct timeval tmp_tv;
-                    pr_debug("frame done, ctx id %d\n", cur_ctx_id);
+
                     acamera_dma_alarms_error_occur();
                     p_ctx->sts.fe_irq_cnt++;
 					if (ip_sts_dbg)
                         input_port_status();
+
                     if (p_ctx->p_gfw->sif_isp_offline) {
                         atomic_set(&g_firmware.frame_done, 1);
                         if (p_ctx->fsm_mgr.reserved) { //sif m2m isp m2m ipu
@@ -1597,6 +1602,15 @@ int32_t acamera_interrupt_handler()
                         } else {    //sif m2m isp otf ipu
                             wake_up(&wq_frame_end);
                         }
+                    }
+
+                    // isp m2m ipu
+                    // in case of register space lock, disable again here
+                    if (p_ctx->fsm_mgr.reserved) {
+                        if (y_done)
+                            dma_writer_fr_dma_disable(&dh->pipe[dma_fr], PLANE_Y, 0);
+                        if (uv_done)
+                            dma_writer_fr_dma_disable(&dh->pipe[dma_fr], PLANE_UV, 0);
                     }
 
                     // frame_done
@@ -1619,7 +1633,7 @@ int32_t acamera_interrupt_handler()
                     //update frame id to metadata
                     frame_buffer_fr_finished((dma_writer_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_DMA_WRITER]->p_fsm));
 
-                    //isp m2m ipu
+                    //sif m2m isp
                     if (p_ctx->p_gfw->sif_isp_offline) {
                         atomic_set(&g_firmware.y_dma_done, 1);
                         wake_up(&wq_dma_done);
@@ -1632,7 +1646,7 @@ int32_t acamera_interrupt_handler()
 
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_FR_UV_WRITE_DONE ) {
                     pr_debug("uv write to ddr done\n");
-                    //isp m2m ipu
+                    //sif m2m isp
                     if (p_ctx->p_gfw->sif_isp_offline) {
                         atomic_set(&g_firmware.uv_dma_done, 1);
                         wake_up(&wq_dma_done);
