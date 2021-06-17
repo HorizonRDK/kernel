@@ -198,6 +198,10 @@ struct hobot_i2s {
 	int channel_num;
 	int wordlength;
 	int samplerate;
+
+	u32 suspend_i2smod;
+	u32 suspend_i2schen;
+	u32 suspend_i2sdivws;
 };
 
 #define INT_BUF1_DONE   (1 << 3)

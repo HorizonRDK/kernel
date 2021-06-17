@@ -109,6 +109,9 @@ static struct idma_info_s {
 	void __iomem *regaddr_rx;
 
 	int idma_irq;
+
+	struct device *dev;
+	int stream;
 } hobot_i2sidma[2];
 
 static int hobot_copy_usr(struct snd_pcm_substream *substream,
@@ -764,6 +767,7 @@ static int i2sidma_open(struct snd_pcm_substream *substream)
 	*/
 
 	dma_ctrl->stream = substream->stream;
+	hobot_i2sidma[dma_ctrl->id].stream = substream->stream;
 
 	spin_lock_init(&dma_ctrl->lock);
 
@@ -933,11 +937,13 @@ static int asoc_i2sidma_platform_probe(struct platform_device *pdev)
 		return ret;
 	}
 	hobot_i2sidma[id].idma_irq = ret;
+	hobot_i2sidma[id].dev = &pdev->dev;
 
 	spin_lock_init(&(hobot_i2sidma[id].lock));
 
 	ret =  devm_snd_soc_register_platform(&pdev->dev,
 					      &asoc_i2sidma_platform[id]);
+	dev_set_drvdata(&pdev->dev, &hobot_i2sidma[id]);
 #ifdef CONFIG_HOBOT_DIAG
 	if (diag_register(ModuleDiag_sound, EventIdSoundI2s0Err + id,
 				5, DIAG_MSG_INTERVAL_MIN, DIAG_MSG_INTERVAL_MAX, NULL) < 0)
@@ -960,10 +966,44 @@ static const struct of_device_id hobot_i2sidma_of_match[] = {
 MODULE_DEVICE_TABLE(of, hobot_i2sidma_of_match);
 #endif
 
+
+#ifdef CONFIG_PM
+static int hobot_i2s_idma_suspend(struct device *dev) {
+	dev_info(dev, "%s enter suspend......\n", __func__);
+	unsigned long val;
+	struct idma_info_s *info = (struct idma_info_s *)dev_get_drvdata(dev);
+
+	if (!info) {
+		return -EINVAL;
+	}
+	if (info->stream == SNDRV_PCM_STREAM_CAPTURE) {
+		val = readl(info->regaddr_rx + I2S_CTL);
+	} else {
+		val = readl(info->regaddr_tx + I2S_CTL);
+	}
+	if (val == 0x3) {
+		dev_err(dev, "i2s idma busy...\n");
+		return -EBUSY;
+	}
+	return 0;
+}
+
+static int hobot_i2s_idma_resume(struct device *dev) {
+	dev_info(dev, "%s enter resume......\n", __func__);
+	return 0;
+}
+
+static const struct dev_pm_ops hobot_i2s_idma_pm = {
+	SET_SYSTEM_SLEEP_PM_OPS(hobot_i2s_idma_suspend,
+		hobot_i2s_idma_resume)
+};
+#endif
+
 static struct platform_driver i2s_idma_driver = {
 	.driver = {
 		   .name = "hobot-i2s-idma",
 		   .of_match_table = hobot_i2sidma_of_match,
+		   .pm = &hobot_i2s_idma_pm,
 		   },
 
 	.probe = asoc_i2sidma_platform_probe,

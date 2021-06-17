@@ -172,10 +172,11 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 			ws_h = ws_l = (lrck_div / 2) - 1;
 			i2s->div_ws = ws_l | (ws_h << 8);
 			i2s->clk = i2s->samplerate * lrck_div;
+			i2s->mclk_set = i2s->clk * bclk_div;
 			spin_unlock_irqrestore(&i2s->lock, flags);
 			if (i2s->ms == 1) {
 				ret = change_clk(i2s->dev, "i2s-mclk",
-					i2s->clk * bclk_div);
+					i2s->mclk_set);
 				if (ret < 0) {
 					pr_err("change i2s mclk failed\n");
 					return ret;
@@ -207,7 +208,7 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 			}
 			spin_unlock_irqrestore(&i2s->lock, flags);
 			if (i2s->ms == 1) {
-				ret = change_clk(i2s->dev, "i2s-bclk",
+				ret = change_clk(i2s->dev, "i2s-mclk",
 					i2s->mclk_set);
 				ret = change_clk(i2s->dev, "i2s-bclk",
 					i2s->clk);
@@ -231,10 +232,11 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 			ws_h = ws_l = (lrck_div / 2) - 1;
 			i2s->div_ws = ws_l | (ws_h << 8);
 			i2s->clk = i2s->samplerate * lrck_div;
+			i2s->mclk_set = i2s->clk * bclk_div;
 			spin_unlock_irqrestore(&i2s->lock, flags);
 			if (i2s->ms == 1) {
 				ret = change_clk(i2s->dev, "i2s-mclk",
-					i2s->clk * bclk_div);
+					i2s->mclk_set);
 				if (ret < 0) {
 					pr_err("change i2s mclk failed\n");
 					return ret;
@@ -309,10 +311,11 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 			if (i2s->samplerate == 32000)
 				bclk_div = 6;
 			i2s->clk = i2s->samplerate * lrck_div;
+			i2s->mclk_set = i2s->clk * bclk_div;
 			spin_unlock_irqrestore(&i2s->lock, flags);
 			if (i2s->ms == 1) {
 				ret = change_clk(i2s->dev, "i2s-mclk",
-					i2s->clk * bclk_div);
+					i2s->mclk_set);
 				if (ret < 0) {
 					pr_err("change i2s mclk failed\n");
 					return ret;
@@ -854,12 +857,79 @@ static const struct of_device_id hobot_i2s_of_match[] = {
 MODULE_DEVICE_TABLE(of, hobot_i2s_of_match);
 #endif
 
+#ifdef CONFIG_PM
+int hobot_i2s_suspend(struct device *dev) {
+	dev_info(dev, "%s enter suspend......\n", __func__);
+	unsigned long value;
+	struct hobot_i2s *i2s = (struct hobot_i2s *)dev_get_drvdata(dev);
+	if (!i2s)
+		return -EINVAL;
+
+	if (i2s->streamflag == 0) {
+		value = readl(i2s->regaddr_rx + I2S_CTL);
+		i2s->suspend_i2smod = readl(i2s->regaddr_rx + I2S_MODE);
+		i2s->suspend_i2schen = readl(i2s->regaddr_rx + I2S_CH_EN);
+		i2s->suspend_i2sdivws = readl(i2s->regaddr_rx + I2S_DIV_WS);
+	} else {
+		value = readl(i2s->regaddr_tx + I2S_CTL);
+		i2s->suspend_i2smod = readl(i2s->regaddr_tx + I2S_MODE);
+		i2s->suspend_i2schen = readl(i2s->regaddr_tx + I2S_CH_EN);
+		i2s->suspend_i2sdivws = readl(i2s->regaddr_tx + I2S_DIV_WS);
+	}
+	if (value == 0x3) {
+		dev_err(dev, "i2s busy...\n");
+		return -EBUSY;
+	}
+
+	if (i2s->ms == 1) {
+		clk_disable(i2s->mclk);
+		clk_disable(i2s->bclk);
+	}
+	return 0;
+}
+
+int hobot_i2s_resume(struct device *dev) {
+	dev_info(dev, "%s enter resume......\n", __func__);
+	int ret;
+	struct hobot_i2s *i2s =	dev_get_drvdata(dev);
+	if (!i2s)
+		return -EINVAL;
+
+	if (i2s->ms == 1) {
+		ret = change_clk(i2s->dev, "i2s-mclk",
+				i2s->mclk_set);
+		ret = change_clk(i2s->dev, "i2s-bclk",
+				i2s->clk);
+		if (ret < 0) {
+			dev_err(dev, "change clk error\n");
+		}
+		clk_enable(i2s->mclk);
+		clk_enable(i2s->bclk);
+	}
+	if (i2s->streamflag == 0) {
+		writel(i2s->suspend_i2smod, i2s->regaddr_rx + I2S_MODE);
+		writel(i2s->suspend_i2schen, i2s->regaddr_rx + I2S_CH_EN);
+		writel(i2s->suspend_i2sdivws, i2s->regaddr_rx + I2S_DIV_WS);
+	} else {
+		writel(i2s->suspend_i2smod, i2s->regaddr_tx + I2S_MODE);
+		writel(i2s->suspend_i2schen, i2s->regaddr_tx + I2S_CH_EN);
+		writel(i2s->suspend_i2sdivws, i2s->regaddr_tx + I2S_DIV_WS);
+	}
+	return 0;
+}
+
+static const struct dev_pm_ops hobot_i2s_pm = {
+	SET_SYSTEM_SLEEP_PM_OPS(hobot_i2s_suspend, hobot_i2s_resume)
+};
+#endif
+
 static struct platform_driver hobot_i2s_driver = {
 	.probe = hobot_i2s_probe,
 	.remove = hobot_i2s_remove,
 	.driver = {
 		   .name = "hobot-i2s",
 		   .of_match_table = hobot_i2s_of_match,
+		   .pm = &hobot_i2s_pm,
 		   },
 };
 
