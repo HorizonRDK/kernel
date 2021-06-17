@@ -66,6 +66,7 @@ static int x3_pym_open(struct inode *inode, struct file *file)
 
 	init_waitqueue_head(&pym_ctx->done_wq);
 
+	pym_ctx->id = minor;
 	pym_ctx->pym_dev = pym;
 	file->private_data = pym_ctx;
 	pym_ctx->state = BIT(VIO_VIDEO_OPEN);
@@ -87,6 +88,8 @@ static int x3_pym_open(struct inode *inode, struct file *file)
 
 	atomic_inc(&pym->open_cnt);
 	mutex_unlock(&pym_mutex);
+	vio_dbg("open subdev: %d, pym open_cnt: %d\n",
+				minor, atomic_read(&pym->open_cnt));
 p_err:
 	return ret;
 }
@@ -206,6 +209,13 @@ static int x3_pym_release_subdev_all_ion(struct pym_subdev *subdev)
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
+	/* pym src subdev did't alloc ion memory, only free frame struct */
+	if (subdev->id == SUBDEV_ID_SRC) {
+		vio_dbg("frame_array_addr[0]: %p\n", frame_array_addr[0]);
+		vfree(frame_array_addr[0]);
+		return 0;
+	}
+
 	// process frames free, allocated in reqbufs
 	for (i = 0; i < VIO_MP_MAX_FRAMES; i++) {
 		frame_start = (struct mp_vio_frame *)frame_array_addr[i];
@@ -261,6 +271,7 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 	struct pym_subdev *subdev;
 	u32 index = 0;
 	u32 count = 0;
+	u32 subdev_id, proc;
 	int instance = 0;
 	unsigned long flags;
 
@@ -283,6 +294,8 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 	count = pym_ctx->frm_num;
 	group = pym_ctx->group;
 	subdev = pym_ctx->subdev;
+	subdev_id = pym_ctx->id;
+	proc = pym_ctx->ctx_index;
 
 	// in this function, we only need to release current process captured frame
 	//vio_dbg("from pym index %d, cnt %d, subdev id:%d", index, count, subdev->id);
@@ -295,13 +308,16 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 		if (group->gtask)
 			vio_group_task_stop(group->gtask);
 		instance = group->instance;
-		if (atomic_dec_return(&group->node_refcount) == 0)
+		if (atomic_dec_return(&group->node_refcount) == 0) {
 			clear_bit(VIO_GROUP_INIT, &group->state);
-
+			pym->statistic.enable[instance] = 0;
+			pym->statistic.err_stat_enable[instance] = 0;
+		}
 		// this is the subdev's last process close, it's ok to free all ion buffer
 		x3_pym_release_subdev_all_ion(subdev);
-		pym->statistic.enable[group->instance] = 0;
-		memset(&pym->subdev[group->instance].pym_cfg, 0, sizeof(pym_cfg_t));
+		memset(&pym->subdev[instance][subdev_id].pym_cfg, 0, sizeof(pym_cfg_t));
+		vio_dbg("[S%d][V%d] %s group refcount: %d clean subdev\n",
+				instance, subdev_id, __func__, atomic_read(&group->node_refcount) );
 	}
 
 	if (atomic_dec_return(&pym->open_cnt) == 0) {
@@ -330,6 +346,8 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 		sema_init(&pym->gtask.hw_resource, 1);
 		atomic_set(&pym->gtask.refcount, 0);
 		pm_qos_remove_request(&pym_pm_qos_req);
+
+		vio_info("%s close pym dev done\n", __func__);
 	}
 	mutex_unlock(&pym_mutex);
 
@@ -341,7 +359,8 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 	spin_unlock_irqrestore(&subdev->slock, flags);
 	kfree(pym_ctx);
 
-	vio_info("[S%d] PYM close node\n", group->instance);
+	vio_info("[S%d][V%d] proc:%d %s PYM close node done pym open_cnt: %d\n",
+			group->instance, subdev_id, proc, __func__, atomic_read(&pym->open_cnt));
 	return 0;
 }
 
@@ -431,20 +450,23 @@ static void pym_frame_work(struct vio_group *group)
 {
 	struct x3_pym_dev *pym;
 	struct vio_framemgr *framemgr;
+	struct vio_framemgr *in_framemgr;
 	struct vio_frame *frame;
+	struct vio_frame *src_frame = NULL;
 	struct pym_subdev * subdev;
+	struct pym_subdev *in_subdev;
 	unsigned long flags;
 	u32 instance = 0;
 	u8 shadow_index = 0;
 
-	subdev = group->sub_ctx[0];
+	subdev = group->sub_ctx[SUBDEV_ID_OUT];
 	if (unlikely(!subdev)) {
 		vio_err("%s error subdev null,instance %d", __func__, instance);
 		return;
 	}
 
 	instance = group->instance;
-	subdev = group->sub_ctx[0];
+	subdev = group->sub_ctx[SUBDEV_ID_OUT];
 	pym = subdev->pym_dev;
 
 	if (instance < MAX_SHADOW_NUM)
@@ -466,8 +488,33 @@ static void pym_frame_work(struct vio_group *group)
 	if (frame && !vio_check_all_online_state(group))
 		goto end_req_to_pro;
 
+	/* offline and have src subdev */
+	if ( test_bit(PYM_DMA_INPUT, &pym->state) ) {
+		in_subdev = group->sub_ctx[SUBDEV_ID_SRC];
+		if (in_subdev != NULL) {
+			in_framemgr = &in_subdev->framemgr;
+			src_frame = peek_frame(in_framemgr, FS_REQUEST);
+			if (src_frame == NULL) {
+				framemgr_x_barrier_irqr(framemgr, 0, flags);
+				vio_err("%s there is no frame in src FS_REQUEST queue\n", __func__);
+				return;
+			}
+		}
+	}
+
 	frame = peek_frame(framemgr, FS_REQUEST);
 	if (frame) {
+		if (src_frame != NULL) {
+			frame->frameinfo.addr[0] = src_frame->frameinfo.addr[0];
+			frame->frameinfo.addr[1] = src_frame->frameinfo.addr[1];
+			frame->frameinfo.frame_id = src_frame->frameinfo.frame_id;
+			frame->frameinfo.timestamps = src_frame->frameinfo.timestamps;
+			frame->frameinfo.tv = src_frame->frameinfo.tv;
+			frame->frameinfo.height = src_frame->frameinfo.height;
+			frame->frameinfo.width = src_frame->frameinfo.width;
+			trans_frame(in_framemgr, src_frame, FS_PROCESS);
+		}
+
 		pym_set_shd_rdy(pym->base_reg, shadow_index, 0);
 		/* 8 instances share 4 sest of shadow register */
 		if (test_bit(PYM_REUSE_SHADOW0, &pym->state) &&
@@ -499,7 +546,7 @@ static void pym_frame_work(struct vio_group *group)
 		pym_set_shd_rdy(pym->base_reg, shadow_index, 1);
 		atomic_inc(&pym->enable_cnt);
 
-		if (test_bit(PYM_DMA_INPUT, &pym->state))
+		if ( (test_bit(PYM_DMA_INPUT, &pym->state)) && (src_frame != NULL) )
 			pym_set_rdma_start(pym->base_reg);
 
 		trans_frame(framemgr, frame, FS_PROCESS);
@@ -663,6 +710,7 @@ int pym_bind_chain_group(struct pym_video_ctx *pym_ctx, int instance,
 	struct x3_pym_dev *pym;
 	struct pym_subdev *subdev;
 	unsigned long flags;
+	uint32_t id;
 
 	if (!(pym_ctx->state & BIT(VIO_VIDEO_OPEN))) {
 		vio_err("[%s]invalid BIND is requested(%lX)",
@@ -675,21 +723,23 @@ int pym_bind_chain_group(struct pym_video_ctx *pym_ctx, int instance,
 		return -EFAULT;
 	}
 
+	id = pym_ctx->id;
 	pym = pym_ctx->pym_dev;
 
 	group = vio_get_chain_group(instance, GROUP_ID_PYM);
 	if (!group)
 		return -EFAULT;
 
-	subdev = &pym->subdev[instance];
+	subdev = &pym->subdev[instance][id];
 	pym->group[instance] = group;
 
-	group->sub_ctx[GROUP_ID_SRC] = subdev;
+	group->sub_ctx[id] = subdev;
 	pym_ctx->group = group;
 	pym_ctx->subdev = subdev;
 	pym_ctx->framemgr = &subdev->framemgr;
 	subdev->pym_dev = pym;
 	subdev->group = group;
+	subdev->id = id;
 
 	spin_lock_irqsave(&subdev->slock, flags);
 	/* sequentially, assign pym_ctx->ctx_index 0 through VIO_MAX_SUB_PROCESS */
@@ -706,11 +756,12 @@ int pym_bind_chain_group(struct pym_video_ctx *pym_ctx, int instance,
 		vio_err("alreay open too much for one pipeline\n");
 		return -EFAULT;
 	}
-	if (atomic_inc_return(&subdev->refcount) == 1)
+	if (atomic_inc_return(&subdev->refcount) == 1) {
 		frame_manager_init_mp(pym_ctx->framemgr);
-	else
-		/* HAL use it to judge whether subdev is shared by multi-process */
-		*mp_share = 0xff;
+		*mp_share = PYM_MASTER;
+	} else {
+		*mp_share = PYM_SLAVER;
+	}
 
 	group->frame_work = pym_frame_work;
 	group->gtask = &pym->gtask;
@@ -731,6 +782,7 @@ int pym_video_init(struct pym_video_ctx *pym_ctx, unsigned long arg)
 {
 	int ret = 0;
 	pym_cfg_t *pym_config;
+	pym_cfg_t tmp_config;
 	struct vio_group *group;
 	struct x3_pym_dev *pym_dev;
 	struct pym_subdev *subdev;
@@ -749,39 +801,49 @@ int pym_video_init(struct pym_video_ctx *pym_ctx, unsigned long arg)
 
 	subdev = pym_ctx->subdev;
 	if (test_and_set_bit(PYM_SUBDEV_INIT, &subdev->state)) {
+		ret = copy_from_user((char *)&tmp_config,
+					(u32 __user *) arg, sizeof(pym_cfg_t));
+		ret = memcmp((void *)&tmp_config, (void *)pym_config, sizeof(pym_cfg_t));
+		if (ret != 0) {
+			vio_err("[S%d][V%d] pym share mode require the same config\n",
+					group->instance, pym_ctx->id);
+			return -EINVAL;
+		}
 		vio_info("subdev already init, current refcount(%d)\n",
 				atomic_read(&subdev->refcount));
 		return ret;
 	}
 
-	ret = copy_from_user((char *)pym_config,
-				(u32 __user *) arg, sizeof(pym_cfg_t));
-	if (ret)
-		goto err;
+	if (pym_ctx->id == SUBDEV_ID_OUT) {
+		ret = copy_from_user((char *)pym_config,
+					(u32 __user *) arg, sizeof(pym_cfg_t));
+		if (ret)
+			goto err;
 
-	if (pym_config->img_scr == 1) {
-		if (test_bit(PYM_DMA_INPUT, &pym_dev->state)){
-		 	vio_err("PYM DMA input already,can't set otf input\n");
-			ret = -EINVAL;
-			goto err;
-		}else{
-			set_bit(PYM_OTF_INPUT, &pym_dev->state);
-			set_bit(VIO_GROUP_OTF_INPUT, &group->state);
-		}
-	}else{
-		if (test_bit(PYM_OTF_INPUT, &pym_dev->state)) {
-			vio_err("PYM otf input already,can't set dma input\n");
-			ret = -EINVAL;
-			goto err;
+		if (pym_config->img_scr == 1) {
+			if (test_bit(PYM_DMA_INPUT, &pym_dev->state)) {
+				vio_err("PYM DMA input already,can't set otf input\n");
+				ret = -EINVAL;
+				goto err;
+			} else {
+				set_bit(PYM_OTF_INPUT, &pym_dev->state);
+				set_bit(VIO_GROUP_OTF_INPUT, &group->state);
+			}
 		} else {
-			set_bit(PYM_DMA_INPUT, &pym_dev->state);
-			set_bit(VIO_GROUP_DMA_INPUT, &group->state);
+			if (test_bit(PYM_OTF_INPUT, &pym_dev->state)) {
+				vio_err("PYM otf input already,can't set dma input\n");
+				ret = -EINVAL;
+				goto err;
+			} else {
+				set_bit(PYM_DMA_INPUT, &pym_dev->state);
+				set_bit(VIO_GROUP_DMA_INPUT, &group->state);
+			}
 		}
+
+		pym_update_param(subdev);
+
+		set_bit(VIO_GROUP_DMA_OUTPUT, &group->state);
 	}
-
-	pym_update_param(subdev);
-
-	set_bit(VIO_GROUP_DMA_OUTPUT, &group->state);
 	ret = mutex_lock_interruptible(&pym_mutex);
 	if (ret) {
 		vio_err("ipu init mutex lock failed:%d", ret);
@@ -792,7 +854,9 @@ int pym_video_init(struct pym_video_ctx *pym_ctx, unsigned long arg)
 	atomic_inc(&group->node_refcount);
 
 	pym_ctx->state = BIT(VIO_VIDEO_INIT);
-
+	vio_info("[S%d][V%d]%s pym state: 0x%lx group refcount: %d done\n",
+		group->instance, pym_ctx->id, __func__,
+		pym_dev->state, atomic_read(&group->node_refcount));
 	return ret;
 
 err:
@@ -908,8 +972,10 @@ static int pym_flush_mp_prepare(struct pym_video_ctx *pym_ctx)
 					&& (frame->state == FS_USED)) {
 				frame->dispatch_mask |= 0xFF00;
 				trans_frame(this, frame, FS_REQUEST);
-				if(group->leader == true)
-					vio_group_start_trigger_mp(group, frame);
+				if (test_bit(PYM_OTF_INPUT, &pym_ctx->pym_dev->state)) {
+					if(group->leader == true)
+						vio_group_start_trigger_mp(group, frame);
+				}
 			}
 		}
 	}
@@ -1002,8 +1068,10 @@ int pym_video_reqbufs(struct pym_video_ctx *pym_ctx, u32 buffers)
 		vio_err("frame manage open mp failed, ret(%d)", ret);
 		return ret;
 	}
+
 	pym_ctx->frm_fst_ind = first_index;
 	pym_ctx->frm_num = buffers;
+
 	instance = pym_ctx->group->instance;
 	for (i = first_index; i < (buffers + first_index) ; i++) {
 		framemgr->frames_mp[i]->data = pym_ctx->group;
@@ -1014,8 +1082,9 @@ int pym_video_reqbufs(struct pym_video_ctx *pym_ctx, u32 buffers)
 
 	pym_ctx->state = BIT(VIO_VIDEO_REBUFS);
 	set_bit(PYM_SUBDEV_REQBUF, &subdev->state);
-	vio_info("[S%d]%s reqbuf number %d first index %d\n",
-		pym_ctx->group->instance, __func__, buffers, first_index);
+	vio_info("[S%d][V%d]%s proc %d reqbuf number %d first index %d\n",
+		pym_ctx->group->instance, pym_ctx->id, __func__,
+		pym_ctx->ctx_index, buffers, first_index);
 
 	return ret;
 }
@@ -1052,10 +1121,10 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 	framemgr = pym_ctx->framemgr;
 	group = pym_ctx->group;
 	pym = pym_ctx->pym_dev;
-
-	vio_set_stat_info(group->instance, PYM_MOD, event_pym_q,
-			group->frameid.frame_id,
-			frameinfo->addr[0], framemgr->queued_count);
+	/* pym src dev only use index 0 frame to save input frame info */
+	if (pym_ctx->id == SUBDEV_ID_SRC) {
+		index = 0;
+	}
 
 	if (index >= framemgr->max_index) {
 		vio_err("[S%d] %s index err(%d-%d).\n", group->instance,
@@ -1067,6 +1136,28 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 			__func__, index);
 		return -EINVAL;
 	}
+
+	vio_dbg("[S%d] %s proc %d dev_id: %d index %d \n", group->instance,
+		__func__, pym_ctx->ctx_index, pym_ctx->id, frameinfo->bufferindex);
+
+	if (pym_ctx->id == SUBDEV_ID_SRC) {
+		framemgr_e_barrier_irqs(framemgr, 0, flags);
+		frame = framemgr->frames_mp[index];
+		if (frame != NULL) {
+			memcpy(&frame->frameinfo, frameinfo, sizeof(struct frame_info));
+			trans_frame(framemgr, frame, FS_REQUEST);
+		}
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
+		/* offline pym, src dev start trigger */
+		if ( (group->leader) && (test_bit(PYM_DMA_INPUT, &pym->state)) ) {
+			vio_group_start_trigger_mp(group, frame);
+		}
+		return 0;
+	}
+
+	vio_set_stat_info(group->instance, PYM_MOD, event_pym_q,
+		group->frameid.frame_id,
+		frameinfo->addr[0], framemgr->queued_count);
 
 	ret = pym_check_phyaddr(frameinfo->spec.ds_uv_addr[0]);
 	if (ret)
@@ -1105,7 +1196,6 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 					frame->frameinfo.spec.ds_uv_addr[0]);
 	} else if (frame->state == FS_USED) {
 		frame->dispatch_mask &= ~(1 << pym_ctx->ctx_index);
-
 		// tran frame to request if no process need
 		if (frame->dispatch_mask == 0 && frame->poll_mask == 0x00) {
 			if (framemgr->index_state[index] == FRAME_IND_STREAMOFF) {
@@ -1116,8 +1206,7 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 				ret = 0;
 				goto try_releas_ion;
 			}
-			memcpy(&frame->frameinfo, frameinfo,
-				sizeof(struct frame_info));
+			memcpy(&frame->frameinfo, frameinfo, sizeof(struct frame_info));
 			frame->dispatch_mask |= 0xFF00;
 			trans_frame(framemgr, frame, FS_REQUEST);
 			vio_dbg("[S%d] q:USED->REQ,proc%d bidx%d,(%d %d %d %d %d)",
@@ -1132,14 +1221,14 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 					frame->frameinfo.spec.ds_uv_addr[0]);
 		} else {
 			vio_dbg("[S%d] q:disp mask%d,proc%d bidx%d,(%d %d %d %d %d)",
-					group->instance,
-					frame->dispatch_mask,
-					pym_ctx->ctx_index, index,
-					framemgr->queued_count[FS_FREE],
-					framemgr->queued_count[FS_REQUEST],
-					framemgr->queued_count[FS_PROCESS],
-					framemgr->queued_count[FS_COMPLETE],
-					framemgr->queued_count[FS_USED]);
+				group->instance,
+				frame->dispatch_mask,
+				pym_ctx->ctx_index, index,
+				framemgr->queued_count[FS_FREE],
+				framemgr->queued_count[FS_REQUEST],
+				framemgr->queued_count[FS_PROCESS],
+				framemgr->queued_count[FS_COMPLETE],
+				framemgr->queued_count[FS_USED]);
 			ret = 0;
 			goto err;
 		}
@@ -1150,10 +1239,10 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 		goto err;
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
-
-	if(group->leader == true)
+	/* group leader and otf pym, start trigger */
+	if ( group->leader && (test_bit(PYM_OTF_INPUT, &pym->state)) ) {
 		vio_group_start_trigger_mp(group, frame);
-
+	}
 	if (pym_ctx->ctx_index == 0)
 		pym->statistic.q_normal[pym_ctx->group->instance]++;
 	vio_dbg("[S%d] %s index %d\n", group->instance,
@@ -1269,7 +1358,7 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 						subdev->frameinfo.bufferindex = -1;
 						cache_frame->dispatch_mask = 0xFF00;
 						trans_frame(framemgr, cache_frame, FS_REQUEST);
-						if(group->leader == true)
+						if( (group->leader == true) && (test_bit(PYM_OTF_INPUT, &pym->state)) )
 							vio_group_start_trigger_mp(group, frame);
 						vio_dbg("pym dq trans to request%d", cache_bufindex);
 					} else if (cache_frame->dispatch_mask == 0x0000
@@ -2036,12 +2125,13 @@ static irqreturn_t pym_isr(int irq, void *data)
 	struct vio_group *group;
 	struct vio_group_task *gtask;
 	struct pym_subdev *subdev;
+	struct pym_subdev *subdev_src;
 
 	pym = data;
 	gtask = &pym->gtask;
 	instance = atomic_read(&pym->instance);
 	group = pym->group[instance];
-	subdev = group->sub_ctx[GROUP_ID_SRC];
+	subdev = group->sub_ctx[SUBDEV_ID_OUT];
 	pym_get_intr_status(pym->base_reg, &status, true);
 	vio_dbg("%s:status = 0x%x\n", __func__, status);
 
@@ -2071,6 +2161,10 @@ static irqreturn_t pym_isr(int irq, void *data)
 
 		if (test_bit(PYM_DMA_INPUT, &pym->state)) {
 			vio_group_done(group);
+			subdev_src = group->sub_ctx[SUBDEV_ID_SRC];
+			if (subdev_src != NULL) {
+				pym_frame_done(subdev_src);
+			}
 		}
 		pym_frame_done(subdev);
 	}
@@ -2201,8 +2295,10 @@ int x3_pym_subdev_init(struct x3_pym_dev *pym)
 	struct pym_subdev *subdev;
 
 	for (i = 0; i < VIO_MAX_STREAM; i++) {
-		subdev = &pym->subdev[i];
-		ret = pym_subdev_init(subdev);
+		for (j = 0; j < MAX_DEVICE; j++) {
+			subdev = &pym->subdev[i][j];
+			ret = pym_subdev_init(subdev);
+		}
 	}
 
 	for (i = 0; i < VIO_MAX_STREAM; i++) {
@@ -2243,6 +2339,14 @@ int x3_pym_device_node_init(struct x3_pym_dev *pym)
 	if (IS_ERR(dev)) {
 		ret = -EINVAL;
 		vio_err("pym device create fail\n");
+		goto err;
+	}
+
+	dev = device_create(pym->class, NULL, MKDEV(MAJOR(pym->devno), 1),
+					NULL, "pym_s0");
+	if (IS_ERR(dev)) {
+		ret = -EINVAL;
+		vio_err("pym device create pym_s0 fail\n");
 		goto err;
 	}
 
@@ -2443,7 +2547,7 @@ static ssize_t get_pipeline_info(int pipeid, struct device *dev,
 		len = snprintf(buf+offset, PAGE_SIZE - offset, "pipeline %d is disabled\n", pipeid);
 		offset += len;
 	} else {
-		framemgr = &pym->subdev[i].framemgr;
+		framemgr = &pym->subdev[i][SUBDEV_ID_OUT].framemgr;
 		len = snprintf(buf+offset, PAGE_SIZE - offset, "pipeline %d queue:\n", pipeid);
 		offset += len;
 		framemgr_e_barrier_irqs(framemgr, 0, flags);
@@ -2461,7 +2565,7 @@ static ssize_t get_pipeline_info(int pipeid, struct device *dev,
 		len = snprintf(buf+offset, PAGE_SIZE - offset, "pipeline %d pym config:\n", pipeid);
 		offset += len;
 
-		input_type = pym->subdev[pipeid].pym_cfg.img_scr;
+		input_type = pym->subdev[pipeid][SUBDEV_ID_OUT].pym_cfg.img_scr;
 		if (input_type == 0) {
 			len = snprintf(buf+offset, PAGE_SIZE - offset, "input mode: %d, %s\n", input_type, "ddr to pym");
 		} else if (input_type == 1) {
@@ -2474,7 +2578,7 @@ static ssize_t get_pipeline_info(int pipeid, struct device *dev,
 		len = snprintf(buf+offset, PAGE_SIZE - offset, "channel config:\n");
 		offset += len;
 
-		pym_config = &pym->subdev[pipeid].pym_cfg;
+		pym_config = &pym->subdev[pipeid][SUBDEV_ID_OUT].pym_cfg;
 		for (i = 0; i < MAX_PYM_DS_COUNT; i++) {
 			len = snprintf(buf+offset, PAGE_SIZE - offset, "\tds%d \tfactor:%d, \ttgt wxh:%dx%d, \tstartXY:%d-%d\n",
 				i, pym_config->stds_box[i].factor, pym_config->stds_box[i].tgt_width, pym_config->stds_box[i].tgt_height,

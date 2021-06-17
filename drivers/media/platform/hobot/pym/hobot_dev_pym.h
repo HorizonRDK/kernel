@@ -17,7 +17,7 @@
 #include "vio_framemgr.h"
 #include "vio_group_api.h"
 
-#define MAX_DEVICE  1
+#define MAX_DEVICE  2
 #define X3_PYM_NAME  "x3-pym"
 
 #define PYM_IOC_MAGIC 'p'
@@ -88,9 +88,14 @@ struct pym_video_ctx{
 	int belong_pipe;
 };
 
-enum group_id {
-	GROUP_ID_SRC,
-	GROUP_ID_MAX,
+enum subdev_id {
+	SUBDEV_ID_OUT,
+	SUBDEV_ID_SRC,
+	SUBDEV_ID_MAX,
+};
+enum process_role {
+	PYM_MASTER = 0,
+	PYM_SLAVER = 1
 };
 
 enum pym_interrupt_map {
@@ -172,7 +177,7 @@ struct x3_pym_dev {
 	atomic_t enable_cnt;
 
 	struct pym_status_statistic statistic;
-	struct pym_subdev subdev[VIO_MAX_STREAM];
+	struct pym_subdev subdev[VIO_MAX_STREAM][MAX_DEVICE];
 	struct vio_group *group[VIO_MAX_STREAM];
 	struct vio_group_task gtask;	
 	struct vio_work vwork[VIO_MAX_STREAM][VIO_MP_MAX_FRAMES];
