@@ -587,6 +587,7 @@ static void init_stab( acamera_context_ptr_t p_ctx )
     p_ctx->isp_af_stats_on = 0;
     p_ctx->isp_ae_5bin_stats_on = 0;
     p_ctx->isp_lumvar_stats_on = 0;
+    p_ctx->antiflicker_enable = 0;
     p_ctx->isp_frame_counter = 0;
     p_ctx->timestamps = 0;
 

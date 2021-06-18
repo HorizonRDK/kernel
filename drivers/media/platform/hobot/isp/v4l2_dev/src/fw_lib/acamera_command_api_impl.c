@@ -1243,12 +1243,14 @@ uint8_t system_ccm_matrix_bb( acamera_fsm_mgr_t *instance, uint32_t value, uint8
 uint8_t system_antiflicker_enable( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
 {
     *ret_value = 0;
+    acamera_context_ptr_t p_ctx = ACAMERA_MGR2CTX_PTR( instance );
     cmos_control_param_t *param = (cmos_control_param_t *)_GET_UINT_PTR( ACAMERA_MGR2CTX_PTR( instance ), CALIBRATION_CMOS_CONTROL );
     if ( direction == COMMAND_GET ) {
         *ret_value = param->global_antiflicker_enable;
         return SUCCESS;
     } else if ( direction == COMMAND_SET ) {
         param->global_antiflicker_enable = value;
+        p_ctx->antiflicker_enable = value;
         return SUCCESS;
     } else {
         return NOT_SUPPORTED;

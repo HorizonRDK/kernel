@@ -63,6 +63,8 @@
 #define OV_08835_MESH_SHADING_LS_D40_BANK 1
 #define OV_08835_MESH_SHADING_LS_D50_BANK 2
 
+#define SHADING_KELVIN_NUM  6
+
 // threshold for the LSC table hysterisis.
 #define AWB_DLS_LIGHT_SOURCE_D40_D50_BORDER_low ( ( AWB_LIGHT_SOURCE_D50_TEMPERATURE + AWB_LIGHT_SOURCE_D40_TEMPERATURE ) >> 1 ) - 200
 #define AWB_DLS_LIGHT_SOURCE_D40_D50_BORDER_high ( ( AWB_LIGHT_SOURCE_D40_TEMPERATURE + AWB_LIGHT_SOURCE_D50_TEMPERATURE ) >> 1 ) + 200
@@ -209,7 +211,7 @@ void color_matrix_shading_mesh_reload( color_matrix_fsm_ptr_t p_fsm )
     mesh_page[1][0] = _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_LS_TL84_R );
     mesh_page[1][1] = _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_LS_TL84_G );
     mesh_page[1][2] = _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_LS_TL84_B );
-    if (shading_threshold_len == 8) {
+    if (shading_threshold_len == SHADING_KELVIN_NUM) {
         pr_debug("use new shading update logic\n");
         mesh_page[2][0] = _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_LS_D50_R );
         mesh_page[2][1] = _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_LS_D50_G );
@@ -270,7 +272,7 @@ static void write_CCM_to_purple_fringe( color_matrix_fsm_t *p_fsm )
 
     uint32_t ccm_threshold_len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CCM_TEMPER_THRESHOLD );
     const uint32_t *p_ccm_threshold = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CCM_TEMPER_THRESHOLD );
-    if (ccm_threshold_len > 7) {
+    if (ccm_threshold_len >= 7) {
 	ccm_blend_flag = p_ccm_threshold[6];
     }
 
@@ -465,7 +467,7 @@ void color_matrix_update( color_matrix_fsm_t *p_fsm )
 	/* update ccm threshold when CCM_TEMPER_THRESHOLD is right */
 	uint32_t ccm_threshold_len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CCM_TEMPER_THRESHOLD );
 	const uint32_t *p_ccm_threshold = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CCM_TEMPER_THRESHOLD );
-	if (ccm_threshold_len > 7) {
+	if (ccm_threshold_len >= 7) {
 		ccm_blend_flag = p_ccm_threshold[6];
 	}
 	// tuning param enable blend func
@@ -526,14 +528,12 @@ void color_matrix_update( color_matrix_fsm_t *p_fsm )
 		uint32_t shading_threshold_len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_TEMPER_THRESHOLD );
 		const uint32_t *p_shading_threshold = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_TEMPER_THRESHOLD );
 
-		if (shading_threshold_len >= 8) {
+		if (shading_threshold_len == SHADING_KELVIN_NUM) {
 			if ((p_shading_threshold[0] > p_shading_threshold[1]) ||
 				(p_shading_threshold[1] > p_shading_threshold[2]) ||
 				(p_shading_threshold[2] > p_shading_threshold[3]) ||
 				(p_shading_threshold[3] > p_shading_threshold[4]) ||
-				(p_shading_threshold[4] > p_shading_threshold[5]) ||
-				(p_shading_threshold[5] > p_shading_threshold[6]) ||
-				(p_shading_threshold[6] > p_shading_threshold[7])) {
+				(p_shading_threshold[4] > p_shading_threshold[5])) {
                     pr_err("invalid shading threshold.\n");
 			} else {
 				p_fsm->temperature_threshold[0] = p_shading_threshold[0];
@@ -542,12 +542,10 @@ void color_matrix_update( color_matrix_fsm_t *p_fsm )
 				p_fsm->temperature_threshold[3] = p_shading_threshold[3];
 				p_fsm->temperature_threshold[4] = p_shading_threshold[4];
 				p_fsm->temperature_threshold[5] = p_shading_threshold[5];
-				p_fsm->temperature_threshold[6] = p_shading_threshold[6];
-				p_fsm->temperature_threshold[7] = p_shading_threshold[7];
 			}
 		}
 
-        if (shading_threshold_len >= 8) {
+        if (shading_threshold_len == SHADING_KELVIN_NUM) {
             pr_debug("use new shading update logic\n");
             // LSC is completely based on alpha blending and the AWB color temp.
             /* only update shading_threshold when SHADING_TEMPER_THRESHOLD is right */
@@ -780,7 +778,7 @@ void color_matrix_change_CCMs( color_matrix_fsm_t *p_fsm )
     /* update ccm threshold when CCM_TEMPER_THRESHOLD is right */
 	uint32_t ccm_threshold_len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CCM_TEMPER_THRESHOLD );
 	const uint32_t *p_ccm_threshold = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CCM_TEMPER_THRESHOLD );
-	if (ccm_threshold_len > 7) {
+	if (ccm_threshold_len >= 7) {
 		ccm_blend_flag = p_ccm_threshold[6];
 	}
 

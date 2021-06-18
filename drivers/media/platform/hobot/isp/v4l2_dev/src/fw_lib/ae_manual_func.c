@@ -291,12 +291,15 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
         }
     }//endif p_ctx->isp_ae_5bin_stats_on
 
-	// read lumvar
-    if (p_ctx->isp_lumvar_stats_on) {
+    // read lumvar
+    if (p_ctx->isp_lumvar_stats_on || p_ctx->antiflicker_enable) {
         for ( i = 0; i < 512; i++ ) {
             lumvar[i] = acamera_lumvar_stats_mem_array_data_read(p_fsm->cmn.isp_base, i);
             LOG(LOG_DEBUG, "lumvar: %u. data %d \n", i, lumvar[i]);
         }
+    }
+
+    if (p_ctx->isp_lumvar_stats_on) {
         rc = system_chardev_lock();
         if (rc == 0) {
             isp_ctx_node_t *cn;

@@ -207,6 +207,8 @@ struct _acamera_context_t {
     uint8_t isp_ae_5bin_stats_on;
     uint8_t isp_lumvar_stats_on;
 
+    uint8_t antiflicker_enable;
+
     uint8_t content_side;
     int dma_chn_idx;
 	int iridix_chn_idx;
