@@ -25,6 +25,7 @@
 #include <linux/suspend.h>
 #include <linux/of.h>
 #include <linux/timer.h>
+#include <linux/sched/signal.h>
 
 #include <soc/hobot/hobot_mipi_host.h>
 #include <soc/hobot/hobot_mipi_dphy.h>
@@ -79,7 +80,7 @@ module_param(hw_mode, uint, 0644);
 
 #define MIPI_HOST_INT_DBG		   (1)
 #define MIPI_HOST_INT_DBG_ERRSTR   (1)
-#define MIPI_HOST_SYSFS_FATAL_EN   (0)
+#define MIPI_HOST_SYSFS_FATAL_EN   (1)
 
 #define MIPI_HOST_INT_PHY_FATAL    (0x1)
 #define MIPI_HOST_INT_PKT_FATAL    (0x1<<1)
@@ -131,6 +132,8 @@ module_param(hw_mode, uint, 0644);
 #define MIPI_HOST_ADV_DEFAULT      (0x3 << 16)
 #define MIPI_HOST_CUT_DEFAULT      (1)
 #define MIPI_HOST_IPILIMIT_DEFAULT (102000000UL)
+#define MIPI_HOST_SIGFUNCFG_DEFAULT (0x0)
+#define MIPI_HOST_SIGWAITMS_DEFAULT (0)
 #define MIPI_HOST_IRQ_CNT          (10)
 #define MIPI_HOST_IRQ_DEBUG_PRERR  (0x1)
 #define MIPI_HOST_IRQ_DEBUG_ERRSTR (0x2)
@@ -234,6 +237,9 @@ typedef struct _mipi_host_param_s {
 	uint32_t ipi_limit;
 	uint32_t snrclk_en;
 	uint32_t snrclk_freq;
+	uint32_t sigfun_cfg;
+	uint32_t sigwait_ms;
+	uint32_t sigfatal_mask;
 	uint32_t ipi1_dt;
 #if MIPIHOST_CHANNEL_NUM >= 2
 	uint32_t ipi2_dt;
@@ -264,6 +270,9 @@ static const char *g_mh_param_names[] = {
 	"ipi_limit",
 	"snrclk_en",
 	"snrclk_freq",
+	"sigfun_cfg",
+	"sigwait_ms",
+	"sigfatal_mask",
 	"ipi1_dt",
 #if MIPIHOST_CHANNEL_NUM >= 2
 	"ipi2_dt",
@@ -736,6 +745,9 @@ typedef struct _mipi_hdev_s {
 	mipi_host_t       host;
 	mipi_user_t       user;
 	const mipi_host_hw_mode_t *hw_mode;
+	spinlock_t 		  siglock;
+	mipi_host_sigpid_t sigpid;
+	unsigned long     sigts_ms;
 #ifdef CONFIG_HOBOT_DIAG
 	struct timer_list diag_timer;
 	uint32_t          last_err_tm_ms;
@@ -1790,6 +1802,64 @@ static void mipi_host_diag_test(void *p, size_t len)
 }
 #endif
 
+static int mipi_host_send_sig_info(int32_t pid, int32_t signo, int errno, uint64_t addr)
+{
+	int ret = -1;
+	struct siginfo info;
+	struct task_struct *p_task;
+
+	p_task = pid_task(find_vpid(pid), PIDTYPE_PID);
+	if (p_task) {
+		memset(&info, 0, sizeof(struct siginfo));
+		info.si_signo = signo;
+		info.si_errno = errno;
+		info.si_code = SI_KERNEL;
+		info.si_addr = (void __user *) addr;
+		ret = send_sig_info(signo, &info, p_task);
+	}
+	return ret;
+}
+
+
+static int mipi_host_send_sig_fatal(mipi_hdev_t *hdev, uint32_t fatal, uint32_t sub)
+{
+	int32_t ret = -1;
+	unsigned long flags;
+	mipi_host_sigpid_t *spid = &hdev->sigpid;
+	mipi_host_param_t *param = &hdev->host.param;
+	struct device *dev = hdev->dev;
+	uint32_t fatal_mask;
+	int signo;
+	unsigned long cur_ms = jiffies_to_msecs(get_jiffies_64());
+
+	spin_lock_irqsave(&hdev->siglock, flags);
+	fatal_mask = (param->sigfatal_mask) ? param->sigfatal_mask : spid->fatal_mask;
+	if ((spid->pid > 0) && ((fatal_mask == 0) ||
+		((fatal_mask & fatal) != 0))) {
+		/* sigts_ms: sigusr1 last send timestamp.
+		 * 0   -- ready to send sigusr1;
+		 * !0  -- send sigusr1 again if > sigwait_ms, else send sigusr2;
+		 * =0  -- clean after send sigusr2 --> ready to send sigusr1 again.
+		 *  */
+		if (hdev->sigts_ms == 0 || (cur_ms - hdev->sigts_ms) > param->sigwait_ms)
+			signo = SIGUSR1;
+		else
+			signo = SIGUSR2;
+		ret = mipi_host_send_sig_info(spid->pid, signo, hdev->port, (((uint64_t)sub << 32) | fatal));
+		if (ret < 0) {
+			mipidbg("mipihost%d sig %d 0x%x:0x%x to pid %d error %d",
+				hdev->port, signo, fatal, sub, spid->pid, ret);
+		} else {
+			mipidbg("mipihost%d sig %d 0x%x:0x%x to pid %d",
+				hdev->port, signo, fatal, sub, spid->pid);
+			hdev->sigts_ms = (signo == SIGUSR2) ? 0 : cur_ms;
+			ret = 0;
+		}
+	}
+	spin_unlock_irqrestore(&hdev->siglock, flags);
+	return ret;
+}
+
 /**
  * @brief mipi_host_irq_func : irq func
  *
@@ -1884,7 +1954,13 @@ static irqreturn_t mipi_host_irq_func(int this_irq, void *data)
 		}
 	}
 
-	if (icnt->st_main > param->irq_cnt)
+	i = 1;
+	if (param->sigfun_cfg & 0x1) {
+		if (mipi_host_send_sig_fatal(hdev, irq, subirq) == 0 &&
+			(param->sigfun_cfg & 0x2))
+			i = 0;
+	}
+	if (icnt->st_main > param->irq_cnt || i == 0)
 		mipi_host_irq_disable(hdev);
 
 	if (this_irq >= 0)
@@ -2210,6 +2286,8 @@ static int hobot_mipi_host_open(struct inode *inode, struct file *file)
 	mipidbg("open as %d", user->open_cnt);
 	if (user->open_cnt == 0) {
 		mutex_init(&user->mutex);
+		spin_lock_init(&hdev->siglock);
+		memset(&hdev->sigpid, 0, sizeof(mipi_host_sigpid_t));
 		init_waitqueue_head(&user->pre_wq);
 		user->pre_state = MIPI_PRE_STATE_DEFAULT;
 		user->init_cnt = 0;
@@ -2278,6 +2356,7 @@ static long hobot_mipi_host_ioctl(struct file *file, unsigned int cmd, unsigned 
 	case MIPIHOSTIOC_INIT:
 		{
 			mipi_host_cfg_t mipi_host_cfg;
+			unsigned long flags;
 			if (mutex_lock_interruptible(&user->mutex)) {
 				mipierr("init user mutex lock error");
 				return -EINVAL;
@@ -2314,6 +2393,10 @@ static long hobot_mipi_host_ioctl(struct file *file, unsigned int cmd, unsigned 
 					mutex_unlock(&user->mutex);
 					return ret;
 				}
+				spin_lock_irqsave(&hdev->siglock, flags);
+				hdev->sigpid.pid = pid_nr(get_task_pid(current, PIDTYPE_PID));
+				hdev->sigpid.fatal_mask = 0;
+				spin_unlock_irqrestore(&hdev->siglock, flags);
 				if (user->pre_state == MIPI_PRE_STATE_INITING) {
 					user->pre_state = MIPI_PRE_STATE_INITED;
 					user->pre_done = true;
@@ -2716,6 +2799,20 @@ static long hobot_mipi_host_ioctl(struct file *file, unsigned int cmd, unsigned 
 			mutex_unlock(&user->mutex);
 		}
 		break;
+	case MIPIHOSTIOC_SIGPID_SET:
+		{
+			unsigned long flags;
+			mipi_host_sigpid_t sigpid;
+			if (!arg || copy_from_user((void *)&sigpid,
+			    (void __user *)arg, sizeof(mipi_host_sigpid_t))) {
+				mipierr("pidsiig set erorr, %p from user error", (void __user *)arg);
+				return -EINVAL;
+			}
+			spin_lock_irqsave(&hdev->siglock, flags);
+			memcpy(&hdev->sigpid, &sigpid, sizeof(mipi_host_sigpid_t));
+			spin_unlock_irqrestore(&hdev->siglock, flags);
+		}
+		break;
 #ifdef CONFIG_HOBOT_MIPI_REG_OPERATE
 	case MIPIHOSTIOC_READ:
 		{
@@ -2870,6 +2967,9 @@ MIPI_HOST_PARAM_DEC(ipi_force);
 MIPI_HOST_PARAM_DEC(ipi_limit);
 MIPI_HOST_PARAM_DEC(snrclk_en);
 MIPI_HOST_PARAM_DEC(snrclk_freq);
+MIPI_HOST_PARAM_DEC(sigfun_cfg);
+MIPI_HOST_PARAM_DEC(sigwait_ms);
+MIPI_HOST_PARAM_DEC(sigfatal_mask);
 MIPI_HOST_PARAM_DEC(ipi1_dt);
 #if MIPIHOST_CHANNEL_NUM >= 2
 MIPI_HOST_PARAM_DEC(ipi2_dt);
@@ -2899,6 +2999,9 @@ static struct attribute *param_attr[] = {
 	MIPI_HOST_PARAM_ADD(ipi_limit),
 	MIPI_HOST_PARAM_ADD(snrclk_en),
 	MIPI_HOST_PARAM_ADD(snrclk_freq),
+	MIPI_HOST_PARAM_ADD(sigfun_cfg),
+	MIPI_HOST_PARAM_ADD(sigwait_ms),
+	MIPI_HOST_PARAM_ADD(sigfatal_mask),
 	MIPI_HOST_PARAM_ADD(ipi1_dt),
 #if MIPIHOST_CHANNEL_NUM >= 2
 	MIPI_HOST_PARAM_ADD(ipi2_dt),
@@ -3533,6 +3636,8 @@ static int hobot_mipi_host_probe_param(void)
 		param->cut_through = MIPI_HOST_CUT_DEFAULT;
 		param->ipi_limit = MIPI_HOST_IPILIMIT_DEFAULT;
 		param->wait_ms = HOST_DPHY_CHECK_MAX;
+		param->sigfun_cfg = MIPI_HOST_SIGFUNCFG_DEFAULT;
+		param->sigwait_ms = MIPI_HOST_SIGWAITMS_DEFAULT;
 
 		hobot_mipi_host_phy_register(hdev);
 		g_hdev[i] = hdev;
@@ -3655,6 +3760,8 @@ static int hobot_mipi_host_probe(struct platform_device *pdev)
 	param->cut_through = MIPI_HOST_CUT_DEFAULT;
 	param->ipi_limit = MIPI_HOST_IPILIMIT_DEFAULT;
 	param->wait_ms = HOST_DPHY_CHECK_MAX;
+	param->sigfun_cfg = MIPI_HOST_SIGFUNCFG_DEFAULT;
+	param->sigwait_ms = MIPI_HOST_SIGWAITMS_DEFAULT;
 
 	platform_set_drvdata(pdev, hdev);
 

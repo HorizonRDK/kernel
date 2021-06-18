@@ -56,6 +56,11 @@ typedef struct _mipi_host_ipi_info_t {
 	uint32_t adv;
 } mipi_host_ipi_info_t;
 
+typedef struct _mipi_host_sigpid_t {
+	int32_t pid;
+	uint32_t fatal_mask;
+} mipi_host_sigpid_t;
+
 #define MIPIHOSTIOC_MAGIC 'v'
 #define MIPIHOSTIOC_INIT             _IOW(MIPIHOSTIOC_MAGIC, 0, mipi_host_cfg_t)
 #define MIPIHOSTIOC_DEINIT           _IO(MIPIHOSTIOC_MAGIC,  1)
@@ -70,5 +75,5 @@ typedef struct _mipi_host_ipi_info_t {
 #define MIPIHOSTIOC_IPI_RESET        _IOW(MIPIHOSTIOC_MAGIC, 10, mipi_host_ipi_reset_t)
 #define MIPIHOSTIOC_IPI_GET_INFO     _IOR(MIPIHOSTIOC_MAGIC, 11, mipi_host_ipi_info_t)
 #define MIPIHOSTIOC_IPI_SET_INFO     _IOW(MIPIHOSTIOC_MAGIC, 12, mipi_host_ipi_info_t)
-
+#define MIPIHOSTIOC_SIGPID_SET       _IOW(MIPIHOSTIOC_MAGIC, 13, mipi_host_sigpid_t)
 #endif /*__HOBOT_MIPI_HOST_H__*/
