@@ -516,11 +516,22 @@ static void hobot_uart_handle_rx(void *dev_id, unsigned int irqstatus)
 static void hobot_uart_stop_rx(struct uart_port *port)
 {
 	unsigned int regval;
+	int status;
 
 	/* Disable the receiver */
 	regval = readl(port->membase + HOBOT_UART_ENR);
 	regval &= ~UART_ENR_RX_EN;
 	writel(regval, port->membase + HOBOT_UART_ENR);
+
+	/*stop RXDMA*/
+	regval = readl(port->membase + HOBOT_UART_RXDMA);
+	regval |= UART_RXSTP;
+	writel(regval, port->membase + HOBOT_UART_RXDMA);
+
+	/* Reset FIFO */
+	status = readl(port->membase + HOBOT_UART_FCR);
+	status |= UART_FCR_RFRST | UART_FCR_TFRST;
+	writel(status, port->membase + HOBOT_UART_FCR);
 }
 
 #if defined(CONFIG_HOBOT_TTY_IRQ_MODE) || defined(CONFIG_HOBOT_TTY_POLL_MODE)\
@@ -818,6 +829,8 @@ static void hobot_uart_start_tx(struct uart_port *port)
 static void hobot_uart_stop_tx(struct uart_port *port)
 {
 	unsigned int ctrl;
+	int status;
+	unsigned int regval;
 	struct hobot_uart *hobot_port = port->private_data;
 
 #if defined(CONFIG_HOBOT_TTY_IRQ_MODE) || defined(CONFIG_HOBOT_TTY_DMA_MODE)
@@ -830,6 +843,16 @@ static void hobot_uart_stop_tx(struct uart_port *port)
 	ctrl &= ~UART_ENR_TX_EN;
 	writel(ctrl, port->membase + HOBOT_UART_ENR);
 	hobot_port->tx_in_progress = 0;
+
+	/*stop TXDMA*/
+	regval = readl(port->membase + HOBOT_UART_TXDMA);
+	regval |= UART_TXSTP;
+	writel(regval, port->membase + HOBOT_UART_TXDMA);
+
+	/* Reset FIFO */
+	status = readl(port->membase + HOBOT_UART_FCR);
+	status |= UART_FCR_RFRST | UART_FCR_TFRST;
+	writel(status, port->membase + HOBOT_UART_FCR);
 }
 
 /**
