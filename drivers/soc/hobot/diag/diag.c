@@ -648,7 +648,7 @@ int32_t diag_send_event_stat(
 		uint16_t event_id,
 		uint8_t event_sta)
 {
-	struct diag_event event;
+	struct diag_event event = {0};
 	int32_t ret;
 
 	event.module_id = (uint8_t)module_id;
