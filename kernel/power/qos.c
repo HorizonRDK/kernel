@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2020
  * This module exposes the interface to kernel space for specifying
  * QoS dependencies.  It provides infrastructure for registration of:
  *
@@ -179,7 +180,6 @@ static struct pm_qos_object cpu_online_max_pm_qos = {
 	.name = "cpu_online_max",
 };
 
-static DEFINE_MUTEX(qos_idr_mutex);
 static DEFINE_IDR(qos_idr);
 
 static struct pm_qos_object *pm_qos_array[PM_QOS_NUM_CLASSES] = {

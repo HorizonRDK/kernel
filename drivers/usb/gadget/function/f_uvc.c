@@ -514,12 +514,12 @@ static bool uvc_function_req_match(struct usb_function *f,
 {
 	struct uvc_device *uvc = to_uvc(f);
 	u16 w_index = le16_to_cpu(ctrl->wIndex);
+	u8 intf = w_index & 0xFF;
 
 	/* Customer specific Extension Unit ID */
 	if (w_index == CUSTOMER_XU_ID)
 		return true;
 
-	u8 intf = w_index & 0xFF;
 	if (intf != uvc->control_intf &&
 			intf != uvc->streaming_intf)
 		return false;

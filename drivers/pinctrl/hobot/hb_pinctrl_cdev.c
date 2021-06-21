@@ -512,27 +512,27 @@ error:
     return ret;
 }
 
-static DEFINE_MUTEX(pinctrl_dev_open_tmux);
+// static DEFINE_MUTEX(pinctrl_dev_open_tmux);
 static int pinctrl_dev_open(struct inode *inode, struct file *file)
 {
     return 0;
 }
 
-static DEFINE_MUTEX(pinctrl_dev_write_mutex);
+// static DEFINE_MUTEX(pinctrl_dev_write_mutex);
 static ssize_t pinctrl_dev_write(struct file *file, const char __user *buf,
         size_t count, loff_t *ppos)
 {
 	return 0;
 }
 
-static DEFINE_MUTEX(pinctrl_dev_read_mutex);
+// static DEFINE_MUTEX(pinctrl_dev_read_mutex);
 static ssize_t pinctrl_dev_read(struct file *file, char __user *buf,
     size_t size, loff_t *ppos)
 {
 	return 0;
 }
 
-static DEFINE_MUTEX(pinctrl_dev_ioctl_mutex);
+// static DEFINE_MUTEX(pinctrl_dev_ioctl_mutex);
 static long pinctrl_dev_ioctl(struct file *file, unsigned int cmd,
 		unsigned long arg)
 {

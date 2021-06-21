@@ -137,7 +137,6 @@ enum uart_mode {
 static unsigned int dbg_tx_cnt[1024];
 static unsigned int dbg_tx_index = 0;
 #endif /* HOBOT_UART_DBG */
-static u32 uartoutcnt = 0;
 
 #ifdef CONFIG_HOBOT_TTY_DMA_MODE
 
@@ -1485,13 +1484,13 @@ OF_EARLYCON_DECLARE(hobot, "hobot,hobot-uart", hobot_early_console_setup);
 static void hobot_uart_console_write(struct console *co, const char *s,
 				  unsigned int count)
 {
-	if (!uarttx_ctrl)
-		return;
 	struct uart_port *port = &hobot_uart_port[co->index];
 	unsigned long flags;
 	volatile unsigned int ctrl, dma;
 	int locked = 1;
 
+	if (!uarttx_ctrl)
+		return;
 	/* Check if tx dma is enabled. */
 	while ((ctrl = readl(port->membase + HOBOT_UART_TXDMA)) & UART_TXSTA) {
 		cpu_relax();

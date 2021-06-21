@@ -365,7 +365,6 @@ static void *hobot_dcore_rproc_da_to_va(struct rproc *rproc, u64 da, int len)
 static int hobot_dcore_rproc_pre_load(struct rproc *rproc)
 {
 	struct hobot_rproc_pdata *pdata = rproc->priv;
-	struct rproc_mem_entry *mem = NULL;
 
 	if (!rproc->register_virtio) {
 		pdata->ipc_ops.pre_load_remoteproc(pdata->ipc_int_va);

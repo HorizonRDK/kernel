@@ -1,3 +1,18 @@
+/*
+ * AVB  DRM driver.
+ *
+ * Copyright (C) 2020
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ */
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_fb_cma_helper.h>
@@ -133,11 +148,12 @@ static void avb_drm_plane_atomic_update(struct drm_plane *plane,
 	if (!total_len)
 		return;
 
-	DRM_DEBUG_DRIVER("%dx%d (bpp=%d), vaddr=0x%x, len=%d\n",width, height, bpp, (unsigned int)data,(unsigned int)total_len);
+	DRM_DEBUG_DRIVER("%dx%d (bpp=%d), vaddr=0x%p, len=%d\n",
+    width, height, bpp, data, (unsigned int)total_len);
 
 	ret = tsn_buffer_write(avb_dev->link, data, total_len);
 	if (ret != total_len) {
-		DRM_ERROR("failed to write TSN buffer (%d bytes): got %d\n",
+		DRM_ERROR("failed to write TSN buffer (%ld bytes): got %d\n",
 				total_len, ret);
 		return;
 	}

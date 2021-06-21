@@ -69,7 +69,7 @@ static const struct file_operations config_proc_ops = {
 static int gtp_register_powermanger(struct goodix_ts_data *ts);
 static int gtp_unregister_powermanger(struct goodix_ts_data *ts);
 
-#if GTP_CREATE_WR_NODE
+#ifdef GTP_CREATE_WR_NODE
 extern s32 init_wr_node(struct i2c_client*);
 extern void uninit_wr_node(void);
 #endif
@@ -347,7 +347,7 @@ Output:
 *********************************************************/
 void gtp_irq_disable(struct goodix_ts_data *ts)
 {
-	unsigned long irqflags;
+	// unsigned long irqflags;
 
 	// GTP_DEBUG_FUNC();
 #if 0
@@ -371,7 +371,7 @@ Output:
 *********************************************************/
 void gtp_irq_enable(struct goodix_ts_data *ts)
 {
-	unsigned long irqflags = 0;
+	// unsigned long irqflags = 0;
 
 	// GTP_DEBUG_FUNC();
 
@@ -1116,7 +1116,7 @@ Output:
 *******************************************************/
 void gtp_reset_guitar(struct i2c_client *client, s32 ms)
 {
-	struct goodix_ts_data *ts = i2c_get_clientdata(client);
+	// struct goodix_ts_data *ts = i2c_get_clientdata(client);
 
 	// HIGH: 0x28/0x29, LOW: 0xBA/0xBB
 	//GTP_GPIO_OUTPUT(gtp_int_gpio, client->addr == 0x14);
@@ -2787,7 +2787,7 @@ static int goodix_ts_probe(struct i2c_client *client, const struct i2c_device_id
 #endif /* if 0 */
 
 
-#if GTP_CREATE_WR_NODE
+#ifdef GTP_CREATE_WR_NODE
 	init_wr_node(client);
 #endif
 	return 0;
@@ -2810,7 +2810,7 @@ static int goodix_ts_remove(struct i2c_client *client)
 
 	gtp_unregister_powermanger(ts);
 
-#if GTP_CREATE_WR_NODE
+#ifdef GTP_CREATE_WR_NODE
 	uninit_wr_node();
 #endif
 
@@ -3406,7 +3406,7 @@ Output:
 ********************************************************/
 static int __init goodix_ts_init(void)
 {
-	s32 ret;
+	s32 ret = 0;
 	struct i2c_adapter *i2c_adap;
 
 	GTP_DEBUG_FUNC();
