@@ -992,7 +992,7 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 	sif = sif_ctx->sif_dev;
 	subdev = sif_ctx->subdev;
 	if (sif_ctx->state & BIT(VIO_VIDEO_OPEN)) {
-		vio_info("[Sx][V%d] %s: only open.\n", sif_ctx->id, __func__);
+		vio_info("[S%d][V%d] %s: only open.\n", sif_ctx->id, __func__);
 		atomic_dec(&sif->open_cnt);
 		kfree(sif_ctx);
 		return 0;
@@ -1584,11 +1584,18 @@ int sif_bind_chain_group(struct sif_video_ctx *sif_ctx, int instance)
 		group_id = GROUP_ID_SIF_IN;
 		subdev->id = sif_ctx->id;
 	}
+	ret = mutex_lock_interruptible(&sif->shared_mutex);
+	if (ret) {
+		vio_err("sif_bind_chain lock failed:%d", ret);
+		goto p_err;
+	}
 	if (atomic_read(&subdev->refcount) >= 1) {
 		vio_err("%s instance %d more than one pipeline bind\n",
 			__func__, instance);
+		mutex_unlock(&sif->shared_mutex);
 		return -EFAULT;
 	}
+	mutex_unlock(&sif->shared_mutex);
 
 	group = vio_get_chain_group(instance, group_id);
 	if (!group)
