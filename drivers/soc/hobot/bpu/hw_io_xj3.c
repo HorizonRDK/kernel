@@ -732,6 +732,9 @@ static int32_t bpu_core_hw_read_fc(const struct bpu_core *core,
 	if (*tmp_id & 0xf000) {
 		*err = *tmp_id;
 	} else {
+		if ((*tmp_id == 0) || (irq_status == 0)) {
+			return 0;
+		}
 		*err = 0;
 	}
 

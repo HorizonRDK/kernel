@@ -50,34 +50,42 @@ static void bpu_core_tasklet(unsigned long data)/*PRQA S ALL*/
 	do {
 		lost_report = 0;
 		if (err == 0u) {
-			ret = kfifo_get(&core->run_fc_fifo[FC_PRIO(tmp_hw_id)], &tmp_bpu_fc);/*PRQA S ALL*/
+			ret = kfifo_peek(&core->run_fc_fifo[FC_PRIO(tmp_hw_id)], &tmp_bpu_fc);/*PRQA S ALL*/
 			if (ret < 1) {
 				bpu_prio_trig_out(core->prio_sched);
-				core->done_hw_id = 0;
 				bpu_sched_seed_update();
 				dev_err(core->dev,
 						"bpu core no fc bufferd, when normal[%d], lost = %d\n",
 						tmp_hw_id, lost_report);
 				return;
 			}
-			bpu_prio_trig_out(core->prio_sched);
-			/* data has been no use fow hw, so clear data */
-			bpu_fc_clear(&tmp_bpu_fc);
 
-			/* maybe lost a hw irq */
-			if (tmp_bpu_fc.hw_id < tmp_hw_id) {
-				lost_report = 1;
-			}
-
+			/* to make sure software id matches the hardware id */
 			if (tmp_bpu_fc.hw_id > tmp_hw_id) {
-				if (((int32_t)tmp_bpu_fc.hw_id - (int32_t)tmp_hw_id) > (HW_ID_MAX - ID_LOOP_GAP)) {
+				if (((int32_t)tmp_bpu_fc.hw_id - (int32_t)tmp_hw_id) > (HW_ID_MAX / 2)) {
+					lost_report = 1;
+				} else {
+					bpu_prio_trig_out(core->prio_sched);
+					bpu_sched_seed_update();
+					return;
+				}
+			} else if (tmp_bpu_fc.hw_id < tmp_hw_id) {
+				if ((int32_t)tmp_hw_id - (int32_t)tmp_bpu_fc.hw_id > (HW_ID_MAX - ID_LOOP_GAP)) {
+					bpu_prio_trig_out(core->prio_sched);
+					bpu_sched_seed_update();
+					return;
+				} else {
 					lost_report = 1;
 				}
 			}
+			kfifo_skip(&core->run_fc_fifo[FC_PRIO(tmp_hw_id)]);/*PRQA S ALL*/
+
+			bpu_prio_trig_out(core->prio_sched);
+			/* data has been no use fow hw, so clear data */
+			bpu_fc_clear(&tmp_bpu_fc);
 		} else {
 			ret = kfifo_peek(&core->run_fc_fifo[FC_PRIO(tmp_hw_id)], &tmp_bpu_fc);/*PRQA S ALL*/
 			if (ret < 1) {
-				core->done_hw_id = 0;
 				bpu_sched_seed_update();
 				dev_err(core->dev,
 						"bpu core no fc bufferd, when error[%d]\n", ret);
@@ -101,7 +109,6 @@ static void bpu_core_tasklet(unsigned long data)/*PRQA S ALL*/
 
 				ret = kfifo_in(&tmp_user->done_fcs, &tmp_bpu_fc.info, 1);/*PRQA S ALL*/
 				if (ret < 1) {
-					core->done_hw_id = 0;
 					bpu_sched_seed_update();
 					dev_err(core->dev, "bpu buffer bind user error\n");
 					return;
@@ -126,14 +133,12 @@ static void bpu_core_tasklet(unsigned long data)/*PRQA S ALL*/
 
 		ret = kfifo_in(&core->done_fc_fifo, &tmp_bpu_fc, 1);/*PRQA S ALL*/
 		if (ret < 1) {
-			core->done_hw_id = 0;
 			bpu_sched_seed_update();
 			dev_err(core->dev, "bpu buffer bind user error\n");
 			return;
 		}
 	} while (lost_report != 0);
 
-	core->done_hw_id = 0;
 	/* core ratio will be update by group check */
 	bpu_sched_seed_update();
 }
