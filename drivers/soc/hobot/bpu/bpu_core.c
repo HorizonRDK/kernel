@@ -36,6 +36,7 @@ static void bpu_core_tasklet(unsigned long data)/*PRQA S ALL*/
 	struct bpu_core *core = (struct bpu_core *)data;/*PRQA S ALL*/
 	struct bpu_user *tmp_user;
 	struct bpu_fc tmp_bpu_fc;
+	uint64_t tmp_done_hw_id;
 	uint32_t tmp_hw_id, err;
 	int32_t lost_report;
 	int32_t ret;
@@ -44,8 +45,9 @@ static void bpu_core_tasklet(unsigned long data)/*PRQA S ALL*/
 		return;
 	}
 
-	tmp_hw_id = (uint32_t)(core->done_hw_id & ID_MASK);
-	err = (uint32_t)(core->done_hw_id >> STATE_SHIFT);
+	tmp_done_hw_id = core->done_hw_id;
+	tmp_hw_id = (uint32_t)(tmp_done_hw_id & ID_MASK);
+	err = (uint32_t)(tmp_done_hw_id >> STATE_SHIFT);
 
 	do {
 		lost_report = 0;
