@@ -355,6 +355,106 @@ static struct uvcg_config_group_type uvcg_processing_grp_type = {
 	},
 };
 
+/* control/extension/default */
+
+#define UVCG_DEFAULT_EXTENSION_ATTR(cname, aname, conv)		\
+static ssize_t uvcg_default_extension_##cname##_show(			\
+	struct config_item *item, char *page)				\
+{									\
+	struct config_group *group = to_config_group(item);		\
+	struct f_uvc_opts *opts;					\
+	struct config_item *opts_item;					\
+	struct mutex *su_mutex = &group->cg_subsys->su_mutex;		\
+	struct UVC_EXTENSION_UNIT_DESCRIPTOR(1, 2) *ed;			\
+	int result;							\
+									\
+	mutex_lock(su_mutex); /* for navigating configfs hierarchy */	\
+									\
+	opts_item = group->cg_item.ci_parent->ci_parent->ci_parent;	\
+	opts = to_f_uvc_opts(opts_item);				\
+	ed = &opts->uvc_extension;					\
+									\
+	mutex_lock(&opts->lock);					\
+	result = sprintf(page, "%d\n", conv(ed->aname));		\
+	mutex_unlock(&opts->lock);					\
+									\
+	mutex_unlock(su_mutex);						\
+	return result;							\
+}									\
+									\
+UVC_ATTR_RO(uvcg_default_extension_, cname, aname)
+
+#define identity_conv(x) (x)
+
+UVCG_DEFAULT_EXTENSION_ATTR(b_unit_id, bUnitID, identity_conv);
+UVCG_DEFAULT_EXTENSION_ATTR(b_num_input_pins, bNrInPins, identity_conv);
+UVCG_DEFAULT_EXTENSION_ATTR(i_extension, iExtension, identity_conv);
+
+#undef identity_conv
+
+#undef UVCG_DEFAULT_EXTENSION_ATTR
+
+static ssize_t uvcg_default_extension_bm_controls_show(
+	struct config_item *item, char *page)
+{
+	struct config_group *group = to_config_group(item);
+	struct f_uvc_opts *opts;
+	struct config_item *opts_item;
+	struct mutex *su_mutex = &group->cg_subsys->su_mutex;
+	struct UVC_EXTENSION_UNIT_DESCRIPTOR(1, 2) *ed;
+	int result, i;
+	char *pg = page;
+
+	mutex_lock(su_mutex); /* for navigating configfs hierarchy */
+
+	opts_item = group->cg_item.ci_parent->ci_parent->ci_parent;
+	opts = to_f_uvc_opts(opts_item);
+	ed = &opts->uvc_extension;
+
+	mutex_lock(&opts->lock);
+	for (result = 0, i = 0; i < ed->bControlSize; ++i) {
+		result += sprintf(pg, "%d\n", ed->bmControls[i]);
+		pg = page + result;
+	}
+	mutex_unlock(&opts->lock);
+
+	mutex_unlock(su_mutex);
+
+	return result;
+}
+
+UVC_ATTR_RO(uvcg_default_extension_, bm_controls, bmControls);
+
+static struct configfs_attribute *uvcg_default_extension_attrs[] = {
+	&uvcg_default_extension_attr_b_unit_id,
+	&uvcg_default_extension_attr_b_num_input_pins,
+	&uvcg_default_extension_attr_bm_controls,
+	&uvcg_default_extension_attr_i_extension,
+	NULL,
+};
+
+static struct uvcg_config_group_type uvcg_default_extension_type = {
+	.type = {
+		.ct_item_ops	= &uvcg_config_item_ops,
+		.ct_attrs	= uvcg_default_extension_attrs,
+		.ct_owner	= THIS_MODULE,
+	},
+	.name = "default",
+};
+
+/* control/extension */
+static struct uvcg_config_group_type uvcg_extension_grp_type = {
+	.type = {
+		.ct_item_ops	= &uvcg_config_item_ops,
+		.ct_owner	= THIS_MODULE,
+	},
+	.name = "extension",
+	.children = (struct uvcg_config_group_type*[]) {
+		&uvcg_default_extension_type,
+		NULL,
+	},
+};
+
 /* -----------------------------------------------------------------------------
  * control/terminal/camera/default
  */
@@ -753,6 +853,7 @@ static struct uvcg_config_group_type uvcg_control_grp_type = {
 	.children = (struct uvcg_config_group_type*[]) {
 		&uvcg_control_header_grp_type,
 		&uvcg_processing_grp_type,
+		&uvcg_extension_grp_type,
 		&uvcg_terminal_grp_type,
 		&uvcg_control_class_grp_type,
 		NULL,
