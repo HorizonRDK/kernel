@@ -128,6 +128,8 @@ module_param(hw_mode, uint, 0644);
 #define MIPI_HOST_IPI2_SOFTRSTN	   (0x01 << 4)
 #define MIPI_HOST_IPI3_SOFTRSTN	   (0x01 << 8)
 #define MIPI_HOST_IPI4_SOFTRSTN	   (0x01 << 12)
+#define MIPI_HOST_VC_EXT_LEGACY    (0x01)
+#define MIPI_HOST_VC_EXT_ENABLE    (0x00)
 
 #define MIPI_HOST_ADV_DEFAULT      (0x3 << 16)
 #define MIPI_HOST_CUT_DEFAULT      (1)
@@ -240,6 +242,7 @@ typedef struct _mipi_host_param_s {
 	uint32_t sigfun_cfg;
 	uint32_t sigwait_ms;
 	uint32_t sigfatal_mask;
+	uint32_t vcext_en;
 	uint32_t ipi1_dt;
 #if MIPIHOST_CHANNEL_NUM >= 2
 	uint32_t ipi2_dt;
@@ -273,6 +276,7 @@ static const char *g_mh_param_names[] = {
 	"sigfun_cfg",
 	"sigwait_ms",
 	"sigfatal_mask",
+	"vcext_en",
 	"ipi1_dt",
 #if MIPIHOST_CHANNEL_NUM >= 2
 	"ipi2_dt",
@@ -2181,7 +2185,7 @@ static int32_t mipi_host_init(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 {
 	struct device *dev = hdev->dev;
 	mipi_host_t *host = &hdev->host;
-	mipi_host_param_t *param = &host->param;
+	mipi_host_param_t *param;
 	void __iomem  *iomem = host->iomem;
 	unsigned long pixclk = 0;
 
@@ -2191,6 +2195,13 @@ static int32_t mipi_host_init(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 	mipiinfo("init begin");
 	mipiinfo("%d lane %dx%d %dfps datatype 0x%x",
 			 cfg->lane, cfg->width, cfg->height, cfg->fps, cfg->datatype);
+
+	/* param from main host if ex */
+	if (hdev->is_ex)
+		param = &(g_hdev[mipi_host_port_other(hdev)]->host.param);
+	else
+		param = &host->param;
+
 	if (!hdev->is_ex) {
 		/* cfg->mclk:
 		 * 0      : disable only
@@ -2247,6 +2258,11 @@ static int32_t mipi_host_init(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 	/*Configure the number of active lanes*/
 	mipi_putreg(iomem + REG_MIPI_HOST_N_LANES, cfg->lane - 1);
 	udelay(1000);
+	/*Configure the vc extersion function*/
+	if (!param->vcext_en)
+		mipi_putreg(iomem + REG_MIPI_HOST_VC_EXTENSION, MIPI_HOST_VC_EXT_LEGACY);
+	else
+		mipi_putreg(iomem + REG_MIPI_HOST_VC_EXTENSION, MIPI_HOST_VC_EXT_ENABLE);
 	/*Release DWC_mipi_csi2_host from reset*/
 	mipi_putreg(iomem + REG_MIPI_HOST_CSI2_RESETN, MIPI_HOST_CSI2_RAISE);
 #if MIPI_HOST_INT_DBG
@@ -2970,6 +2986,7 @@ MIPI_HOST_PARAM_DEC(snrclk_freq);
 MIPI_HOST_PARAM_DEC(sigfun_cfg);
 MIPI_HOST_PARAM_DEC(sigwait_ms);
 MIPI_HOST_PARAM_DEC(sigfatal_mask);
+MIPI_HOST_PARAM_DEC(vcext_en);
 MIPI_HOST_PARAM_DEC(ipi1_dt);
 #if MIPIHOST_CHANNEL_NUM >= 2
 MIPI_HOST_PARAM_DEC(ipi2_dt);
@@ -3002,6 +3019,7 @@ static struct attribute *param_attr[] = {
 	MIPI_HOST_PARAM_ADD(sigfun_cfg),
 	MIPI_HOST_PARAM_ADD(sigwait_ms),
 	MIPI_HOST_PARAM_ADD(sigfatal_mask),
+	MIPI_HOST_PARAM_ADD(vcext_en),
 	MIPI_HOST_PARAM_ADD(ipi1_dt),
 #if MIPIHOST_CHANNEL_NUM >= 2
 	MIPI_HOST_PARAM_ADD(ipi2_dt),
@@ -3098,6 +3116,7 @@ static ssize_t mipi_host_status_show(struct device *dev,
 			MH_REG_SHOW(DPHY_RSTZ);
 			MH_REG_SHOW(PHY_RX);
 			MH_REG_SHOW(PHY_STOPSTATE);
+			MH_REG_SHOW(VC_EXTENSION);
 			MH_REG_SHOW(PHY_CAL);
 			MH_REG_SHOW(INT_ST_MAIN);
 			MH_REG_SHOW(INT_ST_PHY_FATAL);

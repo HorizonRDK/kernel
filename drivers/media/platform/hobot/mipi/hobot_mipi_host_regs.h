@@ -42,6 +42,7 @@
 #define REG_MIPI_HOST_IPI_VBP_LINES            (0xb4)
 #define REG_MIPI_HOST_IPI_VFP_LINES            (0xb8)
 #define REG_MIPI_HOST_IPI_VACTIVE_LINES        (0xbc)
+#define REG_MIPI_HOST_VC_EXTENSION             (0xc8)
 #define REG_MIPI_HOST_PHY_CAL                  (0xcc)
 #define REG_MIPI_HOST_INT_ST_PHY_FATAL         (0xe0)
 #define REG_MIPI_HOST_INT_MSK_PHY_FATAL        (0xe4)

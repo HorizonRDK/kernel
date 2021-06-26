@@ -77,8 +77,10 @@ module_param(txout_freq_force, uint, 0644);
 /* module params: rxdphy vref */
 unsigned int rxdphy_vrefcd_lprx = 1;
 unsigned int rxdphy_v400_prog = 4;
+unsigned int rxdphy_deskew_cfg = 0;
 module_param(rxdphy_vrefcd_lprx, uint, 0644);
 module_param(rxdphy_v400_prog, uint, 0644);
+module_param(rxdphy_deskew_cfg, uint, 0644);
 
 #define DPHY_RAISE               (1)
 #define DPHY_RESETN              (0)
@@ -107,6 +109,7 @@ module_param(rxdphy_v400_prog, uint, 0644);
 #define REGS_RX_CB_0             (0x1aa)
 #define REGS_RX_CB_2             (0x1ac)
 #define REGS_RX_CLKLANE_LANE_6   (0x307)
+#define REGS_RX_CLKLANE_LANE_7   (0x308)
 #define REGS_RX_LANE0_DDL_4      (0x60A)
 #define REGS_RX_LANE0_DDL_5      (0x60B)
 #define REGS_RX_LANE0_DDL_6      (0x60C)
@@ -156,6 +159,7 @@ module_param(rxdphy_v400_prog, uint, 0644);
 /*test code: data*/
 #define RX_CLK_SETTLE_EN         (0x01)
 #define RX_CLK_SETTLE            (0x1 << 4)
+#define RX_CLK_200MODE           (0x1 << 4)
 #define RX_HS_SETTLE(s)          (0x80 | ((s) & 0x7F))
 #define RX_SYSTEM_CONFIG         (0x38)
 #define RX_CB_BIAS_ATB           (0x4D)
@@ -552,10 +556,18 @@ int32_t mipi_host_dphy_initialize(uint16_t mipiclk, uint16_t lane, uint16_t sett
 	/*Configure the D-PHY frequency range*/
 	mipi_dphy_set_freqrange(MIPI_DPHY_TYPE_HOST, (phy) ? (phy->sub.port) : 0,
 		MIPI_HSFREQRANGE, mipi_dphy_clk_range(phy, mipiclk / lane, &osc_freq));
-	if (mipiclk < (lane * 1500))
-		mipi_host_dphy_testdata(phy, iomem, REGS_RX_SYS_7, RX_SYSTEM_CONFIG);
+	if (rxdphy_deskew_cfg != 0) {
+		mipi_host_dphy_testdata(phy, iomem, REGS_RX_SYS_7, rxdphy_deskew_cfg);
+	} else {
+		if (mipiclk < (lane * 1500))
+			mipi_host_dphy_testdata(phy, iomem, REGS_RX_SYS_7, RX_SYSTEM_CONFIG);
+	}
 	if (is_1p4) {
 		mipi_host_dphy_testdata(phy, iomem, REGS_RX_CLKLANE_LANE_6, RX_CLKLANE_PULLLONG);
+#ifdef CONFIG_HOBOT_XJ3
+		if (lane > 2)
+			mipi_host_dphy_testdata(phy, iomem, REGS_RX_CLKLANE_LANE_7, RX_CLK_200MODE);
+#endif
 		mipi_host_dphy_testdata(phy, iomem, REGS_RX_CB_0, RX_CB_VREF_CB(rxdphy_vrefcd_lprx, rxdphy_v400_prog));
 		mipi_host_dphy_testdata(phy, iomem, REGS_RX_CB_2, RX_CB_BIAS_ATB);
 		mipi_host_dphy_testdata(phy, iomem, REGS_RX_STARTUP_OVR_2, RX_OSCFREQ_LOW(osc_freq));
