@@ -531,17 +531,17 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 	/* if carveout/cma reserved can't alloc the mem, try use cma*/
 	if ((buffer == NULL) || IS_ERR(buffer)) {
 		if ((heap_id_mask & ION_HEAP_CARVEOUT_MASK) > 0) {
-			pr_debug("Retry alloc carveout 0x%xByte from cma heap\n", len);
+			pr_debug("Retry alloc carveout 0x%lxByte from cma heap\n", len);
 			last_heap_id_mask = heap_id_mask;
 			heap_id_mask &= ~ION_HEAP_CARVEOUT_MASK;
 			heap_id_mask |= ION_HEAP_TYPE_DMA_MASK;
 		} else if ((heap_id_mask & ION_HEAP_TYPE_CMA_RESERVED_MASK) > 0) {
-			pr_debug("Retry alloc cma reserved 0x%xByte from cma heap\n", len);
+			pr_debug("Retry alloc cma reserved 0x%lxByte from cma heap\n", len);
 			last_heap_id_mask = heap_id_mask;
 			heap_id_mask &= ~ION_HEAP_TYPE_CMA_RESERVED_MASK;
 			heap_id_mask |= ION_HEAP_TYPE_DMA_MASK;
 		} else if ((heap_id_mask & ION_HEAP_TYPE_DMA_MASK) > 0) {
-			pr_debug("Retry alloc cma  0x%xByte from carveout heap\n", len);
+			pr_debug("Retry alloc cma  0x%lxByte from carveout heap\n", len);
 			last_heap_id_mask = heap_id_mask;
 			heap_id_mask &= ~ION_HEAP_TYPE_DMA_MASK;
 			heap_id_mask |= ION_HEAP_CARVEOUT_MASK;
@@ -559,11 +559,11 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 	if ((buffer == NULL) || IS_ERR(buffer)) {
 		if ((heap_id_mask & ION_HEAP_TYPE_DMA_MASK) > 0) {
 			if ((last_heap_id_mask & ION_HEAP_TYPE_CMA_RESERVED_MASK) > 0) {
-				pr_debug("Retry cma reserved alloc 0x%xByte from carveout heap\n", len);
+				pr_debug("Retry cma reserved alloc 0x%lxByte from carveout heap\n", len);
 				heap_id_mask &= ~ION_HEAP_TYPE_DMA_MASK;
 				heap_id_mask |= ION_HEAP_CARVEOUT_MASK;
 			} else if ((last_heap_id_mask & ION_HEAP_CARVEOUT_MASK) > 0) {
-				pr_debug("Retry alloc carveout 0x%xByte from cma carveout heap\n", len);
+				pr_debug("Retry alloc carveout 0x%lxByte from cma carveout heap\n", len);
 				heap_id_mask &= ~ION_HEAP_TYPE_DMA_MASK;
 				heap_id_mask |= ION_HEAP_TYPE_CMA_RESERVED_MASK;
 			}

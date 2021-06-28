@@ -308,7 +308,7 @@ struct ion_phy_data {
 static long ion_dummy_ioctl(struct ion_client *client,
 			    unsigned int cmd, unsigned long arg)
 {
-	int ret;
+	int ret = 0;
 	int cpu;
 	struct cpumask mask;
 
