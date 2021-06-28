@@ -30,6 +30,10 @@
 #include <uapi/linux/sched/types.h>
 #include <soc/hobot/hobot_timer.h>
 
+#ifdef CONFIG_PREEMPT_RT_FULL
+#include <linux/swait.h>
+#endif
+
 #define HOBOT_WDT_NAME				"hobot_wdt"
 
 /* timeout value (in seconds) */
@@ -78,7 +82,11 @@ struct hobot_wdt {
 
 	struct task_struct *watchdog_thread;
 	struct hrtimer pet_timer;
+#ifdef CONFIG_PREEMPT_RT_FULL
+	struct swait_queue_head  pet_wait;
+#else
 	wait_queue_head_t  pet_wait;
+#endif
 	bool timer_expired;
 	u64 thread_wakeup_time;
 	bool barking;
@@ -475,7 +483,11 @@ static enum hrtimer_restart pet_timer_wakeup(struct hrtimer *hrt)
 
 	hbwdt->timer_expired = true;
 	hbwdt->last_pet = sched_clock();
+#ifdef CONFIG_PREEMPT_RT_FULL
+	swake_up(&hbwdt->pet_wait);
+#else
 	wake_up(&hbwdt->pet_wait);
+#endif
 
 	return HRTIMER_NORESTART;
 }
@@ -513,8 +525,13 @@ static __ref int watchdog_kthread(void *arg)
 
 	while (!kthread_should_stop()) {
 		do {
+#ifdef CONFIG_PREEMPT_RT_FULL
+			ret = swait_event_interruptible(hbwdt->pet_wait,
+						hbwdt->timer_expired);
+#else
 			ret = wait_event_interruptible(hbwdt->pet_wait,
 						hbwdt->timer_expired);
+#endif
 		} while (ret != 0);
 
 		hbwdt->thread_wakeup_time = sched_clock();
@@ -688,7 +705,11 @@ static int hobot_wdt_probe(struct platform_device *pdev)
 	atomic_notifier_chain_register(&panic_notifier_list,
 				       &hbwdt->panic_blk);
 
+#ifdef CONFIG_PREEMPT_RT_FULL
+	init_swait_queue_head(&hbwdt->pet_wait);
+#else
 	init_waitqueue_head(&hbwdt->pet_wait);
+#endif
 	hbwdt->timer_expired = false;
 
 
