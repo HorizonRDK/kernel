@@ -708,11 +708,10 @@ static int i2sidma_open(struct snd_pcm_substream *substream)
 	struct snd_dmaengine_dai_dma_data *dma_data;
 	int ret;
 
-	dma_data = hobot_dai_get_dma_data(substream);
-
 	struct snd_soc_pcm_runtime *soc_runtime = substream->private_data;
 	struct hobot_i2s *i2s = snd_soc_dai_get_drvdata(soc_runtime->cpu_dai);
 
+	dma_data = hobot_dai_get_dma_data(substream);
 	dma_ctrl = kzalloc(sizeof(struct idma_ctrl_s), GFP_KERNEL);
 	if (dma_ctrl == NULL)
 		return -ENOMEM;
@@ -969,10 +968,10 @@ MODULE_DEVICE_TABLE(of, hobot_i2sidma_of_match);
 
 #ifdef CONFIG_PM
 static int hobot_i2s_idma_suspend(struct device *dev) {
-	dev_info(dev, "%s enter suspend......\n", __func__);
 	unsigned long val;
 	struct idma_info_s *info = (struct idma_info_s *)dev_get_drvdata(dev);
 
+	dev_info(dev, "%s enter suspend......\n", __func__);
 	if (!info) {
 		return -EINVAL;
 	}

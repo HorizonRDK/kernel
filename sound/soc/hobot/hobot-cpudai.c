@@ -151,9 +151,6 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
         int ret = 0;
         int lrck_div = 0;
 
-	u32 reg_val = 0;
-	u16 mclk_period;
-	int mclk;
 	int bclk_div = 8;
 	unsigned long flags;
 	spin_lock_irqsave(&i2s->lock, flags);
@@ -179,13 +176,13 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 					i2s->mclk_set);
 				if (ret < 0) {
 					pr_err("change i2s mclk failed\n");
-					return ret;
+					return;
 				}
 				ret = change_clk(i2s->dev, "i2s-bclk",
 					i2s->clk);
 				if (ret < 0) {
 					pr_err("change i2s bclk failed\n");
-					return ret;
+					return;
 				}
 			}
 			spin_lock_irqsave(&i2s->lock, flags);
@@ -214,7 +211,7 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 					i2s->clk);
 				if (ret < 0) {
 					pr_err("change i2s bclk failed\n");
-					return ret;
+					return;
 				}
 			}
 			spin_lock_irqsave(&i2s->lock, flags);
@@ -239,13 +236,13 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 					i2s->mclk_set);
 				if (ret < 0) {
 					pr_err("change i2s mclk failed\n");
-					return ret;
+					return;
 				}
 				ret = change_clk(i2s->dev, "i2s-bclk",
 					i2s->clk);
 				if (ret < 0) {
 					pr_err("change i2s bclk failed\n");
-					return ret;
+					return;
 				}
 			}
 			spin_lock_irqsave(&i2s->lock, flags);
@@ -318,13 +315,13 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 					i2s->mclk_set);
 				if (ret < 0) {
 					pr_err("change i2s mclk failed\n");
-					return ret;
+					return;
 				}
 				ret = change_clk(i2s->dev, "i2s-bclk",
 					i2s->clk);
 				if (ret < 0) {
 					pr_err("change i2s bclk failed\n");
-					return ret;
+					return;
 				}
 			}
 			spin_lock_irqsave(&i2s->lock, flags);
@@ -341,7 +338,7 @@ static int i2s_hw_params(struct snd_pcm_substream *substream,
 			  struct snd_soc_dai *dai)
 {
 	struct hobot_i2s *i2s = snd_soc_dai_get_drvdata(dai);
-	u32 mod, chan = 0, ret;
+	u32 mod, chan = 0;
 	unsigned long flags;
 
 	spin_lock_irqsave(&i2s->lock, flags);
@@ -453,7 +450,6 @@ static int i2s_startup(struct snd_pcm_substream *substream,
 {
 	struct hobot_i2s *i2s = snd_soc_dai_get_drvdata(dai);
 	unsigned long flags;
-	int ret;
 
 	//dev_dbg(i2s->dev, "i2s_startup S, i2s->id is %d\n", i2s->id);
 	spin_lock_irqsave(&i2s->lock, flags);
@@ -529,7 +525,7 @@ static int i2s_set_clkdiv(struct snd_soc_dai *dai, int div_id, int div)
 
 static int i2s_hw_free(struct snd_pcm_substream *substream,
 		struct snd_soc_dai *dai) {
-	struct hobot_i2s *i2s = snd_soc_dai_get_drvdata(dai);
+	//struct hobot_i2s *i2s = snd_soc_dai_get_drvdata(dai);
 
 	return 0;
 }
@@ -690,7 +686,6 @@ static int hobot_i2s_probe(struct platform_device *pdev)
 	int id;
 	int ret;
 	struct resource *res;
-	u32 value;
 	/* struct snd_soc_dai_driver *soc_dai_driver; */
 	id = of_alias_get_id(pdev->dev.of_node, "i2s");
 	if (id < 0)
@@ -859,9 +854,9 @@ MODULE_DEVICE_TABLE(of, hobot_i2s_of_match);
 
 #ifdef CONFIG_PM
 int hobot_i2s_suspend(struct device *dev) {
-	dev_info(dev, "%s enter suspend......\n", __func__);
 	unsigned long value;
 	struct hobot_i2s *i2s = (struct hobot_i2s *)dev_get_drvdata(dev);
+	dev_info(dev, "%s enter suspend......\n", __func__);
 	if (!i2s)
 		return -EINVAL;
 
@@ -889,9 +884,9 @@ int hobot_i2s_suspend(struct device *dev) {
 }
 
 int hobot_i2s_resume(struct device *dev) {
-	dev_info(dev, "%s enter resume......\n", __func__);
 	int ret;
 	struct hobot_i2s *i2s =	dev_get_drvdata(dev);
+	dev_info(dev, "%s enter resume......\n", __func__);
 	if (!i2s)
 		return -EINVAL;
 

@@ -38,9 +38,8 @@ static int hobot_snd_hw_params(struct snd_pcm_substream *substream,
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	unsigned long sample_rate = params_rate(params);
-	uint32_t SLOT_WIDTH, LRCK_PERIOD, channels;
 	unsigned int clk = 0;
-	int ret;
+	int ret = 0;
 
 	switch (params_rate(params)) {
 	case 8000:

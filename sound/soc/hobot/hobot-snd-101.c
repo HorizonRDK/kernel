@@ -91,7 +91,6 @@ static struct snd_soc_ops hobot_snd_ops = {
 static int hobot_snd_probe(struct platform_device *pdev)
 {
 	int ret = 0, id = 0, num = 0, idx = 0;
-	int source = 0;
 	struct snd_soc_card *card = NULL;
 	struct snd_soc_dai_link *link = NULL, *links = NULL;
 	struct device *dev = &pdev->dev;
