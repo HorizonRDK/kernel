@@ -881,6 +881,7 @@ static int _get_first_swap_ctx_id(void)
 }
 
 #if FW_USE_HOBOT_DMA
+/*
 static void set_dma_cmd_queue(dma_cmd *cmd, uint32_t ping_pong_sel)
 {
     cmd[0].ctx = g_firmware.dma_chan_isp_metering;
@@ -895,6 +896,7 @@ static void set_dma_cmd_queue(dma_cmd *cmd, uint32_t ping_pong_sel)
     cmd[1].complete_func = dma_complete_context_func;
     cmd[1].fw_ctx_id = cur_chn_id;
 }
+*/
 #endif /* FW_USE_HOBOT_DMA*/
 
 /*

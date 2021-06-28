@@ -211,8 +211,8 @@ void awb_read_statistics( AWB_fsm_t *p_fsm )
     uint32_t _metering_lut_entry;
     uint16_t irg;
     uint16_t ibg;
-    uint32_t irg_1;
-    uint32_t ibg_1;
+    uint32_t irg_1 = 0;
+    uint32_t ibg_1 = 0;
     sbuf_awb_t *p_sbuf_awb_stats = NULL;
     struct sbuf_item sbuf;
     int fw_id = p_fsm->cmn.ctx_id;

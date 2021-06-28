@@ -588,7 +588,7 @@ static uint32_t _calibration_zoom_af_lms[][21] = {
 {14720/4, 14720/4, 14720/4, 16000/4, 16000/4, 16000/4, 24960/4, 24960/4, 24960/4, 26880/4, 26880/4, 26880/4,11,6,2,30,131072,131072,262144,65536, 0},
 {11520/4, 11520/4, 11520/4, 12800/4, 12800/4, 12800/4, 22400/4, 22400/4, 22400/4, 24320/4, 24320/4, 24320/4,11,6,2,30,131072,131072,262144,65536, 0}
 };
-
+/*
 // CALIBRATION_iridix_bright_pr (7x2 2 bytes)
 static uint16_t _calibration_iridix_bright_pr[][2]
  =  {
@@ -612,7 +612,7 @@ static uint16_t _calibration_iridix_svariance[][2]
   { 1280, 2200 },
   { 1536, 2400 }
 };
-
+*/
 static int16_t _calibration_bypass_control[] = {0, 0, 1*256, 2*256};
 
 static LookupTable calibration_fs_mc_off = {.ptr = _calibration_fs_mc_off, .rows = 1, .cols = sizeof( _calibration_fs_mc_off ) / sizeof( _calibration_fs_mc_off[0] ), .width = sizeof( _calibration_fs_mc_off[0] )};
@@ -686,7 +686,15 @@ static LookupTable calibration_gamma_threshold = {.ptr = _calibration_gamma_thre
 static LookupTable calibration_bypass_control = {.ptr = _calibration_bypass_control, .rows = 1, .cols = sizeof(_calibration_bypass_control) / sizeof(_calibration_bypass_control[0]), .width = sizeof( _calibration_bypass_control[0])};
 static LookupTable calibration_sinter_strength4 = {.ptr = _calibration_sinter_strength4, .rows = sizeof(_calibration_sinter_strength4) / sizeof(_calibration_sinter_strength4[0]), .cols = 2, .width = sizeof(_calibration_sinter_strength4[0][0])};
 
-static LookupTable calibration_temper_threshold = {.ptr = _calibration_temper_threshold, .rows = 1, .cols = sizeof( _calibration_temper_threshold ) / sizeof( _calibration_temper_threshold[0] ), .width = sizeof( _calibration_temper_threshold[0] )};
+static LookupTable calibration_temper_threshold =
+                    {
+                        .ptr = _calibration_temper_threshold,
+                        .rows = 1,
+                        .cols = sizeof( _calibration_temper_threshold ) /
+                            sizeof( _calibration_temper_threshold[0] ),
+                        .width = sizeof( _calibration_temper_threshold[0] )
+                    };
+
 static LookupTable calibration_user_temper_noise_lut = { .ptr = _calibration_user_temper_noise_lut, .rows = 1, .cols = sizeof(_calibration_user_temper_noise_lut) / sizeof(_calibration_user_temper_noise_lut[0]), .width = sizeof(_calibration_user_temper_noise_lut[0] ) };
 static LookupTable calibration_user_temper_noise_lut_1 = { .ptr = _calibration_user_temper_noise_lut_1, .rows = 1, .cols = sizeof(_calibration_user_temper_noise_lut_1) / sizeof(_calibration_user_temper_noise_lut_1[0]), .width = sizeof(_calibration_user_temper_noise_lut_1[0] ) };
 static LookupTable calibration_user_temper_noise_lut_2 = { .ptr = _calibration_user_temper_noise_lut_2, .rows = 1, .cols = sizeof(_calibration_user_temper_noise_lut_2) / sizeof(_calibration_user_temper_noise_lut_2[0]), .width = sizeof(_calibration_user_temper_noise_lut_2[0] ) };
