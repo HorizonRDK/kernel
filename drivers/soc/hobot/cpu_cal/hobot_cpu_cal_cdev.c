@@ -118,6 +118,7 @@ static int cpu_cal_test_kthread(void *data)
 		}
 		msleep(100);
 	}
+    return 0;
 }
 
 static int cpu_cal_test_open(struct inode *inode, struct file *filp)
@@ -201,7 +202,7 @@ err:
 static int cpu_cal_diag_init(void)
 {
 	struct diag_register_info cpu_cal_info;
-	int i = 0, ret = 0;
+	int ret = 0;
 	cpu_cal_info.module_id = (uint8_t)ModuleDiag_cpu_cal;
 	cpu_cal_info.event_cnt = 1;
 	cpu_cal_info.event_handle[0].event_id = (uint8_t)1;
@@ -218,7 +219,6 @@ static int cpu_cal_test_probe(struct platform_device *pdev)
 {
 	int	ret = 0, err_flag = 0;
 	dev_t	devno;
-	int	status = -ENXIO;
 	cpu_cal_test_major = 0;
 	ret = alloc_chrdev_region(&devno, 0, 1, "cpu_cal_test");
 	if (ret < 0) {

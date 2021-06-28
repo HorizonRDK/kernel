@@ -66,8 +66,6 @@ module_param(fb_num, uint, 0644);
 #define DISPLAY_TYPE_TOTAL_MULTI 63
 
 #define EMBEDIMG(_index, _path)                                   \
-	extern const char embedded_image_ ## _index ## _data[];               \
-	extern const char embedded_image_ ## _index ## _len[];                \
 	__asm__(".section \".rodata\", \"a\"\n\t"       \
 		"\nembedded_image_" #_index "_data:\n\t"              \
 		".incbin \"" _path "\"\n\t"                           \
@@ -76,6 +74,8 @@ module_param(fb_num, uint, 0644);
 		"(embedded_image_" #_index "_end - "           \
 		"  embedded_image_" #_index "_data)\n\t"       \
 		".previous\n\t");
+
+extern const char embedded_image_0_data[];
 
 int panel_reset_pin = -1;
 uint32_t iar_display_ipu_addr_single[DISPLAY_TYPE_TOTAL_SINGLE][2];
@@ -2943,11 +2943,11 @@ static int stride_copy_bmp(int width, int height, const unsigned char *src,
 {
 	int i, j;
 	struct bmp_image *bmp = (struct bmp_image *)src;
-	unsigned char *bmap;
+	const unsigned char *bmap;
 	unsigned long widthi, heighti;
 	int stb0;
 	unsigned colours, bmp_bpix;
-	unsigned char *p0, *hp0;
+	const unsigned char *p0, *hp0;
 	unsigned char *p1, *hp1;
 	unsigned char ct;
 
@@ -3027,7 +3027,7 @@ static int stride_copy_bmp(int width, int height, const unsigned char *src,
 	}
 	return 0;
 }
-
+#if 0
 static void stride_copy_420(int width, int height, const char *src,
 		int x0, int y0, int stride0, int height0,
 		char *dst, int x1, int y1, int stride1, int height1)
@@ -3060,7 +3060,7 @@ static void stride_copy_420(int width, int height, const char *src,
 		p1 += stride1;
 	}
 }
-
+#endif
 static int display_color_bar(unsigned int width, unsigned height,
 		char *draw_start_vaddr)
 {
@@ -3814,6 +3814,7 @@ static int hobot_xj3_iar_memory_alloc(phys_addr_t paddr, void *vaddr,
 #endif
 }
 
+#ifndef CONFIG_HOBOT_XJ3
 static int hobot_xj2_iar_memory_alloc(phys_addr_t logo_paddr, void *logo_vaddr,
 		phys_addr_t mem_paddr, void *vaddr)
 {
@@ -3874,6 +3875,7 @@ static int hobot_xj2_iar_memory_alloc(phys_addr_t logo_paddr, void *logo_vaddr,
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[1].vaddr);
 	return 0;
 }
+#endif
 static int hobot_iar_probe(struct platform_device *pdev)
 {
 	struct resource *res, *irq, *res_mipi;

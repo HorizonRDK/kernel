@@ -262,7 +262,6 @@ static int cr5_load_start_image(cr5_dev_info_t *cr5_dev, cr5_image_info_t *info)
 	loff_t image_size;
 	struct device *dev = cr5_dev->dev;
 	unsigned char *name = info->image_name;
-	int val;
 
 	/*open cr5 file*/
 	fp = filp_open(name, O_RDONLY, 0);
@@ -721,13 +720,13 @@ static int cr5_service_probe(struct platform_device *pdev)
 	ret = clk_prepare(global_cr5_device->cr5_aclk);
 	if (ret < 0) {
 		dev_err(global_cr5_device->dev, "failed to enable cr5_aclk %d\n", ret);
-		return;
+		goto err3;
 	}
 	global_cr5_device->rst = devm_reset_control_get(&pdev->dev, NULL);
 	if (IS_ERR(global_cr5_device->rst)) {
 		ret = PTR_ERR(global_cr5_device->rst);
 		dev_err(&pdev->dev, "missing cr5 reset\n");
-		goto err3;
+		goto err4;
 	}
 
 	register_cr5_get_msginfo_base(cr5_get_msginfo_base);
@@ -736,6 +735,8 @@ static int cr5_service_probe(struct platform_device *pdev)
 	register_cr5_stop_func(cr5_stop);
 
 	return 0;
+err4:
+	clk_unprepare(global_cr5_device->cr5_aclk);
 err3:
 	release_cr5_service_ipi_info(pdev);
 err2:

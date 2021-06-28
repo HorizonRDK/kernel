@@ -367,7 +367,6 @@ uint32_t A53_STL_setParam(
 
     return retVal;
 }
-static int test_count = 0;
 //====================================================================================================================================
 //   Function: a53_stl_el1
 //      A53 STL scheduler for exception level EL1
@@ -1296,7 +1295,6 @@ static uint32_t RunEL2SwPart(const a53_stl_t * stlInput, uint32_t idTest) {
 static uint32_t RunEL1SwPart(const a53_stl_t * stlInput, uint32_t idTest) {
     // Function return value
     uint32_t resultTest;
-	uint32_t sp_local = 0;
 
     // Defensive initialization
     resultTest  = A53_STL_TEST_ERROR;
