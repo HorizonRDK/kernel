@@ -107,6 +107,7 @@ static struct spidev_data *g_spidev = NULL;
 
 /* MCU response */
 extern int ap_response_flag;
+static int spi_releasing_flag;
 
 static irqreturn_t spidev_irq(int irq, void *dev_id)
 {
@@ -114,10 +115,15 @@ static irqreturn_t spidev_irq(int irq, void *dev_id)
 	struct spidev_data *spidev = dev_id;
 
 	spidev->spi_statistic.eint_count++;
-	if (!queue_work(spidev->work_queue, &spidev->work[index++]))
-		dev_err(&spidev->spi->dev, "queue_work failed index = %d\n", index);
+	if (spi_releasing_flag) {
+		dev_err(&spidev->spi->dev, "%s:skip queuing work when releasing\n",
+			__func__);
+	} else  {
+		if (!queue_work(spidev->work_queue, &spidev->work[index++]))
+			dev_err(&spidev->spi->dev, "queue_work failed index = %d\n", index);
 
-	index %= WORK_COUNT;
+		index %= WORK_COUNT;
+	}
 
 	return IRQ_HANDLED;
 }
@@ -343,7 +349,15 @@ static void rx_assemble_work(struct work_struct *work)
 	struct spi_transfer t;
 	int status = 0;
 	int i, ret = 0, rest_fragment_count = 0;
+
 	mutex_lock(&spidev->buf_lock);
+
+	if (spi_releasing_flag) {
+		spi_err_log("Cancel rx_assemble_work when releasing.\n");
+		mutex_unlock(&spidev->buf_lock);
+		return;
+	}
+
 	spidev->spi_statistic.rx_assemble_count++;
 
 	if (ap_response_flag) {
@@ -1055,9 +1069,15 @@ static int spidev_release(struct inode *inode, struct file *filp)
 	struct spidev_data *spidev;
 	int	dofree;
 
+	spi_releasing_flag = 1;
+
 	mutex_lock(&device_list_lock);
+
 	spidev = filp->private_data;
 	filp->private_data = NULL;
+
+	disable_irq(spidev->irq_num);
+	free_irq(spidev->irq_num, (void *)spidev);
 
 	spidev->users--;
 
@@ -1068,20 +1088,18 @@ static int spidev_release(struct inode *inode, struct file *filp)
 	spidev->wait_condition = 0;
 
 	destroy_workqueue(spidev->work_queue);
+	mutex_lock(&spidev->buf_lock);
 
-	kfifo_free(&spidev->tx_fifo.data);
+	kfifo_free(&spidev->rx_fifo.data);
 	kfifo_free(&spidev->tx_fifo.data);
 
 	kfree(spidev->spi_recv_buf.rx_tmp_buf);
 	spidev->spi_recv_buf.rx_tmp_buf = NULL;
 
 	gpio_free(spidev->ack_pin);
-	disable_irq(spidev->irq_num);
-	free_irq(spidev->irq_num, (void *)spidev);
 	gpio_free(spidev->irq_pin);
 	gpio_free(spidev->tri_pin);
 
-	mutex_lock(&spidev->buf_lock);
 	kfree(spidev->tx_buffer);
 	spidev->tx_buffer = NULL;
 
@@ -1093,7 +1111,6 @@ static int spidev_release(struct inode *inode, struct file *filp)
 
 	kfree(spidev->tx_swap_buffer);
 	spidev->tx_swap_buffer = NULL;
-	mutex_unlock(&spidev->buf_lock);
 
 	spin_lock_irq(&spidev->spi_lock);
 	if (spidev->spi)
@@ -1108,7 +1125,9 @@ static int spidev_release(struct inode *inode, struct file *filp)
 	if (dofree)
 		kfree(spidev);
 
+	mutex_unlock(&spidev->buf_lock);
 	mutex_unlock(&device_list_lock);
+	spi_releasing_flag = 0;
 
 	return 0;
 }
