@@ -80,7 +80,29 @@ uvc_video_encode_bulk(struct usb_request *req, struct uvc_video *video,
 	len -= ret;
 
 	req->length = video->req_size - len;
-	req->zero = video->payload_size == video->max_payload_size;
+
+	/*
+	 * zero flag is used to make the last packets as "short" by adding a zero
+	 * length packet as needed.
+	 *
+	 * As our max_payload_size is not accurate for compressed video. (eg. we use
+	 * 3110400bytes as max payload size for h264 1080p video, which is calcuated
+	 * by 1920 x 1080 x 1.5)
+	 *
+	 * Therefore we should indicate zero = 1 not only in payload_size == max_payload_size,
+	 * but also in case when buf->bytesused == video->queue.buf_used
+	 *
+	 * Especially for case that payload is aligned with max packet size
+	 * (eg. 28672bytes payload is 512bytes alligned), but no "zero = 1" be
+	 * indicated!! Then usb host will continue to read bulk data, until the
+	 * real short packet happen!!
+	 *
+	 * In summary, we need to indicate "zero = 1", whenever in the end of a frame.
+	 * To guarantee usb host could identify the completion of a frame bulk transfer.
+	 */
+	// req->zero = video->payload_size == video->max_payload_size;
+	req->zero = (video->payload_size == video->max_payload_size ||
+			buf->bytesused == video->queue.buf_used);
 
 	if (buf->bytesused == video->queue.buf_used) {
 		video->queue.buf_used = 0;
