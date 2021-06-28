@@ -22,6 +22,8 @@
 #define MAX_DEVICE  2
 #define SIF_ERR_COUNT  10
 
+#define SIF_SEQ_TASK_PRIORITY  39
+
 #define X3_VIO_MP_NAME  "vio-mp"
 #define X3_VIO_BIND_INFO_DEV_NAME  "vio-bind-info"
 #define MAX_DEVICE_VIO_MP  1

@@ -852,7 +852,7 @@ no_en:
 static int seq_kthread_init(struct sif_video_ctx *sif_ctx)
 {
 	int ret, pipeid, en_isp, en_flyby, en_seq;
-	struct sched_param param = {.sched_priority = MAX_RT_PRIO - 21};
+	struct sched_param param = {.sched_priority = SIF_SEQ_TASK_PRIORITY};
 	struct frame_list *frame_queue;
 	struct sif_subdev *subdev;
 	struct x3_sif_dev *sif;

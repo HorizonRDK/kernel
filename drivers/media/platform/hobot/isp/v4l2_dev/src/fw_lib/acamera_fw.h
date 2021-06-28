@@ -36,7 +36,7 @@
 #define FW_PAUSE 0
 #define FW_RUN 1
 
-#define ISP_EVT_PRIORITY  75
+#define ISP_EVT_PRIORITY  38
 
 #define ALIGN_UP(a, size)   ((a+size-1) & (~(size-1)))
 #define ALIGN_UP16(d)   ALIGN_UP(d, 16)
