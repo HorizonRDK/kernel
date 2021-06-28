@@ -96,6 +96,7 @@ static ssize_t sifw_axibus_ctrl_store(struct device_driver *drv,
 	writel(tmp, axictrl.axibus_reg);
 	close_sif_mclk();
 	mutex_unlock(&axictrl.mlock);
+
 	return count;
 }
 
@@ -105,6 +106,7 @@ static ssize_t sifw_axibus_ctrl_show(struct device_driver *drv, char *buf)
 	int len = 0;
 	int shift = 17;
 
+	mutex_lock(&axictrl.mlock);
 	open_sif_mclk();
 	tmp = readl(axictrl.axibus_reg);
 	len = snprintf(buf, 64, "axibus: 0x%08x:\n", tmp);
@@ -114,6 +116,8 @@ static ssize_t sifw_axibus_ctrl_show(struct device_driver *drv, char *buf)
 		len += snprintf(buf + len, 64, "sif: vio0\n");
 	}
 	close_sif_mclk();
+	mutex_unlock(&axictrl.mlock);
+
 	return len;
 }
 
@@ -123,8 +127,8 @@ static ssize_t isp0m0_axibus_ctrl_store(struct device_driver *drv,
 	unsigned int tmp;
 	int shift = 18;
 	unsigned int val = 0;
-	mutex_lock(&axictrl.mlock);
 
+	mutex_lock(&axictrl.mlock);
 	open_sif_mclk();
 	sscanf(buf, "%x", &val);
 	if (val > 1 || val < 0) {
@@ -137,8 +141,9 @@ static ssize_t isp0m0_axibus_ctrl_store(struct device_driver *drv,
 	tmp |= (val << shift);
 
 	writel(tmp, axictrl.axibus_reg);
-	mutex_unlock(&axictrl.mlock);
 	close_sif_mclk();
+	mutex_unlock(&axictrl.mlock);
+
 	return count;
 }
 
@@ -148,6 +153,7 @@ static ssize_t isp0m0_axibus_ctrl_show(struct device_driver *drv, char *buf)
 	int len = 0;
 	int shift = 18;
 
+	mutex_lock(&axictrl.mlock);
 	open_sif_mclk();
 	tmp = readl(axictrl.axibus_reg);
 	len = snprintf(buf, 64, "axibus: 0x%08x:\n", tmp);
@@ -157,6 +163,8 @@ static ssize_t isp0m0_axibus_ctrl_show(struct device_driver *drv, char *buf)
 		len += snprintf(buf + len, 64, "isp_0_m0: vio0\n");
 	}
 	close_sif_mclk();
+	mutex_unlock(&axictrl.mlock);
+
 	return len;
 }
 
@@ -167,8 +175,8 @@ static ssize_t isp0m1_axibus_ctrl_store(struct device_driver *drv,
 	unsigned int tmp;
 	int shift = 19;
 	unsigned int val = 0;
-	mutex_lock(&axictrl.mlock);
 
+	mutex_lock(&axictrl.mlock);
 	open_sif_mclk();
 	sscanf(buf, "%x", &val);
 	if (val > 1 || val < 0) {
@@ -181,8 +189,9 @@ static ssize_t isp0m1_axibus_ctrl_store(struct device_driver *drv,
 	tmp |= (val << shift);
 
 	writel(tmp, axictrl.axibus_reg);
-	mutex_unlock(&axictrl.mlock);
 	close_sif_mclk();
+	mutex_unlock(&axictrl.mlock);
+
 	return count;
 }
 
@@ -192,6 +201,7 @@ static ssize_t isp0m1_axibus_ctrl_show(struct device_driver *drv, char *buf)
 	int len = 0;
 	int shift = 19;
 
+	mutex_lock(&axictrl.mlock);
 	open_sif_mclk();
 	tmp = readl(axictrl.axibus_reg);
 	len = snprintf(buf, 64, "axibus: 0x%08x:\n", tmp);
@@ -201,6 +211,8 @@ static ssize_t isp0m1_axibus_ctrl_show(struct device_driver *drv, char *buf)
 		len += snprintf(buf + len, 64, "isp_0_m1: vio0\n");
 	}
 	close_sif_mclk();
+	mutex_unlock(&axictrl.mlock);
+
 	return len;
 }
 
@@ -225,8 +237,8 @@ static ssize_t isp0m2_axibus_ctrl_store(struct device_driver *drv,
 	tmp |= (val << shift);
 
 	writel(tmp, axictrl.axibus_reg);
-	mutex_unlock(&axictrl.mlock);
 	close_sif_mclk();
+	mutex_unlock(&axictrl.mlock);
 	return count;
 }
 
@@ -236,6 +248,7 @@ static ssize_t isp0m2_axibus_ctrl_show(struct device_driver *drv, char *buf)
 	int len = 0;
 	int shift = 20;
 
+	mutex_lock(&axictrl.mlock);
 	open_sif_mclk();
 	tmp = readl(axictrl.axibus_reg);
 	len = snprintf(buf, 64, "axibus: 0x%08x:\n", tmp);
@@ -245,6 +258,8 @@ static ssize_t isp0m2_axibus_ctrl_show(struct device_driver *drv, char *buf)
 		len += snprintf(buf + len, 64, "isp_0_m2: vio0\n");
 	}
 	close_sif_mclk();
+	mutex_unlock(&axictrl.mlock);
+
 	return len;
 }
 
@@ -255,6 +270,7 @@ static ssize_t gdc0_axibus_ctrl_store(struct device_driver *drv,
 	unsigned int tmp;
 	int shift = 24;
 	unsigned int val = 0;
+
 	mutex_lock(&axictrl.mlock);
 
 	open_sif_mclk();
@@ -269,8 +285,9 @@ static ssize_t gdc0_axibus_ctrl_store(struct device_driver *drv,
 	tmp |= (val << shift);
 
 	writel(tmp, axictrl.axibus_reg);
-	mutex_unlock(&axictrl.mlock);
 	close_sif_mclk();
+	mutex_unlock(&axictrl.mlock);
+
 	return count;
 }
 
@@ -280,6 +297,7 @@ static ssize_t gdc0_axibus_ctrl_show(struct device_driver *drv, char *buf)
 	int len = 0;
 	int shift = 24;
 
+	mutex_lock(&axictrl.mlock);
 	open_sif_mclk();
 	tmp = readl(axictrl.axibus_reg);
 	len = snprintf(buf, 64, "axibus: 0x%08x:\n", tmp);
@@ -289,6 +307,8 @@ static ssize_t gdc0_axibus_ctrl_show(struct device_driver *drv, char *buf)
 		len += snprintf(buf + len, 64, "gdc_0: vio0\n");
 	}
 	close_sif_mclk();
+	mutex_unlock(&axictrl.mlock);
+
 	return len;
 }
 
@@ -299,8 +319,8 @@ static ssize_t t21_axibus_ctrl_store(struct device_driver *drv,
 	unsigned int tmp;
 	int shift = 25;
 	unsigned int val = 0;
-	mutex_lock(&axictrl.mlock);
 
+	mutex_lock(&axictrl.mlock);
 	open_sif_mclk();
 	sscanf(buf, "%x", &val);
 	if (val > 1 || val < 0) {
@@ -313,8 +333,9 @@ static ssize_t t21_axibus_ctrl_store(struct device_driver *drv,
 	tmp |= (val << shift);
 
 	writel(tmp, axictrl.axibus_reg);
-	mutex_unlock(&axictrl.mlock);
 	close_sif_mclk();
+	mutex_unlock(&axictrl.mlock);
+
 	return count;
 }
 
@@ -324,6 +345,7 @@ static ssize_t t21_axibus_ctrl_show(struct device_driver *drv, char *buf)
 	int len = 0;
 	int shift = 25;
 
+	mutex_lock(&axictrl.mlock);
 	open_sif_mclk();
 	tmp = readl(axictrl.axibus_reg);
 	len = snprintf(buf, 64, "axibus: 0x%08x:\n", tmp);
@@ -333,6 +355,8 @@ static ssize_t t21_axibus_ctrl_show(struct device_driver *drv, char *buf)
 		len += snprintf(buf + len, 64, "t21: vio0\n");
 	}
 	close_sif_mclk();
+	mutex_unlock(&axictrl.mlock);
+
 	return len;
 }
 
@@ -343,6 +367,7 @@ static ssize_t gdc1_axibus_ctrl_store(struct device_driver *drv,
 	unsigned int tmp;
 	int shift = 26;
 	unsigned int val = 0;
+
 	mutex_lock(&axictrl.mlock);
 
 	open_sif_mclk();
@@ -357,8 +382,9 @@ static ssize_t gdc1_axibus_ctrl_store(struct device_driver *drv,
 	tmp |= (val << shift);
 
 	writel(tmp, axictrl.axibus_reg);
-	mutex_unlock(&axictrl.mlock);
 	close_sif_mclk();
+	mutex_unlock(&axictrl.mlock);
+
 	return count;
 }
 
@@ -368,6 +394,7 @@ static ssize_t gdc1_axibus_ctrl_show(struct device_driver *drv, char *buf)
 	int len = 0;
 	int shift = 26;
 
+	mutex_lock(&axictrl.mlock);
 	open_sif_mclk();
 	tmp = readl(axictrl.axibus_reg);
 	len = snprintf(buf, 64, "axibus: 0x%08x:\n", tmp);
@@ -377,6 +404,8 @@ static ssize_t gdc1_axibus_ctrl_show(struct device_driver *drv, char *buf)
 		len += snprintf(buf + len, 64, "gdc_1: vio0\n");
 	}
 	close_sif_mclk();
+	mutex_unlock(&axictrl.mlock);
+
 	return len;
 }
 
@@ -387,8 +416,8 @@ static ssize_t sifr_axibus_ctrl_store(struct device_driver *drv,
 	unsigned int tmp;
 	int shift = 27;
 	unsigned int val = 0;
-	mutex_lock(&axictrl.mlock);
 
+	mutex_lock(&axictrl.mlock);
 	open_sif_mclk();
 	sscanf(buf, "%x", &val);
 	if (val > 1 || val < 0) {
@@ -401,8 +430,9 @@ static ssize_t sifr_axibus_ctrl_store(struct device_driver *drv,
 	tmp |= (val << shift);
 
 	writel(tmp, axictrl.axibus_reg);
-	mutex_unlock(&axictrl.mlock);
 	close_sif_mclk();
+	mutex_unlock(&axictrl.mlock);
+
 	return count;
 }
 
@@ -412,6 +442,7 @@ static ssize_t sifr_axibus_ctrl_show(struct device_driver *drv, char *buf)
 	int len = 0;
 	int shift = 27;
 
+	mutex_lock(&axictrl.mlock);
 	open_sif_mclk();
 	tmp = readl(axictrl.axibus_reg);
 	len = snprintf(buf, 64, "axibus: 0x%08x:\n", tmp);
@@ -421,6 +452,8 @@ static ssize_t sifr_axibus_ctrl_show(struct device_driver *drv, char *buf)
 		len += snprintf(buf + len, 64, "sifr: vio0\n");
 	}
 	close_sif_mclk();
+	mutex_unlock(&axictrl.mlock);
+
 	return len;
 }
 
@@ -431,8 +464,8 @@ static ssize_t ipu0_axibus_ctrl_store(struct device_driver *drv,
 	unsigned int tmp;
 	int shift = 28;
 	unsigned int val = 0;
-	mutex_lock(&axictrl.mlock);
 
+	mutex_lock(&axictrl.mlock);
 	open_sif_mclk();
 	sscanf(buf, "%x", &val);
 	if (val > 1 || val < 0) {
@@ -445,8 +478,9 @@ static ssize_t ipu0_axibus_ctrl_store(struct device_driver *drv,
 	tmp |= (val << shift);
 
 	writel(tmp, axictrl.axibus_reg);
-	mutex_unlock(&axictrl.mlock);
 	close_sif_mclk();
+	mutex_unlock(&axictrl.mlock);
+
 	return count;
 }
 
@@ -456,6 +490,7 @@ static ssize_t ipu0_axibus_ctrl_show(struct device_driver *drv, char *buf)
 	int len = 0;
 	int shift = 28;
 
+	mutex_lock(&axictrl.mlock);
 	open_sif_mclk();
 	tmp = readl(axictrl.axibus_reg);
 	len = snprintf(buf, 64, "axibus: 0x%08x:\n", tmp);
@@ -465,6 +500,8 @@ static ssize_t ipu0_axibus_ctrl_show(struct device_driver *drv, char *buf)
 		len += snprintf(buf + len, 64, "ipu0: vio0\n");
 	}
 	close_sif_mclk();
+	mutex_unlock(&axictrl.mlock);
+
 	return len;
 }
 
@@ -475,8 +512,8 @@ static ssize_t pym_axibus_ctrl_store(struct device_driver *drv,
 	unsigned int tmp;
 	int shift = 30;
 	unsigned int val = 0;
-	mutex_lock(&axictrl.mlock);
 
+	mutex_lock(&axictrl.mlock);
 	open_sif_mclk();
 	sscanf(buf, "%x", &val);
 	if (val > 1 || val < 0) {
@@ -489,8 +526,9 @@ static ssize_t pym_axibus_ctrl_store(struct device_driver *drv,
 	tmp |= (val << shift);
 
 	writel(tmp, axictrl.axibus_reg);
-	mutex_unlock(&axictrl.mlock);
 	close_sif_mclk();
+	mutex_unlock(&axictrl.mlock);
+
 	return count;
 }
 
@@ -500,6 +538,7 @@ static ssize_t pym_axibus_ctrl_show(struct device_driver *drv, char *buf)
 	int len = 0;
 	int shift = 30;
 
+	mutex_lock(&axictrl.mlock);
 	open_sif_mclk();
 	tmp = readl(axictrl.axibus_reg);
 	len = snprintf(buf, 64, "axibus: 0x%08x:\n", tmp);
@@ -509,6 +548,8 @@ static ssize_t pym_axibus_ctrl_show(struct device_driver *drv, char *buf)
 		len += snprintf(buf + len, 64, "pym: vio0\n");
 	}
 	close_sif_mclk();
+	mutex_unlock(&axictrl.mlock);
+
 	return len;
 }
 
@@ -519,6 +560,7 @@ static ssize_t iar_axibus_ctrl_store(struct device_driver *drv,
 	unsigned int tmp;
 	int shift = 31;
 	unsigned int val = 0;
+
 	mutex_lock(&axictrl.mlock);
 
 	open_sif_mclk();
@@ -533,8 +575,9 @@ static ssize_t iar_axibus_ctrl_store(struct device_driver *drv,
 	tmp |= (val << shift);
 
 	writel(tmp, axictrl.axibus_reg);
-	mutex_unlock(&axictrl.mlock);
 	close_sif_mclk();
+	mutex_unlock(&axictrl.mlock);
+
 	return count;
 }
 
@@ -544,6 +587,7 @@ static ssize_t iar_axibus_ctrl_show(struct device_driver *drv, char *buf)
 	int len = 0;
 	int shift = 31;
 
+	mutex_lock(&axictrl.mlock);
 	open_sif_mclk();
 	tmp = readl(axictrl.axibus_reg);
 	len = snprintf(buf, 64, "axibus: 0x%08x:\n", tmp);
@@ -553,6 +597,8 @@ static ssize_t iar_axibus_ctrl_show(struct device_driver *drv, char *buf)
 		len += snprintf(buf + len, 64, "iar: vio0\n");
 	}
 	close_sif_mclk();
+	mutex_unlock(&axictrl.mlock);
+
 	return len;
 }
 
@@ -566,8 +612,9 @@ static ssize_t all_axibus_ctrl_store(struct device_driver *drv,
 	sscanf(buf, "%x", &val);
 
 	writel(val, axictrl.axibus_reg);
-	mutex_unlock(&axictrl.mlock);
 	close_sif_mclk();
+	mutex_unlock(&axictrl.mlock);
+
 	return count;
 }
 
@@ -576,6 +623,7 @@ static ssize_t all_axibus_ctrl_show(struct device_driver *drv, char *buf)
 	unsigned int tmp;
 	int len = 0;
 
+	mutex_lock(&axictrl.mlock);
 	open_sif_mclk();
 	tmp = readl(axictrl.axibus_reg);
 	len = snprintf(buf, 64, "axibus: 0x%08x:\n", tmp);
@@ -625,6 +673,7 @@ static ssize_t all_axibus_ctrl_show(struct device_driver *drv, char *buf)
 		len += snprintf(buf + len, 64, "iar: vio1\n");
 	}
 	close_sif_mclk();
+	mutex_unlock(&axictrl.mlock);
 
 	return len;
 }
