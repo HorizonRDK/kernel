@@ -42,6 +42,7 @@ int endiv_clk_enable(struct clk_hw *hw)
 	struct clk_endiv *clk = to_clk_endiv(hw);
 	unsigned int val, val1, status0, status1, reg_val;
 	unsigned long flags = 0;
+	int cnt = 10;
 
 	if (clk->lock)
 		spin_lock_irqsave(clk->lock, flags);
@@ -59,6 +60,13 @@ int endiv_clk_enable(struct clk_hw *hw)
 	if (status0 == 0 || status1 == 1) {
 		reg_val = 1 << clk->gate_reg.gt_reg.enable_bit;
 		writel(reg_val, clk->gate_reg.gt_reg.enable_reg);
+		while (cnt-- > 0 && ((readl(clk->gate_reg.clkoff_sta_reg)
+			& (1 << clk->gate_reg.clkoff_sta_bit)) >> clk->gate_reg.clkoff_sta_bit)) {
+			ndelay(10);
+		}
+		ndelay(10);
+		if (cnt <= 0)
+			pr_err("cnt <= 0,reg:0x%x\n", clk->gate_reg.gt_reg.clken_sta_reg);
 	}
 
 	if (clk->lock)
