@@ -597,7 +597,7 @@ void general_deinitialize( general_fsm_ptr_t p_fsm )
     general_temper_exit( p_fsm );
 #endif
 }
-
+#if 0
 static void general_dynamic_iridix_lut_update( general_fsm_ptr_t p_fsm )
 {
     // update iridix here
@@ -638,7 +638,7 @@ static void general_dynamic_iridix_lut_update( general_fsm_ptr_t p_fsm )
         LOG( LOG_ERR, "wrong elements number in iridix_ev1 or ev2 -> ev1 size %d, ev2 size, expected %d", (int)iridix_len_ev1, (int)iridix_len_ev2, (int)expected_iridix_size );
     }
 }
-
+#endif
 #if ISP_WDR_SWITCH
 
 static void general_dynamic_gamma_update( general_fsm_ptr_t p_fsm )
@@ -687,8 +687,10 @@ static void general_dynamic_gamma_update( general_fsm_ptr_t p_fsm )
 static void general_dynamic_temper_lut_update( general_fsm_ptr_t p_fsm )
 {
     // update temper lut here
+    #if 0
     const uint8_t *temper_lut_1 = _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_USER_TEMPER_NOISE_LUT_1 );
     const uint8_t *temper_lut_2 = _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_USER_TEMPER_NOISE_LUT_2 );
+	#endif
     const uint32_t temper_len_lut_1 = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_USER_TEMPER_NOISE_LUT_1 );
     const uint32_t temper_len_lut_2 = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_USER_TEMPER_NOISE_LUT_2 );
 

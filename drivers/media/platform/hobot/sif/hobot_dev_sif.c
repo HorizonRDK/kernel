@@ -992,7 +992,8 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 	sif = sif_ctx->sif_dev;
 	subdev = sif_ctx->subdev;
 	if (sif_ctx->state & BIT(VIO_VIDEO_OPEN)) {
-		vio_info("[S%d][V%d] %s: only open.\n", sif_ctx->id, __func__);
+		vio_info("[S%d][V%d] %s: only open.\n",
+			sif_ctx->group->instance, sif_ctx->id, __func__);
 		atomic_dec(&sif->open_cnt);
 		kfree(sif_ctx);
 		return 0;
