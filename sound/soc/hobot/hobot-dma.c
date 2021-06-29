@@ -195,10 +195,6 @@ static int hobot_copy_usr(struct snd_pcm_substream *substream,
 			if (tstamp_mode == 1) {
 				count = hwoff / (runtime->dma_bytes / runtime->periods);
 				bytes_count = bytes / (runtime->period_size * dma_ctrl->word_len * runtime->channels);
-				if (bytes_count > 1)
-					pr_debug("[***%s] tstamp[%d]=%ld, byes_count=%d, hwoff=%d, tstamp_mode=%d, bytes=%d, periods_size=%d\n",
-						__func__, count, tstamp[count].tv_sec*1000+tstamp[count].tv_nsec/1000/1000,
-						bytes_count, hwoff, tstamp_mode, bytes, runtime->period_size);
 				for (i = 0; i < bytes_count; i++) {
 					if (copy_to_user((void __user *)buf+(count+i)*sizeof(struct timespec) + i*runtime->period_size*dma_ctrl->word_len*runtime->channels,
 						&tstamp[count+i], sizeof(struct timespec)))
@@ -335,7 +331,6 @@ static void i2sidma_control(int op, int stream, struct idma_ctrl_s *dma_ctrl)
 static void i2sidma_done(void *id, int bytes_xfer)
 {
 	struct snd_pcm_substream *substream = id;
-	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct idma_ctrl_s *dma_ctrl = substream->runtime->private_data;
 	if (dma_ctrl && (dma_ctrl->state & ST_RUNNING))
 		snd_pcm_period_elapsed(substream);
@@ -509,7 +504,6 @@ static snd_pcm_uframes_t i2sidma_pointer(struct snd_pcm_substream *substream)
 		uint8_t count;
 		struct timespec curr_tstamp;
 		snd_pcm_uframes_t hw_ptr;
-		snd_pcm_uframes_t hw_ofs;
 		hw_ptr = runtime->status->hw_ptr / runtime->period_size;
 		count = hw_ptr % runtime->periods;
 		snd_pcm_gettime(runtime, (struct timespec *)&curr_tstamp);
@@ -936,9 +930,8 @@ static int preallocate_idma_buffer(struct snd_pcm *pcm, int stream)
 
 static int i2sidma_new(struct snd_soc_pcm_runtime *rtd)
 {
-	struct snd_card *card = rtd->card->snd_card;
 	struct snd_pcm *pcm = rtd->pcm;
-	int ret;
+	int ret = 0;
 
 	/*ret = dma_coerce_mask_and_coherent(card->dev, DMA_BIT_MASK(32));
 	if (ret)
