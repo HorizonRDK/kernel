@@ -15,7 +15,7 @@ void sif_set_ddr_output(u32 __iomem *base_reg, sif_output_ddr_t* p_ddr,
 		sif_input_splice_t *splice, u32 *enbale);
 
 void sif_set_md_enable(u32 __iomem *base_reg);
-	void sif_set_md_disable(u32 __iomem *base_reg);
+void sif_set_md_disable(u32 __iomem *base_reg);
 
 void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c);
 void sif_set_isp_output(u32 __iomem *base_reg,

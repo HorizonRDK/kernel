@@ -1074,7 +1074,6 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 		//vio_clk_disable("sif_mclk");
 		ips_set_module_reset(SIF_RST);
 		ips_set_clk_ctrl(SIF_CLOCK_GATE, false);
-		ips_set_clk_ctrl(MD_CLOCK_GATE, false);
 		pm_qos_remove_request(&sif_pm_qos_req);
 		vio_info("[S%d][V%d]%s SIF last process close \n",
 				sif_ctx->group->instance, sif_ctx->id, __func__);
@@ -2079,6 +2078,7 @@ int sif_set_mot_stop(struct sif_video_ctx *sif_ctx)
 
 	ips_set_md_disable();
 	sif_set_md_disable(sif->base_reg);
+	ips_set_clk_ctrl(MD_CLOCK_GATE, false);
 	vio_info("%s: done\n", __func__);
 	return ret;
 }
