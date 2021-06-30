@@ -123,9 +123,10 @@ static int hb_mmc_set_sd_padcctrl(struct dw_mci_hobot_priv_data *priv)
 	return 0;
 }
 
-int hb_mmc_disable_clk(struct dw_mci_hobot_priv_data *priv)
+int hb_mmc_disable_clk(struct dw_mci *host)
 {
 #ifdef CONFIG_HOBOT_XJ2
+	struct dw_mci_hobot_priv_data *priv = host->priv;
 	unsigned long timeout = jiffies + msecs_to_jiffies(10);
 	u32 clken_clr_shift = 0, clkoff_sta_shift = 0;
 	u32 reg_value;
@@ -160,17 +161,15 @@ int hb_mmc_disable_clk(struct dw_mci_hobot_priv_data *priv)
 
 	return -1;
 #else
-	if (priv->ctrl_id == DWMMC_MMC_ID)
-		usleep_range(10, 20);
-	else
-		usleep_range(20000, 25000);
+	clk_disable(host->ciu_clk);
 	return 0;
 #endif
 }
 
-int hb_mmc_enable_clk(struct dw_mci_hobot_priv_data *priv)
+int hb_mmc_enable_clk(struct dw_mci *host)
 {
 #ifdef CONFIG_HOBOT_XJ2
+	struct dw_mci_hobot_priv_data *priv = host->priv;
 	unsigned long timeout = jiffies + msecs_to_jiffies(10);
 	u32 clken_set_shift = 0, clkoff_sta_shift = 0;
 	u32 reg_value;
@@ -208,10 +207,7 @@ int hb_mmc_enable_clk(struct dw_mci_hobot_priv_data *priv)
 
 	return -1;
 #else
-	if (priv->ctrl_id == DWMMC_MMC_ID)
-		usleep_range(10, 20);
-	else
-		usleep_range(20000, 25000);
+	clk_enable(host->ciu_clk);
 	return 0;
 #endif
 }
@@ -234,14 +230,16 @@ void hb_mmc_set_power(struct dw_mci_hobot_priv_data *priv, bool val)
 	}
 }
 
-static int hb_mmc_set_sample_phase(struct dw_mci_hobot_priv_data *priv,
+static int hb_mmc_set_sample_phase(struct dw_mci *host,
 				   int degrees)
 {
+	struct dw_mci_hobot_priv_data *priv = host->priv;
 	u32 reg_value;
 
 	priv->current_sample_phase = degrees;
 
-	hb_mmc_disable_clk(priv);
+	spin_lock_irq(&host->lock);
+	hb_mmc_disable_clk(host);
 	if (priv->ctrl_id == DWMMC_MMC_ID) {
 		reg_value = readl(priv->sysctrl_reg + HOBOT_SD0_PHASE_REG);
 		reg_value &= 0xFFFF0FFF;
@@ -261,22 +259,21 @@ static int hb_mmc_set_sample_phase(struct dw_mci_hobot_priv_data *priv,
 		writel(reg_value, priv->sysctrl_reg + HOBOT_SD2_PHASE_REG);
 	}
 #endif
-	usleep_range(1, 2);
-	hb_mmc_enable_clk(priv);
-
-	/* We should delay 1us wait for timing setting finished. */
-	usleep_range(1, 2);
+	hb_mmc_enable_clk(host);
+	spin_unlock_irq(&host->lock);
 	return 0;
 }
 
-static int hb_mmc_set_drv_phase(struct dw_mci_hobot_priv_data *priv,
+static int hb_mmc_set_drv_phase(struct dw_mci *host,
 				int degrees)
 {
+	struct dw_mci_hobot_priv_data *priv = host->priv;
 	u32 reg_value;
 
 	priv->current_drv_phase = degrees;
 
-	hb_mmc_disable_clk(priv);
+	spin_lock(&host->lock);
+	hb_mmc_disable_clk(host);
 	if (priv->ctrl_id == DWMMC_MMC_ID) {
 		reg_value = readl(priv->sysctrl_reg + HOBOT_SD0_PHASE_REG);
 		reg_value &= 0xFFFFF0FF;
@@ -296,11 +293,8 @@ static int hb_mmc_set_drv_phase(struct dw_mci_hobot_priv_data *priv,
 		writel(reg_value, priv->sysctrl_reg + HOBOT_SD2_PHASE_REG);
 	}
 #endif
-	usleep_range(1, 2);
-	hb_mmc_enable_clk(priv);
-
-	/* We should delay 1us wait for timing setting finished. */
-	usleep_range(1, 2);
+	hb_mmc_enable_clk(host);
+	spin_unlock(&host->lock);
 	return 0;
 }
 
@@ -328,7 +322,7 @@ static int dw_mci_hb_sample_tuning(struct dw_mci_slot *slot, u32 opcode)
 
 	/* Try each phase and extract good ranges */
 	for (i = 0; i < NUM_PHASES;) {
-		hb_mmc_set_sample_phase(priv, TUNING_ITERATION_TO_PHASE(i));
+		hb_mmc_set_sample_phase(host, TUNING_ITERATION_TO_PHASE(i));
 
 		v = !mmc_send_tuning(mmc, opcode, NULL);
 
@@ -375,7 +369,7 @@ static int dw_mci_hb_sample_tuning(struct dw_mci_slot *slot, u32 opcode)
 	}
 
 	if (ranges[0].start == 0 && ranges[0].end == NUM_PHASES - 1) {
-		hb_mmc_set_sample_phase(priv, priv->default_sample_phase);
+		hb_mmc_set_sample_phase(host, priv->default_sample_phase);
 		dev_dbg(host->dev,
 			"All sample phases work, using default phase %d.",
 			priv->default_sample_phase);
@@ -415,7 +409,7 @@ static int dw_mci_hb_sample_tuning(struct dw_mci_slot *slot, u32 opcode)
 		priv->current_drv_phase,
 		TUNING_ITERATION_TO_PHASE(middle_phase));
 
-	hb_mmc_set_sample_phase(priv, TUNING_ITERATION_TO_PHASE(middle_phase));
+	hb_mmc_set_sample_phase(host, TUNING_ITERATION_TO_PHASE(middle_phase));
 
 free:
 	kfree(ranges);
@@ -459,14 +453,10 @@ static void dw_mci_hb_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 	else
 		cclkin = ios->clock;
 
-	hb_mmc_disable_clk(priv);
-
 	ret = clk_set_rate(host->ciu_clk, cclkin);
 	if (ret)
 		dev_warn(host->dev, "failed to set rate %uHz\n", ios->clock);
 
-	hb_mmc_enable_clk(priv);
-	usleep_range(1, 2);
 	bus_hz = clk_get_rate(host->ciu_clk);
 	if (bus_hz != host->bus_hz) {
 		host->bus_hz = bus_hz;
@@ -475,7 +465,7 @@ static void dw_mci_hb_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 	}
 
 	/* Make sure we use phases which we can enumerate with */
-	hb_mmc_set_sample_phase(priv, priv->default_sample_phase);
+	hb_mmc_set_sample_phase(host, priv->default_sample_phase);
 
 	/*
 	 * Set the drive phase offset based on speed mode to achieve hold times.
@@ -536,7 +526,7 @@ static void dw_mci_hb_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 		break;
 	}
 
-	hb_mmc_set_drv_phase(priv, phase);
+	hb_mmc_set_drv_phase(host, phase);
 	pr_debug("%s ctrl_id=%d sample_phase=%d phase=%d"
 		" ios->timing=%d ios->signal_voltage=%d ios->clock=%d"
 		" cclkin=%d bus_hz=%lu host->bus_hz=%d\n",

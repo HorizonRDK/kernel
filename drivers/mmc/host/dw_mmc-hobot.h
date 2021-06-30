@@ -34,8 +34,8 @@ struct dw_mci_hobot_priv_data {
 	int mmc_fixed_voltage;
 };
 
-int hb_mmc_disable_clk(struct dw_mci_hobot_priv_data *priv);
-int hb_mmc_enable_clk(struct dw_mci_hobot_priv_data *priv);
+int hb_mmc_disable_clk(struct dw_mci *host);
+int hb_mmc_enable_clk(struct dw_mci *host);
 void hb_mmc_set_power(struct dw_mci_hobot_priv_data *priv, bool val);
 
 #endif

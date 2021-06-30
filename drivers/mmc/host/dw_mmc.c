@@ -2769,6 +2769,7 @@ static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
 	unsigned long irqflags;
 	int err = 0;
 
+	spin_lock(&host->lock);
 	pending = mci_readl(host, MINTSTS); /* read-only mask reg */
 
 	if (pending) {
@@ -2894,6 +2895,7 @@ static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
 				host->dma_ops->complete((void *)host);
 		}
 	}
+	spin_unlock(&host->lock);
 
 	return IRQ_HANDLED;
 }
@@ -3364,15 +3366,11 @@ int dw_mci_probe(struct dw_mci *host)
 
 		if (host->pdata->bus_hz) {
 			pr_debug("set ciu clk to %u\n", host->pdata->bus_hz);
-
-			hb_mmc_disable_clk(host->priv);
-
 			ret = clk_set_rate(host->ciu_clk, host->pdata->bus_hz);
 			if (ret)
 				dev_warn(host->dev,
 					 "Unable to set bus rate to %uHz\n",
 					 host->pdata->bus_hz);
-			hb_mmc_enable_clk(host->priv);
 		}
 
 		host->bus_hz = clk_get_rate(host->ciu_clk);
@@ -3671,7 +3669,7 @@ int dw_mci_system_suspend(struct device *dev)
 		 !mmc_card_is_removable(host->slot->mmc)))
 		clk_disable_unprepare(host->biu_clk);
 
-	hb_mmc_disable_clk(host->priv);
+	hb_mmc_disable_clk(host);
 	hb_mmc_set_power(host->priv, 0);
 
 	return 0;
@@ -3699,7 +3697,7 @@ int dw_mci_system_resume(struct device *dev)
 	if (ret)
 		goto err;
 
-	hb_mmc_enable_clk(host->priv);
+	hb_mmc_enable_clk(host);
 
 	/* reset control */
 	if (!IS_ERR(host->pdata->rstc)) {
@@ -3718,7 +3716,7 @@ int dw_mci_system_resume(struct device *dev)
 	/* reset all blocks */
 	if (!dw_mci_ctrl_reset(host, SDMMC_CTRL_ALL_RESET_FLAGS)) {
 		clk_disable_unprepare(host->ciu_clk);
-		hb_mmc_disable_clk(host->priv);
+		hb_mmc_disable_clk(host);
 		ret = -ENODEV;
 		goto err;
 	}
