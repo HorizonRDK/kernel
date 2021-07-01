@@ -238,7 +238,8 @@ static int hb_mmc_set_sample_phase(struct dw_mci *host,
 
 	priv->current_sample_phase = degrees;
 
-	spin_lock_irq(&host->lock);
+	disable_irq(host->irq);
+	tasklet_disable(&host->tasklet);
 	hb_mmc_disable_clk(host);
 	if (priv->ctrl_id == DWMMC_MMC_ID) {
 		reg_value = readl(priv->sysctrl_reg + HOBOT_SD0_PHASE_REG);
@@ -260,7 +261,8 @@ static int hb_mmc_set_sample_phase(struct dw_mci *host,
 	}
 #endif
 	hb_mmc_enable_clk(host);
-	spin_unlock_irq(&host->lock);
+	tasklet_enable(&host->tasklet);
+	enable_irq(host->irq);
 	return 0;
 }
 
@@ -272,7 +274,8 @@ static int hb_mmc_set_drv_phase(struct dw_mci *host,
 
 	priv->current_drv_phase = degrees;
 
-	spin_lock(&host->lock);
+	disable_irq(host->irq);
+	tasklet_disable(&host->tasklet);
 	hb_mmc_disable_clk(host);
 	if (priv->ctrl_id == DWMMC_MMC_ID) {
 		reg_value = readl(priv->sysctrl_reg + HOBOT_SD0_PHASE_REG);
@@ -294,7 +297,8 @@ static int hb_mmc_set_drv_phase(struct dw_mci *host,
 	}
 #endif
 	hb_mmc_enable_clk(host);
-	spin_unlock(&host->lock);
+	tasklet_enable(&host->tasklet);
+	enable_irq(host->irq);
 	return 0;
 }
 

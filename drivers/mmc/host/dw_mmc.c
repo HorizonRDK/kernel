@@ -2769,7 +2769,6 @@ static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
 	unsigned long irqflags;
 	int err = 0;
 
-	spin_lock(&host->lock);
 	pending = mci_readl(host, MINTSTS); /* read-only mask reg */
 
 	if (pending) {
@@ -2895,7 +2894,6 @@ static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
 				host->dma_ops->complete((void *)host);
 		}
 	}
-	spin_unlock(&host->lock);
 
 	return IRQ_HANDLED;
 }
