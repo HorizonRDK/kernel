@@ -49,6 +49,7 @@
 #define HOBOT_UART_FIFO_SIZE	32	/* FIFO size */
 #define HOBOT_UART_REGISTER_SPACE	0x1000
 #define HOBOT_UART_OVERRUN_FIFO_SIZE 16
+#define SUPPORT_UART_CONSOLE_TXCTRL
 
 unsigned int early_console_baud;
 /*log the error status of the previous interrupt on the UART IP*/
@@ -64,9 +65,14 @@ static int tx_trigger_level = 0;
 module_param(tx_trigger_level, uint, S_IRUGO);
 MODULE_PARM_DESC(tx_trigger_level, "Tx trigger level, 0-15 (uint: 4 bytes)");
 
+#ifdef SUPPORT_UART_CONSOLE_TXCTRL
 static int uarttx_ctrl = 1;
 module_param(uarttx_ctrl, int, 0644);
 MODULE_PARM_DESC(uarttx_ctrl, "uart Tx ctrl, (0:disable tx 1:enable tx)");
+
+/*uart Tx ctrl character:ESC txd*/
+static char txctrl_char[]="\etxd";
+#endif
 
 #ifdef CONFIG_HOBOT_TTY_POLL_MODE
 #define HOBOT_UART_RX_POLL_TIME	50	/* Unit is ms */
@@ -352,6 +358,12 @@ static void hobot_uart_dma_rxdone(void *dev_id, unsigned int irqstatus)
 	struct hobot_uart *hobot_port = port->private_data;
 	unsigned int val;
 	char data;
+
+#ifdef SUPPORT_UART_CONSOLE_TXCTRL
+	static int input = 0;
+	static int output = 0;
+#endif
+
 	while (irqstatus & (UART_RXDON | UART_RXTO | UART_BI)) {
 		if (irqstatus & UART_BI) {
 			irqstatus &= ~UART_BI;
@@ -382,6 +394,44 @@ static void hobot_uart_dma_rxdone(void *dev_id, unsigned int irqstatus)
 			count1 = HOBOT_UART_DMA_SIZE - hobot_port->rx_off;
 			count2 = rx_bytes;
 		}
+
+#ifdef SUPPORT_UART_CONSOLE_TXCTRL
+		/*when the console is hobot-uart0, press ESC txd to disable tx*/
+		if(!strcmp(hobot_port->name, "hobot-uart0")) {
+			switch (input) {
+				case 0:
+					if (data == '\e') {
+						input++;
+					}
+					break;
+				case 1:
+				case 2:
+					if (data == txctrl_char[input]) {
+						input++;
+					} else {
+						input = 0;
+					}
+					break;
+				case 3:
+					if (data == txctrl_char[input]) {
+						uarttx_ctrl = 0;
+						input = 0;
+						output = 1;
+					}
+					break;
+				default:
+					input = 0;
+			}
+
+			/*when in tx disable state, press ESC to enable tx*/
+			if(output == 1 || uarttx_ctrl == 0) {
+				if (data == '\e') {
+					uarttx_ctrl = 1;
+					output = 0;
+				}
+			}
+		}
+#endif
 
 #ifdef CONFIG_HOBOT_SERIAL_DEBUGFS
 		dgb_rx_count = rx_bytes;
