@@ -71,6 +71,7 @@ void ipu_get_osd_sta_bin(void __iomem *base_addr, u8 osd_num,
 		u8 osd_layer, u16 *bin);
 void ipu_set_rdma_start(void __iomem *base_addr);
 void ipu_get_intr_status(void __iomem *base_addr, u32 *status, bool clear);
+void ipu_set_intr_status(void __iomem *base_addr, u32 status);
 
 void ipu_set_intr_mask(void __iomem *base_addr, u32 intr_mask);
 void ipu_set_ddr_fifo5(void __iomem *base_addr, u8 value);

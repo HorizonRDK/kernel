@@ -939,6 +939,11 @@ void ipu_get_intr_status(void __iomem *base_addr, u32 * status, bool clear)
 		vio_hw_set_reg(base_addr, &ipu_regs[IPU_INT_STATUS], *status);
 }
 
+void ipu_set_intr_status(void __iomem *base_addr, u32 status)
+{
+	vio_hw_set_reg(base_addr, &ipu_regs[IPU_INT_STATUS], status);
+}
+
 void ipu_set_intr_mask(void __iomem *base_addr, u32 intr_mask)
 {
 	vio_hw_set_reg(base_addr, &ipu_regs[IPU_INT_MASK], intr_mask);

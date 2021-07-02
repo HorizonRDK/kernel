@@ -3872,6 +3872,7 @@ static void lost_fps_send(uint8_t errsta)
 static irqreturn_t ipu_isr(int irq, void *data)
 {
 	u32 status = 0;
+	u32 status_check = 0;
 	u32 drop_cnt = 0;
 	u32 instance = 0;
 	u32 size_err = 0;
@@ -4245,6 +4246,21 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		if (!group->leader || test_bit(IPU_DMA_INPUT, &ipu->state))
 			if (group->output_flag == drop_cnt)
 				vio_group_done(group);
+	}
+
+	/* clear the abnormal framedrop irq */
+	if (test_bit(IPU_OTF_INPUT, &ipu->state) &&
+			vio_check_all_online_state(group)) {
+		ipu_get_intr_status(ipu->base_reg, &status_check, false);
+		if (status_check & ((1 << INTR_IPU_US_FRAME_DROP) |
+					(1 << INTR_IPU_DS0_FRAME_DROP) |
+					(1 << INTR_IPU_DS1_FRAME_DROP) |
+					(1 << INTR_IPU_DS2_FRAME_DROP) |
+					(1 << INTR_IPU_DS3_FRAME_DROP) |
+					(1 << INTR_IPU_DS4_FRAME_DROP))) {
+			ipu_set_intr_status(ipu->base_reg, status_check);
+			vio_err("ipu_isr status_check = 0x%x clear it\n", status_check);
+		}
 	}
 
 #ifdef CONFIG_HOBOT_DIAG
