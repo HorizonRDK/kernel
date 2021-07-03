@@ -104,21 +104,20 @@ int tsn_net_add_rx(struct tsn_list *tlist)
 	 * assume core has filtered the NICs appropriatetly sothat only
 	 * TSN-capable cards are present).
 	 */
+	rtnl_lock();
 	tsn_list_lock(tlist);
 	list_for_each_entry(nic, &tlist->head, list) {
-		rtnl_lock();
 		if (netdev_rx_handler_register(nic->dev, tsn_rx_handler, nic) < 0) {
 			pr_err("%s: could not attach an Rx-handler to %s, this link will not be able to accept TSN traffic\n",
 			       __func__, nic->name);
-			rtnl_unlock();
 			continue;
 		}
-		rtnl_unlock();
 		pr_info("%s: attached rx-handler to %s\n",
 			__func__, nic->name);
 		nic->rx_registered = 1;
 	}
 	tsn_list_unlock(tlist);
+	rtnl_unlock();
 	return 0;
 }
 
@@ -131,17 +130,17 @@ void tsn_net_remove_rx(struct tsn_list *tlist)
 
 	if (!tlist)
 		return;
+	rtnl_lock();
 	tsn_list_lock(tlist);
 	list_for_each_entry(nic, &tlist->head, list) {
-		rtnl_lock();
 		if (nic->rx_registered)
 			netdev_rx_handler_unregister(nic->dev);
-		rtnl_unlock();
 		nic->rx_registered = 0;
 		pr_info("%s: RX-handler for %s removed\n",
 			__func__, nic->name);
 	}
 	tsn_list_unlock(tlist);
+	rtnl_unlock();
 }
 
 
