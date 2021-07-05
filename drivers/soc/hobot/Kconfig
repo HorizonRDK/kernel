@@ -47,6 +47,14 @@ config HOBOT_DIAG
           Kernel modules(drivers) can send diag msgs to userspace
           by calling the API of the diag module(driver)
 
+config HOBOT_DIAG_INJECT
+        tristate "hobot diag injection module, based on diag driver"
+        depends on HOBOT_DIAG
+        default n
+        help
+          Kernel modules(drivers) can force diag injection to drivers
+          by calling the ioctl of the diag injection module(driver)
+
 config HOBOT_MCU_IRQ
         tristate "Time sync driver with MCU by 2 GPIO"
         default n
@@ -229,7 +237,7 @@ config HOBOT_CR5_SERVICE
         default n
         ---help---
            Drivers for the HOBOT CR5 Service
-		   
+
 config HOBOT_CPU_CAL
         tristate "HOBOT CPU CALCULATE Service Drivers"
         default n

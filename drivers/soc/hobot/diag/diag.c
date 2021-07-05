@@ -43,6 +43,45 @@
 /* used to store all resources */
 struct diag *g_diag_info = NULL;
 static int32_t diag_had_init;
+static struct diag_inject_ops {
+	bool(*module_inject_registered) (uint16_t module_id);
+	int(*module_inject_val_get) (uint16_t module_id, uint32_t *val);
+} hb_diag_inject;
+
+int32_t diag_inject_ops_register(bool (*module_inject_registered)(uint16_t),
+							 int (*module_inject_val_get)(uint16_t, uint32_t *))
+{
+	if (module_inject_registered == NULL || module_inject_val_get == NULL) {
+		pr_err("%s: diag_inject_ops register failed!\n", __func__);
+		return -EINVAL;
+	}
+	hb_diag_inject.module_inject_registered = module_inject_registered;
+	hb_diag_inject.module_inject_val_get = module_inject_val_get;
+	return 0;
+}
+EXPORT_SYMBOL(diag_inject_ops_register);
+
+void diag_inject_ops_unregister()
+{
+	hb_diag_inject.module_inject_registered = NULL;
+	hb_diag_inject.module_inject_val_get = NULL;
+	return;
+}
+EXPORT_SYMBOL(diag_inject_ops_unregister);
+
+int32_t diag_inject_val(uint16_t module_id, uint32_t *reg_val)
+{
+	int32_t ret = 0;
+	if (hb_diag_inject.module_inject_registered == NULL)
+		return -EIO;
+
+	if (!hb_diag_inject.module_inject_registered(module_id))
+		return -EINVAL;
+
+	ret = hb_diag_inject.module_inject_val_get(module_id, reg_val);
+	return ret;
+}
+EXPORT_SYMBOL(diag_inject_val);
 
 /* wether the module_id & event_id is registered or not,
  * if registerd, diag_module and event_id will be returned */

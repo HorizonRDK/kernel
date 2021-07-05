@@ -309,4 +309,24 @@ extern int32_t diagnose_unregister(uint16_t module);
  */
 extern int32_t diag_event_unregister(uint16_t module, uint16_t event);
 
+/*
+ * Register diagnose inject functions
+ * @module_inject_registered will check if the current module_id is injected
+ * @module_inject_val_get will return the registered inject value
+ */
+extern int32_t diag_inject_ops_register(bool (*module_inject_registered)(uint16_t),
+							 int (*module_inject_val_get)(uint16_t, uint32_t *));
+
+/*
+ * Unregister diagnose inject functions
+ */
+extern void diag_inject_ops_unregister(void);
+
+/*
+ * Inject the target module_id with desired value
+ * @module_id: the targeted module, used to check if current module requires injection
+ * @*reg_val: the pointer to the variable storing the targeted injection
+ */
+extern int32_t diag_inject_val(uint16_t module_id, uint32_t *reg_val);
+
 #endif
