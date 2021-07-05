@@ -21,6 +21,7 @@
 #include "system_spinlock.h"
 #include <linux/spinlock.h>
 #include <linux/slab.h>
+#include <linux/lockdep.h>
 
 int system_spinlock_init( sys_spinlock *lock )
 {
@@ -39,7 +40,7 @@ unsigned long system_spinlock_lock( sys_spinlock lock )
     unsigned long flags = 0;
     spinlock_t *slock = (spinlock_t *)lock;
 
-    spin_lock_irqsave( slock, flags );
+    spin_lock_irqsave_nested( slock, flags, SINGLE_DEPTH_NESTING );
 
     return flags;
 }
