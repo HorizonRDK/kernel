@@ -666,7 +666,7 @@ void cmos_fsm_process_interrupt( cmos_fsm_const_ptr_t p_fsm, uint8_t irq_event )
                         acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_SENSOR_UPDATE, NULL, 0 );
                     }
 		//update awb info to sensor
-		if (_GET_COLS( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CMOS_CONTROL ) == sizeof(cmos_control_param_t)/sizeof(uint32_t)) {
+		if (_GET_COLS(ACAMERA_FSM2CTX_PTR(p_fsm), CALIBRATION_CMOS_CONTROL) >= SENSOR_AWB_MODE_NUM) {
 			if (param->global_sensor_awb_mode) {
 				fsm_param_awb_cfg_t awb_f;
 				awb_f.rgain = ((cmos_fsm_ptr_t)p_fsm)->wb[0];
@@ -1290,6 +1290,7 @@ uint32_t get_quantised_integration_time( cmos_fsm_ptr_t p_fsm, uint32_t int_time
     uint32_t temp = 0;
     uint32_t temp_1 = 0;
     uint32_t comp_ae_t = 3;
+    uint32_t sensor_flicker_ratio = 256;
     uint32_t sensor_flicker_out = 750;
     uint32_t lumvar_dark_enh = 512;
     uint32_t lumvar_dark_countenh = 300;
@@ -1315,8 +1316,65 @@ uint32_t get_quantised_integration_time( cmos_fsm_ptr_t p_fsm, uint32_t int_time
     uint32_t line_per_half_period = ( sensor_info.lines_per_second << 8 ) / ( p_fsm->flicker_freq * 2 ); // division by zero is checked
 
     /* check cmos control param */
-    if (_GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CMOS_CONTROL ) >= SENSOR_FLICKER_THRESHOLD_NUM) {
+    if (_GET_LEN(ACAMERA_FSM2CTX_PTR(p_fsm), CALIBRATION_CMOS_CONTROL) >= SENSOR_FLICKER_THRESHOLD_NUM) {
 	cmos_control_param_t *param = (cmos_control_param_t *)_GET_UINT_PTR( ACAMERA_FSM2CTX_PTR(p_fsm), CALIBRATION_CMOS_CONTROL );
+
+	if (_GET_LEN(ACAMERA_FSM2CTX_PTR(p_fsm), CALIBRATION_CMOS_CONTROL) >= SENSOR_FLICKER_RATIO_NUM) {
+		sensor_flicker_ratio = param->global_flicker_ratio;
+		if (sensor_flicker_ratio > 256) {
+		        sensor_flicker_ratio = 256;
+		        param->global_flicker_ratio = 256;
+		}
+		if (sensor_flicker_ratio < 80) {
+		        sensor_flicker_ratio = 80;
+		        param->global_flicker_ratio = 80;
+		}
+	}
+
+	if (_GET_LEN(ACAMERA_FSM2CTX_PTR(p_fsm), CALIBRATION_CMOS_CONTROL) >= SENSOR_FLICKER_MODE_NUM) {
+		p_fsm->outdoor_flag = param->global_flicker_mode;
+	}
+
+	if (_GET_LEN(ACAMERA_FSM2CTX_PTR(p_fsm), CALIBRATION_CMOS_CONTROL) >= SENSOR_FLICKER_OUT_NUM) {
+	    sensor_flicker_out = param->global_flicker_out;
+	    if (sensor_flicker_out > 800) {
+		    sensor_flicker_out = 800;
+		    param->global_flicker_out = 800;
+	    }
+	    if (sensor_flicker_out < 50) {
+		    sensor_flicker_out = 50;
+		    param->global_flicker_out = 50;
+	    }
+	}
+
+	if (_GET_LEN(ACAMERA_FSM2CTX_PTR(p_fsm), CALIBRATION_CMOS_CONTROL) >= SENSOR_FLICKER_DARK_ENH_NUM) {
+            lumvar_dark_enh = param->global_dark_enh;
+            if (lumvar_dark_enh > 700) {
+                    lumvar_dark_enh = 700;
+                    param->global_dark_enh = 700;
+            }
+	}
+
+	if (_GET_LEN(ACAMERA_FSM2CTX_PTR(p_fsm), CALIBRATION_CMOS_CONTROL) >= SENSOR_FLICKER_LUMVAR_CHANGE_NUM) {
+            lumvar_change_enh = param->global_change_threshold;
+            if (lumvar_change_enh < 50) {
+                    lumvar_change_enh = 50;
+                    param->global_change_threshold = 50;
+            }
+	}
+
+	if (_GET_LEN(ACAMERA_FSM2CTX_PTR(p_fsm), CALIBRATION_CMOS_CONTROL) >= SENSOR_FLICKER_DARK_COUNT_NUM) {
+		lumvar_dark_countenh = param->global_dark_count;
+		if (lumvar_dark_countenh > 512) {
+			lumvar_dark_countenh = 512;
+			param->global_dark_count = 512;
+		}
+		if (lumvar_dark_countenh < 330) {
+			lumvar_dark_countenh = 330;
+			param->global_dark_count = 330;
+		}
+	}
+
 	/* get lumvar info */
 	get_lumvar_info(p_fsm->lumvar);
 
