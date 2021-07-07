@@ -35,6 +35,7 @@ typedef struct _sensor_context_t {
     sensor_mode_t supported_modes[ISP_MAX_SENSOR_MODES];
     struct v4l2_subdev *soc_sensor;
     sensor_param_t tuning_param;//add ie&e
+    uint32_t update_flag;
 } sensor_context_t;
 
 static sensor_context_t s_ctx[FIRMWARE_CONTEXT_NUMBER];
@@ -446,8 +447,11 @@ static const sensor_param_t *sensor_get_parameters( void *ctx )
     sensor_context_t *p_ctx = ctx;
 
     //sensor_init_tuning_parameters(p_ctx);
-    sensor_update_parameters(p_ctx);
-    sensor_update_tuning_parameters(p_ctx);//add ie&e
+    if (p_ctx->update_flag == 0) {
+	p_ctx->update_flag = 1;
+	sensor_update_parameters(p_ctx);
+	sensor_update_tuning_parameters(p_ctx);//add ie&e
+    }
 
     return (const sensor_param_t *)&p_ctx->param;
 }
@@ -480,9 +484,10 @@ static void sensor_set_parameters(void *ctx, uint32_t cmd, uint32_t data)
 		}
 		break;
 		case SET_INTER_MIN: {
-			if((data < p_ctx->param.integration_time_min) || (data > p_ctx->param.integration_time_limit)) {
-				p_ctx->tuning_param.integration_time_min
-					= p_ctx->param.integration_time_min;
+			// integration_time_min is 1
+			if((data < 1) || (data > p_ctx->param.integration_time_limit)) {
+				LOG(LOG_ERR, "integration_time_limit is valid!");
+				p_ctx->tuning_param.integration_time_min = 1;
 			} else {
 				p_ctx->tuning_param.integration_time_min = data;
 			}
@@ -638,6 +643,7 @@ void sensor_deinit_v4l2( void *ctx, uint8_t ctx_id )
             LOG( LOG_ERR, "ctx num %d is invalid.", ctx_id);
             return;
         }
+	p_ctx->update_flag = 0;
         int rc = v4l2_subdev_call( p_ctx->soc_sensor, core, reset, ctx_id );
         if ( rc != 0 ) {
             LOG( LOG_ERR, "Failed to reset soc_sensor. core->reset failed with rc %d", rc );
@@ -680,7 +686,7 @@ void sensor_init_v4l2( void **ctx, sensor_control_t *ctrl, uint8_t ctx_id )
         p_ctx->param.modes_num = 0;
 
         *ctx = p_ctx;
-
+	p_ctx->update_flag = 0;
 
         p_ctx->soc_sensor = acamera_camera_v4l2_get_subdev_by_name( V4L2_SOC_SENSOR_NAME );
         if ( p_ctx->soc_sensor == NULL ) {
