@@ -22,6 +22,7 @@
 #include <linux/scatterlist.h>
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
+#include <asm/cacheflush.h>
 #include <linux/ion.h>
 
 #define ION_CARVEOUT_ALLOCATE_FAIL	-1
@@ -123,9 +124,11 @@ static void ion_carveout_heap_free(struct ion_buffer *buffer)
 
 	ion_heap_buffer_zero(buffer);
 
-	if (ion_buffer_cached(buffer))
+	if (ion_buffer_cached(buffer)) {
 		dma_sync_sg_for_device(NULL, table->sgl, table->nents,
 							DMA_BIDIRECTIONAL);
+		__flush_dcache_area(phys_to_virt(paddr), buffer->size);
+	}
 
 	ion_carveout_free(heap, paddr, buffer->size);
 	sg_free_table(table);
