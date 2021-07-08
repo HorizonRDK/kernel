@@ -13,7 +13,7 @@
 
 #include "hobot_ipu_hw_reg.h"
 #include "ipu_hw_api.h"
-
+// PRQA S 3238, 0685 ++
 void ipu_set_input_img_size(void __iomem *base_addr, u8 shadow_index,
 			    u32 width, u32 height)
 {
@@ -1013,3 +1013,4 @@ void ipu_get_ddr_addr_dump(u32 __iomem *base_reg)
 	reg_val_uv = vio_hw_get_reg(base_reg, &ipu_regs[IPU_DS_4_DDR_UV]);
 	vio_dbg("DS4 Y:0x%x,UV:0x%x\n", reg_val_y, reg_val_uv);
 }
+// PRQA S --

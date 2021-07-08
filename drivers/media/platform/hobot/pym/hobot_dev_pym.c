@@ -48,7 +48,7 @@ extern struct ion_device *hb_ion_dev;
 static struct pm_qos_request pym_pm_qos_req;
 /* protect pym task only init one time */
 static struct mutex pym_mutex;
-
+// PRQA S 3238, 0685, 2755, 0636, 2996 ++
 static int x3_pym_open(struct inode *inode, struct file *file)
 {
 	struct pym_video_ctx *pym_ctx;
@@ -58,7 +58,7 @@ static int x3_pym_open(struct inode *inode, struct file *file)
 
 	minor = MINOR(inode->i_rdev);
 
-	pym = container_of(inode->i_cdev, struct x3_pym_dev, cdev);
+	pym = container_of(inode->i_cdev, struct x3_pym_dev, cdev); /*PRQA S ALL*/
 	pym_ctx = kzalloc(sizeof(struct pym_video_ctx), GFP_KERNEL);
 	if (pym_ctx == NULL) {
 		vio_err("kzalloc is fail");
@@ -122,18 +122,18 @@ static u32 x3_pym_poll(struct file *file, struct poll_table_struct *wait)
 	framemgr = pym_ctx->framemgr;
 	pym = pym_ctx->pym_dev;
 
-	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	framemgr_e_barrier_irqs(framemgr, 0UL, flags);
 	/* pym_frame_done will save subdev->poll_mask to frame->poll_mask */
 	pym_ctx->subdev->poll_mask |= (1 << pym_ctx->ctx_index);
-	framemgr_x_barrier_irqr(framemgr, 0, flags);
+	framemgr_x_barrier_irqr(framemgr, 0UL, flags);
 
 	poll_wait(file, &pym_ctx->done_wq, wait);
-	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	framemgr_e_barrier_irqs(framemgr, 0UL, flags);
 	done_list = &framemgr->queued_list[FS_COMPLETE];
 	if (!list_empty(done_list)) {
 		pym->statistic.pollin_comp[pym_ctx->group->instance]++;
 	}
-	framemgr_x_barrier_irqr(framemgr, 0, flags);
+	framemgr_x_barrier_irqr(framemgr, 0UL, flags);
 	if (pym_ctx->event == VIO_FRAME_DONE) {
 		pym->statistic.pollin_fe[pym_ctx->group->instance]++;
 		ret = POLLIN;
@@ -185,8 +185,8 @@ static int x3_pym_release_subdev_all_ion(struct pym_subdev *subdev)
 
 	vio_dbg("%s: ctx_mask %lx", __func__, subdev->val_ctx_mask);
 
-	framemgr_e_barrier_irqs(framemgr, 0, flags);
-	memcpy(frame_array_addr, framemgr->frames_mp,
+	framemgr_e_barrier_irqs(framemgr, 0UL, flags);
+	memcpy((void *)frame_array_addr, (void *)framemgr->frames_mp,
 		sizeof(struct mp_vio_frame *)*VIO_MP_MAX_FRAMES);
 	for (i = 0; i < VIO_MP_MAX_FRAMES; i++) {
 		frame = (struct mp_vio_frame *)framemgr->frames_mp[i];
@@ -209,7 +209,7 @@ static int x3_pym_release_subdev_all_ion(struct pym_subdev *subdev)
 	for (i = 0; i < FS_INVALID; i++) {
 		vio_dbg("framemgr %d queue num:%d", i, framemgr->queued_count[i]);
 	}
-	framemgr_x_barrier_irqr(framemgr, 0, flags);
+	framemgr_x_barrier_irqr(framemgr, 0UL, flags);
 
 	/* pym src subdev did't alloc ion memory, only free frame struct */
 	if (subdev->id == SUBDEV_ID_SRC) {
@@ -479,7 +479,7 @@ static void pym_frame_work(struct vio_group *group)
 	atomic_set(&pym->instance, instance);
 
 	framemgr = &subdev->framemgr;
-	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	framemgr_e_barrier_irqs(framemgr, 0UL, flags);
 
 	frame = peek_frame(framemgr, FS_PROCESS);
 	/*
@@ -497,7 +497,7 @@ static void pym_frame_work(struct vio_group *group)
 			in_framemgr = &in_subdev->framemgr;
 			src_frame = peek_frame(in_framemgr, FS_REQUEST);
 			if (src_frame == NULL) {
-				framemgr_x_barrier_irqr(framemgr, 0, flags);
+				framemgr_x_barrier_irqr(framemgr, 0UL, flags);
 				vio_err("%s there is no frame in src FS_REQUEST queue\n", __func__);
 				vio_group_done(group);
 				return;
@@ -574,7 +574,7 @@ end_req_to_pro:
 			framemgr->queued_count[FS_PROCESS],
 			framemgr->queued_count[FS_COMPLETE],
 			framemgr->queued_count[FS_USED]);
-	framemgr_x_barrier_irqr(framemgr, 0, flags);
+	framemgr_x_barrier_irqr(framemgr, 0UL, flags);
 
 	if (!test_bit(PYM_HW_CONFIG, &pym->state))
 		set_bit(PYM_HW_CONFIG, &pym->state);
@@ -793,6 +793,29 @@ int pym_bind_chain_group(struct pym_video_ctx *pym_ctx, int instance,
 	return ret;
 }
 
+static s32 pym_cfg_compare(pym_cfg_t *dst, pym_cfg_t *src)
+{
+	s32 ret = -1;
+	if ((dst != NULL) && (src != NULL)) {
+		ret = 0;
+		ret += !!(dst->img_scr - src->img_scr);
+		ret += !!(dst->img_width - src->img_width);
+		ret += !!(dst->img_height - src->img_height);
+		ret += !!(dst->frame_id - src->frame_id);
+		ret += !!(dst->ds_uv_bypass - src->ds_uv_bypass);
+		ret += !!(dst->ds_layer_en - src->ds_layer_en);
+		ret += !!(dst->us_layer_en - src->us_layer_en);
+		ret += !!(dst->us_uv_bypass - src->us_uv_bypass);
+		ret += !!(dst->ddr_in_buf_num - src->ddr_in_buf_num);
+		ret += !!(dst->output_buf_num - src->output_buf_num);
+		ret += !!(dst->timeout - src->timeout);
+		ret += !!(dst->cfg_index - src->cfg_index);
+		ret += !!(dst->bind_to_ipu - src->bind_to_ipu);
+		ret += !!(dst->binding_chn_id - src->binding_chn_id);
+	}
+	return ret;
+}
+
 int pym_video_init(struct pym_video_ctx *pym_ctx, unsigned long arg)
 {
 	int ret = 0;
@@ -818,11 +841,13 @@ int pym_video_init(struct pym_video_ctx *pym_ctx, unsigned long arg)
 	if (test_and_set_bit(PYM_SUBDEV_INIT, &subdev->state)) {
 		ret = copy_from_user((char *)&tmp_config,
 					(u32 __user *) arg, sizeof(pym_cfg_t));
-		ret = memcmp((void *)&tmp_config, (void *)pym_config, sizeof(pym_cfg_t));
-		if (ret != 0) {
-			vio_err("[S%d][V%d] pym share mode require the same config\n",
-					group->instance, pym_ctx->id);
-			return -EINVAL;
+		if (ret == 0) {
+			ret = pym_cfg_compare(pym_config, &tmp_config);
+			if (ret != 0) {
+				vio_err("[S%d][V%d] pym share mode require the same config\n",
+						group->instance, pym_ctx->id);
+				return -EINVAL;
+			}
 		}
 		vio_info("subdev already init, current refcount(%d)\n",
 				atomic_read(&subdev->refcount));
@@ -994,7 +1019,7 @@ static int pym_flush_mp_prepare(struct pym_video_ctx *pym_ctx)
 			}
 		}
 	}
-	framemgr_x_barrier_irqr(this, 0, flags);
+	framemgr_x_barrier_irqr(this, 0UL, flags);
 
 	vio_dbg("%s proc %d:", __func__, proc_id);
 	for (i = 0; i < VIO_MP_MAX_FRAMES; i++) {
@@ -1181,7 +1206,7 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 	if (ret)
 		return -EINVAL;
 
-	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	framemgr_e_barrier_irqs(framemgr, 0UL, flags);
 	frame = framemgr->frames_mp[index];
 	if (frame == NULL) {
 		framemgr_x_barrier_irqr(framemgr, 0, flags);
@@ -1258,7 +1283,7 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 		ret = -EINVAL;
 		return ret;
 	}
-	framemgr_x_barrier_irqr(framemgr, 0, flags);
+	framemgr_x_barrier_irqr(framemgr, 0UL, flags);
 	/* group leader and otf pym, start trigger */
 	if ( group->leader && (test_bit(PYM_OTF_INPUT, &pym->state)) ) {
 		vio_group_start_trigger_mp(group, frame);
@@ -1282,7 +1307,7 @@ try_releas_ion:
 		}
 	}
 	if (mask == 0x0000) {
-		memcpy(frame_array_addr, &framemgr->frames_mp[first_index],
+		memcpy((void *)frame_array_addr, (void *)&framemgr->frames_mp[first_index],
 				sizeof(struct mp_vio_frame *)*frame_num);
 		for (i = first_index; i < first_index+frame_num; i++) {
 			mp_frame = (struct mp_vio_frame *)framemgr->frames_mp[i];
@@ -1309,7 +1334,7 @@ try_releas_ion:
 			framemgr->max_index = i + 1;
 		}
 	}
-	framemgr_x_barrier_irqr(framemgr, 0, flags);
+	framemgr_x_barrier_irqr(framemgr, 0UL, flags);
 	if (mask == 0x0000) {
 		vio_info("pym release ion for proc%d", pym_ctx->ctx_index);
 		x3_pym_try_release_process_ion(pym_ctx, frame_array_addr);
@@ -1317,7 +1342,7 @@ try_releas_ion:
 	return ret;
 
 err:
-	framemgr_x_barrier_irqr(framemgr, 0, flags);
+	framemgr_x_barrier_irqr(framemgr, 0UL, flags);
 	return ret;
 }
 
@@ -1354,7 +1379,7 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 			pym_ctx->group->instance, __func__,
 			pym_ctx->ctx_index, pym_ctx->frm_num_usr,
 			pym_ctx->frm_num);
-		framemgr_x_barrier_irqr(framemgr, 0, flags);
+		framemgr_x_barrier_irqr(framemgr, 0UL, flags);
 		return ret;
 	}
 	#endif
@@ -1403,7 +1428,7 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 			if (list_empty(done_list))
 				pym_ctx->event = 0;
 			pym_ctx->frm_num_usr++;
-			framemgr_x_barrier_irqr(framemgr, 0, flags);
+			framemgr_x_barrier_irqr(framemgr, 0UL, flags);
 			vio_dbg("[S%d] %s proc%d index%d frame%d from COMP,(%d %d %d %d %d)\n",
 				pym_ctx->group->instance, __func__, ctx_index,
 				frameinfo->bufferindex, frameinfo->frame_id,
@@ -1429,10 +1454,10 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 			return ret;
 		}
 	}
-	framemgr_x_barrier_irqr(framemgr, 0, flags);
+	framemgr_x_barrier_irqr(framemgr, 0UL, flags);
 
 	/* copy frame_info from subdev */
-	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	framemgr_e_barrier_irqs(framemgr, 0UL, flags);
 	if (pym_ctx->event == VIO_FRAME_DONE) {
 		// if cached frame is exist, if so, this time get the cached frame
 		cache_bufindex = subdev->frameinfo.bufferindex;
@@ -1448,7 +1473,7 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 				vio_dbg("[S%d] %s proc%d frame been qback by others.\n",
 					pym_ctx->group->instance, __func__, ctx_index);
 				pym_ctx->event = 0;
-				framemgr_x_barrier_irqr(framemgr, 0, flags);
+				framemgr_x_barrier_irqr(framemgr, 0UL, flags);
 				goto DONE;
 			}
 		} else {
@@ -1457,7 +1482,7 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 				pym_ctx->group->instance, __func__,
 				ctx_index, cache_bufindex);
 			pym_ctx->event = 0;
-			framemgr_x_barrier_irqr(framemgr, 0, flags);
+			framemgr_x_barrier_irqr(framemgr, 0UL, flags);
 			goto DONE;
 		}
 	} else {
@@ -1470,7 +1495,7 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 		goto DONE;
 	}
 	pym_ctx->event = 0;
-	framemgr_x_barrier_irqr(framemgr, 0, flags);
+	framemgr_x_barrier_irqr(framemgr, 0UL, flags);
 	vio_dbg("[S%d] %s proc%d index%d frame%d from subdev.\n",
 		pym_ctx->group->instance, __func__, ctx_index,
 		frameinfo->bufferindex, frameinfo->frame_id);
@@ -1514,6 +1539,7 @@ void pym_video_user_stats(struct pym_video_ctx *pym_ctx,
 	group = pym_ctx->group;
 	if (!pym || !group) {
 		vio_err("%s init err", __func__);
+		return;
 	}
 
 	if (pym_ctx->ctx_index == 0) {
@@ -1540,20 +1566,19 @@ int pym_update_scale_info(struct pym_video_ctx *pym_ctx, unsigned long arg)
 
 	group = pym_ctx->group;
 	subdev = pym_ctx->subdev;
-	framemgr = &subdev->framemgr;
-	if (!group || !subdev || !framemgr) {
+	if (!group || !subdev || !(&subdev->framemgr)) {
 		vio_err("%s update_scale_info err", __func__);
 		return -EINVAL;
 	}
-
+	framemgr = &subdev->framemgr;
 	pym_config = &subdev->pym_cfg;
 	ret = copy_from_user((char *)&pym_new_config,
 				(u32 __user *) arg, sizeof(pym_cfg_t));
 	if (ret == 0) {
-		framemgr_e_barrier_irqs(framemgr, 0, flags);
+		framemgr_e_barrier_irqs(framemgr, 0UL, flags);
 		subdev->update_all = pym_new_config.cfg_index;
-		memcpy((char *)pym_config, &pym_new_config, sizeof(pym_cfg_t));
-		framemgr_x_barrier_irqr(framemgr, 0, flags);
+		memcpy((void *)pym_config, (void *)&pym_new_config, sizeof(pym_cfg_t));
+		framemgr_x_barrier_irqr(framemgr, 0UL, flags);
 	}
 
 	vio_dbg("[S%d]%s: request updata all cfg.\n",
@@ -1574,7 +1599,7 @@ int pym_update_ch_scale_info(struct pym_video_ctx *pym_ctx, unsigned long arg)
 		vio_err("%s init err", __func__);
 	}
 
-	pym_config_ch = &subdev->pym_cfg_ch;
+	pym_config_ch = &subdev->pym_cfg_ch; /*PRQA S ALL*/
 	ret = copy_from_user((char *)pym_config_ch,
 				(u32 __user *) arg, sizeof(pym_scale_ch_t));
 	if (ret)
@@ -1693,7 +1718,7 @@ int pym_alloc_ion_bufffer(struct pym_video_ctx *pym_ctx,
 
 	// every frame rembers which process it belongs to
 	// and the firs_indx with buffer num,plane count
-	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	framemgr_e_barrier_irqs(framemgr, 0UL, flags);
 	for (i = pym_ctx->frm_fst_ind;
 			i < (pym_ctx->frm_fst_ind+pym_ctx->frm_num); i++) {
 		frame = (struct mp_vio_frame *)framemgr->frames_mp[i];
@@ -1702,7 +1727,7 @@ int pym_alloc_ion_bufffer(struct pym_video_ctx *pym_ctx,
 		frame->plane_count = ion_buffer->one[0].planecount;
 		frame->proc_id = pym_ctx->ctx_index;
 	}
-	framemgr_x_barrier_irqr(framemgr, 0, flags);
+	framemgr_x_barrier_irqr(framemgr, 0UL, flags);
 
 	set_bit(VIO_VIDEO_ION_ALLOC, &pym_ctx->state);
 	print_pym_ion_addr(pym_ctx, ion_buffer);
@@ -1719,7 +1744,7 @@ ion_cleanup:
 	}
 	return -ENOMEM;
 }
-
+// PRQA S 0591 ++
 static long x3_pym_ioctl(struct file *file, unsigned int cmd,
 			  unsigned long arg)
 {
@@ -1845,7 +1870,7 @@ static long x3_pym_ioctl(struct file *file, unsigned int cmd,
 
 	return ret;
 }
-
+// PRQA S 0591 --
 int x3_pym_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	int ret = 0;
@@ -1874,7 +1899,7 @@ int x3_pym_mmap(struct file *file, struct vm_area_struct *vma)
 		goto err;
 	}*/
 
-	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	framemgr_e_barrier_irqs(framemgr, 0UL, flags);
 	frame = (struct mp_vio_frame *)framemgr->frames_mp[buffer_index];
 	if (frame) {
 		paddr = frame->addr[0];
@@ -1886,7 +1911,7 @@ int x3_pym_mmap(struct file *file, struct vm_area_struct *vma)
 		ret = -EFAULT;
 		goto err;
 	}
-	framemgr_x_barrier_irqr(framemgr, 0, flags);
+	framemgr_x_barrier_irqr(framemgr, 0UL, flags);
 	if (paddr == 0) {
 		vio_err("[S%d][V%d] %s proc %d error,paddr %x.",
 			pym_ctx->group->instance, pym_ctx->id, __func__,
@@ -1968,7 +1993,7 @@ void pym_frame_done(struct pym_subdev *subdev)
 	group = subdev->group;
 	pym = subdev->pym_dev;
 	framemgr = &subdev->framemgr;
-	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	framemgr_e_barrier_irqs(framemgr, 0UL, flags);
 	frame = peek_frame(framemgr, FS_PROCESS);
 	if (frame) {
 		if(subdev->pym_cfg.img_scr) {
@@ -2091,7 +2116,7 @@ void pym_frame_ndone(struct pym_subdev *subdev)
 
 	group = subdev->group;
 	framemgr = &subdev->framemgr;
-	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	framemgr_e_barrier_irqs(framemgr, 0UL, flags);
 	frame = peek_frame(framemgr, FS_PROCESS);
 	if (frame) {
         vio_dbg("ndone bidx%d fid%d, proc->req.",
@@ -2376,7 +2401,7 @@ int x3_pym_device_node_init(struct x3_pym_dev *pym)
 	if (vps_class)
 		pym->class = vps_class;
 	else
-		pym->class = class_create(THIS_MODULE, X3_PYM_NAME);
+		pym->class = class_create(THIS_MODULE, X3_PYM_NAME);// PRQA S ALL
 
 	dev = device_create(pym->class, NULL, MKDEV(MAJOR(pym->devno), 0),
 					NULL, "pym");
@@ -2603,7 +2628,7 @@ static ssize_t get_pipeline_info(int pipeid, struct device *dev,
 				framemgr->queued_count[FS_PROCESS],
 				framemgr->queued_count[FS_COMPLETE],
 				framemgr->queued_count[FS_USED]);
-		framemgr_x_barrier_irqr(framemgr, 0, flags);
+		framemgr_x_barrier_irqr(framemgr, 0UL, flags);
 		offset += len;
 
 		len = snprintf(buf+offset, PAGE_SIZE - offset, "pipeline %d pym config:\n", pipeid);
@@ -2913,15 +2938,16 @@ static int __init x3_pym_init(void)
 	return ret;
 }
 
-late_initcall(x3_pym_init);
+late_initcall(x3_pym_init); // PRQA S ALL
 
 static void __exit x3_pym_exit(void)
 {
 	platform_driver_unregister(&x3_pym_driver);
 }
 
-module_exit(x3_pym_exit);
+module_exit(x3_pym_exit); // PRQA S ALL
 
 MODULE_AUTHOR("Sun Kaikai<kaikai.sun@horizon.com>");
 MODULE_DESCRIPTION("X3 PYM driver");
 MODULE_LICENSE("GPL v2");
+// PRQA S --
