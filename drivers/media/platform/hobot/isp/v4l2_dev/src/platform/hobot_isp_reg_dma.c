@@ -40,6 +40,8 @@
 
 #if FW_USE_HOBOT_DMA
 
+// PRQA S 0497,0636,0605 ++
+
 #define HOBOT_DMA_RESULT_CHK     0
 #define HOBOT_DMA_LOG(...)   pr_debug(__VA_ARGS__)
 
@@ -150,17 +152,17 @@ void isp_idma_start_transfer(hobot_dma_t *hobot_dma)
 	idma_descriptor_t *desc = NULL;
     acamera_firmware_t *fw = acamera_get_firmware_ptr();
 
-	pr_debug("start\n");
-	spin_lock_irqsave( hobot_dma->dma_ctrl_lock, flags );
+	pr_debug("start\n");  /* PRQA S ALL */
+	spin_lock_irqsave( hobot_dma->dma_ctrl_lock, flags ); /* PRQA S ALL */
 	if (list_empty(&hobot_dma->pending_list)) {
-		pr_debug("pending list empty.\n");
-		spin_unlock_irqrestore(hobot_dma->dma_ctrl_lock, flags);
+		pr_debug("pending list empty.\n"); /* PRQA S ALL */
+		spin_unlock_irqrestore(hobot_dma->dma_ctrl_lock, flags); /* PRQA S ALL */
 		return;
 	}
 
-    pr_debug("pending list count %d\n", list_count(&hobot_dma->pending_list));
+    pr_debug("pending list count %d\n", list_count(&hobot_dma->pending_list)); /* PRQA S ALL */
 
-	desc = list_first_entry(&hobot_dma->pending_list, idma_descriptor_t, node);
+	desc = list_first_entry(&hobot_dma->pending_list, idma_descriptor_t, node); /*PRQA S ALL*/
 	if (desc) {
         /*
           prevent a case like:
@@ -181,14 +183,14 @@ void isp_idma_start_transfer(hobot_dma_t *hobot_dma)
             else
                 ppf = ISP_CONFIG_PONG;
 
-            pr_debug("isp addr is %x\n", hobot_dma->hobot_dma_cmds[0].isp_sram_addr);
+            pr_debug("isp addr is %x\n", hobot_dma->hobot_dma_cmds[0].isp_sram_addr); /* PRQA S ALL */
 
             if (ppf == acamera_isp_isp_global_ping_pong_config_select_read(0)) {
                 pr_err("ppf %d, invalid xfer, drop it.\n", ppf);
                 if (desc->callback.cb)
                     desc->callback.cb(desc->callback.cb_data);
                 list_move_tail(&desc->node, &hobot_dma->free_list);
-                pr_debug("after drop, free list count %d\n", list_count(&hobot_dma->free_list));
+                pr_debug("after drop, free list count %d\n", list_count(&hobot_dma->free_list)); /* PRQA S ALL */
                 goto out;
             }
         }
@@ -201,8 +203,8 @@ void isp_idma_start_transfer(hobot_dma_t *hobot_dma)
     }
 
 out:
-	spin_unlock_irqrestore(hobot_dma->dma_ctrl_lock, flags);
-	pr_debug("end\n");
+	spin_unlock_irqrestore(hobot_dma->dma_ctrl_lock, flags); /* PRQA S ALL */
+	pr_debug("end\n"); /* PRQA S ALL */
 }
 
 static void isp_idma_tasklet(unsigned long data)
@@ -211,16 +213,16 @@ static void isp_idma_tasklet(unsigned long data)
 	idma_descriptor_t *desc, *next;
 	hobot_dma_t *hobot_dma = (hobot_dma_t*) data;
 
-	pr_debug("start\n");
+	pr_debug("start\n"); /* PRQA S ALL */
 
-	spin_lock_irqsave( hobot_dma->dma_ctrl_lock, flags );
+	spin_lock_irqsave( hobot_dma->dma_ctrl_lock, flags ); /* PRQA S ALL */
 	// process each callback
 
 	if (!list_empty(&hobot_dma->done_list)) {
-		list_for_each_entry_safe(desc, next, &hobot_dma->done_list, node) {
-            pr_debug("dir %d, node add to free list\n", desc->direction);
+		list_for_each_entry_safe(desc, next, &hobot_dma->done_list, node) { /* PRQA S ALL */
+            pr_debug("dir %d, node add to free list\n", desc->direction); /* PRQA S ALL */
             list_move_tail(&desc->node, &hobot_dma->free_list);
-            pr_debug("free list count %d\n", list_count(&hobot_dma->free_list));
+            pr_debug("free list count %d\n", list_count(&hobot_dma->free_list)); /* PRQA S ALL */
             if (desc->callback.cb) {
 			    desc->callback.cb(desc->callback.cb_data);
             } else {
@@ -231,10 +233,10 @@ static void isp_idma_tasklet(unsigned long data)
             }
 		}
 	}
-	spin_unlock_irqrestore(hobot_dma->dma_ctrl_lock, flags);
+	spin_unlock_irqrestore(hobot_dma->dma_ctrl_lock, flags); /* PRQA S ALL */
 
 	isp_idma_start_transfer(hobot_dma);
-	pr_debug("end\n");
+	pr_debug("end\n"); /* PRQA S ALL */
 }
 
 //Hobot DMA internal functions
@@ -244,7 +246,7 @@ irqreturn_t hobot_dma_interrupt(int irq, void *data)
     static uint32_t count = 0;
     unsigned long flags;
 
-    spin_lock_irqsave( hobot_dma->dma_ctrl_lock, flags );
+    spin_lock_irqsave( hobot_dma->dma_ctrl_lock, flags ); /* PRQA S ALL */
 
     dma_isp_reg_start_dma_write(0);         // disable dma
     dma_isp_reg_mask_int_write(DMA_INT_DISABLE);  //mask dma irq
@@ -252,12 +254,12 @@ irqreturn_t hobot_dma_interrupt(int irq, void *data)
 
     // check int status
     if(dma_isp_dma_int_read()) {
-        HOBOT_DMA_LOG("%s: receive dma done int (cnt=%d)\n", __FUNCTION__, count);
+        HOBOT_DMA_LOG("%s: receive dma done int (cnt=%d)\n", __FUNCTION__, count); /* PRQA S ALL */
         count++;
         dma_isp_reg_clr_int_write(1);           // clear dma int
         dma_isp_reg_clr_int_write(0);           // clear dma int
 
-	pr_debug("active list count %d\n", list_count(&hobot_dma->active_list));
+	pr_debug("active list count %d\n", list_count(&hobot_dma->active_list)); /* PRQA S ALL */
 
 	if (!list_empty(&hobot_dma->active_list))
 		list_splice_tail_init(&hobot_dma->active_list, &hobot_dma->done_list);
@@ -271,30 +273,30 @@ irqreturn_t hobot_dma_interrupt(int irq, void *data)
 
     hobot_dma->nents_total = 0;
     hobot_dma->is_busy = 0;
-    spin_unlock_irqrestore(hobot_dma->dma_ctrl_lock, flags);
+    spin_unlock_irqrestore(hobot_dma->dma_ctrl_lock, flags); /* PRQA S ALL */
 
 #if HOBOT_DMA_RESULT_CHK
     cmp_result(hobot_dma);
 #endif
-    pr_debug("end.\n");
+    pr_debug("end.\n"); /* PRQA S ALL */
 
     tasklet_schedule(&hobot_dma->tasklet);
 
     return IRQ_HANDLED;
 }
 
-static int idma_reg_dump = 0;
+int idma_reg_dump = 0;
 module_param(idma_reg_dump, int, S_IRUGO|S_IWUSR);
 void hobot_idma_try_restore(void *data)
 {
     hobot_dma_t *hobot_dma = (hobot_dma_t*) data;
     unsigned long flags;
 
-    pr_debug("+\n");
+    pr_debug("+\n"); /* PRQA S ALL */
 
-    pr_debug("idma start sts %d, int sts %d\n", dma_isp_reg_start_dma_read(), dma_isp_dma_int_read());
+    pr_debug("idma start sts %d, int sts %d\n", dma_isp_reg_start_dma_read(), dma_isp_dma_int_read()); /* PRQA S ALL */
 
-    spin_lock_irqsave( hobot_dma->dma_ctrl_lock, flags );
+    spin_lock_irqsave( hobot_dma->dma_ctrl_lock, flags ); /* PRQA S ALL */
 
     dma_isp_reg_start_dma_write(0);         // disable dma
     dma_isp_reg_mask_int_write(DMA_INT_DISABLE);  //mask dma irq
@@ -309,12 +311,12 @@ void hobot_idma_try_restore(void *data)
     hobot_dma->nents_total = 0;
     hobot_dma->is_busy = 0;
 
-    spin_unlock_irqrestore(hobot_dma->dma_ctrl_lock, flags);
+    spin_unlock_irqrestore(hobot_dma->dma_ctrl_lock, flags); /* PRQA S ALL */
 
     if (idma_reg_dump)
         dump_dma();
 
-    pr_debug("-\n");
+    pr_debug("-\n"); /* PRQA S ALL */
 }
 
 void hobot_dma_init(hobot_dma_t *hobot_dma)
@@ -412,7 +414,7 @@ void hobot_dma_deinit(hobot_dma_t *hobot_dma)
     for (i = 0; i < 4; i++) {
         idma_descriptor_t *desc, *next;
         if (!list_empty(&hobot_dma->free_list)) {
-            list_for_each_entry_safe(desc, next, &hobot_dma->free_list, node) {
+            list_for_each_entry_safe(desc, next, &hobot_dma->free_list, node) { /* PRQA S ALL */
                 list_del(&desc->node);
                 kfree(desc);
             }
@@ -427,7 +429,7 @@ void hobot_dma_deinit(hobot_dma_t *hobot_dma)
     }
     system_spinlock_unlock( hobot_dma->dma_ctrl_lock, flags );
     devname = free_irq(hobot_dma->irq_in_dts, hobot_dma);
-    HOBOT_DMA_LOG("%s free irq %d, devname %p\n", __FUNCTION__, hobot_dma->irq_in_dts, devname);
+    HOBOT_DMA_LOG("%s free irq %d, devname %p\n", __FUNCTION__, hobot_dma->irq_in_dts, devname); /* PRQA S ALL */
 }
 
 void hobot_dma_enable_irq(hobot_dma_t *hobot_dma)
@@ -444,10 +446,10 @@ void hobot_dma_enable_irq(hobot_dma_t *hobot_dma)
     if(hobot_dma->init_cnt) {
         if(hobot_dma->enable_irq_cnt == 0) {
             enable_irq(hobot_dma->irq_in_dts);
-            HOBOT_DMA_LOG("%s : enable dma irq (%d)\n", __FUNCTION__, hobot_dma->irq_in_dts);
+            HOBOT_DMA_LOG("%s : enable dma irq (%d)\n", __FUNCTION__, hobot_dma->irq_in_dts); /* PRQA S ALL */
         }
         else {
-            HOBOT_DMA_LOG("%s : enable_irq_cnt (%d) != 0, just exit\n", __FUNCTION__, hobot_dma->enable_irq_cnt);
+            HOBOT_DMA_LOG("%s : enable_irq_cnt (%d) != 0, just exit\n", __FUNCTION__, hobot_dma->enable_irq_cnt); /* PRQA S ALL */
         }
         hobot_dma->enable_irq_cnt++;
     }
@@ -494,13 +496,13 @@ static void hobot_dma_start(        hobot_dma_cmd_t *hobot_dma_cmds,
         printk(KERN_ERR "ERROR: %s fw_ctx_id(%d) is more than 3\n", __FUNCTION__,fw_ctx_id);
         fw_ctx_id = 0;
     }
-    HOBOT_DMA_LOG("%s : fw_ctx_id=%d, nents=%d, \n", __FUNCTION__,fw_ctx_id,nents);
+    HOBOT_DMA_LOG("%s : fw_ctx_id=%d, nents=%d, \n", __FUNCTION__,fw_ctx_id,nents); /* PRQA S ALL */
     dma_isp_reg_dma_sram_ch_sel_write(fw_ctx_id);   // select sram block
     dma_isp_reg_mask_int_write(DMA_INT_ENABLE);     // enable dma int
 
     // 2. set command queue for ch0~ch3
     for ( i = 0; i < nents; i++ ) {
-        HOBOT_DMA_LOG("%s : [%d] - size=%x, sram=0x%x, isp=0x%x, %s\n",
+        HOBOT_DMA_LOG("%s : [%d] - size=%x, sram=0x%x, isp=0x%x, %s\n", /* PRQA S ALL */
             __FUNCTION__, i, hobot_dma_cmds[i].size,
             hobot_dma_cmds[i].dma_sram_addr,hobot_dma_cmds[i].isp_sram_addr,
             (hobot_dma_cmds[i].direction == HOBOT_DMA_DIR_WRITE_ISP)?"write ISP":"write sram");
@@ -550,7 +552,7 @@ static void hobot_dma_start(        hobot_dma_cmd_t *hobot_dma_cmds,
 
     // 3. start dma
     dma_isp_reg_start_dma_write(1);
-    HOBOT_DMA_LOG("%s : start dma (cnt=%d)\n", __FUNCTION__,count);
+    HOBOT_DMA_LOG("%s : start dma (cnt=%d)\n", __FUNCTION__,count); /* PRQA S ALL */
     count++;
 }
 
@@ -562,7 +564,7 @@ int hobot_dma_submit_cmd(hobot_dma_t *hobot_dma, idma_descriptor_t *desc, int la
     int fw_ctx_id;
     int direction;
 
-    pr_debug("start\n");
+    pr_debug("start\n");  /* PRQA S ALL */
     // 1. check lock init
     if(hobot_dma->dma_ctrl_lock==NULL) {
         printk(KERN_ERR "ERROR: %s dma_ctrl_lock = NULL\n", __FUNCTION__);
@@ -580,7 +582,7 @@ int hobot_dma_submit_cmd(hobot_dma_t *hobot_dma, idma_descriptor_t *desc, int la
         return -1;
     }
 
-    fw_ctx_id = desc->ctx_id;	
+    fw_ctx_id = desc->ctx_id;
     direction = desc->direction;
     isp_sram_sg = desc->isp_sram_sg;
     dma_sram_sg = desc->dma_sram_sg;
@@ -618,4 +620,4 @@ int hobot_dma_submit_cmd(hobot_dma_t *hobot_dma, idma_descriptor_t *desc, int la
 
 #endif  /* FW_USE_HOBOT_DMA */
 
-
+// PRQA S --

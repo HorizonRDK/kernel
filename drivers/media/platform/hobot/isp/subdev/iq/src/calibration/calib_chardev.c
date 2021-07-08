@@ -27,6 +27,7 @@
 #define CHARDEV_CALIB_NAME "ac_calib"
 
 
+// PRQA S 0591 ++
 #if defined( CUR_MOD_NAME)
 #undef CUR_MOD_NAME 
 #define CUR_MOD_NAME LOG_MODULE_SOC_IQ
@@ -47,18 +48,17 @@ extern void *soc_iq_get_lut_data_ptr(uint8_t ctx_id);
 static int calib_destory(uint8_t port)
 {
 	uint32_t tmp = 0;
-	struct calib_data_s *calib_data = calib_param_ctx.plist[port];
-	
-	LOG( LOG_INFO, "calibration deinit is runing.");
-	
-	if ( (port >= FIRMWARE_CONTEXT_NUMBER) || (calib_data == NULL)) {
-		LOG( LOG_ERR, "port %d is not existance.", port );
-		if (calib_data == NULL)
-			return -CALIB_NULL_ERR;
-		else 
-			return -CALIB_PORT_ERR;
-	}
 
+	if (port >= FIRMWARE_CONTEXT_NUMBER) {
+		LOG( LOG_ERR, "port %d is not existance.", port );
+		return -CALIB_PORT_ERR;
+	}
+	struct calib_data_s *calib_data = calib_param_ctx.plist[port];
+	if(calib_data == NULL) {
+		LOG( LOG_ERR, "calib_data is null. port %d", port );
+		return -CALIB_NULL_ERR;
+	}
+	LOG( LOG_INFO, "calibration deinit is runing.");
 	ACameraCalibrations *c = soc_iq_get_lut_data_ptr(port);
 	if (c != NULL) {
 		get_calibrations_dynamic_fs_lin_dummy(c);
@@ -176,18 +176,17 @@ static int calib_setpart(camera_calib_t *ptr)
 	uint32_t tmp = 0;
 	uint32_t tmp_c = 0;
 	void *ptmp = NULL;
-	struct calib_data_s *calib_data = calib_param_ctx.plist[ptr->port];
-	
-	LOG( LOG_INFO, "%s is runing.", __func__ );
-	
-	if ( (ptr->port >= FIRMWARE_CONTEXT_NUMBER) || (calib_data == NULL)) {
-		LOG( LOG_ERR, "%s port %d is not existance.", __func__, ptr->port );
-		if (calib_data == NULL)
-			return -CALIB_NULL_ERR;
-		else 
-			return -CALIB_PORT_ERR;
-	}
 
+	if (ptr->port >= FIRMWARE_CONTEXT_NUMBER) {
+		LOG( LOG_ERR, "port %d is not existance.", ptr->port );
+		return -CALIB_PORT_ERR;
+	}
+	struct calib_data_s *calib_data = calib_param_ctx.plist[ptr->port];
+	if(calib_data == NULL) {
+		LOG( LOG_ERR, "calib_data is null. port %d", ptr->port );
+		return -CALIB_NULL_ERR;
+	}
+	LOG( LOG_INFO, "%s is runing.", __func__ );
 	tmp = ptr->num;
 	if (calib_data->plut[tmp].ptr != NULL) {
 		ptmp = calib_data->plut[tmp].ptr;
@@ -223,18 +222,17 @@ static int calib_getpart(camera_calib_t *ptr)
 	uint32_t tmp = 0;
 	char *ptmp = NULL;
 	uint32_t tmp_c = 0;
-	struct calib_data_s *calib_data = calib_param_ctx.plist[ptr->port];
-	
-	LOG( LOG_INFO, "%s is runing.", __func__ );
-	
-	if ( (ptr->port >= FIRMWARE_CONTEXT_NUMBER) || (calib_data == NULL)) {
-		LOG( LOG_ERR, "%s port %d is not existance.", __func__, ptr->port );
-		if (calib_data == NULL)
-			return -CALIB_NULL_ERR;
-		else 
-			return -CALIB_PORT_ERR;
-	}
 
+	if (ptr->port >= FIRMWARE_CONTEXT_NUMBER) {
+		LOG( LOG_ERR, "port %d is not existance.", ptr->port );
+		return -CALIB_PORT_ERR;
+	}
+	struct calib_data_s *calib_data = calib_param_ctx.plist[ptr->port];
+	if(calib_data == NULL) {
+		LOG( LOG_ERR, "calib_data is null. port %d", ptr->port );
+		return -CALIB_NULL_ERR;
+	}
+	LOG( LOG_INFO, "%s is runing.", __func__ );
 	tmp = ptr->num;
 	if (calib_data->plut[tmp].ptr != NULL) {
 		ptmp = calib_data->plut[tmp].ptr;
@@ -266,19 +264,18 @@ int register_calib( ACameraCalibrations *c, uint8_t port )
 	int ret = 0;
 	uint32_t tmp = 0;
 	LookupTable *ptmp = NULL;
-	struct calib_data_s *calib_data = calib_param_ctx.plist[port];
-	
-	LOG( LOG_INFO, "%s is runing.", __func__ );
-	
-	if ( (port >= FIRMWARE_CONTEXT_NUMBER) || (calib_data == NULL)) {
-		LOG(LOG_WARNING, "%s port %d is not existance.", __func__, port);
-		if (calib_data == NULL)
-			return -CALIB_NULL_ERR;
-		else 
-			return -CALIB_PORT_ERR;
-	}
 
-	ptmp = calib_data->plut; 
+	if (port >= FIRMWARE_CONTEXT_NUMBER) {
+		LOG( LOG_ERR, "port %d is not existance.", port );
+		return -CALIB_PORT_ERR;
+	}
+	struct calib_data_s *calib_data = calib_param_ctx.plist[port];
+	if(calib_data == NULL) {
+		LOG( LOG_ERR, "calib_data is null. port %d", port );
+		return -CALIB_NULL_ERR;
+	}
+	LOG( LOG_INFO, "%s is runing.", __func__ );
+	ptmp = calib_data->plut;
 	for(tmp = 0; tmp < CALIBRATION_TOTAL_SIZE; tmp++) {
 		if (calib_data->plut[tmp].ptr != NULL) { 
 			c->calibrations[tmp] = ptmp;
@@ -297,18 +294,17 @@ int unregister_calib( ACameraCalibrations *c, uint8_t port )
 {
 	int ret = 0;
 	uint32_t tmp = 0;
-	struct calib_data_s *calib_data = calib_param_ctx.plist[port];
-	
-	LOG( LOG_INFO, "%s is runing.", __func__ );
-	
-	if ( (port >= FIRMWARE_CONTEXT_NUMBER) || (calib_data == NULL )) {
-		LOG(LOG_WARNING, "%s port %d is not existance.", __func__, port);
-		if (calib_data == NULL)
-			return -CALIB_NULL_ERR;
-		else 
-			return -CALIB_PORT_ERR;
-	}
 
+	if (port >= FIRMWARE_CONTEXT_NUMBER) {
+		LOG( LOG_ERR, "port %d is not existance.", port );
+		return -CALIB_PORT_ERR;
+	}
+	struct calib_data_s *calib_data = calib_param_ctx.plist[port];
+	if(calib_data == NULL) {
+		LOG( LOG_ERR, "calib_data is null. port %d", port );
+		return -CALIB_NULL_ERR;
+	}
+	LOG( LOG_INFO, "%s is runing.", __func__ );
 	for(tmp = 0; tmp < CALIBRATION_TOTAL_SIZE; tmp++) {
 		c->calibrations[tmp] = NULL;
 	}
@@ -559,3 +555,5 @@ void system_calib_destroy( void )
         LOG( LOG_INFO, "dev not inited, do nothing." );
     }
 }
+
+// PRQA S --

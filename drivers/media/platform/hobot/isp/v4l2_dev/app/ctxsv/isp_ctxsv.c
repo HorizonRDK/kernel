@@ -13,7 +13,7 @@
 #include <linux/kthread.h>
 #include "isp_ctxsv.h"
 
-
+// PRQA S 0844,0497,0685,0636,0605 ++
 
 /*
 one single context memory layout
@@ -83,7 +83,7 @@ static uint8_t completion_flag = 0;
 extern void *isp_dev_get_vir_addr(void);
 void isp_ctx_queue_state(char *tags);
 
-static int ctx_max;
+int ctx_max;
 module_param(ctx_max, int, 0644);
 
 isp_ctx_node_t *isp_ctx_get_node(int ctx_id, isp_info_type_e it, isp_ctx_queue_type_e qt)
@@ -299,7 +299,7 @@ int isp_ctx_queue_init(void)
 	}
 	completion_flag = 1;
 
-	pr_debug("init done\n");
+	pr_debug("init done\n"); /* PRQA S ALL */
 
 	return 0;
 }
@@ -312,7 +312,7 @@ void isp_ctx_queue_state(char *tags)
 	if (ctx_max > FIRMWARE_CONTEXT_NUMBER)
 		ctx_max = FIRMWARE_CONTEXT_NUMBER;
 
-	pr_debug("--op %s--\n", tags);
+	pr_debug("--op %s--\n", tags); /* PRQA S ALL */
 	for (i = 0; i < ctx_max; i++) {
 		for (j = 0; j < TYPE_MAX; j++) {
 			k1 = 0, k2 = 0;
@@ -323,8 +323,8 @@ void isp_ctx_queue_state(char *tags)
 			list_for_each_safe(this, next, &ctx_queue[i][j].ctx_node_head[DONEQ])
 				k2++;
 			spin_unlock(&lock);
-			pr_debug("ctx[%d] type[%d] free queue count %d\n", i, j, k1);
-			pr_debug("ctx[%d] type[%d] done queue count %d\n", i, j, k2);
+			pr_debug("ctx[%d] type[%d] free queue count %d\n", i, j, k1); /* PRQA S ALL */
+			pr_debug("ctx[%d] type[%d] done queue count %d\n", i, j, k2); /* PRQA S ALL */
 		}
 	}
 
@@ -341,22 +341,22 @@ int isp_irq_wait_for_completion(int ctx_id, uint8_t irq_type, unsigned long time
 	int ret = 0;
 	unsigned long td = 0;
 	if ((ctx_id >= FIRMWARE_CONTEXT_NUMBER) || (irq_type >= MAX_INT_TYPE)) {
-		pr_err("param is err, ctx[%d] or irq_type[%d] is err!\n", ctx_id, irq_type);
+		pr_err("param is err, ctx[%d] or irq_type[%d] is err!\n", ctx_id, irq_type); /* PRQA S ALL */
 		return -1;
 	}
 	if (irq_type == 0) {
-		td = wait_event_timeout(frame_start, frame_start_cond[ctx_id], msecs_to_jiffies(timeout));
+		td = wait_event_timeout(frame_start, frame_start_cond[ctx_id], msecs_to_jiffies(timeout)); /* PRQA S ALL */
 		frame_start_cond[ctx_id] = 0;
 	} else {
-		td = wait_event_timeout(frame_end, frame_end_cond[ctx_id], msecs_to_jiffies(timeout));
+		td = wait_event_timeout(frame_end, frame_end_cond[ctx_id], msecs_to_jiffies(timeout)); /* PRQA S ALL */
 		frame_end_cond[ctx_id] = 0;
 	}
 	// td = wait_for_completion_timeout(&irq_completion[ctx_id][irq_type], msecs_to_jiffies(timeout));
 	if (!td) {
-		pr_debug("ctx[%d] irq_type[%d] is time_out\n", ctx_id, irq_type);
+		pr_debug("ctx[%d] irq_type[%d] is time_out\n", ctx_id, irq_type); /* PRQA S ALL */ /* print api */
 		ret = -1;
 	}
-	pr_debug("ctx %d, irq_type %d is require, time is %lu!\n", ctx_id, irq_type, td);
+	pr_debug("ctx %d, irq_type %d is require, time is %lu!\n", ctx_id, irq_type, td); /* PRQA S ALL */ /* print api */
 	return ret;
 }
 
@@ -381,3 +381,4 @@ void isp_irq_completion(int ctx_id, uint8_t irq_type)
 	}
 }
 
+// PRQA S --
