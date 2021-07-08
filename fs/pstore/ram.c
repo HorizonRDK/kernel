@@ -56,6 +56,10 @@ static ulong ramoops_pmsg_size = MIN_MEM_SIZE;
 module_param_named(pmsg_size, ramoops_pmsg_size, ulong, 0400);
 MODULE_PARM_DESC(pmsg_size, "size of user space message log");
 
+static ulong ramoops_sched_size = MIN_MEM_SIZE;
+module_param_named(sched_size, ramoops_sched_size, ulong, 0400);
+MODULE_PARM_DESC(sched_size, "size of sched space message log");
+
 static unsigned long long mem_address;
 module_param_hw(mem_address, ullong, other, 0400);
 MODULE_PARM_DESC(mem_address,
@@ -88,6 +92,7 @@ struct ramoops_context {
 	struct persistent_ram_zone *cprz;	/* Console zone */
 	struct persistent_ram_zone **fprzs;	/* Ftrace zones */
 	struct persistent_ram_zone *mprz;	/* PMSG zone */
+	struct persistent_ram_zone *sprz;	/* SCHED zone */
 	phys_addr_t phys_addr;
 	unsigned long size;
 	unsigned int memtype;
@@ -95,6 +100,7 @@ struct ramoops_context {
 	size_t console_size;
 	size_t ftrace_size;
 	size_t pmsg_size;
+	size_t sched_size;
 	int dump_oops;
 	u32 flags;
 	struct persistent_ram_ecc_info ecc_info;
@@ -106,6 +112,7 @@ struct ramoops_context {
 	unsigned int max_ftrace_cnt;
 	unsigned int ftrace_read_cnt;
 	unsigned int pmsg_read_cnt;
+	unsigned int sched_read_cnt;
 	struct pstore_info pstore;
 };
 
@@ -279,6 +286,11 @@ static ssize_t ramoops_pstore_read(struct pstore_record *record)
 		prz = ramoops_get_next_prz(&cxt->mprz, &cxt->pmsg_read_cnt,
 					   1, &record->id, &record->type,
 					   PSTORE_TYPE_PMSG, 0);
+
+	if (!prz_ok(prz))
+		prz = ramoops_get_next_prz(&cxt->sprz, &cxt->sched_read_cnt,
+					   1, &record->id, &record->type,
+					   PSTORE_TYPE_SCHED, 0);
 
 	/* ftrace is last since it may want to dynamically allocate memory. */
 	if (!prz_ok(prz)) {
@@ -503,6 +515,27 @@ static struct ramoops_context oops_cxt = {
 	},
 };
 
+void * pstore_get_sched_aera_vaddr(void)
+{
+        if (oops_cxt.sprz && oops_cxt.sprz->vaddr) {
+                return oops_cxt.sprz->vaddr;
+        }
+
+        return NULL;
+}
+EXPORT_SYMBOL(pstore_get_sched_aera_vaddr);
+
+size_t pstore_get_sched_aera_size(void)
+{
+        if (oops_cxt.sprz) {
+                return oops_cxt.sprz->size;
+        }
+
+        return 0;
+}
+EXPORT_SYMBOL(pstore_get_sched_aera_size);
+
+
 static void ramoops_free_przs(struct ramoops_context *cxt)
 {
 	int i;
@@ -699,6 +732,7 @@ static int ramoops_parse_dt(struct platform_device *pdev,
 	parse_size("console-size", pdata->console_size);
 	parse_size("ftrace-size", pdata->ftrace_size);
 	parse_size("pmsg-size", pdata->pmsg_size);
+	parse_size("sched-size", pdata->sched_size);
 	parse_size("ecc-size", pdata->ecc_info.ecc_size);
 	parse_size("flags", pdata->flags);
 
@@ -745,7 +779,7 @@ static int ramoops_probe(struct platform_device *pdev)
 	}
 
 	if (!pdata->mem_size || (!pdata->record_size && !pdata->console_size &&
-			!pdata->ftrace_size && !pdata->pmsg_size)) {
+			!pdata->ftrace_size && !pdata->pmsg_size && !pdata->sched_size)) {
 		pr_err("The memory size and the record/console size must be "
 			"non-zero\n");
 		goto fail_out;
@@ -759,6 +793,8 @@ static int ramoops_probe(struct platform_device *pdev)
 		pdata->ftrace_size = rounddown_pow_of_two(pdata->ftrace_size);
 	if (pdata->pmsg_size && !is_power_of_2(pdata->pmsg_size))
 		pdata->pmsg_size = rounddown_pow_of_two(pdata->pmsg_size);
+	if (pdata->sched_size && !is_power_of_2(pdata->sched_size))
+		pdata->sched_size = rounddown_pow_of_two(pdata->sched_size);
 
 	cxt->size = pdata->mem_size;
 	cxt->phys_addr = pdata->mem_address;
@@ -767,6 +803,7 @@ static int ramoops_probe(struct platform_device *pdev)
 	cxt->console_size = pdata->console_size;
 	cxt->ftrace_size = pdata->ftrace_size;
 	cxt->pmsg_size = pdata->pmsg_size;
+	cxt->sched_size = pdata->sched_size;
 	cxt->dump_oops = pdata->dump_oops;
 	cxt->flags = pdata->flags;
 	cxt->ecc_info = pdata->ecc_info;
@@ -774,7 +811,7 @@ static int ramoops_probe(struct platform_device *pdev)
 	paddr = cxt->phys_addr;
 
 	dump_mem_sz = cxt->size - cxt->console_size - cxt->ftrace_size
-			- cxt->pmsg_size;
+			- cxt->pmsg_size - cxt->sched_size;
 	err = ramoops_init_przs("dump", dev, cxt, &cxt->dprzs, &paddr,
 				dump_mem_sz, cxt->record_size,
 				&cxt->max_dump_cnt, 0, 0);
@@ -802,6 +839,11 @@ static int ramoops_probe(struct platform_device *pdev)
 	if (err)
 		goto fail_init_mprz;
 
+        err = ramoops_init_prz("sched", dev, cxt, &cxt->sprz, &paddr,
+                                cxt->sched_size, 0);
+        if (err)
+                goto fail_init_sprz;
+
 	cxt->pstore.data = cxt;
 	/*
 	 * Console can handle any buffer size, so prefer LOG_LINE_MAX. If we
@@ -827,6 +869,8 @@ static int ramoops_probe(struct platform_device *pdev)
 		cxt->pstore.flags |= PSTORE_FLAGS_FTRACE;
 	if (cxt->pmsg_size)
 		cxt->pstore.flags |= PSTORE_FLAGS_PMSG;
+	if (cxt->sched_size)
+		cxt->pstore.flags |= PSTORE_FLAGS_SCHED;
 
 	err = pstore_register(&cxt->pstore);
 	if (err) {
@@ -844,6 +888,7 @@ static int ramoops_probe(struct platform_device *pdev)
 	dump_oops = pdata->dump_oops;
 	ramoops_console_size = pdata->console_size;
 	ramoops_pmsg_size = pdata->pmsg_size;
+	ramoops_sched_size = pdata->sched_size;
 	ramoops_ftrace_size = pdata->ftrace_size;
 
 	pr_info("attached 0x%lx@0x%llx, ecc: %d/%d\n",
@@ -856,6 +901,8 @@ fail_buf:
 	kfree(cxt->pstore.buf);
 fail_clear:
 	cxt->pstore.bufsize = 0;
+	persistent_ram_free(cxt->sprz);
+fail_init_sprz:
 	persistent_ram_free(cxt->mprz);
 fail_init_mprz:
 fail_init_fprz:
@@ -916,6 +963,7 @@ static void ramoops_register_dummy(void)
 	dummy_data->console_size = ramoops_console_size;
 	dummy_data->ftrace_size = ramoops_ftrace_size;
 	dummy_data->pmsg_size = ramoops_pmsg_size;
+	dummy_data->sched_size = ramoops_sched_size;
 	dummy_data->dump_oops = dump_oops;
 	dummy_data->flags = RAMOOPS_FLAG_FTRACE_PER_CPU;
 
