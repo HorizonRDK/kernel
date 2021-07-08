@@ -2654,6 +2654,8 @@ void sif_overflow_diag_report(struct x3_sif_dev *sif, uint32_t mux_index,
 	if(group == NULL)
 		return;
 	subdev = group->sub_ctx[0];
+	if(subdev == NULL)
+		return;
 	subdev->overflow = sif_find_overflow_instance(mux_index, subdev, of_value);
 	if(subdev->overflow != 0) {
 		atomic_set(&subdev->diag_state, 1);
@@ -2677,6 +2679,8 @@ void sif_mismatch_diag_report(struct x3_sif_dev *sif, uint32_t mux_index,
 	if(group == NULL)
 		return;
 	subdev = group->sub_ctx[0];
+	if(subdev == NULL)
+		return;
 	if ((err_status & 1 << subdev->ipi_index) ||
 		(err_status & 1 << (subdev->ipi_index + 16))) {
 		atomic_set(&subdev->diag_state, 1);
