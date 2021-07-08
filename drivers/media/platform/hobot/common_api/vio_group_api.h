@@ -271,7 +271,7 @@ void vio_gdc_clk_disable(u32 hw_id);
 void vio_set_stat_info(u32 instance, u32 stat_type, u32 event, u16 frameid,
 	u32 addr, u32 *queued_count);
 void vio_print_stat_info(u32 instance);
-int vio_print_delay(s32 instance, s8* buf, u32 size);
+int vio_print_delay(s32 instance, u8* buf, u32 size);
 void vio_print_stack_by_name(char *name);
 void vio_clear_stat_info(u32 instance);
 void* vio_get_stat_info_ptr(u32 instance);

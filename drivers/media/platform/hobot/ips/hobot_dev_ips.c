@@ -39,7 +39,7 @@
 #define REGISTER_CLK(name) {name, NULL}
 
 ulong sif_mclk_freq = 0;
-module_param(sif_mclk_freq, ulong, 0644);
+module_param(sif_mclk_freq, ulong, 0644); /*PRQA S ALL*/
 
 EXPORT_SYMBOL(sif_mclk_freq);
 
@@ -77,14 +77,14 @@ void ips_set_module_reset(unsigned long module)
 	unsigned long flags;
 	BUG_ON(!g_ips_dev);
 
-	spin_lock_irqsave(&g_ips_dev->shared_slock, flags);
+	spin_lock_irqsave(&g_ips_dev->shared_slock, flags); /*PRQA S ALL*/
 	ips_module_reset(g_ips_dev->base_reg, module);
-	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags);
+	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags); /*PRQA S ALL*/
 }
 EXPORT_SYMBOL_GPL(ips_set_module_reset);
 
 static int clk_en = 0;
-module_param(clk_en, int, 0644);
+module_param(clk_en, int, 0644); /*PRQA S ALL*/
 /**
  * @brief: enable or disable vio module clk gate
  * @param module: vio module
@@ -116,9 +116,9 @@ int ips_set_bus_ctrl(unsigned int cfg)
 	unsigned long flags;
 	BUG_ON(!g_ips_dev);
 
-	spin_lock_irqsave(&g_ips_dev->shared_slock, flags);
+	spin_lock_irqsave(&g_ips_dev->shared_slock, flags); /*PRQA S ALL*/
 	ips_set_axi_bus_ctrl(g_ips_dev->base_reg, cfg);
-	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags);
+	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags); /*PRQA S ALL*/
 
 	return ret;
 }
@@ -131,7 +131,7 @@ int ips_set_md_cfg(sif_output_md_t *cfg)
 	struct roi_rect rect;
 	BUG_ON(!g_ips_dev);
 
-	spin_lock_irqsave(&g_ips_dev->shared_slock, flags);
+	spin_lock_irqsave(&g_ips_dev->shared_slock, flags); /*PRQA S ALL*/
 	rect.roi_height = cfg->roi_height;
 	rect.roi_width = cfg->roi_width;
 	rect.roi_x = cfg->roi_left;
@@ -145,7 +145,7 @@ int ips_set_md_cfg(sif_output_md_t *cfg)
 	// ips_mot_enable(g_ips_dev->base_reg, cfg->enable);
 	// ips_set_sram_mux(g_ips_dev->base_reg, 1);
 	ips_enable_intr(g_ips_dev->base_reg, MOD_INTR, true);
-	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags);
+	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags); /*PRQA S ALL*/
 
 	return ret;
 }
@@ -250,9 +250,9 @@ int ips_get_bus_ctrl(void)
 	unsigned long flags;
 	BUG_ON(!g_ips_dev);
 
-	spin_lock_irqsave(&g_ips_dev->shared_slock, flags);
+	spin_lock_irqsave(&g_ips_dev->shared_slock, flags); /*PRQA S ALL*/
 	ret = ips_get_axi_bus_ctrl(g_ips_dev->base_reg);
-	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags);
+	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags); /*PRQA S ALL*/
 
 	return ret;
 }
@@ -262,7 +262,7 @@ void ips_set_iram_size(u32 iram_size)
 {
 	BUG_ON(!g_ips_dev);
 	g_ips_dev->iram_used_size = iram_size;
-	vio_dbg("%s: 0x%x\n", __func__, iram_size);
+	vio_dbg("%s: 0x%x\n", __func__, iram_size); /*PRQA S ALL*/
 }
 EXPORT_SYMBOL_GPL(ips_set_iram_size);
 
@@ -282,9 +282,9 @@ int ips_get_bus_status(void)
 	unsigned long flags;
 	BUG_ON(!g_ips_dev);
 
-	spin_lock_irqsave(&g_ips_dev->shared_slock, flags);
+	spin_lock_irqsave(&g_ips_dev->shared_slock, flags); /*PRQA S ALL*/
 	ret = ipu_get_axi_statue(g_ips_dev->base_reg);
-	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags);
+	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags); /*PRQA S ALL*/
 
 	return ret;
 }
@@ -296,9 +296,9 @@ int ips_get_isp_frameid(void)
 	unsigned long flags;
 	BUG_ON(!g_ips_dev);
 
-	spin_lock_irqsave(&g_ips_dev->shared_slock, flags);
+	spin_lock_irqsave(&g_ips_dev->shared_slock, flags); /*PRQA S ALL*/
 	ret = ips_get_isp_frame_id(g_ips_dev->base_reg);
-	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags);
+	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags); /*PRQA S ALL*/
 
 	return ret;
 }
@@ -309,9 +309,9 @@ void ips_set_isp_interrupt(bool enable)
 	unsigned long flags;
 	BUG_ON(!g_ips_dev);
 
-	spin_lock_irqsave(&g_ips_dev->shared_slock, flags);
+	spin_lock_irqsave(&g_ips_dev->shared_slock, flags); /*PRQA S ALL*/
 	ips_enable_isp0_intr(g_ips_dev->base_reg, enable);
-	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags);
+	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags); /*PRQA S ALL*/
 }
 EXPORT_SYMBOL_GPL(ips_set_isp_interrupt);
 
@@ -320,9 +320,9 @@ void ips_set_isp_vcke_ctrl(bool enable)
 	unsigned long flags;
 	BUG_ON(!g_ips_dev);
 
-	spin_lock_irqsave(&g_ips_dev->shared_slock, flags);
+	spin_lock_irqsave(&g_ips_dev->shared_slock, flags); /*PRQA S ALL*/
 	isp_vcke_ctrl(g_ips_dev->base_reg, enable);
-	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags);
+	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags); /*PRQA S ALL*/
 }
 EXPORT_SYMBOL_GPL(ips_set_isp_vcke_ctrl);
 
@@ -331,9 +331,9 @@ void ips_set_isp_vcke_th0(u32 cfg)
 	unsigned long flags;
 	BUG_ON(!g_ips_dev);
 
-	spin_lock_irqsave(&g_ips_dev->shared_slock, flags);
+	spin_lock_irqsave(&g_ips_dev->shared_slock, flags); /*PRQA S ALL*/
 	isp_vcke_th0(g_ips_dev->base_reg, cfg);
-	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags);
+	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags); /*PRQA S ALL*/
 }
 EXPORT_SYMBOL_GPL(ips_set_isp_vcke_th0);
 
@@ -342,9 +342,9 @@ void ips_set_isp_vcke_th1(u32 cfg)
 	unsigned long flags;
 	BUG_ON(!g_ips_dev);
 
-	spin_lock_irqsave(&g_ips_dev->shared_slock, flags);
+	spin_lock_irqsave(&g_ips_dev->shared_slock, flags); /*PRQA S ALL*/
 	isp_vcke_th1(g_ips_dev->base_reg, cfg);
-	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags);
+	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags); /*PRQA S ALL*/
 }
 EXPORT_SYMBOL_GPL(ips_set_isp_vcke_th1);
 
@@ -431,7 +431,7 @@ int vio_set_clk_rate(const char *name, ulong frequency)
 		return ret;
 	}
 
-	vio_dbg("%s : frequence %ld\n", __func__, round_rate);
+	vio_dbg("%s : frequence %ld\n", __func__, round_rate); /*PRQA S ALL*/
 
 	return ret;
 }
@@ -450,7 +450,7 @@ ulong vio_get_clk_rate(const char *name)
 
 	if (IS_ERR_OR_NULL(clk)) {
 		vio_err("[@][ERR] %s: clk_target_list is NULL : %s\n", __func__, name);
-		return -EINVAL;
+		return 0;
 	}
 
 	frequency = clk_get_rate(clk);
@@ -556,7 +556,7 @@ static ssize_t ips_reg_dump(struct device *dev,
 	return 0;
 }
 
-static DEVICE_ATTR(regdump, 0444, ips_reg_dump, NULL);
+static DEVICE_ATTR(regdump, 0444, ips_reg_dump, NULL); /*PRQA S ALL*/
 
 static int x3_ips_probe(struct platform_device *pdev)
 {
@@ -651,7 +651,7 @@ static const struct of_device_id x3_ips_match[] = {
 	},
 	{},
 };
-MODULE_DEVICE_TABLE(of, x3_ips_match);
+MODULE_DEVICE_TABLE(of, x3_ips_match); /*PRQA S ALL*/
 
 static struct platform_driver x3_ips_driver = {
 	.probe		= x3_ips_probe,
@@ -695,13 +695,13 @@ static int __init x3_ips_init(void)
 	return ret;
 }
 
-module_init(x3_ips_init);
+module_init(x3_ips_init); /*PRQA S ALL*/
 
 static void __exit x3_ips_exit(void)
 {
 	platform_driver_unregister(&x3_ips_driver);
 }
-module_exit(x3_ips_exit);
+module_exit(x3_ips_exit); /*PRQA S ALL*/
 
 MODULE_AUTHOR("Sun Kaikai<kaikai.sun@horizon.com>");
 MODULE_DESCRIPTION("X3 IPS driver");

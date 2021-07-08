@@ -50,7 +50,7 @@ void ips_module_reset(void __iomem *base_addr, u32 module)
 
 	vio_hw_set_field(base_addr, &ips_regs[IPS_GENERAL_REG],
 		&ips_fields[field_index], 0);
-	mdelay(1);
+	mdelay(1); /*PRQA S ALL*/
 	vio_hw_set_field(base_addr, &ips_regs[IPS_GENERAL_REG],
 		&ips_fields[field_index], 1);
 }
@@ -103,7 +103,6 @@ void ips_get_intr_status(void __iomem *base_addr, u32 module, u32 *status,
 			break;
 		case AXI0_INTR:
 			field_index = IPS_F_AXI0_INT_EN;
-			break;
 			break;
 		default:
 			vio_err("wrong reset module(%d)\n", module);
@@ -163,7 +162,6 @@ int ips_clk_ctrl(void __iomem *base_addr, u32 module, bool enable)
 		default:
 			vio_err("wrong reset module(%d)\n", module);
 			return -1;
-			break;
 	}
 
 	vio_hw_set_field(base_addr, &ips_regs[IPS_CLK_CTRL],

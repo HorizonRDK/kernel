@@ -42,7 +42,7 @@ struct hmipc_channel {
 	wait_queue_head_t wq_head;
 
 	struct mutex hmipc_mutex;
-	unsigned int count;
+	int32_t count;
 
 	dev_t devno;
 };
@@ -104,7 +104,7 @@ static long hmipc_ioctl(struct file *filp, unsigned int cmd,
 	int cnt;
 
 	switch (cmd) {
-		case HMIPC_SET_COUNT:
+		case HMIPC_SET_COUNT: /*PRQA S ALL*/
 			mutex_lock(&channel->hmipc_mutex);
 			if (copy_from_user(&cnt, (void __user *)arg, _IOC_SIZE(cmd))) {
 				pr_err("copy_from_user fail:%d\n", __LINE__);
@@ -174,7 +174,7 @@ static int __init hmipc_init(void)
 	}
 
 	/* create device */
-	g_hmipc_channel->class = class_create(THIS_MODULE, HMIPC_DEV_NAME);
+	g_hmipc_channel->class = class_create(THIS_MODULE, HMIPC_DEV_NAME); /*PRQA S 3237*/
 	if (IS_ERR(g_hmipc_channel->class)) {
 		pr_err("class_create fail\n");
 		goto class_create_err;
@@ -216,8 +216,8 @@ static void __exit hmipc_exit(void)
 	g_hmipc_channel = NULL;
 }
 
-module_init(hmipc_init);
-module_exit(hmipc_exit);
+module_init(hmipc_init); /*PRQA S 0605*/
+module_exit(hmipc_exit); /*PRQA S 0605*/
 
 MODULE_DESCRIPTION("hmipc driver for asynchronous notification");
 MODULE_AUTHOR("leye.wang@horizon.ai");

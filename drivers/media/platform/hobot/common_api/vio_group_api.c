@@ -39,7 +39,7 @@ void vio_ldc_access_mutex_unlock(void)
 {
 	mutex_unlock(&ldc_access_mutex);
 }
-EXPORT_SYMBOL(vio_ldc_access_mutex_unlock);
+EXPORT_SYMBOL(vio_ldc_access_mutex_unlock); /*PRQA S ALL*/
 
 void vio_init_ldc_access_mutex()
 {
@@ -165,7 +165,7 @@ int vio_group_task_start(struct vio_group_task *group_task)
 
 	kthread_init_worker(&group_task->worker);
 	snprintf(name, sizeof(name), "vio_gw%d", group_task->id);
-	group_task->task = kthread_run(kthread_worker_fn, &group_task->worker, name);
+	group_task->task = kthread_run(kthread_worker_fn, &group_task->worker, name); /*PRQA S ALL*/
 	if (IS_ERR(group_task->task)) {
 		vio_err("failed to create buffer task, err(%ld)\n",PTR_ERR(group_task->task));
 		ret = PTR_ERR(group_task->task);
@@ -213,7 +213,7 @@ int vio_group_task_stop(struct vio_group_task *group_task)
 	if (refcount > 0)
 		goto p_err;
 
-	vio_dbg("real task stop %s\n", group_task->task->comm);
+	vio_dbg("real task stop %s\n", group_task->task->comm); /*PRQA S ALL*/
 	set_bit(VIO_GTASK_REQUEST_STOP, &group_task->state);
 
 	if(test_bit(VIO_GTASK_SHOT, &group_task->state)){
@@ -253,7 +253,7 @@ void vio_group_start_trigger_mp(struct vio_group *group, struct vio_frame *frame
 	atomic_inc(&group->rcount);
 	kthread_queue_work(&group_task->worker, frame->mp_work);
 }
-EXPORT_SYMBOL(vio_group_start_trigger_mp);
+EXPORT_SYMBOL(vio_group_start_trigger_mp); /*PRQA S ALL*/
 
 void vio_group_insert_work(struct vio_group *group, struct kthread_work *work)
 {
@@ -298,6 +298,7 @@ struct vio_group *vio_get_chain_group(int instance, u32 group_id)
 
 	if (group_id > GROUP_ID_NUMBER) {
 		vio_err("[%s]wrong group id (%d)\n", __func__, group_id);
+		return NULL;
 	}
 
 	ischain = &iscore.chain[instance];
@@ -324,13 +325,13 @@ void vio_group_init(struct vio_group *group)
 	group->target_sema = 0x3;
 	group->sema_flag = 0x00;
 	group->group_scenario = -1;
-	atomic_set(&group->rcount, 0);
-	atomic_set(&group->node_refcount, 0);
-	atomic_set(&group->work_insert, 0);
+	atomic_set(&group->rcount, 0); /*PRQA S ALL*/
+	atomic_set(&group->node_refcount, 0); /*PRQA S ALL*/
+	atomic_set(&group->work_insert, 0); /*PRQA S ALL*/
 	for(i = 0; i < MAX_SUB_DEVICE; i++)
 		group->sub_ctx[i] = NULL;
 
-	vio_dbg("%s : %d\n", __func__, group->id);
+	vio_dbg("%s : %d\n", __func__, group->id); /*PRQA S ALL*/
 }
 EXPORT_SYMBOL(vio_group_init);
 
@@ -345,7 +346,7 @@ int vio_init_chain(int instance)
 
 	for (i = 0; i < GROUP_ID_NUMBER; i++) {
 		group = &ischain->group[i];
-		spin_lock_irqsave(&group->slock, flags);
+		spin_lock_irqsave(&group->slock, flags); /*PRQA S ALL*/
 		if (!test_bit(VIO_GROUP_INIT, &group->state)) {
 			group->chain = ischain;
 			group->instance= instance;
@@ -353,7 +354,7 @@ int vio_init_chain(int instance)
 			vio_group_init(group);
 			set_bit(VIO_GROUP_INIT, &group->state);
 		}
-		spin_unlock_irqrestore(&group->slock, flags);
+		spin_unlock_irqrestore(&group->slock, flags); /*PRQA S ALL*/
 	}
 
 	return 0;
@@ -391,6 +392,7 @@ EXPORT_SYMBOL(vio_bind_chain_groups);
  * VIN/VPS will initialized randomly,
  * but modules in VIN/VPS is sequential
  */
+// PRQA S ALL ++
 void vio_bind_group_done(int instance)
 {
 	int i = 0;
@@ -507,6 +509,7 @@ void vio_bind_group_done(int instance)
 
 	vio_info("Stream%d path: G0%s\n", group->instance, stream);
 }
+// PRQA S ALL --
 EXPORT_SYMBOL(vio_bind_group_done);
 
 void vio_get_sif_frame_info(u32 instance, struct vio_frame_id *frame_info)
@@ -642,7 +645,7 @@ void vio_group_done(struct vio_group *group)
 		return;
 	}
 
-	spin_lock_irqsave(&group_leader->slock, flags);
+	spin_lock_irqsave(&group_leader->slock, flags); /*PRQA S ALL*/
 	if (group->next && group->head != group &&
 		test_bit(VIO_GROUP_DMA_OUTPUT, &group->state)) {
 		group_leader->sema_flag |= 1 << 2;
@@ -661,17 +664,17 @@ void vio_group_done(struct vio_group *group)
 	if (group_leader->sema_flag == group_leader->target_sema) {
 		group_leader->sema_flag = 0;
 		up(&group_task->hw_resource);
-		vio_dbg("group%d,leader%d,sema_flag=%d,target_sema=%d",
+		vio_dbg("group%d,leader%d,sema_flag=%d,target_sema=%d", /*PRQA S ALL*/
 			group->id, group_leader->id, sema_flag,
 			group_leader->target_sema);
-		vio_dbg("[S%d][G%d]up hw_resource G%d\n", group->instance, group->id,
+		vio_dbg("[S%d][G%d]up hw_resource G%d\n", group->instance, group->id, /*PRQA S ALL*/
 		group_leader->id);
 	} else {
-		vio_dbg("group%d,leader%d,sema_flag=%d,target_sema=%d",
+		vio_dbg("group%d,leader%d,sema_flag=%d,target_sema=%d", /*PRQA S ALL*/
 			group->id, group_leader->id, sema_flag,
 			group_leader->target_sema);
 	}
-	spin_unlock_irqrestore(&group_leader->slock, flags);
+	spin_unlock_irqrestore(&group_leader->slock, flags); /*PRQA S ALL*/
 }
 EXPORT_SYMBOL(vio_group_done);
 
@@ -681,7 +684,7 @@ void vio_dwe_clk_enable(void)
 	bool enable = true;
 
 	core = &iscore;
-	if (atomic_read(&core->rsccount) == 0) {
+	if (atomic_read(&core->rsccount) == 0) { /*PRQA S ALL*/
 		if (sif_mclk_freq)
 			vio_set_clk_rate("sif_mclk", sif_mclk_freq);
 		ips_set_clk_ctrl(DWE0_CLOCK_GATE, enable);
@@ -711,7 +714,7 @@ void vio_gdc_clk_enable(u32 hw_id)
 
 	core = &iscore;
 	if (hw_id == 0) {
-		if (atomic_read(&core->gdc0_rsccount) == 0) {
+		if (atomic_read(&core->gdc0_rsccount) == 0) { /*PRQA S ALL*/
 			if (sif_mclk_freq)
 				vio_set_clk_rate("sif_mclk", sif_mclk_freq);
 			ips_set_clk_ctrl(GDC0_CLOCK_GATE, enable);
@@ -719,7 +722,7 @@ void vio_gdc_clk_enable(u32 hw_id)
 		}
 		atomic_inc(&core->gdc0_rsccount);
 	} else if (hw_id == 1) {
-		if (atomic_read(&core->gdc1_rsccount) == 0) {
+		if (atomic_read(&core->gdc1_rsccount) == 0) { /*PRQA S ALL*/
                         if (sif_mclk_freq)
                                 vio_set_clk_rate("sif_mclk", sif_mclk_freq);
                         ips_set_clk_ctrl(GDC1_CLOCK_GATE, enable);
@@ -775,9 +778,7 @@ void vio_set_stat_info(u32 instance, u32 stat_type, u32 event, u16 frameid,
 
 	if (stat_info_update) {
 		chain = &iscore.chain[instance];
-		if (chain->statinfoidx[stat_type] < 0)
-			chain->statinfoidx[stat_type] = 0;
-		else if (chain->statinfoidx[stat_type] >= MAX_DELAY_FRAMES)
+		if (chain->statinfoidx[stat_type] >= MAX_DELAY_FRAMES)
 			chain->statinfoidx[stat_type] = 0;
 		stat = &chain->statinfo[chain->statinfoidx[stat_type]][stat_type];
 		stat->framid = frameid;
@@ -802,7 +803,7 @@ void vio_clear_stat_info(u32 instance)
 }
 EXPORT_SYMBOL(vio_clear_stat_info);
 
-int vio_print_delay(s32 instance, s8* buf, u32 size)
+int vio_print_delay(s32 instance, u8* buf, u32 size)
 {
 	struct vio_chain *chain;
 	struct statinfo *stat;
@@ -895,30 +896,30 @@ void vio_print_stat_info(u32 instance)
 		stat[SIF_IN_FS].g_tv.tv_sec, stat[SIF_IN_FS].g_tv.tv_usec,
 		stat[SIF_IN_FE].g_tv.tv_sec, stat[SIF_IN_FE].g_tv.tv_usec);
 
-	vio_info("[F%d]ipu(FS %ld.%06ld|FE US %ld.%06ld|ds0 %ld.%06ld|",
+	vio_info("[F%d]ipu(FS %ld.%06ld|FE US %ld.%06ld|ds0 %ld.%06ld|", /*PRQA S ALL*/
 		stat[IPU_FS].framid,
 		stat[IPU_FS].g_tv.tv_sec, stat[IPU_FS].g_tv.tv_usec,
 		stat[IPU_US_FE].g_tv.tv_sec, stat[IPU_US_FE].g_tv.tv_usec,
 		stat[IPU_DS0_FE].g_tv.tv_sec, stat[IPU_DS0_FE].g_tv.tv_usec);
 
-	vio_info("ds1 %ld.%06ld|ds2 %ld.%06ld|ds3 %ld.%06ld|ds4 %ld.%06ld)\n",
+	vio_info("ds1 %ld.%06ld|ds2 %ld.%06ld|ds3 %ld.%06ld|ds4 %ld.%06ld)\n", /*PRQA S ALL*/
 		stat[IPU_DS1_FE].g_tv.tv_sec, stat[IPU_DS1_FE].g_tv.tv_usec,
 		stat[IPU_DS2_FE].g_tv.tv_sec, stat[IPU_DS2_FE].g_tv.tv_usec,
 		stat[IPU_DS3_FE].g_tv.tv_sec, stat[IPU_DS3_FE].g_tv.tv_usec,
 		stat[IPU_DS4_FE].g_tv.tv_sec, stat[IPU_DS4_FE].g_tv.tv_usec);
 
-	vio_info("[F%d]pym(FS %ld.%06ld|FE %ld.%06ld)\n",
+	vio_info("[F%d]pym(FS %ld.%06ld|FE %ld.%06ld)\n", /*PRQA S ALL*/
 		stat[PYM_FS].framid,
 		stat[PYM_FS].g_tv.tv_sec, stat[PYM_FS].g_tv.tv_usec,
 		stat[PYM_FE].g_tv.tv_sec, stat[PYM_FE].g_tv.tv_usec);
 
-	vio_info("[F%d]gdc(FS %ld.%06ld|FE %ld.%06ld)\n",
+	vio_info("[F%d]gdc(FS %ld.%06ld|FE %ld.%06ld)\n", /*PRQA S ALL*/
 		stat[GDC_FS].framid,
 		stat[GDC_FS].g_tv.tv_sec, stat[GDC_FS].g_tv.tv_usec,
 		stat[GDC_FE].g_tv.tv_sec, stat[GDC_FE].g_tv.tv_usec);
 }
 EXPORT_SYMBOL(vio_print_stat_info);
-
+// PRQA S ALL ++
 void vio_print_stack_by_name(char *name)
 {
 #define TRACE_DEPTH 20
@@ -943,3 +944,4 @@ void vio_print_stack_by_name(char *name)
 #endif
 }
 EXPORT_SYMBOL(vio_print_stack_by_name);
+// PRQA S ALL --

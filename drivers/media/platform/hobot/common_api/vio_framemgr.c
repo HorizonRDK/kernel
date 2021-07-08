@@ -21,7 +21,7 @@
 
 #include "vio_framemgr.h"
 #include "vio_group_api.h"
-
+// PRQA S 0497,3238,2810,2880,2992,2996 ++
 int frame_fcount(struct vio_frame *frame, void *data)
 {
 	return frame->fcount - (u32)(ulong)data;
@@ -189,7 +189,7 @@ void frame_work_function(struct kthread_work *work)
 
 	set_bit(VIO_GTASK_SHOT, &gtask->state);
 	atomic_dec(&leader->rcount);
-	vio_dbg("[S%d][G%d]%s #0\n", leader->instance, leader->id, __func__);
+	vio_dbg("[S%d][G%d]%s #0\n", leader->instance, leader->id, __func__); /*PRQA S ALL*/
 
 	if (unlikely(test_bit(VIO_GTASK_REQUEST_STOP, &gtask->state))) {
 		vio_err(" cancel by gstop0");
@@ -212,11 +212,11 @@ void frame_work_function(struct kthread_work *work)
 	group = leader;
 	while (group->next) {
 		group = group->next;
-		vio_dbg("[S%d][G%d]%s #1\n", leader->instance, leader->id, __func__);
+		vio_dbg("[S%d][G%d]%s #1\n", leader->instance, leader->id, __func__); /*PRQA S ALL*/
 		if(group->frame_work)
 			group->frame_work(group);
 	}
-	vio_dbg("[S%d][G%d]%s #2\n", leader->instance, leader->id, __func__);
+	vio_dbg("[S%d][G%d]%s #2\n", leader->instance, leader->id, __func__); /*PRQA S ALL*/
 
 	leader->frame_work(leader);
 	clear_bit(VIO_GTASK_SHOT, &gtask->state);
@@ -260,7 +260,7 @@ void frame_work_function_mp(struct kthread_work *work)
 
 	set_bit(VIO_GTASK_SHOT, &gtask->state);
 	atomic_dec(&leader->rcount);
-	vio_dbg("[S%d][G%d]%s #0\n", leader->instance, leader->id, __func__);
+	vio_dbg("[S%d][G%d]%s #0\n", leader->instance, leader->id, __func__); /*PRQA S ALL*/
 
 	if (unlikely(test_bit(VIO_GTASK_REQUEST_STOP, &gtask->state))) {
 		vio_err(" cancel by gstop0");
@@ -284,11 +284,11 @@ void frame_work_function_mp(struct kthread_work *work)
 	group = leader;
 	while (group->next) {
 		group = group->next;
-		vio_dbg("[S%d][G%d]%s #1\n", leader->instance, leader->id, __func__);
+		vio_dbg("[S%d][G%d]%s #1\n", leader->instance, leader->id, __func__); /*PRQA S ALL*/
 		if(group->frame_work)
 			group->frame_work(group);
 	}
-	vio_dbg("[S%d][G%d]%s #2\n", leader->instance, leader->id, __func__);
+	vio_dbg("[S%d][G%d]%s #2\n", leader->instance, leader->id, __func__); /*PRQA S ALL*/
 	leader->frame_work(leader);
 	clear_bit(VIO_GTASK_SHOT, &gtask->state);
 
@@ -439,8 +439,8 @@ int frame_manager_open_mp(struct vio_framemgr *this, u32 buffers,
 		vio_err("%s no enough AVALABLE frames.", __func__);
 		for (i = 0; i < VIO_MP_MAX_FRAMES; i++) {
 			if ((i&0xF) == 0)
-				vio_dbg("\nindex state %d-%d:", i, i+15);
-			vio_dbg("%d ", this->index_state[i]);
+				vio_dbg("\nindex state %d-%d:", i, i+15); /*PRQA S ALL*/
+			vio_dbg("%d ", this->index_state[i]); /*PRQA S ALL*/
 		}
 		vfree(frames);
 		return -ENOMEM;
@@ -492,7 +492,7 @@ int frame_manager_open_mp(struct vio_framemgr *this, u32 buffers,
 		this->max_index = ind_fst + buffers;
 	spin_unlock_irqrestore(&this->slock, flag);
 
-	vio_dbg("%s first index %d, num %d, num_frames %d max index %d.vmalloc start:%p",
+	vio_dbg("%s first index %d, num %d, num_frames %d max index %d.vmalloc start:%p", /*PRQA S ALL*/
 		__func__, ind_fst, buffers, this->num_frames, this->max_index, frames);
 	return 0;
 }
@@ -635,7 +635,7 @@ int frame_manager_flush_mp(struct vio_framemgr *this,
 			|| (frame->state == FS_FREE))
 			used_free_cnt++;
 	}
-	vio_dbg("%s:%d buffers in USED or FREE, %d not.",
+	vio_dbg("%s:%d buffers in USED or FREE, %d not.", /*PRQA S ALL*/
 		__func__, used_free_cnt, buffers - used_free_cnt);
 	spin_unlock_irqrestore(&this->slock, flag);
 	return 0;
@@ -687,17 +687,17 @@ int frame_manager_flush_mp_prepare(struct vio_framemgr *this,
 	}
 	spin_unlock_irqrestore(&this->slock, flag);
 
-	vio_dbg("%s proc %d:", __func__, proc_id);
+	vio_dbg("%s proc %d:", __func__, proc_id); /*PRQA S ALL*/
 	for (i = 0; i < VIO_MP_MAX_FRAMES; i++) {
 		if ((this->index_state[i] != FRAME_IND_USING)
 			&& (this->index_state[i] != FRAME_IND_STREAMOFF))
 			continue;
-		vio_dbg("frm%d mask 0x%x", i, this->dispatch_mask[i]);
+		vio_dbg("frm%d mask 0x%x", i, this->dispatch_mask[i]); /*PRQA S ALL*/
 	}
 
 	return 0;
 }
-EXPORT_SYMBOL(frame_manager_flush_mp_prepare);
+EXPORT_SYMBOL(frame_manager_flush_mp_prepare); /*PRQA S ALL*/
 
 void frame_manager_print_queues(struct vio_framemgr *this)
 {
@@ -714,3 +714,4 @@ void frame_manager_print_info_queues(struct vio_framemgr *this)
 		print_frame_info_queue(this, (enum vio_frame_state)i);
 }
 EXPORT_SYMBOL(frame_manager_print_info_queues);
+// PRQA S --

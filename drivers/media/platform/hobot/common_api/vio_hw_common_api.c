@@ -17,7 +17,7 @@ u32 vio_hw_get_reg(void __iomem *base_addr, const struct vio_reg_def *reg)
 #if CONFIG_QEMU_TEST
 	reg_value = *(u32 *) ((u8 *) base_addr + reg->sfr_offset);
 #else
-	reg_value = readl(base_addr + reg->sfr_offset);
+	reg_value = readl(base_addr + reg->sfr_offset); /*PRQA S 0497,1006,1021,3238*/
 #endif
 
 #ifdef DEBUG_HW_SFR
@@ -41,7 +41,7 @@ void vio_hw_set_reg(void __iomem *base_addr, const struct vio_reg_def *reg,
 #if CONFIG_QEMU_TEST
 	*(u32 *) ((u8 *) base_addr + reg->sfr_offset) = val;
 #else
-	writel(val, base_addr + reg->sfr_offset);
+	writel(val, base_addr + reg->sfr_offset); /*PRQA S 0431,0497,1006,1021,3238*/
 #endif
 }
 EXPORT_SYMBOL(vio_hw_set_reg);
@@ -56,7 +56,7 @@ u32 vio_hw_get_field(void __iomem *base_addr,
 #if CONFIG_QEMU_TEST
 	reg_value = *(u32 *) ((u8 *) base_addr + reg->sfr_offset);
 #else
-	reg_value = readl(base_addr + reg->sfr_offset);
+	reg_value = readl(base_addr + reg->sfr_offset); /*PRQA S 0497,1006,1021,3238*/
 #endif
 
 	field_value = vio_hw_get_field_value(reg_value, field);
@@ -81,7 +81,7 @@ void vio_hw_set_owner_field(void __iomem *base_addr,
 	reg_value = *(u32 *) ((u8 *) base_addr + reg->sfr_offset);
 
 #else
-	pre_value = readl(base_addr + (reg->sfr_offset));
+	pre_value = readl(base_addr + (reg->sfr_offset)); /*PRQA S 0497,1006,1021,3238*/
 #endif
 
 #ifdef DEBUG_HW_SFR
@@ -94,7 +94,7 @@ void vio_hw_set_owner_field(void __iomem *base_addr,
 #if CONFIG_QEMU_TEST
 	*(u32 *) (base_addr + reg->sfr_offset) = reg_value;
 #else
-	writel(reg_value, base_addr + (reg->sfr_offset));
+	writel(reg_value, base_addr + (reg->sfr_offset)); /*PRQA S 0431,0497,1006,1021,3238*/
 #endif
 }
 EXPORT_SYMBOL(vio_hw_set_owner_field);
@@ -112,7 +112,7 @@ void vio_hw_set_field(void __iomem *base_addr,
 	reg_value = *(u32 *) ((u8 *) base_addr + reg->sfr_offset);
 
 #else
-	reg_value = readl(base_addr + (reg->sfr_offset));
+	reg_value = readl(base_addr + (reg->sfr_offset)); /*PRQA S 0497,1006,1021,3238*/
 #endif
 
 	pre_value = reg_value;
@@ -128,7 +128,7 @@ void vio_hw_set_field(void __iomem *base_addr,
 #if CONFIG_QEMU_TEST
 	*(u32 *) (base_addr + reg->sfr_offset) = reg_value;
 #else
-	writel(reg_value, base_addr + (reg->sfr_offset));
+	writel(reg_value, base_addr + (reg->sfr_offset)); /*PRQA S 0431,0497,1006,1021,3238*/
 #endif
 }
 EXPORT_SYMBOL(vio_hw_set_field);
@@ -172,7 +172,7 @@ void vio_hw_dump_regs(void __iomem *base_addr,
 	u32 reg_value = 0;
 
 	for(i = 0; i < total_cnt; i++) {
-		reg_value = readl(base_addr + regs[i].sfr_offset);
+		reg_value = readl(base_addr + regs[i].sfr_offset); /*PRQA S 0497,1006,1021,3238*/
 		vio_info("[DUMP] reg:[%s][0x%04X], value:[0x%08X]\n",
 			regs[i].reg_name, regs[i].sfr_offset, reg_value);
 	}
