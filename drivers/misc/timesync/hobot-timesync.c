@@ -18,10 +18,10 @@
 #include <linux/interrupt.h>
 
 #define timesync_IOC_MAGIC  		(0x6A)
-#define timesync_TIMESTAMP_TRIG     _IO(timesync_IOC_MAGIC, 8)
-#define timesync_GET_TIMESTAMP      _IO(timesync_IOC_MAGIC, 9)
+#define timesync_TIMESTAMP_TRIG    	_IO(timesync_IOC_MAGIC, 8)
+#define timesync_GET_TIMESTAMP      	_IO(timesync_IOC_MAGIC, 9)
 
-#define HOBOT_TIMESYNC				"hobot_timesync"
+#define HOBOT_TIMESYNC			"hobot_timesync"
 
 struct hb_timesync {
 	struct device *dev;
@@ -34,23 +34,19 @@ struct hb_timesync {
 #endif
 
 	struct timeval tv;
-	struct mutex tv_mutex;
 };
 
 static irqreturn_t timesync_irq(int irq, void *dev)
 {
 	struct hb_timesync *timesync = dev;
 
-	mutex_lock(&timesync->tv_mutex);
 	do_gettimeofday(&timesync->tv);
 
 #ifdef CONFIG_TIMESYNC_DEBUG
 	gpio_direction_output(timesync->debug_pin, 0);
-	msleep(20);
+	mdelay(20);
 	gpio_direction_output(timesync->debug_pin, 1);
 #endif
-
-	mutex_unlock(&timesync->tv_mutex);
 
 	return IRQ_HANDLED;
 }
@@ -72,26 +68,27 @@ static int timesync_release(struct inode *inode, struct file *filp)
 	return 0;
 }
 
-static long timesync_ioctl(struct file *filp, 
-						unsigned int cmd, unsigned long arg)
+static long timesync_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	int ret = 0;
 	struct hb_timesync *timesync = filp->private_data;
+	struct timeval tmp_tv;
 
 	switch (cmd) {
 	case timesync_GET_TIMESTAMP:
-		mutex_lock(&timesync->tv_mutex);
-		if (copy_to_user((void __user *)arg,
-						&timesync->tv, sizeof(timesync->tv))) {
+		disable_irq(timesync->irq_num);
+		memcpy(&tmp_tv, &timesync->tv, sizeof(timesync->tv));
+		enable_irq(timesync->irq_num);
+
+		if (copy_to_user((void __user *)arg, &tmp_tv, sizeof(tmp_tv))) {
 			dev_err(timesync->dev, "copy timeval failed\n");
 			ret = -EFAULT;
 		}
-		mutex_unlock(&timesync->tv_mutex);
 		break;
 #ifdef CONFIG_TIMESYNC_DEBUG
 	case timesync_TIMESTAMP_TRIG:
 		gpio_direction_output(timesync->debug_pin, 0);
-		msleep(20);
+		mdelay(20);
 		gpio_direction_output(timesync->debug_pin, 1);
 		break;
 #endif
@@ -113,7 +110,7 @@ static const struct file_operations timesync_fops = {
 
 static int timesync_probe(struct platform_device *pdev)
 {
-	int	ret = 0;
+	int ret = 0;
 	struct hb_timesync *timesync = NULL;	
 
 	dev_info(&pdev->dev, "hobot timesync probe begin\n");
@@ -126,15 +123,16 @@ static int timesync_probe(struct platform_device *pdev)
 
 	timesync->dev = &pdev->dev;
 
-	ret = of_property_read_u32(pdev->dev.of_node, 
-					"timesync_irq_pin", &timesync->irq_pin);
+	ret = of_property_read_u32(pdev->dev.of_node,
+			"timesync_irq_pin", &timesync->irq_pin);
 	if (ret) {
 		dev_err(&pdev->dev, "get irq pin failed\n");
 		return ret;
 	}
 
 #ifdef CONFIG_TIMESYNC_DEBUG
-	ret = of_property_read_u32(pdev->dev.of_node, "timesync_debug_pin", &timesync->debug_pin);
+	ret = of_property_read_u32(pdev->dev.of_node,
+			"timesync_debug_pin", &timesync->debug_pin);
 	if (ret) {
 		dev_err(&pdev->dev, "get debug pin failed\n");
 		return ret;
@@ -157,8 +155,8 @@ static int timesync_probe(struct platform_device *pdev)
 	}
 	timesync->irq_num = gpio_to_irq(timesync->irq_pin);
 	dev_info(&pdev->dev, "irq_pin = %d, irq_num = %d\n",
-							timesync->irq_pin, timesync->irq_num);
-	ret = request_threaded_irq(timesync->irq_num, NULL, timesync_irq,
+			timesync->irq_pin, timesync->irq_num);
+	ret = request_threaded_irq(timesync->irq_num, timesync_irq, NULL,
 			IRQF_TRIGGER_FALLING | IRQF_ONESHOT, HOBOT_TIMESYNC, timesync);
 	if (ret) {
 		dev_err(&pdev->dev, "request irq failed\n");
@@ -173,8 +171,6 @@ static int timesync_probe(struct platform_device *pdev)
 	}
 	gpio_direction_output(timesync->debug_pin, 1);
 #endif
-
-	mutex_init(&timesync->tv_mutex);
 
 	platform_set_drvdata(pdev, timesync);
 
@@ -202,7 +198,6 @@ static int timesync_remove(struct platform_device *pdev)
 #endif
 
 	free_irq(timesync->irq_num, timesync);
-
 	gpio_free(timesync->irq_pin);
 
 	misc_deregister(&timesync->miscdev);
