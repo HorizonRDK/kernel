@@ -839,6 +839,8 @@ static int hobot_i2s_probe(struct platform_device *pdev)
 static int hobot_i2s_remove(struct platform_device *pdev)
 {
 	/* struct hobot_i2s *i2s = dev_get_drvdata (&pdev->dev); */
+	device_remove_file(&pdev->dev, &dev_attr_reg_dump);
+	snd_soc_unregister_component(&pdev->dev);
 	return 0;
 }
 

@@ -1088,7 +1088,7 @@ static int ac102_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *i
 
 static int ac102_i2c_remove(struct i2c_client *i2c)
 {
-	//sysfs_remove_group(&i2c->dev.kobj, &ac102_debug_attr_group);
+	sysfs_remove_group(&i2c->dev.kobj, &ac102_debug_attr_group);
 	snd_soc_unregister_codec(&i2c->dev);
 	return 0;
 }

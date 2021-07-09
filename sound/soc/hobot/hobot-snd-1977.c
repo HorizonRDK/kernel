@@ -188,10 +188,6 @@ static int hobot_snd_remove(struct platform_device *pdev)
 
 	if(card){
 		snd_soc_unregister_card(card);
-		if(card->dai_link){
-			kfree(card->dai_link);
-		}
-		kfree(card);
 	}
 	return 0;
 }

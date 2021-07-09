@@ -1027,6 +1027,11 @@ static int asoc_i2sidma_platform_probe(struct platform_device *pdev)
 
 }
 
+static int asoc_i2sidma_platform_remove(struct platform_device *pdev) {
+	snd_soc_unregister_platform(&pdev->dev);
+	return 0;
+}
+
 #ifdef CONFIG_OF
 static const struct of_device_id hobot_i2sidma_of_match[] = {
 	{.compatible = "hobot-i2s0-idma",},
@@ -1078,6 +1083,7 @@ static struct platform_driver i2s_idma_driver = {
 		   },
 
 	.probe = asoc_i2sidma_platform_probe,
+	.remove = asoc_i2sidma_platform_remove,
 };
 
 module_platform_driver(i2s_idma_driver);

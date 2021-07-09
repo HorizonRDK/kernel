@@ -1291,10 +1291,9 @@ int ac101_set_dai_fmt(struct snd_soc_dai *codec_dai, unsigned int fmt)
 int ac101_audio_startup(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *codec_dai)
 {
-	// struct snd_soc_codec *codec = codec_dai->codec;
-
-		AC101_DBG("\n\n\n");
-
+	struct snd_soc_codec *codec = codec_dai->codec;
+	AC101_DBG("\n\n\n");
+	ac101_headphone_event(codec, SND_SOC_DAPM_POST_PMU);
 	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
 	}
 	return 0;
@@ -1927,6 +1926,7 @@ void ac101_shutdown(struct i2c_client *i2c)
 int ac101_i2c_remove(struct i2c_client *i2c)
 {
 	sysfs_remove_group(&i2c->dev.kobj, &audio_debug_attr_group);
+	snd_soc_unregister_codec(&i2c->dev);
 	return 0;
 }
 
