@@ -39,7 +39,7 @@ static int smpl_threshold = 3900;
 module_param(smpl_threshold, int, 0644);
 
 /* Max diff in Celsius */
-static int max_diff = 20000;
+static int max_diff = 10000;
 module_param(max_diff, int, 0644);
 
 /* For test, 0: default; 1: force calib, 2: force uncalib */
