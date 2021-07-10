@@ -154,4 +154,8 @@ typedef enum _hb_vpu_event_e {
 #define VDI_IOCTL_VDI_UNLOCK	\
 	_IO(VDI_IOCTL_MAGIC, 24)
 
+#define VPU_CLK_IOCTL_MAGIC						'W'
+#define VPU_CLK_SET_FREQ	_IO(VPU_CLK_IOCTL_MAGIC, 0)
+#define VPU_CLK_GET_FREQ	_IO(VPU_CLK_IOCTL_MAGIC, 1)
+
 #endif /* HOBOT_VPU_USER_H_ */

@@ -149,6 +149,13 @@ typedef struct _hb_vpu_priv {
 	u32 is_irq_poll;
 } hb_vpu_priv_t;
 
+struct vpu_clk_dev {
+	struct cdev	cdev;
+	struct class 	*class;
+	dev_t 		devno;
+	// spinlock_t	slock;
+};
+
 #ifdef USE_VPU_CLOSE_INSTANCE_ONCE_ABNORMAL_RELEASE
 #define VPU_WAKE_MODE 0
 #define VPU_SLEEP_MODE 1

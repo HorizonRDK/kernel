@@ -4129,6 +4129,94 @@ static ssize_t venc_fps_show(struct device *dev,
 
 static DEVICE_ATTR(fps, S_IRUGO|S_IWUSR, venc_fps_show, venc_fps_store);
 
+struct vpu_clk_dev *g_vpu_clk_devs = NULL;
+static int vpu_clk_open(struct inode *inode, struct file *file)
+{
+	vpu_debug(5, "vpu clk open.\n");
+	return 0;
+}
+
+static int vpu_clk_close(struct inode *inode, struct file *file)
+{
+	vpu_debug(5, "vpu clk close.\n");
+	return 0;
+}
+
+static long vpu_clk_ioctl(struct file *file, unsigned int cmd,
+			  unsigned long arg)
+{
+	int ret = 0;
+	int vpu_clk = 0;
+
+	if (_IOC_TYPE(cmd) != VPU_CLK_IOCTL_MAGIC)
+		return -ENOTTY;
+
+	switch (cmd) {
+	case VPU_CLK_SET_FREQ:
+		ret = copy_from_user((char*)&vpu_clk, (u32 __user *) arg, sizeof(int));
+		if (!ret) {
+			vpu_err("vpu_clk: %d\n", vpu_clk);
+			vpu_clk_freq = vpu_clk;
+		}
+		break;
+	case VPU_CLK_GET_FREQ:
+		vpu_clk = vpu_clk_freq;
+		ret = copy_to_user(
+			(void __user *) arg, (char *) &vpu_clk, sizeof(vpu_clk));
+		break;
+	default:
+		vpu_err("wrong ioctl command\n");
+		ret = -EFAULT;
+		break;
+	}
+
+	return ret;
+}
+
+static struct file_operations vpu_clk_fops = {
+	.owner = THIS_MODULE,
+	.open = vpu_clk_open,
+	.release = vpu_clk_close,
+	.unlocked_ioctl = vpu_clk_ioctl,
+	.compat_ioctl = vpu_clk_ioctl,
+};
+
+int vpu_clk_node_init(struct vpu_clk_dev *vpu_clk_devs)
+{
+	int ret = 0;
+	struct device *dev = NULL;
+
+	ret = alloc_chrdev_region(&vpu_clk_devs->devno, 0, 1, "vpu_clk_dev");
+	if (ret < 0) {
+		vpu_err("Error %d while alloc chrdev vpu_clk_dev", ret);
+		goto err;
+	}
+
+	cdev_init(&vpu_clk_devs->cdev, &vpu_clk_fops);
+	vpu_clk_devs->cdev.owner = THIS_MODULE;
+	ret = cdev_add(&vpu_clk_devs->cdev, vpu_clk_devs->devno, 1);
+	if (ret) {
+		vpu_err("Error %d while adding vpu clk dev", ret);
+		goto err;
+	}
+
+	vpu_clk_devs->class = class_create(THIS_MODULE, "vpu_clk_dev");
+
+	dev = device_create(vpu_clk_devs->class, NULL,
+			MKDEV(MAJOR(vpu_clk_devs->devno), 0),
+			NULL, "vpu_clk");
+	if (IS_ERR(dev)) {
+		ret = -EINVAL;
+		vpu_err("vpu clk dev create fail\n");
+		goto err;
+	}
+
+	return ret;
+err:
+	unregister_chrdev_region(vpu_clk_devs->devno, 1);
+	return ret;
+}
+
 static int vpu_probe(struct platform_device *pdev)
 {
 	hb_vpu_dev_t *dev = NULL;
@@ -4251,6 +4339,14 @@ static int vpu_probe(struct platform_device *pdev)
 		goto ERR_GET_CLK;
 	}
 	hb_vpu_clk_put(dev);
+
+	g_vpu_clk_devs = kzalloc(sizeof(struct vpu_clk_dev), GFP_KERNEL);
+	if (g_vpu_clk_devs == NULL) {
+		dev_err(&pdev->dev, "vpu clk dev is NULL\n");
+		err = -ENOMEM;
+		goto ERR_CREATE_DEV;
+	}
+	vpu_clk_node_init(g_vpu_clk_devs);
 
 #ifdef CONFIG_ION_HOBOT
 	dev->vpu_ion_client = ion_client_create(ion_exynos, "vpu");
@@ -4477,6 +4573,13 @@ static int vpu_remove(struct platform_device *pdev)
 	iounmap(dev->regs_base);
 	release_mem_region(dev->vpu_mem->start, resource_size(dev->vpu_mem));
 	hb_vpu_final_pm(dev->device);
+
+	device_destroy(g_vpu_clk_devs->class,
+			MKDEV(MAJOR(g_vpu_clk_devs->devno), 0));
+	class_destroy(g_vpu_clk_devs->class);
+	cdev_del(&g_vpu_clk_devs->cdev);
+	unregister_chrdev_region(g_vpu_clk_devs->devno, 1);
+	kfree(g_vpu_clk_devs);
 
 	return 0;
 }
