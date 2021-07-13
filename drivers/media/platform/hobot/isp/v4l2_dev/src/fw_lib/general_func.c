@@ -894,7 +894,8 @@ static int general_temper_init( general_fsm_ptr_t p_fsm )
 
     p_ctx = acamera_get_ctx_ptr(p_fsm->p_fsm_mgr->ctx_id);
     sensor_fsm_ptr_t sensor_fsm = (sensor_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_SENSOR]->p_fsm);
-    const sensor_param_t *param = sensor_fsm->ctrl.get_parameters( sensor_fsm->sensor_ctx );
+    sensor_param_t param;
+    sensor_fsm->ctrl.get_parameters(sensor_fsm->sensor_ctx, &param);
 
     if (p_fsm->temper_dw == TEMPER_BIT12) {
         bytes_factor = 4;
@@ -910,8 +911,8 @@ static int general_temper_init( general_fsm_ptr_t p_fsm )
 
     for ( i = 0; i < TEMPER_FRAMES_NO; i++ ) {
         temper_frame = &p_fsm->temper_frames[i];
-        temper_frame->width = param->active.width;
-        temper_frame->height = param->active.height;
+        temper_frame->width = param.active.width;
+        temper_frame->height = param.active.height;
         temper_frame->line_offset = (temper_frame->width * bytes_factor / 2 + alignment - 1 ) & ~( alignment - 1 );
         temper_frame->size = temper_frame->height * temper_frame->line_offset * cnt_per_dma;
     }

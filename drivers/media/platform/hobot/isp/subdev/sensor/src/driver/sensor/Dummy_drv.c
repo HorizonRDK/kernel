@@ -294,35 +294,34 @@ static uint16_t sensor_get_id( void *ctx )
     return 0xFFFF;
 }
 
-static const sensor_param_t *sensor_get_parameters( void *ctx )
+static void sensor_get_parameters(void *ctx, sensor_param_t *param)
 {
 	sensor_context_t *p_ctx = ctx;
 
-	sensor_param_t *param = &p_ctx->param;
+	sensor_param_t *info = &p_ctx->param;
 	struct _setting_param_t sensor_param;
 
-	if (sensor_ops[p_ctx->channel] != NULL) {
+	if ((sensor_ops[p_ctx->channel] != NULL) && (info)) {
 		sensor_ops[p_ctx->channel]->sesor_get_para(p_ctx->channel, &sensor_param);
 		if (sensor_param.lines_per_second && sensor_param.exposure_time_max) {
 			sensor_ops[p_ctx->channel]->param_enable = 1;
-			param->lines_per_second = sensor_param.lines_per_second;
-			param->integration_time_min = sensor_param.exposure_time_min;
-			param->integration_time_max = sensor_param.exposure_time_max;
-			param->integration_time_limit = sensor_param.exposure_time_max;
-			param->integration_time_long_max = sensor_param.exposure_time_long_max;
-			param->dgain_log2_max = sensor_param.digital_gain_max;
-			param->again_log2_max = sensor_param.analog_gain_max;
+			info->lines_per_second = sensor_param.lines_per_second;
+			info->integration_time_min = sensor_param.exposure_time_min;
+			info->integration_time_max = sensor_param.exposure_time_max;
+			info->integration_time_limit = sensor_param.exposure_time_max;
+			info->integration_time_long_max = sensor_param.exposure_time_long_max;
+			info->dgain_log2_max = sensor_param.digital_gain_max;
+			info->again_log2_max = sensor_param.analog_gain_max;
 			if (sensor_param.fps) {
-				p_ctx->supported_modes[param->mode].fps = sensor_param.fps;
+				p_ctx->supported_modes[info->mode].fps = sensor_param.fps;
 			} else {
-				p_ctx->supported_modes[param->mode].fps = 2560;
+				p_ctx->supported_modes[info->mode].fps = 2560;
 			}
 		} else {
 			sensor_ops[p_ctx->channel]->param_enable = 0;
 		}
 	}
-
-	return (const sensor_param_t *)&p_ctx->param;
+	memcpy(param, info, sizeof(sensor_param_t));
 }
 
 static void sensor_disable_isp( void *ctx )
@@ -520,7 +519,7 @@ void sensor_init_dummy(uint32_t ctx_id, void **ctx, sensor_control_t *ctrl )
         ctrl->alloc_integration_time = sensor_alloc_integration_time;
         ctrl->sensor_update = sensor_update;
         ctrl->set_mode = sensor_set_mode;
-		ctrl->set_sensor_type = sensor_set_type; 
+		ctrl->set_sensor_type = sensor_set_type;
         ctrl->get_id = sensor_get_id;
         ctrl->get_parameters = sensor_get_parameters;
         ctrl->disable_sensor_isp = sensor_disable_isp;

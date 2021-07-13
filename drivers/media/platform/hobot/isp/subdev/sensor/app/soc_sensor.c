@@ -150,7 +150,8 @@ static long camera_ioctl( struct v4l2_subdev *sd, unsigned int cmd, void *arg )
     }
 
     sns_param_awb_cfg_t awb_info;
-    const sensor_param_t *params = ctx->camera_control.get_parameters( ctx->camera_context );
+    sensor_param_t params;
+    ctx->camera_control.get_parameters(ctx->camera_context, &params);
 
     switch ( cmd ) {
     case SOC_SENSOR_STREAMING_ON:
@@ -194,124 +195,124 @@ static long camera_ioctl( struct v4l2_subdev *sd, unsigned int cmd, void *arg )
         break;
     case SOC_SENSOR_GET_PRESET_NUM:
         ARGS_TO_PTR( arg )
-            ->args.general.val_out = params->modes_num;
+            ->args.general.val_out = params.modes_num;
         break;
     case SOC_SENSOR_GET_PRESET_CUR:
         ARGS_TO_PTR( arg )
-            ->args.general.val_out = params->mode;
+            ->args.general.val_out = params.mode;
         break;
     case SOC_SENSOR_GET_PRESET_TYPE:
         ARGS_TO_PTR( arg )
-            ->args.general.val_out = params->sensor_type;
+            ->args.general.val_out = params.sensor_type;
         break;
     case SOC_SENSOR_GET_PRESET_WIDTH: {
         int preset = ARGS_TO_PTR( arg )->args.general.val_in;
-        if ( preset < params->modes_num ) {
+        if ( preset < params.modes_num ) {
             ARGS_TO_PTR( arg )
-                ->args.general.val_out = params->modes_table[preset].resolution.width;
+                ->args.general.val_out = params.modes_table[preset].resolution.width;
         } else {
-            LOG( LOG_ERR, "Preset number is invalid. Available %d presets, requested %d", params->modes_num, preset );
+            LOG( LOG_ERR, "Preset number is invalid. Available %d presets, requested %d", params.modes_num, preset );
             rc = -1;
         }
     } break;
     case SOC_SENSOR_GET_PRESET_HEIGHT: {
         int preset = ARGS_TO_PTR( arg )->args.general.val_in;
-        if ( preset < params->modes_num ) {
+        if ( preset < params.modes_num ) {
             ARGS_TO_PTR( arg )
-                ->args.general.val_out = params->modes_table[preset].resolution.height;
+                ->args.general.val_out = params.modes_table[preset].resolution.height;
         } else {
-            LOG( LOG_ERR, "Preset number is invalid. Available %d presets, requested %d", params->modes_num, preset );
+            LOG( LOG_ERR, "Preset number is invalid. Available %d presets, requested %d", params.modes_num, preset );
             rc = -1;
         }
     } break;
     case SOC_SENSOR_GET_PRESET_FPS: {
         int preset = ARGS_TO_PTR( arg )->args.general.val_in;
-        if ( preset < params->modes_num ) {
+        if ( preset < params.modes_num ) {
             ARGS_TO_PTR( arg )
-                ->args.general.val_out = params->modes_table[preset].fps;
+                ->args.general.val_out = params.modes_table[preset].fps;
         } else {
-            LOG( LOG_ERR, "Preset number is invalid. Available %d presets, requested %d", params->modes_num, preset );
+            LOG( LOG_ERR, "Preset number is invalid. Available %d presets, requested %d", params.modes_num, preset );
             rc = -1;
         }
     } break;
     case SOC_SENSOR_GET_SENSOR_BITS: {
         int preset = ARGS_TO_PTR( arg )->args.general.val_in;
-        if ( preset < params->modes_num ) {
+        if ( preset < params.modes_num ) {
             ARGS_TO_PTR( arg )
-                ->args.general.val_out = params->modes_table[preset].bits;
+                ->args.general.val_out = params.modes_table[preset].bits;
         } else {
-            LOG( LOG_ERR, "Preset number is invalid. Available %d presets, requested %d", params->modes_num, preset );
+            LOG( LOG_ERR, "Preset number is invalid. Available %d presets, requested %d", params.modes_num, preset );
             rc = -1;
         }
     } break;
     case SOC_SENSOR_GET_PRESET_EXP: {
         int preset = ARGS_TO_PTR( arg )->args.general.val_in;
-        if ( preset < params->modes_num ) {
+        if ( preset < params.modes_num ) {
             ARGS_TO_PTR( arg )
-                ->args.general.val_out = params->modes_table[preset].exposures;
+                ->args.general.val_out = params.modes_table[preset].exposures;
         } else {
-            LOG( LOG_ERR, "Preset number is invalid. Available %d presets, requested %d", params->modes_num, preset );
+            LOG( LOG_ERR, "Preset number is invalid. Available %d presets, requested %d", params.modes_num, preset );
             rc = -1;
         }
     } break;
     case SOC_SENSOR_GET_PRESET_MODE: {
         int preset = ARGS_TO_PTR( arg )->args.general.val_in;
-        if ( preset < params->modes_num ) {
+        if ( preset < params.modes_num ) {
             ARGS_TO_PTR( arg )
-                ->args.general.val_out = params->modes_table[preset].wdr_mode;
+                ->args.general.val_out = params.modes_table[preset].wdr_mode;
         } else {
-            LOG( LOG_ERR, "Preset number is invalid. Available %d presets, requested %d", params->modes_num, preset );
+            LOG( LOG_ERR, "Preset number is invalid. Available %d presets, requested %d", params.modes_num, preset );
             rc = -1;
         }
     } break;
     case SOC_SENSOR_GET_EXP_NUMBER:
         ARGS_TO_PTR( arg )
-            ->args.general.val_out = params->sensor_exp_number;
+            ->args.general.val_out = params.sensor_exp_number;
         break;
     case SOC_SENSOR_GET_INTEGRATION_TIME_MAX:
         ARGS_TO_PTR( arg )
-            ->args.general.val_out = params->integration_time_max;
+            ->args.general.val_out = params.integration_time_max;
         break;
     case SOC_SENSOR_GET_INTEGRATION_TIME_MIN:
         ARGS_TO_PTR( arg )
-            ->args.general.val_out = params->integration_time_min;
+            ->args.general.val_out = params.integration_time_min;
         break;
     case SOC_SENSOR_GET_INTEGRATION_TIME_LONG_MAX:
         ARGS_TO_PTR( arg )
-            ->args.general.val_out = params->integration_time_long_max;
+            ->args.general.val_out = params.integration_time_long_max;
         break;
     case SOC_SENSOR_GET_INTEGRATION_TIME_LIMIT:
         ARGS_TO_PTR( arg )
-            ->args.general.val_out = params->integration_time_limit;
+            ->args.general.val_out = params.integration_time_limit;
         break;
     case SOC_SENSOR_GET_ANALOG_GAIN_MAX:
         ARGS_TO_PTR( arg )
-            ->args.general.val_out = params->again_log2_max;
+            ->args.general.val_out = params.again_log2_max;
         break;
     case SOC_SENSOR_GET_DIGITAL_GAIN_MAX:
         ARGS_TO_PTR( arg )
-            ->args.general.val_out = params->dgain_log2_max;
+            ->args.general.val_out = params.dgain_log2_max;
         break;
     case SOC_SENSOR_GET_UPDATE_LATENCY:
         ARGS_TO_PTR( arg )
-            ->args.general.val_out = params->integration_time_apply_delay;
+            ->args.general.val_out = params.integration_time_apply_delay;
         break;
     case SOC_SENSOR_GET_LINES_PER_SECOND:
         ARGS_TO_PTR( arg )
-            ->args.general.val_out = params->lines_per_second;
+            ->args.general.val_out = params.lines_per_second;
         break;
     case SOC_SENSOR_GET_FPS: {
         int mode = ARGS_TO_PTR( arg )->args.general.val_in;
         ARGS_TO_PTR( arg )
-            ->args.general.val_out = params->modes_table[mode].fps;
+            ->args.general.val_out = params.modes_table[mode].fps;
     } break;
     case SOC_SENSOR_GET_ACTIVE_HEIGHT: {
         ARGS_TO_PTR( arg )
-            ->args.general.val_out = params->active.height;
+            ->args.general.val_out = params.active.height;
     } break;
     case SOC_SENSOR_GET_ACTIVE_WIDTH: {
         ARGS_TO_PTR( arg )
-            ->args.general.val_out = params->active.width;
+            ->args.general.val_out = params.active.width;
     } break;
     default:
         LOG( LOG_WARNING, "Unknown soc sensor ioctl cmd %d", cmd );

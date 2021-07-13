@@ -62,9 +62,10 @@ extern int isp_init_iridix(uint32_t ctx_id, uint32_t ctrl_val);
 
 void sensor_init_output( sensor_fsm_ptr_t p_fsm, int mode )
 {
-    const sensor_param_t *param = p_fsm->ctrl.get_parameters( p_fsm->sensor_ctx );
+    sensor_param_t param;
+    p_fsm->ctrl.get_parameters(p_fsm->sensor_ctx, &param);
     if ( ( mode != 720 ) && ( mode != 1080 ) ) {
-        if ( param->active.height >= 1080 ) {
+        if ( param.active.height >= 1080 ) {
             mode = 1080;
         } else {
             mode = 720;
@@ -72,7 +73,7 @@ void sensor_init_output( sensor_fsm_ptr_t p_fsm, int mode )
     }
 
     // decrease output mode to 720p if active_height < mode
-    if ( mode > param->active.height )
+    if ( mode > param.active.height )
         mode = 720;
 
     p_fsm->isp_output_mode = mode;
@@ -88,7 +89,8 @@ uint32_t sensor_boot_init( sensor_fsm_ptr_t p_fsm )
 
 #if USER_MODULE
     uint32_t idx = 0;
-    sensor_param_t *param = (sensor_param_t *)p_fsm->ctrl.get_parameters( p_fsm->sensor_ctx );
+    sensor_param_t param;
+    p_fsm->ctrl.get_parameters(p_fsm->sensor_ctx, &param);
     struct sensor_info ksensor_info;
     acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_KSENSOR_INFO, NULL, 0, &ksensor_info, sizeof( ksensor_info ) );
 
@@ -124,11 +126,12 @@ void sensor_hw_init( sensor_fsm_ptr_t p_fsm )
     p_fsm->ctrl.disable_sensor_isp( p_fsm->sensor_ctx );
 
     // 2): set to wdr_mode through general router (wdr_mode changed in sensor param in 1st step).
-    const sensor_param_t *param = p_fsm->ctrl.get_parameters( p_fsm->sensor_ctx );
+    sensor_param_t param;
+    p_fsm->ctrl.get_parameters(p_fsm->sensor_ctx, &param);
 
     fsm_param_set_wdr_param_t set_wdr_param;
-    set_wdr_param.wdr_mode = param->modes_table[param->mode].wdr_mode;
-    set_wdr_param.exp_number = param->modes_table[param->mode].exposures;
+    set_wdr_param.wdr_mode = param.modes_table[param.mode].wdr_mode;
+    set_wdr_param.exp_number = param.modes_table[param.mode].exposures;
     acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_WDR_MODE, &set_wdr_param, sizeof( set_wdr_param ) );
 
     // 3): Init or update the calibration data.
@@ -141,27 +144,28 @@ void sensor_hw_init( sensor_fsm_ptr_t p_fsm )
 void sensor_sw_init( sensor_fsm_ptr_t p_fsm )
 {
     uint8_t bitwidth;
-    const sensor_param_t *param = p_fsm->ctrl.get_parameters( p_fsm->sensor_ctx );
+    sensor_param_t param;
+    p_fsm->ctrl.get_parameters(p_fsm->sensor_ctx, &param);
 
 #if FW_DO_INITIALIZATION
     /* sensor resolution */
-    acamera_isp_top_active_width_write( p_fsm->cmn.isp_base, param->active.width );
-    acamera_isp_top_active_height_write( p_fsm->cmn.isp_base, param->active.height );
+    acamera_isp_top_active_width_write( p_fsm->cmn.isp_base, param.active.width );
+    acamera_isp_top_active_height_write( p_fsm->cmn.isp_base, param.active.height );
 
-    acamera_isp_metering_af_active_width_write( p_fsm->cmn.isp_base, param->active.width );
-    acamera_isp_metering_af_active_height_write( p_fsm->cmn.isp_base, param->active.height );
+    acamera_isp_metering_af_active_width_write( p_fsm->cmn.isp_base, param.active.width );
+    acamera_isp_metering_af_active_height_write( p_fsm->cmn.isp_base, param.active.height );
 
-    acamera_isp_lumvar_active_width_write( p_fsm->cmn.isp_base, param->active.width );
-    acamera_isp_lumvar_active_height_write( p_fsm->cmn.isp_base, param->active.height );
-    bitwidth = (param->modes_table[param->mode].bits - 8) / 2;
+    acamera_isp_lumvar_active_width_write( p_fsm->cmn.isp_base, param.active.width );
+    acamera_isp_lumvar_active_height_write( p_fsm->cmn.isp_base, param.active.height );
+    bitwidth = (param.modes_table[param.mode].bits - 8) / 2;
     if (bitwidth == 6)
         bitwidth = 5;
     if (0 <= bitwidth && bitwidth <= 5)
         acamera_isp_input_formatter_input_bitwidth_select_write(p_fsm->cmn.isp_base, bitwidth);
 /*
-    acamera_isp_input_port_hc_size0_write( p_fsm->cmn.isp_base, param->active.width );
-    acamera_isp_input_port_hc_size1_write( p_fsm->cmn.isp_base, param->active.width );
-    acamera_isp_input_port_vc_size_write( p_fsm->cmn.isp_base, param->active.height );
+    acamera_isp_input_port_hc_size0_write( p_fsm->cmn.isp_base, param.active.width );
+    acamera_isp_input_port_hc_size1_write( p_fsm->cmn.isp_base, param.active.width );
+    acamera_isp_input_port_vc_size_write( p_fsm->cmn.isp_base, param.active.height );
 */
     sensor_init_output( p_fsm, p_fsm->isp_output_mode );
 #endif //FW_DO_INITIALIZATION
@@ -170,46 +174,47 @@ void sensor_sw_init( sensor_fsm_ptr_t p_fsm )
 
     sensor_update_black( p_fsm );
 
-	isp_init_iridix(p_fsm->cmn.ctx_id, param->modes_table[param->mode].wdr_mode);
+	isp_init_iridix(p_fsm->cmn.ctx_id, param.modes_table[param.mode].wdr_mode);
 
     isp_v4l2_update_ctx(p_fsm->cmn.ctx_id);
 
     pr_debug("Sensor initialization is complete, ID 0x%04X resolution %dx%d",
-        p_fsm->ctrl.get_id( p_fsm->sensor_ctx ), param->active.width, param->active.height);
+        p_fsm->ctrl.get_id( p_fsm->sensor_ctx ), param.active.width, param.active.height);
 }
 
 
 void isp_input_port_size_config(sensor_fsm_ptr_t p_fsm)
 {
-	const sensor_param_t *param = p_fsm->ctrl.get_parameters(p_fsm->sensor_ctx);
+    sensor_param_t param;
+    p_fsm->ctrl.get_parameters(p_fsm->sensor_ctx, &param);
     acamera_context_t *ptr = acamera_get_ctx_ptr(p_fsm->cmn.ctx_id);
 
 
-    if ((ptr->inport.xoffset < param->active.width &&
-        ptr->inport.xoffset + param->active.width <= ptr->inport.xtotal) == 0) {
+    if ((ptr->inport.xoffset < param.active.width &&
+        ptr->inport.xoffset + param.active.width <= ptr->inport.xtotal) == 0) {
             ptr->inport.xoffset = 0;
     }
 
-    if ((ptr->inport.yoffset < param->active.height &&
-        ptr->inport.yoffset + param->active.height <= ptr->inport.ytotal) == 0) {
+    if ((ptr->inport.yoffset < param.active.height &&
+        ptr->inport.yoffset + param.active.height <= ptr->inport.ytotal) == 0) {
             ptr->inport.yoffset = 0;
     }
 
     pr_debug("xtotal %d, ytotal %d, xoffset %d, yoffset %d, xactive %d, yactive %d\n",
         ptr->inport.xtotal, ptr->inport.ytotal,
         ptr->inport.xoffset, ptr->inport.yoffset,
-        param->active.width, param->active.height);
+        param.active.width, param.active.height);
 
 	acamera_isp_input_port_freeze_config_write(p_fsm->cmn.isp_base, 1);
 
     acamera_isp_input_port_hc_start0_write(p_fsm->cmn.isp_base, ptr->inport.xoffset);
-	acamera_isp_input_port_hc_size0_write(p_fsm->cmn.isp_base, param->active.width);
+	acamera_isp_input_port_hc_size0_write(p_fsm->cmn.isp_base, param.active.width);
 
     acamera_isp_input_port_hc_start1_write(p_fsm->cmn.isp_base, ptr->inport.xoffset);
-	acamera_isp_input_port_hc_size1_write(p_fsm->cmn.isp_base, param->active.width);
+	acamera_isp_input_port_hc_size1_write(p_fsm->cmn.isp_base, param.active.width);
 
     acamera_isp_input_port_vc_start_write(p_fsm->cmn.isp_base, ptr->inport.yoffset);
-	acamera_isp_input_port_vc_size_write(p_fsm->cmn.isp_base, param->active.height);
+	acamera_isp_input_port_vc_size_write(p_fsm->cmn.isp_base, param.active.height);
 
 	acamera_isp_input_port_freeze_config_write(p_fsm->cmn.isp_base, 0);
 }
@@ -242,8 +247,9 @@ void sensor_update_black( sensor_fsm_ptr_t p_fsm )
 	 * support native 12/14/ -> 14/16/18/20
 	 * note native 8/10 -> 14/16/18 is not support
 	 */
-	const sensor_param_t *sensor_param = p_fsm->ctrl.get_parameters(p_fsm->sensor_ctx);
-	uint8_t sensor_bits = sensor_param->modes_table[sensor_param->mode].bits;
+	sensor_param_t sensor_param;
+	p_fsm->ctrl.get_parameters(p_fsm->sensor_ctx, &sensor_param);
+	uint8_t sensor_bits = sensor_param.modes_table[sensor_param.mode].bits;
 	uint8_t sensor_decomp_bits = p_fsm->sensor_decomp_bits;
 	uint8_t sensor_blc_shfit_wb = BLACK_LEVEL_SHIFT_WB;
 	uint8_t sensor_blc_shfit_dg = BLACK_LEVEL_SHIFT_DG;
@@ -337,8 +343,9 @@ void sensor_update_black( sensor_fsm_ptr_t p_fsm )
 
 uint32_t sensor_get_lines_second( sensor_fsm_ptr_t p_fsm )
 {
-    const sensor_param_t *param = p_fsm->ctrl.get_parameters( p_fsm->sensor_ctx );
-    return param->lines_per_second;
+    sensor_param_t param;
+    p_fsm->ctrl.get_parameters(p_fsm->sensor_ctx, &param);
+    return param.lines_per_second;
 }
 
 void sensor_deinit( sensor_fsm_ptr_t p_fsm )

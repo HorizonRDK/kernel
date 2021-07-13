@@ -239,7 +239,7 @@ typedef struct _sensor_control_t {
      *
      *   @param ctx - pointer to the sensor context
      */
-    const sensor_param_t *( *get_parameters )( void *ctx );
+    void (*get_parameters)(void *ctx, sensor_param_t *param);
 
 
     /**

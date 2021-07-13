@@ -420,7 +420,7 @@ static int update_cur_calibration_to_sbuf( void *fw_instance, struct sbuf_mgr *p
 int update_preset_mode_to_sbuf(uint8_t ctx_id)
 {
     struct sbuf_context *p_ctx;
-    const sensor_param_t *param = NULL;
+    sensor_param_t param;
     struct sbuf_mgr *p_sbuf_mgr;
 
     if (ctx_id >= FIRMWARE_CONTEXT_NUMBER) {
@@ -436,19 +436,19 @@ int update_preset_mode_to_sbuf(uint8_t ctx_id)
     }
 
     p_sbuf_mgr = &p_ctx->sbuf_mgr;
-    acamera_fsm_mgr_get_param( p_ctx->p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_SENSOR_PARAM, NULL, 0, &param, sizeof( param ) );
+    acamera_fsm_mgr_get_param( p_ctx->p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_SENSOR_PARAM, NULL, 0, &param, sizeof(sensor_param_t));
 
-    if ( param ) {
+    if (1) {
         uint32_t idx = 0;
         uint32_t valid_modes_num = 0;
-        valid_modes_num = param->modes_num;
+        valid_modes_num = param.modes_num;
 
         if ( valid_modes_num > ISP_MAX_SENSOR_MODES ) {
             valid_modes_num = ISP_MAX_SENSOR_MODES;
         }
 
         for ( idx = 0; idx < valid_modes_num; idx++ ) {
-            p_sbuf_mgr->sbuf_base->kf_info.sensor_info.modes[idx] = param->modes_table[idx];
+            p_sbuf_mgr->sbuf_base->kf_info.sensor_info.modes[idx] = param.modes_table[idx];
 
             pr_debug( "Sensor_mode[%d]: wdr_mode: %d, exp: %d.", idx,
                  p_sbuf_mgr->sbuf_base->kf_info.sensor_info.modes[idx].wdr_mode,
@@ -1884,20 +1884,20 @@ LOG( LOG_INFO, "sbuf_iridix_t size: %lu.", sizeof( struct sbuf_iridix)*4);
     }
 
     /* prepare sensor_info */
-    const sensor_param_t *param = NULL;
-    acamera_fsm_mgr_get_param( p_ctx->p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_SENSOR_PARAM, NULL, 0, &param, sizeof( param ) );
+    sensor_param_t param;
+    acamera_fsm_mgr_get_param( p_ctx->p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_SENSOR_PARAM, NULL, 0, &param, sizeof(sensor_param_t) );
 
-    if ( param ) {
+    if (1) {
         uint32_t idx = 0;
         uint32_t valid_modes_num = 0;
-        valid_modes_num = param->modes_num;
+        valid_modes_num = param.modes_num;
 
         if ( valid_modes_num > ISP_MAX_SENSOR_MODES ) {
             valid_modes_num = ISP_MAX_SENSOR_MODES;
         }
 
         for ( idx = 0; idx < valid_modes_num; idx++ ) {
-            p_sbuf_mgr->sbuf_base->kf_info.sensor_info.modes[idx] = param->modes_table[idx];
+            p_sbuf_mgr->sbuf_base->kf_info.sensor_info.modes[idx] = param.modes_table[idx];
 
             LOG( LOG_INFO, "Sensor_mode[%d]: wdr_mode: %d, exp: %d.", idx,
                  p_sbuf_mgr->sbuf_base->kf_info.sensor_info.modes[idx].wdr_mode,

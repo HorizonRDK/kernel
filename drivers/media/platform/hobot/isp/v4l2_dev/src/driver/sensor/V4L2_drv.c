@@ -17,6 +17,7 @@
 *
 */
 
+#include <linux/seqlock.h>
 #include "acamera_types.h"
 #include "acamera_logger.h"
 #include "acamera_sensor_api.h"
@@ -35,7 +36,7 @@ typedef struct _sensor_context_t {
     sensor_mode_t supported_modes[ISP_MAX_SENSOR_MODES];
     struct v4l2_subdev *soc_sensor;
     sensor_param_t tuning_param;//add ie&e
-    uint32_t update_flag;
+    seqlock_t m_lock;
 } sensor_context_t;
 
 static sensor_context_t s_ctx[FIRMWARE_CONTEXT_NUMBER];
@@ -103,35 +104,35 @@ static void sensor_init_tuning_parameters(void *ctx)
 }
 
 //add ie&e
-static void sensor_update_tuning_parameters(void *ctx)
+static void sensor_update_tuning_parameters(void *ctx, sensor_param_t *param)
 {
 	sensor_context_t *p_ctx = ctx;
 
 	LOG(LOG_INFO, "update tuning parameters.");
 
-	if(p_ctx != NULL) {
+	if((p_ctx != NULL) && (param != NULL)) {
 		if(p_ctx->tuning_param.again_log2_max > 0) {
-			p_ctx->param.again_log2_max =
+			param->again_log2_max =
 				p_ctx->tuning_param.again_log2_max;
 		}
 		if(p_ctx->tuning_param.dgain_log2_max > 0) {
-			p_ctx->param.dgain_log2_max =
+			param->dgain_log2_max =
 				p_ctx->tuning_param.dgain_log2_max;
 		}
 		if(p_ctx->tuning_param.integration_time_max > 0) {
-			p_ctx->param.integration_time_max =
+			param->integration_time_max =
 				p_ctx->tuning_param.integration_time_max;
 		}
 		if(p_ctx->tuning_param.integration_time_long_max > 0) {
-			p_ctx->param.integration_time_long_max =
+			param->integration_time_long_max =
 				p_ctx->tuning_param.integration_time_long_max;
 		}
 		if(p_ctx->tuning_param.integration_time_min < 0xffffffe) {
-			p_ctx->param.integration_time_min =
+			param->integration_time_min =
 				p_ctx->tuning_param.integration_time_min;
 		}
 		if(p_ctx->tuning_param.integration_time_limit > 0) {
-			p_ctx->param.integration_time_limit =
+			param->integration_time_limit =
 				p_ctx->tuning_param.integration_time_limit;
 		}
 	} else {
@@ -140,12 +141,12 @@ static void sensor_update_tuning_parameters(void *ctx)
 }
 
 
-static void sensor_update_parameters( void *ctx )
+static void sensor_update_parameters(void *ctx, sensor_param_t *param)
 {
     sensor_context_t *p_ctx = ctx;
     int32_t rc = 0;
     //int32_t result = 0;
-    if ( p_ctx != NULL ) {
+    if ((p_ctx != NULL) && (param != NULL)) {
         struct soc_sensor_ioctl_args settings;
         struct v4l2_subdev *sd = p_ctx->soc_sensor;
         uint32_t ctx_num = get_ctx_num( ctx );
@@ -154,80 +155,80 @@ static void sensor_update_parameters( void *ctx )
             settings.ctx_num = ctx_num;
             // Initial local parameters
             rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_EXP_NUMBER, &settings );
-            p_ctx->param.sensor_exp_number = settings.args.general.val_out;
+            param->sensor_exp_number = settings.args.general.val_out;
 
             rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_ANALOG_GAIN_MAX, &settings );
-            p_ctx->param.again_log2_max = settings.args.general.val_out;
+            param->again_log2_max = settings.args.general.val_out;
 
             rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_DIGITAL_GAIN_MAX, &settings );
-            p_ctx->param.dgain_log2_max = settings.args.general.val_out;
+            param->dgain_log2_max = settings.args.general.val_out;
 
             rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_UPDATE_LATENCY, &settings );
-            p_ctx->param.integration_time_apply_delay = settings.args.general.val_out;
+            param->integration_time_apply_delay = settings.args.general.val_out;
 
             rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_INTEGRATION_TIME_MIN, &settings );
-            p_ctx->param.integration_time_min = settings.args.general.val_out;
+            param->integration_time_min = settings.args.general.val_out;
 
             rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_INTEGRATION_TIME_MAX, &settings );
-            p_ctx->param.integration_time_max = settings.args.general.val_out;
+            param->integration_time_max = settings.args.general.val_out;
 
             rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_INTEGRATION_TIME_LONG_MAX, &settings );
-            p_ctx->param.integration_time_long_max = settings.args.general.val_out;
+            param->integration_time_long_max = settings.args.general.val_out;
 
             rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_INTEGRATION_TIME_LIMIT, &settings );
-            p_ctx->param.integration_time_limit = settings.args.general.val_out;
+            param->integration_time_limit = settings.args.general.val_out;
 
             rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_LINES_PER_SECOND, &settings );
-            p_ctx->param.lines_per_second = settings.args.general.val_out;
+            param->lines_per_second = settings.args.general.val_out;
 
             rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_ACTIVE_HEIGHT, &settings );
-            p_ctx->param.active.height = settings.args.general.val_out;
+            param->active.height = settings.args.general.val_out;
 
             rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_ACTIVE_WIDTH, &settings );
-            p_ctx->param.active.width = settings.args.general.val_out;
+            param->active.width = settings.args.general.val_out;
 
-            p_ctx->param.isp_exposure_channel_delay = 0;
+            param->isp_exposure_channel_delay = 0;
 
             rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_PRESET_NUM, &settings );
-            p_ctx->param.modes_num = settings.args.general.val_out;
+            param->modes_num = settings.args.general.val_out;
 
             rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_PRESET_CUR, &settings );
-            p_ctx->param.mode = settings.args.general.val_out;
+            param->mode = settings.args.general.val_out;
 
             rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_PRESET_TYPE, &settings );
-            p_ctx->param.sensor_type = settings.args.general.val_out;
+            param->sensor_type = settings.args.general.val_out;
 
-	    if ( p_ctx->param.modes_num > ISP_MAX_SENSOR_MODES ) {
-                p_ctx->param.modes_num = ISP_MAX_SENSOR_MODES;
-                LOG( LOG_WARNING, "Exceed maximum supported presets. Sensor driver returned %d but maximum is %d", p_ctx->param.modes_num, ISP_MAX_SENSOR_MODES );
+	    if ( param->modes_num > ISP_MAX_SENSOR_MODES ) {
+                param->modes_num = ISP_MAX_SENSOR_MODES;
+                LOG( LOG_WARNING, "Exceed maximum supported presets. Sensor driver returned %d but maximum is %d", param->modes_num, ISP_MAX_SENSOR_MODES );
             }
 
 
-            p_ctx->param.modes_table = p_ctx->supported_modes;
+            param->modes_table = p_ctx->supported_modes;
 
             int32_t idx = 0;
-            for ( idx = 0; idx < p_ctx->param.modes_num; idx++ ) {
+            for ( idx = 0; idx < param->modes_num; idx++ ) {
                 settings.args.general.val_in = idx;
                 rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_PRESET_WIDTH, &settings );
-                p_ctx->param.modes_table[idx].resolution.width = settings.args.general.val_out;
+                param->modes_table[idx].resolution.width = settings.args.general.val_out;
 
                 rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_PRESET_HEIGHT, &settings );
-                p_ctx->param.modes_table[idx].resolution.height = settings.args.general.val_out;
+                param->modes_table[idx].resolution.height = settings.args.general.val_out;
 
                 rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_PRESET_FPS, &settings );
-                p_ctx->param.modes_table[idx].fps = settings.args.general.val_out;
+                param->modes_table[idx].fps = settings.args.general.val_out;
 
                 rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_PRESET_EXP, &settings );
-                p_ctx->param.modes_table[idx].exposures = settings.args.general.val_out;
+                param->modes_table[idx].exposures = settings.args.general.val_out;
 
                 rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_PRESET_MODE, &settings );
-                p_ctx->param.modes_table[idx].wdr_mode = settings.args.general.val_out;
+                param->modes_table[idx].wdr_mode = settings.args.general.val_out;
 
                 rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_SENSOR_BITS, &settings );
-                p_ctx->param.modes_table[idx].bits = settings.args.general.val_out;
+                param->modes_table[idx].bits = settings.args.general.val_out;
             }
 
-            p_ctx->param.sensor_ctx = p_ctx;
+            param->sensor_ctx = p_ctx;
 
         } else {
             LOG( LOG_ERR, "SOC sensor subdev pointer is NULL" );
@@ -394,8 +395,10 @@ static void sensor_set_mode( void *ctx, uint8_t mode )
             settings.args.general.val_in = mode;
             int rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_SET_PRESET, &settings );
             if ( rc == 0 ) {
-                sensor_update_parameters( p_ctx );
-		sensor_update_tuning_parameters(p_ctx);//add ie&e
+                sensor_update_parameters(p_ctx, &p_ctx->param);
+		write_seqlock(&p_ctx->m_lock);
+		sensor_update_tuning_parameters(p_ctx, &p_ctx->param);//add ie&e
+		write_sequnlock(&p_ctx->m_lock);
             } else {
                 LOG( LOG_ERR, "Failed to set mode. rc = %d", rc );
             }
@@ -426,8 +429,10 @@ static void sensor_set_type( void *ctx, uint8_t sensor_type, uint8_t sensor_i2c_
             int rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_SET_TYPE, &settings );
             if ( rc == 0 ) {
 		sensor_init_tuning_parameters(p_ctx);
-                sensor_update_parameters( p_ctx );
-		sensor_update_tuning_parameters(p_ctx);//add ie&e
+                sensor_update_parameters(p_ctx, &p_ctx->param);
+		write_seqlock(&p_ctx->m_lock);
+		sensor_update_tuning_parameters(p_ctx, &p_ctx->param);//add ie&e
+		write_sequnlock(&p_ctx->m_lock);
             } else {
                 LOG( LOG_ERR, "Failed to set sensor type. rc = %d", rc );
             }
@@ -442,18 +447,19 @@ static void sensor_set_type( void *ctx, uint8_t sensor_type, uint8_t sensor_i2c_
 }
 
 
-static const sensor_param_t *sensor_get_parameters( void *ctx )
+static void sensor_get_parameters(void *ctx, sensor_param_t *param )
 {
     sensor_context_t *p_ctx = ctx;
+    unsigned long seq;
 
-    //sensor_init_tuning_parameters(p_ctx);
-    if (p_ctx->update_flag == 0) {
-	p_ctx->update_flag = 1;
-	sensor_update_parameters(p_ctx);
-	sensor_update_tuning_parameters(p_ctx);//add ie&e
+    if (param) {
+	//sensor_init_tuning_parameters(p_ctx);
+        sensor_update_parameters(p_ctx, param);
+	do {
+		seq = read_seqbegin(&p_ctx->m_lock);
+		sensor_update_tuning_parameters(p_ctx, param);//add ie&e
+	} while (read_seqretry(&p_ctx->m_lock, seq));
     }
-
-    return (const sensor_param_t *)&p_ctx->param;
 }
 
 //add ie&e
@@ -462,8 +468,9 @@ static void sensor_set_parameters(void *ctx, uint32_t cmd, uint32_t data)
 	sensor_context_t *p_ctx = ctx;
 
 	if(ctx != NULL) {
-		sensor_update_parameters(p_ctx);//get sensor info
+                sensor_update_parameters(p_ctx, &p_ctx->param);
 
+		write_seqlock(&p_ctx->m_lock);
 		switch (cmd) {
 		case SET_AGAIN_MAX: {
 			if(data > p_ctx->param.again_log2_max) {
@@ -523,7 +530,8 @@ static void sensor_set_parameters(void *ctx, uint32_t cmd, uint32_t data)
 		default:
 		break;
 		}
-		sensor_update_tuning_parameters(p_ctx);
+		sensor_update_tuning_parameters(p_ctx, &p_ctx->param);//add ie&e
+		write_sequnlock(&p_ctx->m_lock);
 		LOG(LOG_INFO, " set sensor tuning param");
 	} else {
 		LOG(LOG_ERR, "Sensor context pointer is NULL");
@@ -643,7 +651,6 @@ void sensor_deinit_v4l2( void *ctx, uint8_t ctx_id )
             LOG( LOG_ERR, "ctx num %d is invalid.", ctx_id);
             return;
         }
-	p_ctx->update_flag = 0;
         int rc = v4l2_subdev_call( p_ctx->soc_sensor, core, reset, ctx_id );
         if ( rc != 0 ) {
             LOG( LOG_ERR, "Failed to reset soc_sensor. core->reset failed with rc %d", rc );
@@ -686,8 +693,7 @@ void sensor_init_v4l2( void **ctx, sensor_control_t *ctrl, uint8_t ctx_id )
         p_ctx->param.modes_num = 0;
 
         *ctx = p_ctx;
-	p_ctx->update_flag = 0;
-
+	seqlock_init(&p_ctx->m_lock);
         p_ctx->soc_sensor = acamera_camera_v4l2_get_subdev_by_name( V4L2_SOC_SENSOR_NAME );
         if ( p_ctx->soc_sensor == NULL ) {
             LOG( LOG_CRIT, "Sensor bridge cannot be initialized before soc_sensor subdev is available. Pointer is null" );
@@ -700,7 +706,7 @@ void sensor_init_v4l2( void **ctx, sensor_control_t *ctrl, uint8_t ctx_id )
             return;
         }
 
-        sensor_update_parameters( p_ctx );
+        sensor_update_parameters(p_ctx, &p_ctx->param);
 	sensor_init_tuning_parameters(p_ctx);//add ie&e
     } else {
         LOG( LOG_ERR, "Attempt to initialize more sensor instances than was configured. Sensor initialization failed." );

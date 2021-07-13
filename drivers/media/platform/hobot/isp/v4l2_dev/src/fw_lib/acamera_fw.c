@@ -381,14 +381,14 @@ int32_t acamera_update_calibration_set( acamera_context_ptr_t p_ctx )
 	uint32_t sensor_type = 0;
     if ( p_ctx->settings.get_calibrations != NULL ) {
         {
-            const sensor_param_t *param = NULL;
-            acamera_fsm_mgr_get_param( &p_ctx->fsm_mgr, FSM_PARAM_GET_SENSOR_PARAM, NULL, 0, &param, sizeof( param ) );
+            sensor_param_t param;
+            acamera_fsm_mgr_get_param( &p_ctx->fsm_mgr, FSM_PARAM_GET_SENSOR_PARAM, NULL, 0, &param, sizeof(sensor_param_t) );
 
-            uint32_t cur_mode = param->mode;
-            if ( cur_mode < param->modes_num ) {
-                sensor_arg = &( param->modes_table[cur_mode] );
+            uint32_t cur_mode = param.mode;
+            if ( cur_mode < param.modes_num ) {
+                sensor_arg = &( param.modes_table[cur_mode] );
             }
-		sensor_type = param->sensor_type;
+		sensor_type = param.sensor_type;
         }
         if ( p_ctx->settings.get_calibrations( p_ctx->context_id, sensor_arg, &p_ctx->acameraCalibrations, sensor_type ) != 0 ) {
             LOG( LOG_ERR, "Failed to get calibration set for. Fatal error" );
@@ -439,14 +439,14 @@ int32_t acamera_init_calibrations( acamera_context_ptr_t p_ctx )
         acamera_update_calibration_set( p_ctx );
     } else {
         if ( p_ctx->settings.get_calibrations != NULL ) {
-            const sensor_param_t *param = NULL;
-            acamera_fsm_mgr_get_param( &p_ctx->fsm_mgr, FSM_PARAM_GET_SENSOR_PARAM, NULL, 0, &param, sizeof( param ) );
+            sensor_param_t param;
+            acamera_fsm_mgr_get_param( &p_ctx->fsm_mgr, FSM_PARAM_GET_SENSOR_PARAM, NULL, 0, &param, sizeof(sensor_param_t) );
 
-            uint32_t cur_mode = param->mode;
-            if ( cur_mode < param->modes_num ) {
-                sensor_arg = &( param->modes_table[cur_mode] );
+            uint32_t cur_mode = param.mode;
+            if ( cur_mode < param.modes_num ) {
+                sensor_arg = &( param.modes_table[cur_mode] );
             }
-		sensor_type = param->sensor_type;
+		sensor_type = param.sensor_type;
             if ( p_ctx->settings.get_calibrations( p_ctx->context_id, sensor_arg, &p_ctx->acameraCalibrations, sensor_type ) != 0 ) {
                 LOG( LOG_ERR, "Failed to get calibration set for. Fatal error" );
             }

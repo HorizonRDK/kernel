@@ -104,49 +104,49 @@ int sensor_fsm_get_param( void *fsm, uint32_t param_id, void *input, uint32_t in
         break;
 
     case FSM_PARAM_GET_SENSOR_INFO: {
-        const sensor_param_t *param;
+        sensor_param_t param;
         if ( !output || output_size != sizeof( fsm_param_sensor_info_t ) ) {
             LOG( LOG_ERR, "Invalid param, param_id: %d.", param_id );
             rc = -1;
             break;
         }
 
-        param = p_fsm->ctrl.get_parameters( p_fsm->sensor_ctx );
+        p_fsm->ctrl.get_parameters(p_fsm->sensor_ctx, &param);
         fsm_param_sensor_info_t *p_sensor_info = (fsm_param_sensor_info_t *)output;
 
-        p_sensor_info->total_width = param->total.width;
-        p_sensor_info->total_height = param->total.height;
-        p_sensor_info->active_width = param->active.width;
-        p_sensor_info->active_height = param->active.height;
-        p_sensor_info->pixels_per_line = param->pixels_per_line;
-        p_sensor_info->lines_per_second = param->lines_per_second;
+        p_sensor_info->total_width = param.total.width;
+        p_sensor_info->total_height = param.total.height;
+        p_sensor_info->active_width = param.active.width;
+        p_sensor_info->active_height = param.active.height;
+        p_sensor_info->pixels_per_line = param.pixels_per_line;
+        p_sensor_info->lines_per_second = param.lines_per_second;
 
-        p_sensor_info->again_log2_max = param->again_log2_max;
-        p_sensor_info->dgain_log2_max = param->dgain_log2_max;
-        p_sensor_info->integration_time_min = param->integration_time_min;
-        p_sensor_info->integration_time_max = param->integration_time_max;
-        p_sensor_info->integration_time_long_max = param->integration_time_long_max;
-        p_sensor_info->integration_time_limit = param->integration_time_limit;
+        p_sensor_info->again_log2_max = param.again_log2_max;
+        p_sensor_info->dgain_log2_max = param.dgain_log2_max;
+        p_sensor_info->integration_time_min = param.integration_time_min;
+        p_sensor_info->integration_time_max = param.integration_time_max;
+        p_sensor_info->integration_time_long_max = param.integration_time_long_max;
+        p_sensor_info->integration_time_limit = param.integration_time_limit;
 
-        p_sensor_info->integration_time_apply_delay = param->integration_time_apply_delay;
-        p_sensor_info->sensor_exp_number = param->sensor_exp_number;
-        p_sensor_info->isp_exposure_channel_delay = param->isp_exposure_channel_delay;
+        p_sensor_info->integration_time_apply_delay = param.integration_time_apply_delay;
+        p_sensor_info->sensor_exp_number = param.sensor_exp_number;
+        p_sensor_info->isp_exposure_channel_delay = param.isp_exposure_channel_delay;
 
         p_sensor_info->isp_output_mode = p_fsm->isp_output_mode;
         p_sensor_info->resolution_mode = p_fsm->mode;
         p_sensor_info->black_level = p_fsm->black_level;
-        p_sensor_info->sensor_bits = param->modes_table[param->mode].bits;
+        p_sensor_info->sensor_bits = param.modes_table[param.mode].bits;
         break;
     }
 
     case FSM_PARAM_GET_SENSOR_PARAM:
-        if ( !output || output_size != sizeof( sensor_param_t ** ) ) {
+        if ( !output || output_size != sizeof(sensor_param_t) ) {
             LOG( LOG_ERR, "Invalid param, param_id: %d.", param_id );
             rc = -1;
             break;
         }
 
-        *( (const sensor_param_t **)output ) = p_fsm->ctrl.get_parameters( p_fsm->sensor_ctx );
+        p_fsm->ctrl.get_parameters(p_fsm->sensor_ctx, output);
 
         break;
 
@@ -185,8 +185,9 @@ int sensor_fsm_get_param( void *fsm, uint32_t param_id, void *input, uint32_t in
     case FSM_PARAM_GET_SENSOR_MAX_RESOLUTION: {
         image_resolution_t *max_res = (image_resolution_t *)output;
         image_resolution_t *cur_res;
-        const sensor_param_t *sensor_param = p_fsm->ctrl.get_parameters( p_fsm->sensor_ctx );
-        sensor_mode_t *modes_table = sensor_param->modes_table;
+        sensor_param_t sensor_param;
+	p_fsm->ctrl.get_parameters(p_fsm->sensor_ctx, &sensor_param);
+        sensor_mode_t *modes_table = sensor_param.modes_table;
         uint32_t max_size = 0, size_res;
         int i;
 
@@ -201,7 +202,7 @@ int sensor_fsm_get_param( void *fsm, uint32_t param_id, void *input, uint32_t in
             break;
         }
 
-        for (i = 0; i < sensor_param->modes_num; i++) {
+        for (i = 0; i < sensor_param.modes_num; i++) {
             cur_res = &modes_table[i].resolution;
             size_res = (uint32_t)cur_res->width * cur_res->height;
             if (size_res > max_size) {
