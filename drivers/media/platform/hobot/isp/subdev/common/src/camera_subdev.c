@@ -31,6 +31,8 @@
 #include <linux/module.h>
 #include <media/v4l2-subdev.h>
 #include <media/v4l2-async.h>
+#include <linux/gpio.h>
+#include <linux/delay.h>
 
 #include "inc/camera_dev.h"
 #include "inc/camera_ctrl.h"
@@ -47,6 +49,55 @@ typedef struct _camera_subdev_ctx {
 
 static camera_subdev_ctx *camera_ctx;
 static event_header_t event_header;
+
+static int camera_gpio_request(u32 gpio)
+{
+	int ret = 0;
+	char gpio_name[CAMERA_GPIO_NAME_LENGTH];
+
+	memset(gpio_name, 0, CAMERA_GPIO_NAME_LENGTH);
+	snprintf(gpio_name, CAMERA_GPIO_NAME_LENGTH, "gpio_%d", gpio);
+
+	pr_info("gpio %d gpio_name %s-----\n", gpio, gpio_name);
+	ret = gpio_request(gpio, gpio_name);
+	if (ret < 0) {
+		pr_err("gpio %d request failed!", gpio);
+		goto err_request;
+	}
+	ret = gpio_direction_output(gpio, 0);
+	if (ret < 0) {
+		pr_err("gpio %d set direction failed!", gpio);
+		gpio_free(gpio);
+		goto err_set;
+	}
+	return ret;
+err_set:
+	gpio_free(gpio);
+err_request:
+	return ret;
+}
+
+int camera_gpio_info_config(gpio_info_t *gpio_info)
+{
+	int ret = 0;
+	u32 gpio = gpio_info->gpio;
+	u32 gpio_level = gpio_info->gpio_level;
+
+	ret = camera_gpio_request(gpio);
+	if(ret < 0) {
+		pr_err("line %d gpio_request error gpio %d\n",
+				__LINE__, gpio);
+		return -1;
+	}
+	if(GPIO_HIGH == gpio_level) {
+		gpio_set_value(gpio, 1);
+	} else {
+		gpio_set_value(gpio, 0);
+	}
+	mdelay(5);
+	gpio_free(gpio);
+	return ret;
+}
 
 static int camera_subdev_status(struct v4l2_subdev *sd)
 {

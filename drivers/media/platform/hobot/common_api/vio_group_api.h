@@ -310,5 +310,6 @@ extern void vio_irq_affinity_set(int irq, enum MOD_ID id, int suspend);
 
 extern struct class *vps_class;
 extern ulong sif_mclk_freq;
+extern void ips_sif_mclk_set(u32 sif_mclk);
 
 #endif

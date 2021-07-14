@@ -17,6 +17,10 @@
 #define V4L2_CAMERA_NAME "camera"
 #define CAMERA_SENSOR_NAME  20
 
+#define GPIO_HIGH	1
+#define GPIO_LOW	0
+#define CAMERA_GPIO_NAME_LENGTH 20
+
 #include <linux/list.h>
 #include <linux/workqueue.h>
 
@@ -222,6 +226,13 @@ typedef struct {
 	uint32_t cmd;
 	sensor_priv_t priv_param;
 } event_node_t;
+
+typedef struct camera_gpio_info_t {
+	uint32_t gpio;
+	uint32_t gpio_level;
+} gpio_info_t;
+
+int camera_gpio_info_config(gpio_info_t *gpio_info);
 
 #endif // DRIVERS_MEDIA_PLATFORM_HOBOT_ISP_SUBDEV_COMMON_INC_CAMERA_SUBDEV_H_
 

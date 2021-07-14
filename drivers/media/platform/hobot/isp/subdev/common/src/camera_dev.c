@@ -168,10 +168,10 @@ static long camera_fop_ioctl(struct file *pfile, unsigned int cmd,
 				return -EINVAL;
 			}
 			if (camera_cdev->start_num == 1)
-				pr_info("ioctl sensor start %d start_num %d\n",
+				pr_info("ioctl set start cnt %d start_num %d\n",
 					__LINE__, camera_cdev->start_num);
 			if (camera_cdev->start_num == 0)
-				pr_info("ioctl sensor stop %d start_num %d\n",
+				pr_info("ioctl set start cnt %d start_num %d\n",
 					__LINE__, camera_cdev->start_num);
 			break;
 		case SENSOR_GET_START_CNT:
@@ -189,10 +189,10 @@ static long camera_fop_ioctl(struct file *pfile, unsigned int cmd,
 				return -EINVAL;
 			}
 			if (camera_cdev->init_num == 1)
-				pr_info("ioctl sensor start %d start_num %d\n",
+				pr_info("ioctl set init cnt %d init_num %d\n",
 					__LINE__, camera_cdev->init_num);
 			if (camera_cdev->init_num == 0)
-				pr_info("ioctl sensor stop %d start_num %d\n",
+				pr_info("ioctl set init cnt %d init_num %d\n",
 					__LINE__, camera_cdev->init_num);
 			break;
 		case SENSOR_GET_INIT_CNT:
@@ -252,6 +252,24 @@ static long camera_fop_ioctl(struct file *pfile, unsigned int cmd,
 				return -EINVAL;
 			}
 			pr_err("ae_share %d \n", camera_cdev->ae_share_flag);
+			break;
+		case SENSOR_GPIO_CONTROL: {
+				gpio_info_t gpio_info;
+				if (arg == 0) {
+					pr_err("arg is null !\n");
+					return -EINVAL;
+				}
+				if (copy_from_user((void *)&gpio_info, (void __user *)arg,
+					sizeof(gpio_info_t))) {
+					pr_err("gpio_info_t copy is err !\n");
+					return -EINVAL;
+				}
+				ret = camera_gpio_info_config(&gpio_info);
+				if(ret < 0) {
+					pr_err("camera_gpio_info_config err !\n");
+					return -EINVAL;
+				}
+			}
 			break;
 		default: {
 			pr_err("ioctl cmd is err \n");

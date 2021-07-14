@@ -46,6 +46,7 @@
 #define SIF_IOC_MD_DISENABLE	 _IO(SIF_IOC_MAGIC, 13)
 #define SIF_IOC_ORDER            _IOWR(SIF_IOC_MAGIC, 14, struct user_seq_info)
 #define SIF_STOP_WAKE_UP	     _IO(SIF_IOC_MAGIC, 15)
+#define SIF_IOC_MCLK_SET	     _IOW(SIF_IOC_MAGIC, 16, u32)
 
 
 #define VIO_MP_IOC_MAGIC 'm'

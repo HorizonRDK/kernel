@@ -62,6 +62,12 @@ struct vio_clk vio_clk_list[] = {
 	REGISTER_CLK("sensor3_mclk"),
 };
 
+void ips_sif_mclk_set(u32 sif_mclk)
+{
+	sif_mclk_freq = sif_mclk;
+}
+EXPORT_SYMBOL_GPL(ips_sif_mclk_set);
+
 void ips_set_module_reset(unsigned long module)
 {
 	unsigned long flags;

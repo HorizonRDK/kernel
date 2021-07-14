@@ -55,4 +55,6 @@ int vio_clk_enable(const char *name);
 int vio_clk_disable(const char *name);
 int vio_set_clk_rate(const char *name, ulong frequency);
 ulong vio_get_clk_rate(const char *name);
+void ips_sif_mclk_set(u32 sif_mclk);
+
 #endif

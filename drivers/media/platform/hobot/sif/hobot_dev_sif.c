@@ -993,7 +993,10 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 	subdev = sif_ctx->subdev;
 	if (sif_ctx->state & BIT(VIO_VIDEO_OPEN)) {
 		vio_info("[V%d] %s: only open.\n", sif_ctx->id, __func__);
-		atomic_dec(&sif->open_cnt);
+		if (atomic_dec_return(&sif->open_cnt) == 0) {
+			ips_set_clk_ctrl(SIF_CLOCK_GATE, false);
+			pm_qos_remove_request(&sif_pm_qos_req);
+		}
 		kfree(sif_ctx);
 		return 0;
 	}
@@ -2304,6 +2307,16 @@ static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 		if (ret)
 			return -EFAULT;
 		sif_video_user_stats(sif_ctx, &stats);
+		break;
+	case SIF_IOC_MCLK_SET: {
+			u32 sif_mclk;
+
+			if (!arg || get_user(sif_mclk, (uint32_t *)arg)) {
+				vio_err("get data from user failed");
+				return -EFAULT;
+			}
+			ips_sif_mclk_set(sif_mclk);
+		}
 		break;
 	default:
 		vio_err("wrong ioctl command\n");
