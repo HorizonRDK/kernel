@@ -887,35 +887,26 @@ static ssize_t all_read_ctl_show(struct device_driver *drv, char *buf)
 }
 
 
-static struct driver_attribute cpu_read_ctl = __ATTR(cpu, 0664,
-						   cpu_read_ctl_show,
-						   cpu_read_ctl_store);
-static struct driver_attribute bifdma_read_ctl = __ATTR(bifdma, 0664,
-						      bifdma_read_ctl_show,
-						      bifdma_read_ctl_store);
-static struct driver_attribute bpu0_read_ctl = __ATTR(bpu0, 0664,
-						    bpu0_read_ctl_show,
-						    bpu0_read_ctl_store);
-static struct driver_attribute bpu1_read_ctl = __ATTR(bpu1, 0664,
-						    bpu1_read_ctl_show,
-						    bpu1_read_ctl_store);
-static struct driver_attribute vio0_read_ctl    = __ATTR(vio0, 0664,
-						      vio0_read_ctl_show,
-						      vio0_read_ctl_store);
+static struct driver_attribute cpu_read_ctl = __ATTR(cpu, 0444,
+						   cpu_read_ctl_show, NULL);
+static struct driver_attribute bifdma_read_ctl = __ATTR(bifdma, 0444,
+						   bifdma_read_ctl_show, NULL);
+static struct driver_attribute bpu0_read_ctl = __ATTR(bpu0, 0444,
+						   bpu0_read_ctl_show, NULL);
+static struct driver_attribute bpu1_read_ctl = __ATTR(bpu1, 0444,
+						   bpu1_read_ctl_show, NULL);
+static struct driver_attribute vio0_read_ctl = __ATTR(vio0, 0444,
+						   vio0_read_ctl_show, NULL);
 #ifdef CONFIG_HOBOT_XJ3
-static struct driver_attribute vpu_read_ctl    = __ATTR(vpu, 0664,
-						      vpu_read_ctl_show,
-						      vpu_read_ctl_store);
-static struct driver_attribute vio1_read_ctl    = __ATTR(vio1, 0664,
-						      vio1_read_ctl_show,
-						      vio1_read_ctl_store);
+static struct driver_attribute vpu_read_ctl = __ATTR(vpu, 0444,
+						   vpu_read_ctl_show, NULL);
+static struct driver_attribute vio1_read_ctl = __ATTR(vio1, 0444,
+						   vio1_read_ctl_show, NULL);
 #endif
-static struct driver_attribute periph_read_ctl = __ATTR(peri, 0664,
-						      periph_read_ctl_show,
-						      periph_read_ctl_store);
-static struct driver_attribute all_read_ctl    = __ATTR(all, 0664,
-						      all_read_ctl_show,
-						      all_read_ctl_store);
+static struct driver_attribute periph_read_ctl = __ATTR(peri, 0444,
+						   periph_read_ctl_show, NULL);
+static struct driver_attribute all_read_ctl = __ATTR(all, 0444,
+						   all_read_ctl_show, NULL);
 
 static struct attribute *read_qctrl_attrs[] = {
 	&cpu_read_ctl.attr,
@@ -1228,36 +1219,27 @@ static ssize_t all_write_ctl_show(struct device_driver *drv, char *buf)
 }
 
 
-static struct driver_attribute cpu_write_ctl = __ATTR(cpu, 0664,
-						    cpu_write_ctl_show,
-						    cpu_write_ctl_store);
-static struct driver_attribute bifdma_write_ctl = __ATTR(bifdma, 0664,
-						       bifdma_write_ctl_show,
-						       bifdma_write_ctl_store);
-static struct driver_attribute bpu0_write_ctl = __ATTR(bpu0, 0664,
-						     bpu0_write_ctl_show,
-						     bpu0_write_ctl_store);
-static struct driver_attribute bpu1_write_ctl = __ATTR(bpu1, 0664,
-						     bpu1_write_ctl_show,
-						     bpu1_write_ctl_store);
-static struct driver_attribute vio0_write_ctl    = __ATTR(vio0, 0664,
-						       vio0_write_ctl_show,
-						       vio0_write_ctl_store);
+static struct driver_attribute cpu_write_ctl = __ATTR(cpu, 0444,
+						    cpu_write_ctl_show, NULL);
+static struct driver_attribute bifdma_write_ctl = __ATTR(bifdma, 0444,
+						    bifdma_write_ctl_show, NULL);
+static struct driver_attribute bpu0_write_ctl = __ATTR(bpu0, 0444,
+						    bpu0_write_ctl_show, NULL);
+static struct driver_attribute bpu1_write_ctl = __ATTR(bpu1, 0444,
+						    bpu1_write_ctl_show, NULL);
+static struct driver_attribute vio0_write_ctl    = __ATTR(vio0, 0444,
+						    vio0_write_ctl_show, NULL);
 #ifdef CONFIG_HOBOT_XJ3
-static struct driver_attribute vpu_write_ctl    = __ATTR(vpu, 0664,
-						       vpu_write_ctl_show,
-						       vpu_write_ctl_store);
-static struct driver_attribute vio1_write_ctl    = __ATTR(vio1, 0664,
-						       vio1_write_ctl_show,
-						       vio1_write_ctl_store);
+static struct driver_attribute vpu_write_ctl = __ATTR(vpu, 0444,
+						    vpu_write_ctl_show, NULL);
+static struct driver_attribute vio1_write_ctl = __ATTR(vio1, 0444,
+						    vio1_write_ctl_show, NULL);
 #endif
 
-static struct driver_attribute periph_write_ctl = __ATTR(peri, 0664,
-						       periph_write_ctl_show,
-						       periph_write_ctl_store);
-static struct driver_attribute all_write_ctl    = __ATTR(all, 0664,
-						       all_write_ctl_show,
-						       all_write_ctl_store);
+static struct driver_attribute periph_write_ctl = __ATTR(peri, 0444,
+						    periph_write_ctl_show, NULL);
+static struct driver_attribute all_write_ctl    = __ATTR(all, 0444,
+						    all_write_ctl_show, NULL);
 
 static struct attribute *write_qctl_attrs[] = {
 	&cpu_write_ctl.attr,
@@ -1407,14 +1389,6 @@ static int ddr_monitor_probe(struct platform_device *pdev)
 	ddr_monitor_cdev_create();
 	init_waitqueue_head(&ddrmon->wq_head);
 	spin_lock_init(&ddrmon->lock);
-
-#ifdef CONFIG_HOBOT_XJ3
-	writel(0x04032211, ddrmon->regaddr + DDR_PORT_READ_QOS_CTRL);
-	writel(0x04032211, ddrmon->regaddr + DDR_PORT_WRITE_QOS_CTRL);
-#else
-	writel(0x21100, ddrmon->regaddr + DDR_PORT_READ_QOS_CTRL);
-	writel(0x21100, ddrmon->regaddr + DDR_PORT_WRITE_QOS_CTRL);
-#endif
 
 	ddrmon->ddr_mclk = devm_clk_get(&pdev->dev, "ddr_mclk");
 	if (IS_ERR(ddrmon->ddr_mclk)) {
