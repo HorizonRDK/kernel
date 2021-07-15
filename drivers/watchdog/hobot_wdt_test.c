@@ -34,6 +34,8 @@ enum {
 static u8 mode_map[NR_CPUS];
 
 struct dentry *dent;
+static DECLARE_WAIT_QUEUE_HEAD(wait_queue);
+static int condition = 0;
 
 static int wdt_test_deadloop_kthread(void *arg)
 {
@@ -99,6 +101,30 @@ static void wdt_test_trigger_deadloop(u32 cpu_mask)
 	}
 }
 
+static int hung_task_kthread(void *dummy)
+{
+	while (!kthread_should_stop()) {
+		wait_event(wait_queue, condition == 1);
+	}
+
+	return 0;
+}
+
+static int wdt_test_trigger_hungtask(void)
+{
+	struct task_struct *hung_task;
+
+	pr_info("create hung_task kthread\n");
+
+	hung_task = kthread_run(hung_task_kthread, NULL, "hung_task_kthread");
+	if (hung_task == NULL) {
+		pr_err("kthread_run error!\n");
+		return -1;
+	}
+
+	return 0;
+}
+
 static int wdt_test_show(struct seq_file *s, void *unused)
 {
 	seq_printf(s, "Usage:   deadloop cpu_mask irq_disable_mask\n");
@@ -109,6 +135,8 @@ static int wdt_test_show(struct seq_file *s, void *unused)
 	seq_printf(s, "         deadloop 1100 0000"
 						"   deadloop on cpu0 and cpu1 with irq enabled\n");
 
+	seq_printf(s, "         hungtask 0"
+						"   create hungtask no wait\n");
 	return 0;
 }
 
@@ -138,36 +166,38 @@ static ssize_t wdt_test_write(struct file *file, const char __user *buf, size_t 
 	if (!token)
 		return -EINVAL;
 
-	if (strcmp(token, "deadloop"))
-		return -EINVAL;
-
-	/* Get arg: 'cpumask' */
-	token = strsep(&ptr, " ");
-	if (!token)
-		return -EINVAL;
-
-	for (i = 0; i < NR_CPUS; i++) {
-		if (token[i] != '0' && token[i] != '1' )
-			return -EINVAL;
-		if (token[i] == '1')
-			cpu_mask |= BIT(i);
-	}
-
-	/* Get arg: 'irqmask' */
-	token = strsep(&ptr, " ");
-	if (!token)
-		return -EINVAL;
-
-	for (i = 0; i < NR_CPUS; i++) {
-		if(token[i] < '0')
+	if (strcmp(token, "deadloop") == 0) {
+		/* Get arg: 'cpumask' */
+		token = strsep(&ptr, " ");
+		if (!token)
 			return -EINVAL;
 
-		if (cpu_mask & BIT(i))
-			mode_map[i] = token[i] - '0';
+		for (i = 0; i < NR_CPUS; i++) {
+			if (token[i] != '0' && token[i] != '1' )
+				return -EINVAL;
+			if (token[i] == '1')
+				cpu_mask |= BIT(i);
+		}
+
+		/* Get arg: 'irqmask' */
+		token = strsep(&ptr, " ");
+		if (!token)
+			return -EINVAL;
+
+		for (i = 0; i < NR_CPUS; i++) {
+			if(token[i] < '0')
+			return -EINVAL;
+
+			if (cpu_mask & BIT(i))
+				mode_map[i] = token[i] - '0';
+		}
+
+		wdt_test_trigger_deadloop(cpu_mask);
+	} else if (strcmp(token, "hungtask") == 0) {
+		wdt_test_trigger_hungtask();
+	} else {
+		return -EINVAL;
 	}
-
-	wdt_test_trigger_deadloop(cpu_mask);
-
 
 	return size;
 }
