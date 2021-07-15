@@ -132,10 +132,12 @@ int32_t bpu_stat_reset(struct bpu *bpu)
 	struct bpu_core *tmp_core;
 	struct bpu_fc_group *tmp_fc_group;
 	struct bpu_user *tmp_user;
+	unsigned long flags;/*PRQA S ALL*/
 	unsigned long group_flags;/*PRQA S ALL*/
 	unsigned long user_flags;/*PRQA S ALL*/
 	int32_t ret;
 
+	spin_lock_irqsave(&bpu->spin_lock, flags);/*PRQA S ALL*/
 	/* reset the global slowest time in reset period */
 	bpu->slow_task_time = 0u;
 	/* reset the bpu core */
@@ -144,7 +146,7 @@ int32_t bpu_stat_reset(struct bpu *bpu)
 		if (tmp_core != NULL) {
 			ret = bpu_core_stat_reset(tmp_core);
 			if (ret != 0) {
-				mutex_unlock(&bpu->mutex_lock);
+				spin_unlock_irqrestore(&bpu->spin_lock, flags);
 				pr_err("bpu core[%d] stat reset failed\n", tmp_core->index);/*PRQA S ALL*/
 				return ret;
 			}
@@ -170,6 +172,7 @@ int32_t bpu_stat_reset(struct bpu *bpu)
 			spin_unlock_irqrestore(&tmp_user->spin_lock, user_flags);
 		}
 	}
+	spin_unlock_irqrestore(&bpu->spin_lock, flags);
 
 	return 0;
 }

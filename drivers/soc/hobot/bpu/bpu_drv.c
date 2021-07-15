@@ -65,7 +65,9 @@ static struct bpu_fc_group *bpu_find_group(uint32_t group_id)
 	struct bpu_fc_group *tmp_group;
 	struct bpu_fc_group *group = NULL;
 	struct list_head *pos, *pos_n;
+	unsigned long flags;/*PRQA S ALL*/
 
+	spin_lock_irqsave(&g_bpu->spin_lock, flags);/*PRQA S ALL*/
 	list_for_each_safe(pos, pos_n, &g_bpu->group_list) {/*PRQA S ALL*/
 		tmp_group = (struct bpu_fc_group *)pos;/*PRQA S ALL*/
 		if (tmp_group != NULL) {
@@ -75,6 +77,7 @@ static struct bpu_fc_group *bpu_find_group(uint32_t group_id)
 			}
 		}
 	}
+	spin_unlock_irqrestore(&g_bpu->spin_lock, flags);
 
 	return group;
 }
@@ -82,6 +85,7 @@ static struct bpu_fc_group *bpu_find_group(uint32_t group_id)
 static struct bpu_fc_group *bpu_create_group(uint32_t group_id)
 {
 	struct bpu_fc_group *tmp_group;
+	unsigned long flags;/*PRQA S ALL*/
 
 	tmp_group = bpu_find_group(group_id);
 	if (tmp_group == NULL) {
@@ -99,7 +103,10 @@ static struct bpu_fc_group *bpu_create_group(uint32_t group_id)
 		}
 
 		spin_lock_init(&tmp_group->spin_lock);/*PRQA S ALL*/
+
+		spin_lock_irqsave(&g_bpu->spin_lock, flags);/*PRQA S ALL*/
 		list_add((struct list_head *)tmp_group, &g_bpu->group_list);/*PRQA S ALL*/
+		spin_unlock_irqrestore(&g_bpu->spin_lock, flags);
 	} else {
 		pr_info("BPU already have group[%d]\n", group_id);/*PRQA S ALL*/
 	}
@@ -107,15 +114,12 @@ static struct bpu_fc_group *bpu_create_group(uint32_t group_id)
 	return tmp_group;
 }
 
-static void bpu_delete_group(uint32_t group_id)
+static void bpu_delete_group(struct bpu_fc_group *group)
 {
-	struct bpu_fc_group *tmp_group;
-
-	tmp_group = bpu_find_group(group_id);
-	if (tmp_group != NULL) {
-		kfifo_free(&tmp_group->buffer_fc_fifo);/*PRQA S ALL*/
-		list_del((struct list_head *)tmp_group);/*PRQA S ALL*/
-		kfree((void *)tmp_group);/*PRQA S ALL*/
+	if (group != NULL) {
+		kfifo_free(&group->buffer_fc_fifo);/*PRQA S ALL*/
+		list_del((struct list_head *)group);/*PRQA S ALL*/
+		kfree((void *)group);/*PRQA S ALL*/
 	}
 }
 
@@ -483,6 +487,7 @@ static long bpu_ioctl(struct file *filp,/*PRQA S ALL*/
 	struct bpu_core *tmp_core;
 
 	struct bpu_group tmp_group;
+	unsigned long flags;/*PRQA S ALL*/
 	uint32_t ratio;
 	uint64_t core;
 	uint16_t cap;
@@ -499,7 +504,9 @@ static long bpu_ioctl(struct file *filp,/*PRQA S ALL*/
 		group = bpu_find_group(tmp_group.group_id);
 		if (group != NULL) {
 			if (tmp_group.prop <= 0u) {
-				bpu_delete_group(tmp_group.group_id);
+				spin_lock_irqsave(&g_bpu->spin_lock, flags);/*PRQA S ALL*/
+				bpu_delete_group(group);
+				spin_unlock_irqrestore(&g_bpu->spin_lock, flags);
 				break;
 			}
 			group->proportion = (int32_t)tmp_group.prop;
@@ -656,6 +663,7 @@ static int bpu_open(struct inode *inode, struct file *filp)/*PRQA S ALL*/
 {
 	struct bpu *bpu = (struct bpu *)container_of(filp->private_data, struct bpu, miscdev);/*PRQA S ALL*/
 	struct bpu_user *user;
+	unsigned long flags;/*PRQA S ALL*/
 	int32_t ret;
 
 	if (atomic_read(&bpu->open_counter) == 0) {/*PRQA S ALL*/
@@ -686,12 +694,14 @@ static int bpu_open(struct inode *inode, struct file *filp)/*PRQA S ALL*/
 	init_waitqueue_head(&user->poll_wait);/*PRQA S ALL*/
 	user->host = (void *)bpu;/*PRQA S ALL*/
 	user->p_file_private = &filp->private_data;
-	list_add((struct list_head *)user, &g_bpu->user_list);/*PRQA S ALL*/
 	spin_lock_init(&user->spin_lock);/*PRQA S ALL*/
 	mutex_init(&user->mutex_lock);/*PRQA S ALL*/
 	init_completion(&user->no_task_comp);/*PRQA S ALL*/
 	user->is_alive = 1;
 	user->running_task_num = 0;
+	spin_lock_irqsave(&bpu->spin_lock, flags);/*PRQA S ALL*/
+	list_add((struct list_head *)user, &g_bpu->user_list);/*PRQA S ALL*/
+	spin_unlock_irqrestore(&bpu->spin_lock, flags);
 	/* replace user the private to store user */
 	filp->private_data = user;/*PRQA S ALL*/
 
@@ -725,7 +735,7 @@ static int bpu_release(struct inode *inode, struct file *filp)/*PRQA S ALL*/
 		list_for_each_safe(pos, pos_n, &g_bpu->group_list) {/*PRQA S ALL*/
 			tmp_group = (struct bpu_fc_group *)pos;/*PRQA S ALL*/
 			if (tmp_group != NULL) {
-				bpu_delete_group(tmp_group->id);
+				bpu_delete_group(tmp_group);
 			}
 		}
 		spin_unlock_irqrestore(&bpu->spin_lock, flags);

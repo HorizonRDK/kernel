@@ -386,6 +386,7 @@ static int bpu_core_open(struct inode *inode, struct file *filp)/*PRQA S ALL*/
 	struct bpu_core *core =
 		(struct bpu_core *)container_of(filp->private_data, struct bpu_core, miscdev);/*PRQA S ALL*/
 	struct bpu_user *user;
+	unsigned long flags; /*PRQA S ALL*/
 	int32_t ret;
 	uint32_t i;
 
@@ -441,12 +442,14 @@ static int bpu_core_open(struct inode *inode, struct file *filp)/*PRQA S ALL*/
 	init_waitqueue_head(&user->poll_wait);/*PRQA S ALL*/
 	user->host = (void *)core;/*PRQA S ALL*/
 	user->p_file_private = &filp->private_data;
-	list_add((struct list_head *)user, &core->user_list);/*PRQA S ALL*/
 	spin_lock_init(&user->spin_lock);/*PRQA S ALL*/
 	mutex_init(&user->mutex_lock);/*PRQA S ALL*/
 	init_completion(&user->no_task_comp);/*PRQA S ALL*/
 	user->is_alive = 1;
 	user->running_task_num = 0;
+	spin_lock_irqsave(&core->spin_lock, flags);/*PRQA S ALL*/
+	list_add((struct list_head *)user, &core->user_list);/*PRQA S ALL*/
+	spin_unlock_irqrestore(&core->spin_lock, flags);
 	/* replace user the private to store user */
 	filp->private_data = (void *)user;/*PRQA S ALL*/
 
