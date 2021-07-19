@@ -248,8 +248,8 @@ static int dwe_v4l2_streamon(void *priv, enum v4l2_buf_type i)
 	int rc = 0;
 	dwe_charmod_s *sp = priv;
 
-	if (dwe_v4l2_is_q_busy(&sp->vb2_q))
-		return -EBUSY;
+	if (dwe_v4l2_is_q_busy(&sp->vb2_q)) /*PRQA S 2992 ++*/
+		return -EBUSY; /*PRQA S 2880 ++*/
 
 	rc = vb2_streamon(&sp->vb2_q, i);
 	if (rc != 0) {
@@ -268,7 +268,7 @@ static int dwe_v4l2_streamoff(void *priv, enum v4l2_buf_type i)
 	int rc = 0;
 	dwe_charmod_s *sp = priv;
 
-	if (dwe_v4l2_is_q_busy(&sp->vb2_q))
+	if (dwe_v4l2_is_q_busy(&sp->vb2_q)) /*PRQA S 2992 ++*/
 		return -EBUSY;
 	/* vb streamoff */
 	rc = vb2_streamoff(&sp->vb2_q, i);
@@ -283,8 +283,8 @@ static int dwe_v4l2_reqbufs(void *priv, struct v4l2_requestbuffers *p)
 	int ret = 0;
 	dwe_charmod_s *sp = priv;
 
-	if (dwe_v4l2_is_q_busy(&sp->vb2_q))
-		return -EBUSY;
+	if (dwe_v4l2_is_q_busy(&sp->vb2_q)) /*PRQA S 2992 ++*/
+		return -EBUSY; /*PRQA S 2880 ++*/
 
 	LOG(LOG_INFO, "count %d, type %d, memory %d",
 		p->count, p->type, p->memory);
@@ -304,8 +304,8 @@ static int dwe_v4l2_expbuf(void *priv, struct v4l2_exportbuffer *p)
 	int ret = 0;
 	dwe_charmod_s *sp = priv;
 
-	if (dwe_v4l2_is_q_busy(&sp->vb2_q))
-		return -EBUSY;
+	if (dwe_v4l2_is_q_busy(&sp->vb2_q)) /*PRQA S 2992 ++*/
+		return -EBUSY; /*PRQA S 2880 ++*/
 
 	ret = vb2_expbuf(&sp->vb2_q, p);
 
@@ -332,9 +332,9 @@ static int dwe_v4l2_qbuf(void *priv, struct v4l2_buffer *p)
 	dwe_charmod_s *sp = priv;
 
 	LOG(LOG_INFO, "qbuf p->type:%d p->index:%d \n", p->type, p->index);
-	LOG(LOG_DEBUG, "(ownermatch=%d)", dwe_v4l2_is_q_busy(&sp->vb2_q));
-	if (dwe_v4l2_is_q_busy(&sp->vb2_q))
-		return -EBUSY;
+	LOG(LOG_DEBUG, "(ownermatch=%d)", dwe_v4l2_is_q_busy(&sp->vb2_q)); /*PRQA S 2992 ++*/
+	if (dwe_v4l2_is_q_busy(&sp->vb2_q)) /*PRQA S 2992 ++*/
+		return -EBUSY; /*PRQA S 2880 ++*/
 
 	rc = vb2_qbuf(&sp->vb2_q, p);
 	if (rc == 0) {
@@ -353,9 +353,9 @@ static int dwe_v4l2_dqbuf(void *priv, struct v4l2_buffer *p)
 	int rc = 0;
 	dwe_charmod_s *sp = priv;
 
-	LOG(LOG_DEBUG, "(ownermatch=%d)", dwe_v4l2_is_q_busy(&sp->vb2_q));
-	if (dwe_v4l2_is_q_busy(&sp->vb2_q))
-		return -EBUSY;
+	LOG(LOG_DEBUG, "(ownermatch=%d)", dwe_v4l2_is_q_busy(&sp->vb2_q)); /*PRQA S 2992 ++*/
+	if (dwe_v4l2_is_q_busy(&sp->vb2_q)) /*PRQA S 2992 ++*/
+		return -EBUSY; /*PRQA S 2880 ++*/
 
 	rc = vb2_dqbuf(&sp->vb2_q, p, O_NONBLOCK);
 	LOG(LOG_INFO, "rc = %d !\n", rc);
@@ -374,6 +374,7 @@ static int dwe_v4l2_format(void *priv, struct v4l2_format *p)
 	return rc;
 }
 
+/*PRQA S 0591 ++*/
 static long dwe_fop_ioctl(struct file *pfile, unsigned int cmd,
 			unsigned long arg)
 {
@@ -638,7 +639,7 @@ static int dwe_probe(struct platform_device *dev)
 		port = 7;
 	}
 
-	if (port < FIRMWARE_CONTEXT_NUMBER) {
+	if (port < FIRMWARE_CONTEXT_NUMBER) { /*PRQA S 2995,2991 ++*/
 		ret = register_chrdev(0, dev->name, &dwe_fops);
 		if (ret < 0) {
 			return ret;

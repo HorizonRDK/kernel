@@ -154,7 +154,7 @@ int set_ldc_param(uint32_t port, uint32_t *ptr, uint32_t size)
 		ret = -1;
 	} else {
 		if (ptr) {
-			memcpy(&dwe_param[port].ldc_param, ptr, size);
+			memcpy(&dwe_param[port].ldc_param, ptr, size); /*PRQA S 1495 ++*/
 		} else {
 			LOG(LOG_ERR, "---pldc is err!---");
 			ret = -1;
@@ -173,7 +173,7 @@ int get_ldc_param(uint32_t port, uint32_t *ptr, uint32_t size)
 		ret = -1;
 	} else {
 		if (ptr) {
-			memcpy(ptr, &dwe_param[port].ldc_param, size);
+			memcpy(ptr, &dwe_param[port].ldc_param, size); /*PRQA S 1495 ++*/
 		} else {
 			LOG(LOG_ERR, "---pldc is err!---");
 			ret = -1;
@@ -194,8 +194,9 @@ int ldc_swparam_set(uint32_t port, ldc_param_s *pldc, uint32_t ctrl_enable)
 
 	if (port >= FIRMWARE_CONTEXT_NUMBER) {
 		LOG(LOG_ERR, "---port %d param is error!---", port);
-		ret = -1;
-	} else {
+		return -1;
+	}
+	{
 		if (pldc) {
 			memcpy(&dwe_param[port].ldc_param, pldc, sizeof(ldc_param_s));
 		} else {
@@ -235,8 +236,9 @@ int ldc_swparam_get(uint32_t port, ldc_param_s *pldc)
 
 	if (port >= FIRMWARE_CONTEXT_NUMBER) {
 		LOG(LOG_ERR, "---port %d param is error!---", port);
-		ret = -1;
-	} else {
+		return -1;
+	}
+	{
 		if (pldc) {
 			memcpy(pldc, &dwe_param[port].ldc_param, sizeof(ldc_param_s));
 		} else {
@@ -256,8 +258,9 @@ int dis_swparam_set(uint32_t port, dis_param_s *pdis, uint32_t ctrl_enable)
 
 	if (port >= FIRMWARE_CONTEXT_NUMBER) {
 		LOG(LOG_ERR, "---port %d param is error!---", port);
-		ret = -1;
-	} else {
+		return -1;
+	}
+	{
 		if (pdis) {
 			memcpy(&dwe_param[port].dis_param, pdis, sizeof(dis_param_s));
 		} else {
@@ -290,8 +293,9 @@ int dis_swparam_get(uint32_t port, dis_param_s *pdis)
 
 	if (port >= FIRMWARE_CONTEXT_NUMBER) {
 		LOG(LOG_ERR, "---port %d param is error!---", port);
-		ret = -1;
-	} else {
+		return -1;
+	}
+	{
 		if (pdis) {
 			memcpy(pdis, &dwe_param[port].dis_param, sizeof(dis_param_s));
 		} else {
@@ -311,8 +315,9 @@ int pattgen_param_set(uint32_t port, pg_param_s *ppg)
 
 	if (port >= FIRMWARE_CONTEXT_NUMBER) {
 		LOG(LOG_ERR, "---port %d param is error!---", port);
-		ret = -1;
-	} else {
+		return -1;
+	}
+	{
 		if (ppg) {
 			memcpy(&dwe_param[port].pg_param, ppg, sizeof(pg_param_s));
 		} else {
@@ -333,8 +338,9 @@ int pattgen_param_get(uint32_t port, pg_param_s *ppg)
 
 	if (port >= FIRMWARE_CONTEXT_NUMBER) {
 		LOG(LOG_ERR, "---port %d param is error!---", port);
-		ret = -1;
-	} else {
+		return -1;
+	}
+	{
 		if (ppg) {
 			memcpy(ppg, &dwe_param[port].pg_param, sizeof(pg_param_s));
 		} else {
@@ -576,7 +582,7 @@ void dwe_sw_deinit(void)
 		if ((tmp == 0) && (tmp_dis == 0)) {
 			break;
 		} else {
-			mdelay(10);
+			mdelay(10); /*PRQA S 2880 ++*/
 		}
 		count++;
 	}
@@ -868,7 +874,7 @@ int dis_hwparam_set(dwe_context_t *ctx, uint32_t port)
 		tmp_cur = 0;
 		set_chn_dis_setting(dev_ptr->dis_dev->io_vaddr, &tmp_cur, ctx->dis_dev_num);
 	}
-	pr_debug("phy_addr 0x%x \n", ctx->dframes[port].address);
+	pr_debug("phy_addr 0x%x \n", ctx->dframes[port].address); /*PRQA S 3238,0685 ++*/
 	set_chn_dis_addr(dev_ptr->dis_dev->io_vaddr,
 		&ctx->dframes[port].address, ctx->dis_dev_num);
 
@@ -949,12 +955,12 @@ int dis_hwpath_set(dwe_context_t *ctx, uint32_t port)
 	int ret = 0;
 	//uint32_t tmp_cur = 0;
 	uint32_t set_tmp = 0;
-	uint32_t size_tmp = dwe_param[port].dis_param.picsize.psize_g;
 
 	if ((ctx == NULL) || (port >= FIRMWARE_CONTEXT_NUMBER)) {
 		LOG(LOG_ERR, "---port %d param is error!---", port);
 		return -EINVAL;
 	}
+	uint32_t size_tmp = dwe_param[port].dis_param.picsize.psize_g;
 
 	//get_dwe_cur_index(dev_ptr->dis_dev->io_vaddr, &tmp_cur);
 	//ctx->dis_cur_num = tmp_cur;

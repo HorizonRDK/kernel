@@ -54,6 +54,8 @@
 
 #define ARGS_TO_PTR(arg) ((struct soc_dwe_ioctl_args *)arg)
 
+/*PRQA S 2996,3238,0685 ++*/
+
 /* global variable define */
 typedef struct _subdev_dwe_ctx {
 	struct v4l2_subdev soc_dwe;
@@ -838,8 +840,8 @@ void __exit acamera_soc_dwe_exit(void)
 	LOG(LOG_DEBUG, "[KeyMsg] dwe subdevice exit done");
 }
 
-late_initcall(acamera_soc_dwe_init);
-module_exit(acamera_soc_dwe_exit);
+late_initcall(acamera_soc_dwe_init); /*PRQA S 0605 ++*/
+module_exit(acamera_soc_dwe_exit); /*PRQA S 0605 ++*/
 
 MODULE_AUTHOR("IE&E");
 MODULE_LICENSE("GPL v2");

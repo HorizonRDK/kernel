@@ -51,7 +51,7 @@ int dwe_stream_get_frame(uint32_t ctx_id, dframe_t *dframes)
 	LOG(LOG_DEBUG, " ctx_id = %d!\n", ctx_id);
 	if ((ctx_id >= FIRMWARE_CONTEXT_NUMBER) || (dwe_buf[ctx_id] == NULL)
 		|| (dframes == NULL)) {
-		pr_debug("dwe_buf[%d] = %p !\n", ctx_id, dwe_buf[ctx_id]);
+		pr_debug("dwe_buf[%d] is err !\n", ctx_id); /*PRQA S 3238,0685 ++*/
 		return -1;
 	}
 
@@ -60,7 +60,7 @@ int dwe_stream_get_frame(uint32_t ctx_id, dframe_t *dframes)
 	/* try to get an active buffer from vb2 queue  */
 	spin_lock(&pstream->slock);
 	if (!list_empty(&pstream->stream_buffer_list)) {
-		pbuf = list_entry(pstream->stream_buffer_list.next,
+		pbuf = list_entry(pstream->stream_buffer_list.next, /*PRQA S 2880,0497,2810,2992 ++*/
 			dwe_v4l2_buffer_t, list);
 		list_del(&pbuf->list);
 		list_add_tail(&pbuf->list, &pstream->stream_buffer_list_busy);
@@ -68,7 +68,7 @@ int dwe_stream_get_frame(uint32_t ctx_id, dframe_t *dframes)
 	spin_unlock(&pstream->slock);
 
 	if (!pbuf) {
-		pr_debug("pbuf is null !\n");
+		pr_debug("pbuf is null !\n"); /*PRQA S 3238,0685 ++*/
 		return -1;
 	}
 
@@ -77,7 +77,7 @@ int dwe_stream_get_frame(uint32_t ctx_id, dframe_t *dframes)
 	dframes->type = vb->type;  // frame type.
 	dframes->virt_addr = vb2_plane_vaddr(vb, 0);
 #if (BUFFER_DMA)
-	pr_debug(KERN_INFO "virt_addr%p, addr memory %p !\n",
+	pr_debug("virt_addr%p, addr memory %p !\n",
 		dframes->virt_addr, vb2_plane_cookie(vb, 0));
 	dframes->address = *((uint32_t *)vb2_plane_cookie(vb, 0));
 #else
@@ -96,7 +96,7 @@ int dwe_stream_put_frame(uint32_t ctx_id, dframe_t *dframes)
 
 	if ((ctx_id >= FIRMWARE_CONTEXT_NUMBER) || (dwe_buf[ctx_id] == NULL)
 		|| (dframes == NULL)) {
-		pr_debug("dwe_buf[%d] = %p !\n", ctx_id, dwe_buf[ctx_id]);
+		pr_debug("dwe_buf[%d] is err !\n", ctx_id);
 		return -1;
 	}
 
@@ -177,7 +177,7 @@ void dwe_v4l2_stream_deinit(dwe_v4l2_stream_t *pstream)
 	dwe_v4l2_stream_off(pstream);
 	dwe_buf[pstream->ctx_id] = NULL;
 	/* release fw_info */
-	if (pstream) {
+	if (pstream) { /*PRQA S 2991 ++*/
 		kzfree(pstream);
 		pstream = NULL;
 	}

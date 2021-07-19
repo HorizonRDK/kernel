@@ -110,9 +110,13 @@ static int dwe_vb2_buf_prepare(struct vb2_buffer *vb)
 
 static void dwe_vb2_buf_queue(struct vb2_buffer *vb)
 {
+	if (vb == NULL) {
+		LOG(LOG_ERR, "vb ptr is null");
+		return;
+	}
 	dwe_v4l2_stream_t *pstream = vb2_get_drv_priv(vb->vb2_queue);
 
-	dwe_v4l2_buffer_t *buf = container_of(vb, dwe_v4l2_buffer_t, vb);
+	dwe_v4l2_buffer_t *buf = container_of(vb, dwe_v4l2_buffer_t, vb); /*PRQA S 0497,2992,2810,2880 ++*/
 	LOG(LOG_DEBUG, "---[%s-%d]---\n", __func__, __LINE__);
 
 	spin_lock(&pstream->slock);
