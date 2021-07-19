@@ -577,7 +577,7 @@ static void x3_gpio_generic_handler(struct irq_desc *desc) {
         gpio = gpo->irqbind[i];
         if ((value & BIT(i)) && gpio &&
             test_bit(gpio, gpo->gpio_irq_enabled_mask)) {
-            generic_handle_irq(gpio_to_irq(gpio));
+		generic_handle_irq(irq_linear_revmap(chip->irqdomain, gpio));
         }
     }
     writel(value, regaddr);
