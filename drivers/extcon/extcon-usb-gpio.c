@@ -18,6 +18,7 @@
 #include <linux/gpio.h>
 #include <linux/gpio/consumer.h>
 #include <linux/init.h>
+#include <linux/kthread.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
 #include <linux/kernel.h>
@@ -29,6 +30,15 @@
 #include <linux/pinctrl/consumer.h>
 #include <linux/delay.h>
 
+/* module parameters for id/vbus gpio mode : 0 - irq, 1 - polling */
+static unsigned int id_poll_mode = 0;
+module_param(id_poll_mode, uint, S_IRUGO|S_IWUSR);
+MODULE_PARM_DESC(id_poll_mode, "id gpio mode: 0 - irq, 1 - polling");
+
+static unsigned int vbus_poll_mode = 0;
+module_param(vbus_poll_mode, uint, S_IRUGO|S_IWUSR);
+MODULE_PARM_DESC(vbus_poll_mode, "vbus gpio mode: 0 - irq, 1 - polling");
+
 #define USB_GPIO_DEBOUNCE_MS	500	/* ms */
 
 struct usb_extcon_info {
@@ -37,8 +47,15 @@ struct usb_extcon_info {
 
 	struct gpio_desc *id_gpiod;
 	struct gpio_desc *vbus_gpiod;
+	/* irq for id/vbus irq mode */
 	int id_irq;
 	int vbus_irq;
+
+	/* task for id/vbus polling mode */
+	struct task_struct *id_task;
+	struct task_struct *vbus_task;
+	int saved_id_state;
+	int saved_vbus_state;
 
 	struct gpio_desc *usb_host_reset;
 	struct gpio_desc *usb_host_exreset;
@@ -117,6 +134,41 @@ static irqreturn_t usb_irq_handler(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
+
+static int id_poll_task(void *arg)
+{
+	struct usb_extcon_info *info = arg;
+	int cur_id;
+
+	if (!info && !info->id_gpiod)
+		return -EINVAL;
+
+	/* get initialized id pin state and save it to saved_id_state */
+	info->saved_id_state = gpiod_get_value_cansleep(info->id_gpiod);
+
+	while (!kthread_should_stop()) {
+		cur_id = gpiod_get_value_cansleep(info->id_gpiod);
+
+		/* if id state is changed, enqueue a work for usb role switch */
+		if (cur_id != info->saved_id_state) {
+			queue_delayed_work(system_power_efficient_wq, &info->wq_detcable,
+					   info->debounce_jiffies);
+			info->saved_id_state = cur_id;
+		}
+
+		msleep(100);	// wait 100ms
+	}
+
+	return 0;
+}
+
+static int vbus_poll_task(void *arg)
+{
+	// TODO:
+
+	return 0;
+}
+
 static int usb_extcon_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -187,39 +239,55 @@ static int usb_extcon_probe(struct platform_device *pdev)
 
 	INIT_DELAYED_WORK(&info->wq_detcable, usb_extcon_detect_cable);
 
-	if (info->id_gpiod) {
-		info->id_irq = gpiod_to_irq(info->id_gpiod);
-		if (info->id_irq < 0) {
-			dev_err(dev, "failed to get ID IRQ\n");
-			return info->id_irq;
-		}
+	/* init for saved id/vbus state */
+	info->saved_id_state = -1;
+	info->saved_vbus_state = -1;
 
-		ret = devm_request_threaded_irq(dev, info->id_irq, NULL,
-						usb_irq_handler,
-						IRQF_TRIGGER_RISING |
-						IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
-						pdev->name, info);
-		if (ret < 0) {
-			dev_err(dev, "failed to request handler for ID IRQ\n");
-			return ret;
+	if (info->id_gpiod) {
+		if (!id_poll_mode) {	// id gpio use irq mode
+			info->id_irq = gpiod_to_irq(info->id_gpiod);
+			if (info->id_irq < 0) {
+				dev_err(dev, "failed to get ID IRQ\n");
+				return info->id_irq;
+			}
+
+			ret = devm_request_threaded_irq(dev, info->id_irq, NULL,
+							usb_irq_handler,
+							IRQF_TRIGGER_RISING |
+							IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
+							pdev->name, info);
+			if (ret < 0) {
+				dev_err(dev, "failed to request handler for ID IRQ\n");
+				return ret;
+			}
+		} else {	// id gpio use polling mode
+			info->id_task = kthread_create(id_poll_task, info, "id-poll");
+			if (IS_ERR(info->id_task))
+				return PTR_ERR(info->id_task);
 		}
 	}
 
 	if (info->vbus_gpiod) {
-		info->vbus_irq = gpiod_to_irq(info->vbus_gpiod);
-		if (info->vbus_irq < 0) {
-			dev_err(dev, "failed to get VBUS IRQ\n");
-			return info->vbus_irq;
-		}
+		if (!vbus_poll_mode) {	// vbus gpio use irq mode
+			info->vbus_irq = gpiod_to_irq(info->vbus_gpiod);
+			if (info->vbus_irq < 0) {
+				dev_err(dev, "failed to get VBUS IRQ\n");
+				return info->vbus_irq;
+			}
 
-		ret = devm_request_threaded_irq(dev, info->vbus_irq, NULL,
-						usb_irq_handler,
-						IRQF_TRIGGER_RISING |
-						IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
-						pdev->name, info);
-		if (ret < 0) {
-			dev_err(dev, "failed to request handler for VBUS IRQ\n");
-			return ret;
+			ret = devm_request_threaded_irq(dev, info->vbus_irq, NULL,
+							usb_irq_handler,
+							IRQF_TRIGGER_RISING |
+							IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
+							pdev->name, info);
+			if (ret < 0) {
+				dev_err(dev, "failed to request handler for VBUS IRQ\n");
+				return ret;
+			}
+		} else {	// vbus gpio use polling mode
+			info->vbus_task = kthread_create(vbus_poll_task, info, "vbus-poll");
+			if (IS_ERR(info->vbus_task))
+				return PTR_ERR(info->vbus_task);
 		}
 	}
 
@@ -228,6 +296,13 @@ static int usb_extcon_probe(struct platform_device *pdev)
 
 	/* Perform initial detection */
 	usb_extcon_detect_cable(&info->wq_detcable.work);
+
+	/* wakeup id/vbus gpio polling task */
+	if (info->id_gpiod && id_poll_mode && info->id_task)
+		wake_up_process(info->id_task);
+
+	if (info->vbus_gpiod && vbus_poll_mode && info->vbus_task)
+		wake_up_process(info->vbus_task);
 
 	return 0;
 }
@@ -239,6 +314,12 @@ static int usb_extcon_remove(struct platform_device *pdev)
 	cancel_delayed_work_sync(&info->wq_detcable);
 	device_init_wakeup(&pdev->dev, false);
 
+	if (id_poll_mode && info->id_task)
+		kthread_stop(info->id_task);
+
+	if (vbus_poll_mode && info->vbus_task)
+		kthread_stop(info->vbus_task);
+
 	return 0;
 }
 
@@ -249,15 +330,15 @@ static int usb_extcon_suspend(struct device *dev)
 	int ret = 0;
 
 	if (device_may_wakeup(dev)) {
-		if (info->id_gpiod) {
+		if (info->id_gpiod && !id_poll_mode) {
 			ret = enable_irq_wake(info->id_irq);
 			if (ret)
 				return ret;
 		}
-		if (info->vbus_gpiod) {
+		if (info->vbus_gpiod &&!vbus_poll_mode) {
 			ret = enable_irq_wake(info->vbus_irq);
 			if (ret) {
-				if (info->id_gpiod)
+				if (info->id_gpiod && !id_poll_mode)
 					disable_irq_wake(info->id_irq);
 
 				return ret;
@@ -270,9 +351,9 @@ static int usb_extcon_suspend(struct device *dev)
 	 * as GPIOs used behind I2C subsystem might not be
 	 * accessible until resume completes. So disable IRQ.
 	 */
-	if (info->id_gpiod)
+	if (info->id_gpiod && !id_poll_mode)
 		disable_irq(info->id_irq);
-	if (info->vbus_gpiod)
+	if (info->vbus_gpiod && !vbus_poll_mode)
 		disable_irq(info->vbus_irq);
 
 	if (!device_may_wakeup(dev))
@@ -290,15 +371,15 @@ static int usb_extcon_resume(struct device *dev)
 		pinctrl_pm_select_default_state(dev);
 
 	if (device_may_wakeup(dev)) {
-		if (info->id_gpiod) {
+		if (info->id_gpiod && !id_poll_mode) {
 			ret = disable_irq_wake(info->id_irq);
 			if (ret)
 				return ret;
 		}
-		if (info->vbus_gpiod) {
+		if (info->vbus_gpiod && !vbus_poll_mode) {
 			ret = disable_irq_wake(info->vbus_irq);
 			if (ret) {
-				if (info->id_gpiod)
+				if (info->id_gpiod && !id_poll_mode)
 					enable_irq_wake(info->id_irq);
 
 				return ret;
@@ -306,9 +387,9 @@ static int usb_extcon_resume(struct device *dev)
 		}
 	}
 
-	if (info->id_gpiod)
+	if (info->id_gpiod && !id_poll_mode)
 		enable_irq(info->id_irq);
-	if (info->vbus_gpiod)
+	if (info->vbus_gpiod && vbus_poll_mode)
 		enable_irq(info->vbus_irq);
 
 	queue_delayed_work(system_power_efficient_wq,
