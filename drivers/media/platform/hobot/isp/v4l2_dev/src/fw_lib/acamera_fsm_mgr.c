@@ -193,9 +193,13 @@ void acamera_fsm_mgr_process_events(acamera_fsm_mgr_t *p_fsm_mgr,int n_max_event
 #if ACAMERA_ISP_PROFILING
                     acamera_profiler_start(idx+1);
 #endif
-					do_gettimeofday(&start);
+					if (debug_flag)
+						do_gettimeofday(&start);
+
                     b_processed = p_fsm_mgr->fsm_arr[idx]->ops.proc_event(p_fsm_mgr->fsm_arr[idx]->p_fsm, event_id);
-					do_gettimeofday(&end);
+
+					if (debug_flag)
+						do_gettimeofday(&end);
 					if (debug_flag) {
 						diff = (end.tv_sec*1000000 + end.tv_usec) -
 							(start.tv_sec*1000000 + start.tv_usec);
