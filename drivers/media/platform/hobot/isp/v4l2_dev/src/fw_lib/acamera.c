@@ -72,6 +72,7 @@
 #define CHECK_STACK_SIZE_START 512
 #endif
 
+#include "general_fsm.h"
 #include "sensor_fsm.h"
 #include "acamera_logger.h"
 #include "fsm_param.h"
@@ -118,6 +119,7 @@ void hobot_idma_try_restore(void *data);
 extern int isp_stream_onoff_check(void);
 extern void system_interrupts_disable( void );
 extern void frame_buffer_fr_finished(dma_writer_fsm_ptr_t p_fsm);
+extern void general_temper_lsb_dma_switch(general_fsm_ptr_t p_fsm, uint8_t next_frame_ppf, uint8_t dma_error);
 
 static void isp_ctxsv_work(struct work_struct *w);
 
@@ -1246,8 +1248,8 @@ out:
 }
 
 int isp_error_sts = 0;
-int temper_drop_cnt = 0;
-int acamera_dma_alarms_error_occur(void)
+int temper_dma_error = 0;
+inline int acamera_dma_alarms_error_occur(void)
 {
     uint32_t dma_monitor_sts = system_hw_read_32(0x54L);
     uint16_t dma_alarms_sts = (dma_monitor_sts & 0x3fff0000) >> 16;
@@ -1264,51 +1266,52 @@ int acamera_dma_alarms_error_occur(void)
     acamera_isp_isp_global_monitor_output_dma_clr_alarm_write(0, 0);
     acamera_isp_isp_global_monitor_temper_dma_clr_alarm_write(0, 0);
 
-    if (dma_monitor_sts) {
+    if (dma_monitor_sts & 0x0f3f0605) { //0x0f3f0605 is valid value, other bit is invalid
+        isp_error_sts = 1;
         pr_err("dma alarms %x\n", dma_monitor_sts);
     }
 
     if (dma_alarms_sts & 1 << ISP_TEMPER_LSB_DMA_FRAME_DROPPED) {
-        isp_error_sts = 1;
-        temper_drop_cnt = 2;
         p_ctx->sts.temper_lsb_dma_drop++;
         pr_err("temper lsb dma frame drop\n");
     }
     if (dma_alarms_sts & 1 << ISP_TEMPER_MSB_DMA_FRAME_DROPPED) {
-        isp_error_sts = 1;
-        temper_drop_cnt = 3;
         p_ctx->sts.temper_msb_dma_drop++;
         pr_err("temper msb dma frame drop\n");
     }
     if (dma_alarms_sts & 1 << ISP_FR_UV_DMA_FRAME_DROPPED) {
-        isp_error_sts = 1;
         p_ctx->sts.fr_uv_dma_drop++;
         pr_err("fr uv dma frame drop\n");
     }
     if (dma_alarms_sts & 1 << ISP_FR_Y_DMA_FRAME_DROPPED) {
-        isp_error_sts = 1;
         p_ctx->sts.fr_y_dma_drop++;
         pr_err("fr y dma frame drop\n");
     }
-    if (temper_dma_r_full) {
-        pr_err("temper_dma_r_full\n");
-    }
     if (temper_dma_r_empty) {
+        temper_dma_error = 1;
         pr_err("temper_dma_r_empty\n");
     }
     if (temper_dma_w_full) {
+        temper_dma_error = 1;
         pr_err("temper_dma_w_full\n");
     }
-    if (temper_dma_w_empty) {
-        pr_err("temper_dma_w_empty\n");
-    }
+
+#if 0
+    dma_monitor_sts = system_hw_read_32(0x1ab80);
+    if (dma_monitor_sts)
+        pr_err("[ping] temper dma blk sts %x\n", dma_monitor_sts);
+
+    dma_monitor_sts = system_hw_read_32(0x1ab80 + ISP_CONFIG_PING_SIZE);
+    if (dma_monitor_sts)
+        pr_err("[pong] temper dma blk sts %x\n", dma_monitor_sts);
+#endif
 
     return 0;
 }
 
 int isp_status_check(void)
 {
-    return isp_error_sts;   // || temper_drop_cnt;
+    return isp_error_sts;   // || temper_dma_error;
 }
 EXPORT_SYMBOL(isp_status_check);
 
@@ -1468,6 +1471,10 @@ int32_t acamera_interrupt_handler()
             p_ctx->sts.context_manage_error++;
             pr_err("[s%d] isp context manage error, manage mode %d\n", cur_ctx_id,
                     acamera_isp_isp_global_multi_context_mode_read(0));
+
+            acamera_isp_isp_global_monitor_context_error_clr_write(0, 0);
+            acamera_isp_isp_global_monitor_context_error_clr_write(0, 1);
+            acamera_isp_isp_global_monitor_context_error_clr_write(0, 0);
         }
         if (irq_mask & 1 << ISP_INTERRUPT_EVENT_WATCHDOG_EXP) {
             p_ctx->sts.watchdog_timeout++;
@@ -1640,6 +1647,14 @@ int32_t acamera_interrupt_handler()
 					}
 
                     acamera_dma_alarms_error_occur();
+
+                    if ( acamera_isp_isp_global_ping_pong_config_select_read( 0 ) == ISP_CONFIG_PONG ) {
+                        general_temper_lsb_dma_switch((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm), ISP_CONFIG_PING, temper_dma_error);
+                    } else {
+                        general_temper_lsb_dma_switch((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm), ISP_CONFIG_PONG, temper_dma_error);
+                    }
+                    temper_dma_error = 0;
+
                     p_ctx->sts.fe_irq_cnt++;
 					if (ip_sts_dbg)
                         input_port_status();

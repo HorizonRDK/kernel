@@ -368,7 +368,7 @@ static int dma_writer_error_process( dma_pipe *pipe )
     struct _acamera_context_t *p_ctx = pipe->settings.p_ctx;
     tframe_t *curr_frame = &pipe->settings.curr_frame;
 
-    LOG(LOG_ERR,"+: curr_frame_id = %d",curr_frame->primary.frame_id);
+    LOG(LOG_INFO,"+: curr_frame_id = %d",curr_frame->primary.frame_id);
     LOG(LOG_INFO,"+: curr_frame_id = %d",curr_frame->primary.frame_id);
 
     if ( !p_ctx ) {

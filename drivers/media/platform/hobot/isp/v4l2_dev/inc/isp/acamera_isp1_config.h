@@ -7263,6 +7263,15 @@ static __inline void acamera_isp_temper_enable_write(uintptr_t base, uint8_t dat
 static __inline uint8_t acamera_isp_temper_enable_read(uintptr_t base) {
     return (uint8_t)((system_sw_read_32(base + 0x1aa1cL) & 0x1) >> 0);
 }
+
+static __inline void acamera_isp_temper_enable_write_hw(uintptr_t base, uint8_t data) {
+    uint32_t curr = system_hw_read_32(base + 0x1aa1cL);
+    system_hw_write_32(base + 0x1aa1cL, (((uint32_t) (data & 0x1)) << 0) | (curr & 0xfffffffe));
+}
+static __inline uint8_t acamera_isp_temper_enable_read_hw(uintptr_t base) {
+    return (uint8_t)((system_hw_read_32(base + 0x1aa1cL) & 0x1) >> 0);
+}
+
 // ------------------------------------------------------------------------------ //
 // Register: Temper2 Mode
 // ------------------------------------------------------------------------------ //
@@ -7986,6 +7995,14 @@ static __inline void acamera_isp_temper_dma_lsb_bank_base_writer_write(uintptr_t
 static __inline uint32_t acamera_isp_temper_dma_lsb_bank_base_writer_read(uintptr_t base) {
     return system_sw_read_32(base + 0x1ab88L);
 }
+
+// args: data (32-bit)
+static __inline void acamera_isp_temper_dma_lsb_bank_base_writer_write_hw(uintptr_t base, uint32_t data) {
+    system_hw_write_32(base + 0x1ab88L, data);
+}
+static __inline uint32_t acamera_isp_temper_dma_lsb_bank_base_writer_read_hw(uintptr_t base) {
+    return system_hw_read_32(base + 0x1ab88L);
+}
 // ------------------------------------------------------------------------------ //
 // Register: msb_bank_base_reader
 // ------------------------------------------------------------------------------ //
@@ -8033,6 +8050,14 @@ static __inline void acamera_isp_temper_dma_lsb_bank_base_reader_write(uintptr_t
 }
 static __inline uint32_t acamera_isp_temper_dma_lsb_bank_base_reader_read(uintptr_t base) {
     return system_sw_read_32(base + 0x1ab90L);
+}
+
+// args: data (32-bit)
+static __inline void acamera_isp_temper_dma_lsb_bank_base_reader_write_hw(uintptr_t base, uint32_t data) {
+    system_hw_write_32(base + 0x1ab90L, data);
+}
+static __inline uint32_t acamera_isp_temper_dma_lsb_bank_base_reader_read_hw(uintptr_t base) {
+    return system_hw_read_32(base + 0x1ab90L);
 }
 // ------------------------------------------------------------------------------ //
 // Register: Line_offset
