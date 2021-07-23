@@ -155,6 +155,10 @@ typedef struct _isp_status_t {
     uint32_t free_to_busy_failed_cnt;
     uint32_t busy_to_done_cnt;
     uint32_t busy_to_done_failed_cnt;
+#ifdef CONFIG_HOBOT_DIAG
+	uint32_t ctx_id;
+	atomic_t diag_state;
+#endif
 } isp_status_t;
 
 struct _acamera_context_t {
@@ -268,7 +272,7 @@ struct _acamera_firmware_t {
     struct mutex ctx_chg_lock;
 
     uint32_t sw_frame_counter;
-    uint32_t initialized;    
+    uint32_t initialized;
     uint8_t sif_isp_offline;
 
     struct work_struct ctxsv_work;

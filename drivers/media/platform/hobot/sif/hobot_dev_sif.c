@@ -2508,7 +2508,7 @@ static void sif_frame_done_process(struct sif_subdev *subdev,
 				framemgr->queued_count[4]);
 		vio_set_stat_info(group->instance, SIF_MOD,
 						  event_err, group->frameid.frame_id,
-						  frame->frameinfo.addr[0], framemgr->queued_count);
+						  0, framemgr->queued_count);
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 	spin_lock_irqsave(&subdev->slock, flags);
