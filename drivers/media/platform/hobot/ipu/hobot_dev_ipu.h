@@ -287,6 +287,7 @@ struct x3_ipu_dev {
 	u32 __iomem *base_reg;
 	resource_size_t regs_start;
 	resource_size_t regs_end;
+	spinlock_t	slock;
 	int irq;
 	dev_t devno;
 	unsigned long state;

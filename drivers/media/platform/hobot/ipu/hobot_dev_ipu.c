@@ -790,10 +790,13 @@ void ipu_frame_work(struct vio_group *group)
 		vio_dbg("insert pipe %d index %d\n", instance, work_index);
 		vio_group_insert_work(group, &ipu->vwork[instance][work_index].work);
 	}
+
 	/* set shadow reg not ready */
+	spin_lock(&ipu->slock);
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy & ~(1 << 4) & ~(1 << shadow_index);
 	ipu_set_shd_rdy(ipu->base_reg, rdy);
+	spin_unlock(&ipu->slock);
 
 	ipu_set_shd_select(ipu->base_reg, shadow_index);
 
@@ -967,6 +970,7 @@ end_req_to_pro:
 			framemgr->queued_count[FS_USED]);
 		framemgr_x_barrier_irqr(framemgr, 0, flags);
 	}
+	spin_lock(&ipu->slock);
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy | (1 << 4) | (1 << shadow_index);
 
@@ -977,6 +981,7 @@ end_req_to_pro:
 		rdy |= 0x00000002;
 	}
 	ipu_set_shd_rdy(ipu->base_reg, rdy);
+	spin_unlock(&ipu->slock);
 
 	if (dma_enable) {
 		atomic_inc(&ipu->enable_cnt);
@@ -1719,9 +1724,11 @@ int ipu_channel_wdma_enable(struct ipu_subdev *subdev, bool enable)
 
 	info = &subdev->scale_cfg;
 
+	spin_lock(&ipu->slock);
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy & ~(1 << shadow_index);
 	ipu_set_shd_rdy(ipu->base_reg, rdy);
+	spin_unlock(&ipu->slock);
 
 	if (enable) {
 		ipu_set_roi_enable(subdev, shadow_index, info->ds_roi_en);
@@ -1750,9 +1757,11 @@ int ipu_channel_wdma_enable(struct ipu_subdev *subdev, bool enable)
 			ipu_set_ds_enable(ipu->base_reg, shadow_index, 2, false);
 		}
 	}
+	spin_lock(&ipu->slock);
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy | (1 << shadow_index);
 	ipu_set_shd_rdy(ipu->base_reg, rdy);
+	spin_unlock(&ipu->slock);
 
 	vio_dbg("G%dV%d %s", shadow_index, subdev->id, __func__);
 
@@ -1782,9 +1791,11 @@ int ipu_update_ds_ch_param(struct ipu_subdev *subdev, u8 ds_ch,
 	if (group->instance < MAX_SHADOW_NUM)
 		shadow_index = group->instance;
 
+	spin_lock(&ipu->slock);
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy & ~(1 << shadow_index);
 	ipu_set_shd_rdy(ipu->base_reg, rdy);
+	spin_unlock(&ipu->slock);
 
 	dst_width = ds_config->ds_sc_info.tgt_width;
 	dst_height = ds_config->ds_sc_info.tgt_height;
@@ -1810,9 +1821,11 @@ int ipu_update_ds_ch_param(struct ipu_subdev *subdev, u8 ds_ch,
 	ipu_set_ds_roi_rect(ipu->base_reg, shadow_index, ds_ch, roi_x,
 			       roi_y, roi_width, roi_height);
 
+	spin_lock(&ipu->slock);
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy | (1 << shadow_index);
 	ipu_set_shd_rdy(ipu->base_reg, rdy);
+	spin_unlock(&ipu->slock);
 
 	//ipu_set_intr_mask(ipu->base_reg, 0);
 	vio_dbg("[%d][ds%d]roi_x = %d, roi_y = %d, roi_width = %d, roi_height = %d\n",
@@ -1866,9 +1879,11 @@ int ipu_update_us_param(struct ipu_subdev *subdev, ipu_us_info_t *us_config)
 	if (group->instance < MAX_SHADOW_NUM)
 		shadow_index = group->instance;
 
+	spin_lock(&ipu->slock);
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy & ~(1 << shadow_index);
 	ipu_set_shd_rdy(ipu->base_reg, rdy);
+	spin_unlock(&ipu->slock);
 
 	dst_width = us_config->us_sc_info.tgt_width;
 	dst_height = us_config->us_sc_info.tgt_height;
@@ -1887,9 +1902,11 @@ int ipu_update_us_param(struct ipu_subdev *subdev, ipu_us_info_t *us_config)
 	ipu_set_us_roi_rect(ipu->base_reg, shadow_index, roi_x, roi_y,
 			       roi_width, roi_height);
 
+	spin_lock(&ipu->slock);
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy | (1 << shadow_index);
 	ipu_set_shd_rdy(ipu->base_reg, rdy);
+	spin_unlock(&ipu->slock);
 	vio_dbg("roi_x = %d, roi_y = %d, roi_width = %d, roi_height = %d\n",
 		 roi_x, roi_y, roi_width, roi_height);
 	vio_dbg("step_x = %d, step_y = %d, tgt_width = %d, tgt_height = %d\n",
@@ -1956,9 +1973,11 @@ int ipu_update_common_param(struct ipu_subdev *subdev,
 	if (group->instance < MAX_SHADOW_NUM)
 		shadow_index = group->instance;
 
+	spin_lock(&ipu->slock);
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy & ~(1 << shadow_index) & ~(1 << 4);
 	ipu_set_shd_rdy(ipu->base_reg, rdy);
+	spin_unlock(&ipu->slock);
 
 	// SRC select
 	ipu_src_select(ipu->base_reg, ipu_ctrl->source_sel);
@@ -1999,9 +2018,11 @@ int ipu_update_common_param(struct ipu_subdev *subdev,
 		ipu_set_osd_color(ipu->base_reg, i, color[i]);
 	}
 
+	spin_lock(&ipu->slock);
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy | (1 << shadow_index) | (1 << 4);
 	ipu_set_shd_rdy(ipu->base_reg, rdy);
+	spin_unlock(&ipu->slock);
 
 	memcpy(&subdev->scale_cfg, &ipu_cfg->ds_info[2], sizeof(ipu_ds_info_t));
 
@@ -3898,7 +3919,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	ipu_get_intr_status(ipu->base_reg, &status, true);
 	size_err = ipu_get_size_err(ipu->base_reg);
 	err_status = ipu_get_err_status(ipu->base_reg);
-	vio_dbg("%s status = 0x%x\n", __func__, status);
+	vio_dbg("[S%d] %s status = 0x%x\n", instance, __func__, status);
 
 	if (size_err || err_status) {
 		ipu_clear_size_err(ipu->base_reg, 1);
@@ -4997,6 +5018,7 @@ static int x3_ipu_probe(struct platform_device *pdev)
 	atomic_set(&ipu->rsccount, 0);
 	atomic_set(&ipu->open_cnt, 0);
 	mutex_init(&ipu_mutex);
+	spin_lock_init(&ipu->slock);
 
 	x3_ipu_subdev_init(ipu);
 	vio_group_init_mp(GROUP_ID_IPU);
