@@ -19,6 +19,9 @@
 #define SIF_MUX_MAX	8
 #define X3_SIF_NAME  "x3-sif"
 
+#define FRAME_ID_MAXIMUM 65535u
+#define FRAME_ID_SHIFT 65536u
+
 #define MAX_DEVICE  2
 #define SIF_ERR_COUNT  10
 
@@ -267,6 +270,7 @@ struct sif_subdev {
 #ifdef CONFIG_HOBOT_DIAG
 	atomic_t diag_state;
 #endif
+	u32 cnt_shift;
 };
 
 #define SEQ_KTHREAD_STOP  (1 << VIO_MAX_STREAM)

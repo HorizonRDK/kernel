@@ -1591,11 +1591,12 @@ void sif_hw_enable(u32 __iomem *base_reg)
 
 }
 
-void sif_get_frameid_timestamps(u32 __iomem *base_reg, u32 mux,	u32 ipi_index,
-	 struct frame_id *info, u32 dol_num, u32 instance, sif_output_t *output,
- 	sif_input_t *input)
+void sif_get_frameid_timestamps(u32 __iomem *base_reg, u32 mux, u32 ipi_index,
+		struct frame_id *info, u32 dol_num, u32 instance, sif_output_t *output,
+		sif_input_t *input, u32 *cnt_shift)
 {
 	u32 value;
+	u32 hw_cnt;
 	u64 timestamp_l, timestamp_m;
 	sif_input_mipi_t *p_mipi = &input->mipi;
 	u32 ipi_mode = p_mipi->ipi_mode;
@@ -1622,7 +1623,10 @@ void sif_get_frameid_timestamps(u32 __iomem *base_reg, u32 mux,	u32 ipi_index,
 		else
 			info->frame_id = value >> 16;
 	}
-
+	hw_cnt = info->frame_id;
+	info->frame_id = hw_cnt + *cnt_shift * FRAME_ID_SHIFT;
+	if (hw_cnt == FRAME_ID_MAXIMUM)
+          (*cnt_shift)++;
 	timestamp_l = vio_hw_get_reg(base_reg,
 						&sif_regs[SIF_TIMESTAMP0_LSB + mux * 2]);
 	timestamp_m = vio_hw_get_reg(base_reg,

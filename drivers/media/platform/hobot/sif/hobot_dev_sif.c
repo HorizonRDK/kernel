@@ -1013,6 +1013,7 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 			clear_bit(subdev->ddr_mux_index, &sif->state);
 			temp_flow = 0;
 			subdev->overflow = 0;
+			subdev->cnt_shift = 0;
 			atomic_set(&subdev->diag_state, 0);
 			if (subdev->dol_num > 1)
 				clear_bit(SIF_DOL2_MODE + subdev->mux_index + 1, &sif->state);
@@ -1391,6 +1392,7 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 		subdev->ipi_index = 8 + (subdev->rx_index - 2) * 2 + subdev->vc_index;
 
 	subdev->initial_frameid = true;
+	subdev->cnt_shift = 0;
 	sif->sif_mux[mux_index] = group;
 	if(splice_enable) {
 		for (i = 0; i < pipe_num; i++) {
@@ -2820,12 +2822,12 @@ static irqreturn_t sif_isr(int irq, void *data)
 						 subdev->splice_info.splice_ipi_index[i],
 						 &group->frameid, subdev->dol_num,
 						 group->instance, &subdev->sif_cfg.output,
-						 &subdev->sif_cfg.input);
+						 &subdev->sif_cfg.input, &subdev->cnt_shift);
 					}
 				} else {
 					sif_get_frameid_timestamps(sif->base_reg, mux_index, subdev->ipi_index,
 					&group->frameid, subdev->dol_num, group->instance, &subdev->sif_cfg.output,
-					&subdev->sif_cfg.input);
+					&subdev->sif_cfg.input, &subdev->cnt_shift);
 				}
 				if (test_bit(mux_index + SIF_SPLICE_OP, &sif->state)) {
 					continue;

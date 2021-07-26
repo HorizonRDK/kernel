@@ -30,7 +30,7 @@ void sif_disable_ipi(u32 __iomem *base_reg, u8 ipi_channel);
 
 void sif_get_frameid_timestamps(u32 __iomem *base_reg, u32 mux, u32 ipi_index,
 	struct frame_id *info, u32 dol_num, u32 instance,
-	sif_output_t *output, sif_input_t *inpu);
+	sif_output_t *output, sif_input_t *inpu, u32 *cnt_shift);
 u32 sif_get_current_bufindex(u32 __iomem *base_reg, u32 mux);
 bool sif_get_wdma_enable(u32 __iomem *base_reg, u32 mux);
 void sif_set_wdma_buf_addr(u32 __iomem *base_reg, u32 mux_index, u32 number, u32 addr);
