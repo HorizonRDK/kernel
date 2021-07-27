@@ -727,7 +727,19 @@ typedef struct _mipi_host_s {
 } mipi_host_t;
 
 typedef struct _mipi_user_s {
+	/*
+	 * mutex: user.open_mutex
+	 * protect: user.open_cnt and operations when first open and last close.
+	 * init: probe, see: hobot_mipi_host_probe_cdev.
+	 * call: open/close, see: hobot_mipi_host_open, hobot_mipi_host_close.
+	 */
 	struct mutex open_mutex;
+	/*
+	 * mutex: user.mutex
+	 * protect: user.init_cnt user.start_cnt user.pre_state and operations of mipi host.
+	 * init: first open, see hobot_mipi_host_open.
+	 * call: ioctl, see hobot_mipi_host_ioctl.
+	 */
 	struct mutex mutex;
 	uint32_t open_cnt;
 	uint32_t init_cnt;
@@ -749,6 +761,12 @@ typedef struct _mipi_hdev_s {
 	mipi_host_t       host;
 	mipi_user_t       user;
 	const mipi_host_hw_mode_t *hw_mode;
+	/*
+	 * spin_lock: siglock
+	 * protect: struct sigpid.
+	 * init: first open, see hobot_mipi_host_open.
+	 * call: ioctl/irq, see hobot_mipi_host_ioctl, mipi_host_send_sig_fatal.
+	 */
 	spinlock_t 		  siglock;
 	mipi_host_sigpid_t sigpid;
 	unsigned long     sigts_ms;

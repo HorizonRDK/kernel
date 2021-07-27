@@ -241,6 +241,12 @@ typedef struct _mipi_phy_s {
 
 typedef struct _mipi_dphy_s {
 	void __iomem     *iomem;
+	/*
+	 * spin_lock: lock
+	 * protect: dphy register operations(read & write).
+	 * init: probe, see hobot_mipi_dphy_probe.
+	 * call: reg set/get, see xxx_mipi_get_ctrl, xxx_mipi_set_ctrl,etc.
+	 */
 	spinlock_t        lock;
 	mipi_dphy_param_t param;
 } mipi_dphy_t;

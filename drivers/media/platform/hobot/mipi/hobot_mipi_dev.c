@@ -388,7 +388,19 @@ typedef struct _mipi_dev_s {
 } mipi_dev_t;
 
 typedef struct _mipi_user_s {
+	/*
+	 * mutex: user.open_mutex
+	 * protect: user.open_cnt and operations when first open and last close.
+	 * init: probe, see: hobot_mipi_dev_probe_cdev.
+	 * call: open/close, see: hobot_mipi_dev_open, hobot_mipi_dev_close.
+	 */
 	struct mutex open_mutex;
+	/*
+	 * mutex: user.mutex
+	 * protect: user.init_cnt user.start_cnt and operations of mipi dev.
+	 * init: first open, see hobot_mipi_dev_open.
+	 * call: ioctl, see hobot_mipi_dev_ioctl.
+	 */
 	struct mutex mutex;
 	uint32_t open_cnt;
 	uint32_t init_cnt;
