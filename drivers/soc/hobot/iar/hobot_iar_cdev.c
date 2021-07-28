@@ -265,8 +265,10 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 
 			cnt = iar_start_cnt;
 			if (copy_to_user(arg, &cnt,
-					sizeof(unsigned int)))
-				return -EFAULT;
+					sizeof(unsigned int))) {
+				ret = -EFAULT;
+				break;
+			}
 			iar_start_cnt++;
 		}
 		break;
@@ -278,7 +280,7 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 			cnt = iar_start_cnt;
 			if (copy_to_user(arg, &cnt,
 					sizeof(unsigned int)))
-				return -EFAULT;
+				ret = -EFAULT;
 		}
 		break;
 	case HDMI_CONFIG:
@@ -286,8 +288,10 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 			uint32_t vmode;
 
 			IAR_DEBUG_PRINT("HEMI_CONFIG \n");
-			if (copy_from_user(&vmode, arg, sizeof(uint32_t)))
-				return -EFAULT;
+			if (copy_from_user(&vmode, arg, sizeof(uint32_t))) {
+				ret = -EFAULT;
+				break;
+			}
 			if (config_hdmi != NULL) {
 				if (vmode == 0) {
 					ret = config_hdmi(9, 4, 2);
@@ -297,17 +301,21 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 				}
 			} else {
 				pr_err("no sii902x HDMI device!!\n");
+				ret = -EFAULT;
 			}
 		}
 		break;
 	case HDMI_SHUT_DOWN:
 		 {
 			IAR_DEBUG_PRINT("HDMI SHUT DOWN\n");
-			if (shut_down_hdmi != NULL)
+			if (shut_down_hdmi != NULL) {
 				shut_down_hdmi();
-			else
+			} else {
 				pr_err("no sii902x HDMI device!!\n");
+				ret = -EFAULT;
+			}
 		}
+		break;
 	case IAR_STOP:
 		{
 			IAR_DEBUG_PRINT("IAR_STOP \n");
@@ -319,8 +327,10 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		{
 			update_cmd_t update_cmd;
 			IAR_DEBUG_PRINT("IAR_DISPLAY_UPDATE \n");
-			if (copy_from_user(&update_cmd, arg, sizeof(update_cmd_t)))
-				return -EFAULT;
+			if (copy_from_user(&update_cmd, arg, sizeof(update_cmd_t))) {
+				ret = -EFAULT;
+				break;
+			}
 			ret = iar_display_update(&update_cmd);
 			if (!ret)
 				iar_update();
@@ -330,8 +340,10 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		{
 			channel_base_cfg_t channel_cfg;
 			IAR_DEBUG_PRINT("IAR_CHANNEL_CFG \n");
-			if (copy_from_user(&channel_cfg, arg, sizeof(channel_base_cfg_t)))
-				return -EFAULT;
+			if (copy_from_user(&channel_cfg, arg, sizeof(channel_base_cfg_t))) {
+				ret = -EFAULT;
+				break;
+			}
 			ret = iar_channel_base_cfg(&channel_cfg);
 			if (!ret)
 				iar_update();
@@ -341,8 +353,10 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		{
 			gamma_cfg_t gamma_cfg;
 			IAR_DEBUG_PRINT("IAR_GAMMA_CFG \n");
-			if (copy_from_user(&gamma_cfg, arg, sizeof(gamma_cfg_t)))
-				return -EFAULT;
+			if (copy_from_user(&gamma_cfg, arg, sizeof(gamma_cfg_t))) {
+				ret = -EFAULT;
+				break;
+			}
 			ret = iar_gamma_cfg(&gamma_cfg);
 			if (!ret)
 				iar_update();
@@ -352,8 +366,10 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		{
 			upscaling_cfg_t upscaling_cfg;
 			IAR_DEBUG_PRINT("IAR_SCALE_CFG \n");
-			if (copy_from_user(&upscaling_cfg, arg, sizeof(upscaling_cfg_t)))
-				return -EFAULT;
+			if (copy_from_user(&upscaling_cfg, arg, sizeof(upscaling_cfg_t))) {
+				ret = -EFAULT;
+				break;
+			}
 			ret = iar_upscaling_cfg(&upscaling_cfg);
 			if (!ret)
 				iar_update();
@@ -363,8 +379,10 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		{
 			output_cfg_t output_cfg;
 			IAR_DEBUG_PRINT("IAR_OUTPUT_CFG \n");
-			if (copy_from_user(&output_cfg, arg, sizeof(output_cfg_t)))
-				return -EFAULT;
+			if (copy_from_user(&output_cfg, arg, sizeof(output_cfg_t))) {
+				ret = -EFAULT;
+				break;
+			}
 			ret = iar_output_cfg(&output_cfg);
 			disp_user_config_done = 1;
 			if (!ret)
@@ -377,8 +395,10 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 
 			IAR_DEBUG_PRINT("IAR_SET_VIDEO_CHANNEL");
 			if (copy_from_user(&channel_number, arg,
-						sizeof(unsigned int)))
-				return -EFAULT;
+						sizeof(unsigned int))) {
+				ret = -EFAULT;
+				break;
+			}
 #ifdef CONFIG_HOBOT_XJ2
 			ret = set_video_display_channel(channel_number);
 #else
@@ -392,12 +412,14 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 
 			IAR_DEBUG_PRINT("IAR_SET_VIDEO_DDR_LAYER_NUMBER");
 			if (copy_from_user(&ddr_layer_number, arg,
-						sizeof(unsigned int)))
-				return -EFAULT;
+						sizeof(unsigned int))) {
+				ret = -EFAULT;
+				break;
+			}
 #ifdef CONFIG_HOBOT_XJ2
-			ret = set_video_display_ddr_layer(ddr_layer_number);
+				ret = set_video_display_ddr_layer(ddr_layer_number);
 #else
-			iar_display_addr_type = ddr_layer_number;
+				iar_display_addr_type = ddr_layer_number;
 #endif
 		}
 		break;
@@ -409,10 +431,16 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 					__func__);
 			disp_copy_done = 0;
 			if (copy_from_user(&disp_vaddr, arg,
-						sizeof(disp_vaddr)))
-				return -EFAULT;
-			if (disp_vaddr.channel0_y_addr == NULL && disp_vaddr.channel1_y_addr == NULL)
-				return -1;
+						sizeof(disp_vaddr))) {
+				ret = -EFAULT;
+				break;
+			}
+			if (disp_vaddr.channel0_y_addr == NULL &&
+					disp_vaddr.channel1_y_addr == NULL) {
+				pr_err("iar_cdev : %s: layer0&1 display yaddr is NULL!\n", __func__);
+				ret = -1;
+				break;
+			}
 			ret = disp_set_ppbuf_addr(0,
 			disp_vaddr.channel0_y_addr, disp_vaddr.channel0_c_addr);
 			ret += disp_set_ppbuf_addr(1,
@@ -424,8 +452,10 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		 {
 			struct display_vio_channel_pipe disp_vio_cfg;
 			if (copy_from_user(&disp_vio_cfg, arg,
-						sizeof(disp_vio_cfg)))
-				return -EFAULT;
+						sizeof(disp_vio_cfg))) {
+				ret = -EFAULT;
+				break;
+			}
 			if (disp_vio_cfg.disp_layer_no == 0) {
 				iar_display_cam_no = disp_vio_cfg.vio_pipeline;
 				iar_display_addr_type = disp_vio_cfg.vio_channel;
@@ -445,7 +475,7 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 			display_done = disp_copy_done;
 			if (copy_to_user(arg, &display_done,
 						sizeof(uint8_t)))
-				return -EFAULT;
+				ret = -EFAULT;
 		}
 		break;
 	case DISP_SET_TIMING:
@@ -455,12 +485,15 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 			pr_debug("iar_cdev: %s: user set video timing\n",
 					__func__);
 			if (copy_from_user(&user_disp_timing, arg,
-						sizeof(user_disp_timing)))
-				return -EFAULT;
+						sizeof(user_disp_timing))) {
+				ret = -EFAULT;
+				break;
+			}
 			ret = disp_set_panel_timing(&user_disp_timing);
 			if (ret)
 				pr_err("error user set video timing!\n");
-			iar_update();
+			else
+				iar_update();
 		}
 		break;
 	case DISP_UPDATE_PAR:
@@ -474,8 +507,10 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 			struct position_cfg_t position;
 
 			if (copy_from_user(&position, arg,
-						sizeof(position)))
-				return -EFAULT;
+						sizeof(position))) {
+				ret = -EFAULT;
+				break;
+			}
 			ret = disp_set_display_position(&position);
 			if (ret)
 				pr_err("error user set display position!\n");
@@ -486,8 +521,10 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 			struct position_cfg_t crop;
 
 			if (copy_from_user(&crop, arg,
-						sizeof(crop)))
-				return -EFAULT;
+						sizeof(crop))) {
+				ret = -EFAULT;
+				break;
+			}
 			ret = disp_set_display_crop(&crop);
 			if (ret)
 				pr_err("error user set crop!\n");
@@ -497,8 +534,10 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		 {
 			struct mipi_dsi_lcp dsi_lcp;
 
-			if (copy_from_user(&dsi_lcp, arg, sizeof(dsi_lcp)))
-				return -EFAULT;
+			if (copy_from_user(&dsi_lcp, arg, sizeof(dsi_lcp))) {
+				ret = -EFAULT;
+				break;
+			}
 			ret = user_set_dsi_panel_long_cmd(dsi_lcp.cmd_len, dsi_lcp.cmd_data);
 			if (ret)
 				pr_err("iar_cdev: error set mipi dsi cmd!\n");
@@ -508,8 +547,10 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		 {
 			struct mipi_dsi_s1p dsi_s1p;
 
-			if (copy_from_user(&dsi_s1p, arg, sizeof(dsi_s1p)))
-				return -EFAULT;
+			if (copy_from_user(&dsi_s1p, arg, sizeof(dsi_s1p))) {
+				ret = -EFAULT;
+				break;
+			}
 			ret = dsi_panel_write_cmd_poll(dsi_s1p.cmd, dsi_s1p.data, 0x15);
 			if (ret)
 				pr_err("iar_cdev: error set mipi dsi cmd!\n");
@@ -519,8 +560,10 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		 {
 			uint8_t dsi_snp;
 
-			if (copy_from_user(&dsi_snp, arg, sizeof(dsi_snp)))
-				return -EFAULT;
+			if (copy_from_user(&dsi_snp, arg, sizeof(dsi_snp))) {
+				ret = -EFAULT;
+				break;
+			}
 			ret = dsi_panel_write_cmd_poll(dsi_snp, 0x00, 0x05);
 			if (ret)
 				pr_err("iar_cdev: error set mipi dsi cmd!\n");
@@ -529,8 +572,10 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 	case DISP_MIPI_DSI_CORE_INIT:
 		 {
 			struct mipi_dsi_core_init_data init_data;
-			if (copy_from_user(&init_data, arg, sizeof(init_data)))
-				return -EFAULT;
+			if (copy_from_user(&init_data, arg, sizeof(init_data))) {
+				ret = -EFAULT;
+				break;
+			}
 			ret = user_init_mipi_dsi_core(&init_data);
 			if (ret)
 				pr_err("iar_cdev: error init mipi dsi core!\n");
@@ -553,8 +598,10 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 			pr_debug("iar_cdev: %s: user set video timing\n",
 					__func__);
 			if (copy_from_user(&pixel_clock, arg,
-						sizeof(unsigned int)))
-				return -EFAULT;
+						sizeof(unsigned int))) {
+				ret = -EFAULT;
+				break;
+			}
 			ret = disp_set_pixel_clk(pixel_clock);
 			if (ret)
 				pr_err("error user set pixel clk!\n");
@@ -572,8 +619,10 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 
 			pr_debug("%s: begin set screen backlight\n", __func__);
 			if (copy_from_user(&duty_level, arg,
-					sizeof(unsigned int)))
-				return -EFAULT;
+					sizeof(unsigned int))) {
+				ret = -EFAULT;
+				break;
+			}
 			pr_info("%s: level is %d!!\n", __func__, duty_level);
 			ret = set_screen_backlight(duty_level);
 		}
@@ -582,9 +631,10 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		 {
 			int value = 0;
 			ret = get_user(value, (u32 __user *) arg);
-			if (ret)
-				return -EFAULT;
-
+			if (ret) {
+				ret = -EFAULT;
+				break;
+			}
 			iar_wb_setcfg(value);
 		}
 		break;
@@ -594,7 +644,7 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 			ret = copy_to_user((void __user *) arg, (char *) &value,
 				 sizeof(int));
 			if (ret)
-				return -EFAULT;
+				ret = -EFAULT;
 		}
 		break;
 	case IAR_WB_STREAM:
@@ -603,9 +653,10 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 
 			pr_err("iar_wb_stream.\n");
 			ret = get_user(on, (u32 __user *) arg);
-			if (ret)
-				return -EFAULT;
-
+			if (ret) {
+				ret = -EFAULT;
+				break;
+			}
 			if (on) {
 				iar_wb_stream_on();
 			} else {
@@ -619,8 +670,10 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 
 			pr_err("iar_wb_reqbufs.\n");
 			ret = get_user(buffers, (u32 __user *) arg);
-			if (ret)
-				return -EFAULT;
+			if (ret) {
+				ret = -EFAULT;
+				break;
+			}
 			iar_wb_reqbufs(buffers);
 		}
 		break;
@@ -632,9 +685,9 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 				   sizeof(struct frame_info));
 			if (ret) {
 				pr_err("IAR_WB_QBUF, copy failed\n");
-				return -EFAULT;
+				ret = -EFAULT;
+				break;
 			}
-
 			iar_wb_qbuf(&frameinfo);
 		}
 		break;
@@ -646,7 +699,7 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 			ret = copy_to_user((void __user *) arg, (char *) &frameinfo,
 				 sizeof(struct frame_info));
 			if (ret)
-				return -EFAULT;
+				ret = -EFAULT;
 		}
 		break;
     case IAR_OUTPUT_LAYER0_DQBUF:
@@ -656,19 +709,22 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
       		iar_output_dqbuf(0, &frameinfo);
       		ret = copy_to_user((void __user *)arg, (char *)&frameinfo,
                          sizeof(struct frame_info));
-      		if (ret) return -EFAULT;
-    	}
+      		if (ret)
+			ret = -EFAULT;
+    		}
 		break;
     case IAR_OUTPUT_LAYER0_REQBUFS:
 		 {
       		int buffers = 0;
 
-      		pr_err("iar_output_reqbufs.\n");
+      		pr_debug("iar_output_reqbufs.\n");
       		ret = get_user(buffers, (u32 __user *)arg);
-      		if (ret)
-			  	return -EFAULT;
+      		if (ret) {
+			ret = -EFAULT;
+			break;
+		}
       		iar_output_reqbufs(0, buffers);
-    	}
+    		}
 		break;
     case IAR_OUTPUT_LAYER0_QBUF:
 		 {
@@ -678,9 +734,9 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 							sizeof(struct frame_info));
 			if (ret) {
 				pr_err("IAR_OUTPUT_QBUF, copy failed\n");
-				return -EFAULT;
+				ret = -EFAULT;
+				break;
 			}
-
 			iar_output_qbuf(0, &frameinfo);
 		}
 		break;
@@ -692,7 +748,7 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 			ret = copy_to_user((void __user *)arg, (char *)&frameinfo,
 								sizeof(struct frame_info));
 			if (ret)
-				return -EFAULT;
+				ret = -EFAULT;
 		}
 		break;
     case IAR_OUTPUT_LAYER1_REQBUFS:
@@ -701,8 +757,10 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 
 			pr_err("iar_output1_reqbufs.\n");
 			ret = get_user(buffers, (u32 __user *)arg);
-			if (ret)
-				return -EFAULT;
+			if (ret) {
+				ret = -EFAULT;
+				break;
+			}
 			iar_output_reqbufs(1, buffers);
 		}
 		break;
@@ -714,9 +772,9 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 								sizeof(struct frame_info));
 			if (ret) {
 				pr_err("IAR_WB_QBUF, copy failed\n");
-				return -EFAULT;
+				ret = -EFAULT;
+				break;
 			}
-
 			iar_output_qbuf(1, &frameinfo);
 		}
 		break;
@@ -726,8 +784,10 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 
 			pr_err("iar_output_stream.\n");
 			ret = get_user(on, (u32 __user *)arg);
-			if (ret) return -EFAULT;
-
+			if (ret) {
+				ret = -EFAULT;
+				break;
+			}
 			if (on) {
 				iar_output_stream_on(0);
 			} else {
@@ -741,8 +801,10 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 
 			pr_err("iar_output_stream.\n");
 			ret = get_user(on, (u32 __user *)arg);
-			if (ret) return -EFAULT;
-
+			if (ret) {
+				ret = -EFAULT;
+				break;
+			}
 			if (on) {
 				iar_output_stream_on(1);
 			} else {
