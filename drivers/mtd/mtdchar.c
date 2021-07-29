@@ -753,6 +753,7 @@ static int mtdchar_ioctl(struct file *file, u_int cmd, u_long arg)
 				erase->len = einfo32.length;
 			}
 
+			erase->mtd = mtd;
 			ret = mtd_erase(mtd, erase);
 			kfree(erase);
 		}
