@@ -68,6 +68,10 @@ void ips_sif_mclk_set(u32 sif_mclk)
 }
 EXPORT_SYMBOL_GPL(ips_sif_mclk_set);
 
+/**
+ * @brief: reset vio module
+ * @param module: vio module
+ */
 void ips_set_module_reset(unsigned long module)
 {
 	unsigned long flags;
@@ -81,6 +85,11 @@ EXPORT_SYMBOL_GPL(ips_set_module_reset);
 
 static int clk_en = 0;
 module_param(clk_en, int, 0644);
+/**
+ * @brief: enable or disable vio module clk gate
+ * @param module: vio module
+ * @param enable: enable or disable
+ */
 int ips_set_clk_ctrl(unsigned long module, bool enable)
 {
 	int ret = 0;

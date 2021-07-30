@@ -196,6 +196,10 @@ struct mp_vio_frame {
 
 struct vio_framemgr {
 	u32			id;
+	/*
+	 * slock for protect elements and buf list in struct vio_framemgr
+	 * TODO every list have one spinlock
+	 */
 	spinlock_t		slock;
 	ulong			sindex;
 

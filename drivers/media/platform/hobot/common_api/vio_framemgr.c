@@ -232,6 +232,12 @@ p_err_ignore:
 }
 EXPORT_SYMBOL(frame_work_function);
 
+/**
+ * @brief: frame work of leader
+ * call the frame work of next multi modules,
+ * then call the frame work of its own
+ * @param work: frame work
+ */
 void frame_work_function_mp(struct kthread_work *work)
 {
 	struct vio_work *vwork;

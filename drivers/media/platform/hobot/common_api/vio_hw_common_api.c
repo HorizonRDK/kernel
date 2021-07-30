@@ -98,6 +98,7 @@ void vio_hw_set_owner_field(void __iomem *base_addr,
 }
 EXPORT_SYMBOL(vio_hw_set_owner_field);
 
+/* need protect in caller */
 void vio_hw_set_field(void __iomem *base_addr,
 		const struct vio_reg_def *reg,
 		const struct vio_field_def *field, u32 val)

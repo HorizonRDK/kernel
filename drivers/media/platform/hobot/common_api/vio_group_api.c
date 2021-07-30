@@ -14,6 +14,11 @@
 
 static struct vio_core iscore;
 u32 ldc_reset_flag, sif_module_exit;
+
+/*
+ * ldc_access_mutex not only protect access of ldc_reset_flag,
+ * also protect the entire process of starting read data of sifddrin
+ */
 struct mutex ldc_access_mutex;
 struct mutex rst_mutex;
 static u32 stat_info_update = 1;
@@ -616,6 +621,10 @@ void vio_reset_module(u32 module)
 }
 EXPORT_SYMBOL(vio_reset_module);
 
+/**
+ * @brief: Notify the leader that this frame is complete
+ * @param group: cur module
+ */
 void vio_group_done(struct vio_group *group)
 {
 	struct vio_group_task *group_task;
