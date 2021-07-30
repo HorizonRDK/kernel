@@ -66,6 +66,8 @@
 		pwm_c0 = &pwm_c0;
 		pwm_c1 = &pwm_c1;
 		pwm_c2 = &pwm_c2;
+
+        power = &power;
 	};
 
 	chosen {
@@ -516,6 +518,11 @@
 };
 
 &power {
+    pmic;
+    vdd_core_on_cnt = <0xffff>;
+    sysctrl_rst_dis_cnt = <0xffff>;
+    sysctrl_pre_clkon_cnt = <0xffff>;
+    sysctrl_pre_clkoff_cnt = <0xffff>;
 	status = "okay";
 };
 

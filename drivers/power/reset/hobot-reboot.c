@@ -24,6 +24,17 @@
 static void __iomem *base;
 static u32 reboot_offset;
 
+#define HOBOT_VDD_CORE_ON_CNT_OFFSET    0x104
+#define HOBOT_SYSCTRL_RST_DIS_CNT_OFFSET    0x108
+#define HOBOT_SYSCTRL_PRE_CLKON_CNT_OFFSET  0x10c
+#define HOBOT_SYSCTRL_PRE_CLKOFF_CNT_OFFSET 0x110
+
+static u32 V_vdd_core_on_cnt;
+static u32 V_sysctrl_rst_dis_cnt;
+static u32 V_sysctrl_pre_clkon_cnt;
+static u32 V_sysctrl_pre_clkoff_cnt;
+static bool is_pmic = true;
+
 #define HOBOT_SWINFO_SIZE_MAX   0x10
 #define HOBOT_SWINFO_MAGIC_MEMI 0
 #define HOBOT_SWINFO_MAGIC_CODE 0x57534248
@@ -591,6 +602,38 @@ static int hobot_reboot_probe(struct platform_device *pdev)
 		reboot_flag_offset = HOBOT_REBOOT_FLAG_OFFSET;
 	}
 	reboot_flag_reg = base + reboot_flag_offset;
+
+    is_pmic = of_property_read_bool(np, "pmic");
+    if (!is_pmic) {
+        err = of_property_read_u32(np, "vdd_core_on_cnt",
+                &V_vdd_core_on_cnt);
+        if (err) {
+		    dev_err(&pdev->dev, "parse vdd_core_on_cnt failed (err=%d)\n",
+                err);
+        }
+
+        err = of_property_read_u32(np, "sysctrl_rst_dis_cnt",
+                &V_sysctrl_rst_dis_cnt);
+        if (err) {
+		    dev_err(&pdev->dev, "parse sysctrl_rst_dis_cnt failed (err=%d)\n",
+                err);
+        }
+
+        err = of_property_read_u32(np, "sysctrl_pre_clkon_cnt",
+                &V_sysctrl_pre_clkon_cnt);
+        if (err) {
+		    dev_err(&pdev->dev, "parse sysctrl_pre_clkon_cnt failed (err=%d)\n",
+                err);
+        }
+
+        err = of_property_read_u32(np, "sysctrl_pre_clkoff_cnt",
+                &V_sysctrl_pre_clkoff_cnt);
+        if (err) {
+		    dev_err(&pdev->dev, "parse sysctrl_pre_clkoff_cnt failed (err=%d)\n",
+                err);
+        }
+    }
+
 	npm = of_parse_phandle(np, "memory-region", 0);
 	if (npm) {
 		err = of_address_to_resource(npm, 0, &r);
@@ -654,12 +697,44 @@ static const struct of_device_id hobot_reboot_of_match[] = {
 	{}
 };
 
+#ifdef CONFIG_PM
+int hobot_reboot_suspend(struct device *dev)
+{
+    /* if there is no pmic, set delay before resume */
+    if (!is_pmic) {
+        writel_relaxed(V_vdd_core_on_cnt,
+                base + HOBOT_VDD_CORE_ON_CNT_OFFSET);
+        writel_relaxed(V_sysctrl_rst_dis_cnt,
+                base + HOBOT_SYSCTRL_RST_DIS_CNT_OFFSET);
+        writel_relaxed(V_sysctrl_pre_clkon_cnt,
+                base + HOBOT_SYSCTRL_PRE_CLKON_CNT_OFFSET);
+        writel_relaxed(V_sysctrl_pre_clkoff_cnt,
+                base + HOBOT_SYSCTRL_PRE_CLKOFF_CNT_OFFSET);
+    }
+
+    return 0;
+}
+
+int hobot_reboot_resume(struct device *dev)
+{
+    return 0;
+}
+
+static const struct dev_pm_ops hobot_reboot_pm_ops = {
+    SET_SYSTEM_SLEEP_PM_OPS(hobot_reboot_suspend,
+            hobot_reboot_resume)
+};
+#endif
+
 static struct platform_driver hobot_reboot_driver = {
 	.probe = hobot_reboot_probe,
 	.remove = hobot_reboot_remove,
 	.driver = {
 		.name = "hobot-reboot",
 		.of_match_table = hobot_reboot_of_match,
+#ifdef CONFIG_PM
+        .pm = &hobot_reboot_pm_ops,
+#endif
 	},
 };
 module_platform_driver(hobot_reboot_driver);

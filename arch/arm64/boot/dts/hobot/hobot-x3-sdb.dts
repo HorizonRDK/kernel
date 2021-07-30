@@ -72,6 +72,9 @@
 
 		gpios = &gpios;
 		usb_id = &usb_id;
+
+        power = &power;
+
 	};
 
 	chosen {
@@ -169,6 +172,13 @@
 	status = "ok";
 };
 */
+
+&power {
+    vdd_core_on_cnt = <0xffff>;
+    sysctrl_rst_dis_cnt = <0xffff>;
+    sysctrl_pre_clkon_cnt = <0xffff>;
+    sysctrl_pre_clkoff_cnt = <0xffff>;
+};
 
 &socinfo {
 	board_name = "X3SDB";
