@@ -236,6 +236,7 @@ struct splice_info {
 };
 
 struct sif_subdev {
+	/*protect variable val_ctx_mask for multi process sharing*/
 	spinlock_t 		slock;
 	unsigned long 	val_ctx_mask;
 	struct sif_video_ctx	*ctx[VIO_MAX_SUB_PROCESS];
@@ -297,7 +298,13 @@ struct frame_node {
 
 struct sif2isp_seq {
 	atomic_t            refcount;
+	/* protect variable wait_mask */
 	spinlock_t          slock;
+	/*
+	* wait_mask set to 1 when there is a buff in each way,
+	* set to stop when the thread exits,
+	* and set to flush when switching the sorting sequence
+	*/
 	uint32_t            wait_mask;
 	uint8_t             seq_num[VIO_MAX_STREAM];
 	wait_queue_head_t   wait_queue;
@@ -319,7 +326,11 @@ struct x3_sif_dev {
 	atomic_t			instance;
 	atomic_t			rsccount;
 	atomic_t			isp_init_cnt;
-	atomic_t			open_cnt;  //
+	atomic_t			open_cnt;
+	/*
+	* configuration of protection register
+	* protect open and close mutex
+	*/
 	struct mutex			shared_mutex;
 	u32 				error_count;
 	u32					hblank;
