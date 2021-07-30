@@ -45,6 +45,7 @@ int pym_video_streamoff(struct pym_video_ctx *pym_ctx);
 
 extern struct ion_device *hb_ion_dev;
 static struct pm_qos_request pym_pm_qos_req;
+/* protect pym task only init one time */
 static struct mutex pym_mutex;
 
 static int x3_pym_open(struct inode *inode, struct file *file)
@@ -1166,10 +1167,11 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = framemgr->frames_mp[index];
 	if (frame == NULL) {
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
 		vio_err("[S%d] %s frame null, index %d.\n", group->instance,
 			__func__, index);
 		ret = -EFAULT;
-		goto err;
+		return ret;
 	}
 
 	pym_ctx->frm_num_usr--;
@@ -1233,10 +1235,11 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 			goto err;
 		}
 	} else {
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
 		vio_err("[S%d] frame(%d) is invalid state(%d)\n",
 			group->instance, index, frame->state);
 		ret = -EINVAL;
-		goto err;
+		return ret;
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 	/* group leader and otf pym, start trigger */
@@ -1400,12 +1403,12 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 		if (atomic_read(&subdev->refcount) == 1) {
 			ret = -EFAULT;
 			pym_ctx->event = 0;
-			vio_err("[S%d][V%d] %s (p%d) complete empty.",
-				pym_ctx->group->instance, pym_ctx->id, __func__,
-				pym_ctx->ctx_index);
 			if (pym_ctx->ctx_index == 0)
 				pym->statistic.dq_err[pym_ctx->group->instance]++;
 			framemgr_x_barrier_irqr(framemgr, 0, flags);
+			vio_err("[S%d][V%d] %s (p%d) complete empty.",
+				pym_ctx->group->instance, pym_ctx->id, __func__,
+				pym_ctx->ctx_index);
 			return ret;
 		}
 	}
@@ -1442,11 +1445,11 @@ int pym_video_dqbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 		}
 	} else {
 		ret = -EFAULT;
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
 		vio_err("[S%d] %s proc%d no frame, event %d.\n",
 			pym_ctx->group->instance, __func__, ctx_index,
 			pym_ctx->event);
 		pym_ctx->event = 0;
-		framemgr_x_barrier_irqr(framemgr, 0, flags);
 		goto DONE;
 	}
 	pym_ctx->event = 0;
@@ -1859,10 +1862,10 @@ int x3_pym_mmap(struct file *file, struct vm_area_struct *vma)
 	if (frame) {
 		paddr = frame->addr[0];
 	} else {
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
 		vio_err("[S%d][V%d] %s proc %d error,frame null",
 			pym_ctx->group->instance, pym_ctx->id, __func__,
 			pym_ctx->ctx_index);
-		framemgr_x_barrier_irqr(framemgr, 0, flags);
 		ret = -EFAULT;
 		goto err;
 	}
@@ -1997,9 +2000,11 @@ void pym_frame_done(struct pym_subdev *subdev)
 				}
 			}
 		}
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
 	} else {
 		pym->statistic.fe_lack_buf[group->instance]++;
 		event = VIO_FRAME_NDONE;
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
 		vio_err("[S%d]PYM PROCESS queue has no member;\n", group->instance);
 		vio_err("[S%d][V%d][FRM](%d %d %d %d %d)\n",
 			group->instance,
@@ -2010,7 +2015,6 @@ void pym_frame_done(struct pym_subdev *subdev)
 			framemgr->queued_count[FS_COMPLETE],
 			framemgr->queued_count[FS_USED]);
 	}
-	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
 	/*
 	 *pym us framedrop isr and done isr will be appear at the same frame
@@ -2062,7 +2066,9 @@ void pym_frame_ndone(struct pym_subdev *subdev)
 		trans_frame(framemgr, frame, FS_REQUEST);
 		if(group->leader == true)
 			vio_group_start_trigger_mp(group, frame);
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
 	} else {
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
 		vio_err("[S%d][V%d] NDONE [FRM](%d %d %d %d %d)\n",
 			group->instance,
 			subdev->id,
@@ -2072,7 +2078,6 @@ void pym_frame_ndone(struct pym_subdev *subdev)
 			framemgr->queued_count[FS_COMPLETE],
 			framemgr->queued_count[FS_USED]);
 	}
-	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
 	spin_lock_irqsave(&subdev->slock, flags);
 	vio_dbg("pym ndone subdev ctx mask:%lu", subdev->val_ctx_mask);

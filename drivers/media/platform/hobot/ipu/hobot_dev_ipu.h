@@ -220,6 +220,7 @@ struct ipu_wait_init_info {
 };
 /**
  * struct ipu_subdev is used to describe ipu channel, support multi-process sharing it
+ * @slock: protect val_ctx_mask and poll_mask
  * @ctx: describe video frames context of one process alloced in open this subdev
  * @val_ctx_mask: for example, 0x3 represent 2 processes sharing this subdev
  * @id: subdev minor devno
@@ -281,6 +282,7 @@ struct ipu_subdev {
  * @group: pointer to iscore.chain[VIO_MAX_STREAM].group[GROUP_ID_IPU]
  * @gtask: describe group's task, hold kthread worker
  * @vwork: describe frame's work, hold kthread work entry for each frames(VIO_MP_MAX_FRAMES)
+ * @slock: protect ipu IPU_CFG_RDY register
  */
 struct x3_ipu_dev {
 	/* channel information */

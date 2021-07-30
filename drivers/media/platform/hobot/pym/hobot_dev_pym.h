@@ -122,7 +122,9 @@ enum pym_subdev_state {
 };
 
 struct pym_subdev {
+	/* protect val_ctx_mask and poll_mask */
 	spinlock_t 		slock;
+	/* save video context value of which opening this subdev */
 	unsigned long 	val_ctx_mask;
 	struct pym_video_ctx	*ctx[VIO_MAX_SUB_PROCESS];
 	atomic_t		refcount;
@@ -147,7 +149,7 @@ struct pym_subdev {
  * @instance: used as pipeline id.
  * @rsccount: rsccount>0 pym is already enable
  * @open_cnt: open_cnt>0 pym pm_qos/clk is already enable
- * @shared_slock: lock access to this struct
+ * @shared_slock: lock access to state
  * @sensor_fcount: frame start interrupt count
  * @backup_fcount: count the number of prepared frames in frame_work func
  * @enable_cnt: used for serial enable and disable operations

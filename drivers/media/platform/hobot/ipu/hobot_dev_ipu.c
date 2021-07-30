@@ -69,7 +69,7 @@ uint16_t get_fps_from_sif(void);
 
 extern struct ion_device *hb_ion_dev;
 static struct pm_qos_request ipu_pm_qos_req;
-
+/* protect ipu only init one time */
 static struct mutex ipu_mutex;
 static int prev_fs_has_no_fe = 0;
 static int prev_frame_disable_out = 0;
@@ -2590,10 +2590,11 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = framemgr->frames_mp[index];
 	if (frame == NULL) {
+		ret = -EFAULT;
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
 		vio_err("[S%d] %s frame null, index %d.\n", group->instance,
 			__func__, index);
-		ret = -EFAULT;
-		goto err;
+		return ret;
 	}
 	ipu_ctx->frm_num_usr--;
 	if (frame->state == FS_FREE) {
@@ -2661,14 +2662,16 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 				framemgr->queued_count[FS_COMPLETE],
 				framemgr->queued_count[FS_USED]);
 			ret = 0;
-			goto err;
+			framemgr_x_barrier_irqr(framemgr, 0, flags);
+			return ret;
 		}
 	} else {
+		ret = -EINVAL;
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
 		vio_err("[S%d][V%d] q:proc%d frame(%d) is invalid state(%d)\n",
 			group->instance, ipu_ctx->id, ipu_ctx->ctx_index,
 			index, frame->state);
-		ret = -EINVAL;
-		goto err;
+		return ret;
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
@@ -2746,9 +2749,6 @@ try_releas_ion:
 		if (subdev->id != 0)
 			x3_ipu_try_release_process_ion(ipu_ctx, frame_array_addr);
 	}
-	return ret;
-err:
-	framemgr_x_barrier_irqr(framemgr, 0, flags);
 	return ret;
 }
 
@@ -2856,9 +2856,11 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	} else {
 		if (atomic_read(&subdev->refcount) == 1) {
 			if (subdev && subdev->frame_is_skipped) {
-				ret = -ENODATA;
 				subdev->frame_is_skipped = false;
+				framemgr_x_barrier_irqr(framemgr, 0, flags);
+				ret = -ENODATA;
 			} else {
+				framemgr_x_barrier_irqr(framemgr, 0, flags);
 				ret = -EFAULT;
 				vio_err("[S%d][V%d] %s (p%d) complete empty.",
 					ipu_ctx->group->instance, ipu_ctx->id, __func__,
@@ -2868,7 +2870,6 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 			if (ipu_ctx->ctx_index == 0)
 				ipu->statistic.dq_err\
 					[ipu_ctx->group->instance][ipu_ctx->id]++;
-			framemgr_x_barrier_irqr(framemgr, 0, flags);
 			return ret;
 		}
 	}
@@ -3275,7 +3276,10 @@ int ipu_init_end(struct ipu_video_ctx *ipu_ctx, int instance)
 			if (current_task) {
 				ret = send_sig_info(SIGPOLL, &info, current_task);
 				if (ret < 0) {
+					memset(subdev->wait_init_pid, 0, sizeof(subdev->wait_init_pid));
+					spin_unlock_irqrestore(&subdev->slock, flags);
 					vio_err("[S%d][V%d] %s error\n", instance, id, __func__);
+					return ret;
 				}
 			}
 			subdev->wait_init_pid[i] = 0;
@@ -3339,12 +3343,13 @@ int ipu_set_splice_info(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 			 */
 			ipu_ctx->event = 0;
 			trans_frame(framemgr, frame, FS_REQUEST);
+			framemgr_x_barrier_irqr(framemgr, 0, flags);
 		} else {
+			framemgr_x_barrier_irqr(framemgr, 0, flags);
 			vio_err("[S%d][V%d] %s complete no buf, can't process again\n",
 					instance, ipu_ctx->id, __func__);
 		}
 	}
-	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
 	vio_dbg("[S%d][V%d] %s tgt_stride%d first%d last%d roi %d %d %d %d"
 		" scale: tgt w%d h%d step x%d y%d pre scale x%d y%d\n",
@@ -3569,10 +3574,10 @@ int x3_ipu_mmap(struct file *file, struct vm_area_struct *vma)
 		addr[1] = frame->addr[1];
 		size = frame->common_frame.frameinfo.width * frame->common_frame.frameinfo.height;
 	} else {
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
 		vio_err("[S%d][V%d] %s proc %d error,frame null",
 			ipu_ctx->group->instance, ipu_ctx->id, __func__,
 			ipu_ctx->ctx_index);
-		framemgr_x_barrier_irqr(framemgr, 0, flags);
 		ret = -EFAULT;
 		goto err;
 	}
@@ -3713,9 +3718,14 @@ void ipu_frame_done(struct ipu_subdev *subdev)
 				}
 			}
 		}
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
 	} else {
 		ipu->statistic.fe_lack_buf[group->instance][subdev->id]++;
 		event = VIO_FRAME_NDONE;
+		vio_set_stat_info(group->instance, IPU_MOD,
+				event_ipu_fs + subdev->id, group->frameid.frame_id,
+				0, framemgr->queued_count);
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
 		vio_err("[S%d][V%d]IPU PROCESS queue has no member;\n",
 				group->instance, subdev->id);
 		vio_err("[S%d][V%d][FRM](%d %d %d %d %d)\n",
@@ -3726,11 +3736,7 @@ void ipu_frame_done(struct ipu_subdev *subdev)
 			framemgr->queued_count[FS_PROCESS],
 			framemgr->queued_count[FS_COMPLETE],
 			framemgr->queued_count[FS_USED]);
-		vio_set_stat_info(group->instance, IPU_MOD,
-				event_ipu_fs + subdev->id, group->frameid.frame_id,
-				0, framemgr->queued_count);
 	}
-	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
 	spin_lock_irqsave(&subdev->slock, flags);
 	/*
@@ -3819,7 +3825,12 @@ void ipu_frame_ndone(struct ipu_subdev *subdev)
 		vio_set_stat_info(group->instance, IPU_MOD,
 			event_err, group->frameid.frame_id,
 			frame->frameinfo.addr[0], framemgr->queued_count);
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
 	} else {
+		vio_set_stat_info(group->instance, IPU_MOD,
+			event_err, group->frameid.frame_id,
+			0, framemgr->queued_count);
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
 		vio_err("[S%d][V%d]ndone IPU PROCESS queue has no member;\n",
 				group->instance, subdev->id);
 		vio_err("[S%d][V%d][FRM](%d %d %d %d %d)\n",
@@ -3830,11 +3841,7 @@ void ipu_frame_ndone(struct ipu_subdev *subdev)
 			framemgr->queued_count[FS_PROCESS],
 			framemgr->queued_count[FS_COMPLETE],
 			framemgr->queued_count[FS_USED]);
-		vio_set_stat_info(group->instance, IPU_MOD,
-			event_err, group->frameid.frame_id,
-			0, framemgr->queued_count);
 	}
-	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
 	spin_lock_irqsave(&subdev->slock, flags);
 	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
