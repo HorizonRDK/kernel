@@ -911,7 +911,7 @@ static int xj3_est_configuration(struct xj3_priv *priv) {
     u32 control, sec_inc;
     int ret = -EINVAL;
     u64 temp;
-
+    unsigned long flags;
     //	xj3_est_intr_config(priv);
     if (!(priv->dma_cap.time_stamp || priv->adv_ts)) {
         dev_info(priv->device, "%s, No HW time stamping: Disabling EST\n",
@@ -939,10 +939,14 @@ static int xj3_est_configuration(struct xj3_priv *priv) {
 
     temp = (u64)(temp << 32);
     priv->default_addend = div_u64(temp, priv->plat->clk_ptp_rate);
+
+    spin_lock_irqsave(&priv->ptp_lock, flags);
     xj3_config_addend(priv, priv->default_addend);
 
     ktime_get_real_ts64(&now);
+
     xj3_init_systime(priv, (u32)now.tv_sec, now.tv_nsec);
+    spin_unlock_irqrestore(&priv->ptp_lock, flags);
 
     control =
         PTP_TCR_TSENA | PTP_TCR_TSINIT | PTP_TCR_TSENALL | PTP_TCR_TSCTRLSSR;
@@ -4220,7 +4224,7 @@ static int xj3_ptp_set_ts_config(struct net_device *ndev, struct ifreq *ifr) {
     u32 sec_inc = 0;
     u32 value = 0;
     bool xmac;
-
+    unsigned long flags;
     xmac = 1;
 
     if (!(priv->dma_cap.time_stamp || priv->adv_ts)) {
@@ -4356,10 +4360,14 @@ static int xj3_ptp_set_ts_config(struct net_device *ndev, struct ifreq *ifr) {
         priv->systime_flags = value;
         temp = (u64)(temp << 32);
         priv->default_addend = div_u64(temp, priv->plat->clk_ptp_rate);
+
+        spin_lock_irqsave(&priv->ptp_lock, flags);
         xj3_config_addend(priv, priv->default_addend);
 
         ktime_get_real_ts64(&now);
+
         xj3_init_systime(priv, (u32)now.tv_sec, now.tv_nsec);
+        spin_unlock_irqrestore(&priv->ptp_lock, flags);
     }
 
     memcpy(&priv->tstamp_config, &config, sizeof(config));
