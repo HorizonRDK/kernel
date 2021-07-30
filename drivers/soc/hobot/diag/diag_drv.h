@@ -62,7 +62,7 @@ struct diag_module {
 struct diag {
 	/* list for all modules */
 	struct list_head module_list;
-	struct mutex module_list_mutex;
+	spinlock_t module_lock;
 
 	/* three priority level list */
 	struct list_head low_prio_list;
