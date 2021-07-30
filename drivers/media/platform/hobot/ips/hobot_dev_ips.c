@@ -153,15 +153,23 @@ EXPORT_SYMBOL_GPL(ips_set_md_cfg);
 
 void ips_set_md_enable(void)
 {
+	unsigned long flags;
+
+	spin_lock_irqsave(&g_ips_dev->shared_slock, flags);
 	ips_mot_enable(g_ips_dev->base_reg, 1);
 	ips_set_sram_mux(g_ips_dev->base_reg, 1);
+	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags);
 }
 EXPORT_SYMBOL_GPL(ips_set_md_enable);
 
 void ips_set_md_disable(void)
 {
+	unsigned long flags;
+
+	spin_lock_irqsave(&g_ips_dev->shared_slock, flags);
 	ips_mot_enable(g_ips_dev->base_reg, 0);
 	ips_set_sram_mux(g_ips_dev->base_reg, 0);
+	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags);
 }
 
 EXPORT_SYMBOL_GPL(ips_set_md_disable);
@@ -169,11 +177,14 @@ EXPORT_SYMBOL_GPL(ips_set_md_disable);
 int ips_disable_md(void)
 {
 	int ret = 0;
+	unsigned long flags;
 	BUG_ON(!g_ips_dev);
 
+	spin_lock_irqsave(&g_ips_dev->shared_slock, flags);
 	ips_mot_enable(g_ips_dev->base_reg, 0);
 	ips_set_sram_mux(g_ips_dev->base_reg, 0);
 	ips_enable_intr(g_ips_dev->base_reg, MOD_INTR, false);
+	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags);
 
 	return ret;
 }
@@ -182,9 +193,12 @@ EXPORT_SYMBOL_GPL(ips_disable_md);
 int ips_set_md_refresh(bool enable)
 {
 	int ret = 0;
+	unsigned long flags;
 	BUG_ON(!g_ips_dev);
 
+	spin_lock_irqsave(&g_ips_dev->shared_slock, flags);
 	ips_mot_set_refresh(g_ips_dev->base_reg, enable);
+	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags);
 
 	return ret;
 }
@@ -193,9 +207,12 @@ EXPORT_SYMBOL_GPL(ips_set_md_refresh);
 int ips_set_md_resolution(u32 width, u32 height)
 {
 	int ret = 0;
+	unsigned long flags;
 	BUG_ON(!g_ips_dev);
 
+	spin_lock_irqsave(&g_ips_dev->shared_slock, flags);
 	ips_mot_set_resolution(g_ips_dev->base_reg, width, height);
+	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags);
 
 	return ret;
 }
@@ -216,9 +233,12 @@ EXPORT_SYMBOL_GPL(ips_get_md_event);
 int ips_set_md_fmt(u32 fmt)
 {
 	int ret = 0;
+	unsigned long flags;
 	BUG_ON(!g_ips_dev);
 
+	spin_lock_irqsave(&g_ips_dev->shared_slock, flags);
 	ips_mot_set_fmt(g_ips_dev->base_reg, fmt, 0x5);
+	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags);
 
 	return ret;
 }
