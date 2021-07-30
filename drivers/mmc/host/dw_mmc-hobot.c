@@ -261,6 +261,9 @@ static int hb_mmc_set_sample_phase(struct dw_mci *host,
 	}
 #endif
 	hb_mmc_enable_clk(host);
+	/* usleep is required for SDcard/SDIO initialization */
+	if (priv->ctrl_id != DWMMC_MMC_ID)
+		usleep_range(20000, 25000);
 	tasklet_enable(&host->tasklet);
 	enable_irq(host->irq);
 	return 0;
@@ -297,6 +300,9 @@ static int hb_mmc_set_drv_phase(struct dw_mci *host,
 	}
 #endif
 	hb_mmc_enable_clk(host);
+	/* usleep is required for SDcard/SDIO initialization */
+	if (priv->ctrl_id != DWMMC_MMC_ID)
+		usleep_range(20000, 25000);
 	tasklet_enable(&host->tasklet);
 	enable_irq(host->irq);
 	return 0;
