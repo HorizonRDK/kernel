@@ -366,4 +366,3 @@ module_exit(camera_subdev_driver_exit); /* PRQA S ALL */
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Horizon Inc.");
-
