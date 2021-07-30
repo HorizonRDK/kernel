@@ -1642,6 +1642,7 @@ int32_t acamera_interrupt_handler()
                     } //if ( acamera_event_queue_empty( &p_ctx->fsm_mgr.event_queue ) )
                 } else if ( irq_bit == ISP_INTERRUPT_EVENT_ISP_END_FRAME_END ) {
                     struct timeval tmp_tv;
+                    general_fsm_ptr_t p_fsm;
 
                     pr_debug("frame done, ctx id %d\n", cur_ctx_id);
 
@@ -1655,11 +1656,15 @@ int32_t acamera_interrupt_handler()
 
                     acamera_dma_alarms_error_occur();
 
-                    if ( acamera_isp_isp_global_ping_pong_config_select_read( 0 ) == ISP_CONFIG_PONG ) {
-                        general_temper_lsb_dma_switch((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm), ISP_CONFIG_PING, temper_dma_error);
-                    } else {
-                        general_temper_lsb_dma_switch((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm), ISP_CONFIG_PONG, temper_dma_error);
+                    p_fsm = (general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm);
+                    if (p_fsm->temper_mode != NOTHING) {
+                        if (acamera_isp_isp_global_ping_pong_config_select_read(0) == ISP_CONFIG_PONG) {
+                            general_temper_lsb_dma_switch((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm), ISP_CONFIG_PING, temper_dma_error);
+                        } else {
+                            general_temper_lsb_dma_switch((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm), ISP_CONFIG_PONG, temper_dma_error);
+                        }
                     }
+
                     temper_dma_error = 0;
 
                     p_ctx->sts.fe_irq_cnt++;
@@ -1676,8 +1681,11 @@ int32_t acamera_interrupt_handler()
                     }
 
                     // isp m2m ipu
-                    // in case of register space lock, disable again here
                     if (p_ctx->fsm_mgr.reserved) {
+                        //update frame id to metadata for vb2 buffer that will transfer to ipu
+                        frame_buffer_fr_finished((dma_writer_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_DMA_WRITER]->p_fsm));
+
+                        // in case of register space lock, disable again here
                         if (y_done)
                             dma_writer_fr_dma_disable(&dh->pipe[dma_fr], PLANE_Y, 0);
                         if (uv_done)
@@ -1700,9 +1708,6 @@ int32_t acamera_interrupt_handler()
                     pr_debug("y write to ddr done\n");
                     acamera_dma_alarms_error_occur();
                     p_ctx->sts.frame_write_done_irq_cnt++;
-
-                    //update frame id to metadata
-                    frame_buffer_fr_finished((dma_writer_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_DMA_WRITER]->p_fsm));
 
                     //sif m2m isp
                     if (p_ctx->p_gfw->sif_isp_offline) {
