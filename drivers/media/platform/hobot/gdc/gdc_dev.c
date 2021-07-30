@@ -124,7 +124,7 @@ static int x3_gdc_close(struct inode *inode, struct file *file)
 	struct gdc_group *group;
 	struct x3_gdc_dev *gdc;
 	int enbale = 0;
-	int ret;
+	int ret = 0;
 
 	gdc_ctx = file->private_data;
 	group = gdc_ctx->group;
@@ -134,14 +134,10 @@ static int x3_gdc_close(struct inode *inode, struct file *file)
 	gdc = gdc_ctx->gdc_dev;
 
 	write_gdc_mask(gdc->hw_id, &enbale);
-	ret = mutex_lock_interruptible(&g_gdc_dev->gdc_mutex);
-	if (ret) {
-                vio_err("gdc mutex lock error\n");
-		goto p_err;
-	}
+	mutex_lock(&gdc->gdc_mutex);
 	vio_gdc_clk_disable(gdc->hw_id);
 	vio_dwe_clk_disable();
-	mutex_unlock(&g_gdc_dev->gdc_mutex);
+	mutex_unlock(&gdc->gdc_mutex);
 
 p_err:
 	if (gdc_ctx) {
@@ -155,9 +151,8 @@ p_err:
 void dwe0_reset_control(void)
 {
 	u32 cnt = 20;
-	unsigned long flag;
 
-	spin_lock_irqsave(&g_gdc_dev->shared_slock, flag);
+	spin_lock(&g_gdc_dev->shared_slock);
 	while (1) {
 		if (g_gdc_dev->state != GDC_DEV_PROCESS) {
 			ips_set_module_reset(DWE0_RST);
@@ -171,7 +166,7 @@ void dwe0_reset_control(void)
 			break;
 		}
 	}
-	spin_unlock_irqrestore(&g_gdc_dev->shared_slock, flag);
+	spin_unlock(&g_gdc_dev->shared_slock);
 }
 
 /**
@@ -184,8 +179,10 @@ void dwe0_reset_control(void)
  */
 void gdc_start(struct x3_gdc_dev *gdc_dev)
 {
+	mutex_lock(&gdc_dev->gdc_mutex);
 	gdc_process_enable(gdc_dev->base_reg, 0);
 	gdc_process_enable(gdc_dev->base_reg, 1);
+	mutex_unlock(&gdc_dev->gdc_mutex);
 	// vio_set_stat_info(0, GDC_FS, 0);
 	vio_dbg("%s\n", __func__);
 }
@@ -205,9 +202,11 @@ void gdc_init(struct x3_gdc_dev *gdc_dev, gdc_settings_t *gdc_settings)
 
 	base_addr = gdc_dev->base_reg;
 
+	mutex_lock(&gdc_dev->gdc_mutex);
 	gdc_process_enable(base_addr, 0);
 	gdc_process_reset(base_addr, 1);
 	gdc_process_reset(base_addr, 0);
+	mutex_unlock(&gdc_dev->gdc_mutex);
 	gdc_set_config_addr(base_addr, gdc_settings->gdc_config.config_addr);
 	gdc_set_config_size(base_addr,
 			    gdc_settings->gdc_config.config_size / 4);
@@ -425,7 +424,6 @@ int gdc_video_process(struct gdc_video_ctx *gdc_ctx, unsigned long arg)
 {
 	int ret = 0;
 	int timeout = 0;
-	unsigned long flag;
 	gdc_settings_t gdc_settings;
 	struct x3_gdc_dev *gdc_dev;
 	int enbale = 1;
@@ -453,8 +451,9 @@ int gdc_video_process(struct gdc_video_ctx *gdc_ctx, unsigned long arg)
 		goto p_err_ignore;
 	}
 
-	spin_lock_irqsave(&gdc_dev->shared_slock, flag);
+	spin_lock(&gdc_dev->shared_slock);
 	gdc_dev->state = GDC_DEV_PROCESS;
+	spin_unlock(&gdc_dev->shared_slock);
 	gdc_dev->isr_err = 0;
 	gdc_ctx->event = 0;
 	atomic_set(&gdc_dev->instance, gdc_ctx->group->instance);
@@ -465,7 +464,6 @@ int gdc_video_process(struct gdc_video_ctx *gdc_ctx, unsigned long arg)
 	gdc_start(gdc_dev);
 	vio_set_stat_info(gdc_ctx->group->instance,
 		GDC_MOD, event_gdc_fs,  0, 0, NULL);
-	spin_unlock_irqrestore(&gdc_dev->shared_slock, flag);
 
 	timeout = wait_event_interruptible_timeout(gdc_ctx->done_wq,
 				gdc_ctx->event,
@@ -891,6 +889,7 @@ static int x3_gdc_remove(struct platform_device *pdev)
 
 	free_irq(gdc->irq, gdc);
 
+	mutex_destroy(&gdc->gdc_mutex);
 	device_destroy(gdc->class, gdc->devno);
 	if (!vps_class)
 		class_destroy(gdc->class);

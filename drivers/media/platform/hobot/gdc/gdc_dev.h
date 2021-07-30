@@ -104,7 +104,7 @@ struct x3_gdc_dev {
 	resource_size_t			regs_end;
 	int				irq;
 	unsigned long			state;
-	spinlock_t shared_slock;
+	spinlock_t shared_slock; // protect gdc hardware process
 
 	struct class *class;
 	struct cdev cdev;
@@ -117,7 +117,7 @@ struct x3_gdc_dev {
 
 	struct gdc_group group[VIO_MAX_STREAM];
 	struct semaphore smp_gdc_enable;
-	struct mutex gdc_mutex;
+	struct mutex gdc_mutex; // protect gdc enable/disable clock and set register
 
 #ifdef CONFIG_HOBOT_DIAG
 	atomic_t			diag_state;
