@@ -54,19 +54,19 @@ int camera_i2c_open(uint32_t port, uint32_t i2c_bus,
 		camera_i2c_release(port);
 	}
 	minor = i2c_bus;
-    adap = i2c_get_adapter(minor);
-    if (!adap) {
-	pr_err("can not get i2c_adapter");
-            return -ENODEV;
+	adap = i2c_get_adapter(minor);
+	if (!adap) {
+		pr_err("can not get i2c_adapter");
+		return -ENODEV;
 	}
 	camera_mod[port]->client = i2c_new_device(adap, &camera_mod[port]->board_info);
-    if (!camera_mod[port]->client) {
+	if (!camera_mod[port]->client) {
 		i2c_put_adapter(adap);
-        return -ENOMEM;
-    }
+		return -ENOMEM;
+	}
 
 	pr_info("the %s is open success !", camera_mod[port]->client->name);
-    return 0;
+	return 0;
 }
 
 

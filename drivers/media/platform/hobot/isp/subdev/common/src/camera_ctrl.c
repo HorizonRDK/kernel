@@ -90,7 +90,7 @@ int sensor_ctrl_completion_timeout(uint32_t port, uint32_t timeout)
 
 void sensor_ctrl_wakeup(uint32_t port)
 {
-        update_flag[port] = 1;
+	update_flag[port] = 1;
 	wake_up(&sensor_update);
 }
 
@@ -99,10 +99,10 @@ static int camera_ctrl_fop_open(struct inode *pinode, struct file *pfile)
 	pr_info("camera_fop_open begin %d \n", __LINE__);
 	mutex_lock(&camera_ctrl->m_mutex);
 	camera_ctrl->user_num++;
-	mutex_unlock(&camera_ctrl->m_mutex);
 	if (camera_ctrl->user_num == 1) {
 		pfile->private_data = camera_ctrl;
 	}
+	mutex_unlock(&camera_ctrl->m_mutex);
 	pr_info("camera_fop_open success %d\n", __LINE__);
 	return 0;
 }
@@ -113,10 +113,10 @@ static int camera_ctrl_fop_release(struct inode *pinode, struct file *pfile)
 
 	mutex_lock(&camera_cdev->m_mutex);
 	camera_cdev->user_num--;
-	mutex_unlock(&camera_cdev->m_mutex);
 	if (camera_cdev->user_num == 0) {
 		pfile->private_data = NULL;
 	}
+	mutex_unlock(&camera_cdev->m_mutex);
 	pr_info("camera_fop_release success %d\n", __LINE__);
 	return 0;
 }
@@ -126,7 +126,6 @@ static long camera_ctrl_fop_ioctl(struct file *pfile, unsigned int cmd,
 	int ret = 0;
 	uint32_t port = 0;
 
-	//pr_info("---[%s-%d]---\n", __func__, __LINE__);
 	switch(cmd) {
 		case SENSOR_CTRL_INFO_SYNC:
 			if (copy_from_user((void *)&port, (void __user *)arg, sizeof(uint32_t))) {
@@ -135,7 +134,8 @@ static long camera_ctrl_fop_ioctl(struct file *pfile, unsigned int cmd,
 			} else {
 				ret = sensor_ctrl_completion_timeout(port, 200);
 				if (!ret) {
-					if (copy_to_user((void __user *)arg, (void *)(&sensor_info[port]), sizeof(sensor_ctrl_info_t))) {
+					if (copy_to_user((void __user *)arg, (void *)(&sensor_info[port]),
+								sizeof(sensor_ctrl_info_t))) {
 						pr_err("copy is err !\n");
 						ret = -EINVAL;
 					}
@@ -215,9 +215,6 @@ int camera_ctrldev_init(void)
 
 	return ret;
 }
-
-// module_init(camera_cdev_init);
-// module_exit(camera_cdev_exit);
 
 MODULE_AUTHOR("Horizon Inc.");
 MODULE_DESCRIPTION("camera_ctrl dev of x3");

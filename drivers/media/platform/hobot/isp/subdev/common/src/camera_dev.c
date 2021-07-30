@@ -62,11 +62,11 @@ static int camera_fop_open(struct inode *pinode, struct file *pfile)
 		camera_cdev->start_num = 0;
 		camera_cdev->init_num = 0;
 		camera_cdev->pre_state = SENSOR_PRE_STATE_UNLOCK;
+		pfile->private_data = camera_cdev;
 		pr_info("user_mutex init !\n");
 	}
 	camera_cdev->user_num++;
 	mutex_unlock(&camera_cdev->slock);
-	pfile->private_data = camera_cdev;
 	pr_info("line %d user_num %d\n", __LINE__, camera_cdev->user_num);
 	return 0;
 }
@@ -87,8 +87,8 @@ static int camera_fop_release(struct inode *pinode, struct file *pfile)
 		camera_cdev->start_num = 0;
 		camera_cdev->init_num = 0;
 	}
-	mutex_unlock(&camera_cdev->slock);
 	pfile->private_data = NULL;
+	mutex_unlock(&camera_cdev->slock);
 	pr_info("line %d user_num %d  camera_cdev->start_num %d \n",
 			__LINE__, camera_cdev->user_num, camera_cdev->start_num);
 	return 0;
@@ -101,8 +101,6 @@ static long camera_fop_ioctl(struct file *pfile, unsigned int cmd,
 	sensor_turning_data_t turning_data;
 	sensor_turning_data_ex_t turning_param_ex;
 	int mst_flg = 0;
-
-	//pr_info("---[%s-%d]---\n", __func__, __LINE__);
 
 	mutex_lock(&camera_cdev->slock);
 	if (camera_cdev->mst_file == NULL) {
@@ -328,11 +326,13 @@ register_err:
 void __exit camera_dev_exit(int port)
 {
 	if ((port < CAMERA_TOTAL_NUMBER) && (camera_mod[port] != NULL)) {
+		mutex_destroy(&(camera_mod[port]->slock));
+		mutex_destroy(&(camera_mod[port]->user_mutex));
 		misc_deregister(&camera_mod[port]->camera_chardev);
 		kzfree(camera_mod[port]);
 		camera_mod[port] = NULL;
 	}
-	pr_info("camera_dev_exit success %d\n", __LINE__);
+	pr_info("camera_dev_exit port %d successfully.\n", port);
 }
 
 void camera_cdev_exit(void)
@@ -362,9 +362,6 @@ devinit_err:
 	camera_cdev_exit();
 	return ret;
 }
-
-// module_init(camera_cdev_init);
-// module_exit(camera_cdev_exit);
 
 MODULE_AUTHOR("Horizon Inc.");
 MODULE_DESCRIPTION("camera_char dev of x3");
