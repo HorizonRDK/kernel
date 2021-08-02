@@ -113,7 +113,7 @@ static void write_sensor_work(struct work_struct *data)
 	spin_lock(&event_header.lock);
 	list_splice_init(&event_header.list_busy, &event_list);
 	spin_unlock(&event_header.lock);
-	list_for_each_entry_safe(event_p, event_tmp, &event_list, list_node) {
+	list_for_each_entry_safe(event_p, event_tmp, &event_list, list_node) { /* PRQA S ALL */
 		if (event_p->cmd == SENSOR_UPDATE) {
 			ret = camera_sys_priv_set(event_p->port,
 				&event_p->priv_param);
@@ -150,7 +150,7 @@ static void cmd_add_to_work(uint32_t cmd, void *arg)
 	if (!list_empty(&event_header.list_free)) {
 		list = event_header.list_free.next;
 		list_del(list);
-		event_p = list_entry(list, event_node_t, list_node);
+		event_p = list_entry(list, event_node_t, list_node); /* PRQA S ALL */
 		event_p->port = ARGS_TO_PTR(arg)->port;
 		event_p->cmd = cmd;
 		memcpy(&event_p->priv_param,
@@ -361,8 +361,8 @@ void __exit camera_subdev_driver_exit(void)
 	pr_info("[KeyMsg] camera subdevice exit done");
 }
 
-late_initcall(camera_subdev_driver_init);
-module_exit(camera_subdev_driver_exit);
+late_initcall(camera_subdev_driver_init); /* PRQA S ALL */
+module_exit(camera_subdev_driver_exit); /* PRQA S ALL */
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Horizon Inc.");

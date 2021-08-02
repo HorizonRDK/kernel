@@ -36,6 +36,8 @@
 #include "hobot_dev_sif.h"
 #include "sif_hw_api.h"
 
+// PRQA S ALL ++
+
 #define MODULE_NAME "X3 SIF"
 extern struct vio_frame_id  sif_frame_info[VIO_MAX_STREAM];
 
@@ -948,7 +950,7 @@ err_scd:
 	sif->seq_task.wait_mask = 0;
 err_kth:
 	frame_queue->enable = 0;
-	frame_queue->pipeline_id = -1;
+	frame_queue->pipeline_id = VIO_MAX_STREAM;
 	atomic_dec(&sif->seq_task.refcount);
 	sif->seq_task.seq_num[pipeid] = 0;
 	return -EFAULT;
@@ -984,7 +986,7 @@ static int seq_kthread_stop(struct sif_video_ctx *sif_ctx)
 	queue = &sif->frame_queue[pipeid];
 	spin_lock(&queue->slock);
 	queue->enable = 0;
-	queue->pipeline_id = -1;
+	queue->pipeline_id = VIO_MAX_STREAM;
 	queue->timeout = 0;
 	queue->frameid = 0;
 	spin_unlock(&queue->slock);
@@ -4219,3 +4221,5 @@ module_exit(x3_sif_exit);
 MODULE_AUTHOR("Sun Kaikai<kaikai.sun@horizon.com>");
 MODULE_DESCRIPTION("X3 SIF driver");
 MODULE_LICENSE("GPL v2");
+
+// PRQA S ALL --

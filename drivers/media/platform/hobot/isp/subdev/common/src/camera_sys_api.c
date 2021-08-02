@@ -38,6 +38,8 @@
 #include "inc/camera_spi.h"
 #include "inc/camera_sys_api.h"
 
+// PRQA S ALL ++
+
 extern 	uint32_t sensor_log10(uint32_t val);
 extern 	uint32_t sensor_date(uint32_t val);
 
@@ -1901,3 +1903,5 @@ int camera_sys_sensor_read(uint32_t port, uint32_t address, uint32_t *r_data)
     *r_data = (uint32_t)(buf[0]);
     return ret;
 }
+
+// PRQA S ALL --

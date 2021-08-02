@@ -9,6 +9,8 @@
 #include "hobot_dev_sif.h"
 #include "sif_hw_api.h"
 
+// PRQA S ALL ++
+
 static uint32_t s_enable_pattern_gen = 0;
 static uint32_t path_sel = 0;
 extern struct vio_frame_id  sif_frame_info[VIO_MAX_STREAM];
@@ -174,7 +176,7 @@ static void sif_config_bypass(u32 __iomem *base_reg, u32 bypass_channels)
 	u32 bypass_mask = (bypass_channels % 1000) / 10;
 	u32 bypass_nsel = bypass_channels / 1000;
 
-	if (bypass_sel < 0 || bypass_sel > 4)
+	if (bypass_sel > 4)
 		return;
 
 	if (!bypass_nsel) {
@@ -449,28 +451,23 @@ static void sif_set_dvp_input(u32 __iomem *base_reg, sif_input_dvp_t* p_dvp)
 			sif_set_pattern_gen(base_reg, 0, &p_dvp->data, 0);
 
 		if (yuv_format == HW_FORMAT_YUV422) {
-			if (mux_out_index % 1) {
-				vio_err("The mux_out_index should be even if using YUV format");
-				return;
-			} else {
-				switch (mux_out_index / 2) {
-					case 0:
-						vio_hw_set_field(base_reg, &sif_regs[SIF_YUV422_TRANS],
-								&sif_fields[SW_YUV422TO420SP_MUX01_ENABLE], 1);
-						break;
-					case 1:
-						vio_hw_set_field(base_reg, &sif_regs[SIF_YUV422_TRANS],
-								&sif_fields[SW_YUV422TO420SP_MUX23_ENABLE], 1);
-						break;
-					case 2:
-						vio_hw_set_field(base_reg, &sif_regs[SIF_YUV422_TRANS],
-								&sif_fields[SW_YUV422TO420SP_MUX45_ENABLE], 1);
-						break;
-					case 3:
-						vio_hw_set_field(base_reg, &sif_regs[SIF_YUV422_TRANS],
-								&sif_fields[SW_YUV422TO420SP_MUX67_ENABLE], 1);
-						break;
-				}
+			switch (mux_out_index / 2) {
+			case 0:
+				vio_hw_set_field(base_reg, &sif_regs[SIF_YUV422_TRANS],
+						&sif_fields[SW_YUV422TO420SP_MUX01_ENABLE], 1);
+				break;
+			case 1:
+				vio_hw_set_field(base_reg, &sif_regs[SIF_YUV422_TRANS],
+						&sif_fields[SW_YUV422TO420SP_MUX23_ENABLE], 1);
+				break;
+			case 2:
+				vio_hw_set_field(base_reg, &sif_regs[SIF_YUV422_TRANS],
+						&sif_fields[SW_YUV422TO420SP_MUX45_ENABLE], 1);
+				break;
+			case 3:
+				vio_hw_set_field(base_reg, &sif_regs[SIF_YUV422_TRANS],
+						&sif_fields[SW_YUV422TO420SP_MUX67_ENABLE], 1);
+				break;
 			}
 		}
 	}
@@ -1213,14 +1210,14 @@ void sif_set_isp_output(u32 __iomem *base_reg,
 	p_isp = &p_out->isp;
 	if(!p_isp->enable) {
 		vio_dbg("%s config start\n", __func__);
-		#if 0
+#if 0
 		vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_EN_INT],
 				&sif_fields[SIF_ISP0_OUT_FE_INT_EN], 0);
 		vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_EN_INT],
 				&sif_fields[SIF_ISP0_OUT_FS_INT_EN], 0);
 		vio_hw_set_field(base_reg, &sif_regs[SIF_ISP_EXP_CFG],
 				&sif_fields[SW_SIF_ISP0_DOL_EXP_NUM], 0);
-	   #endif
+#endif
 		vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_CTRL],
 				&sif_fields[SW_SIF_ISP0_FLYBY_ENABLE], 0);
 	}
@@ -1475,7 +1472,7 @@ static void sif_disable_input_and_output(u32 __iomem *base_reg)
 			&sif_fields[SW_DVP_IN_ENABLE], 0);
 
 	sif_stop_pattern_gen(base_reg);
-	#if 0
+#if 0
 	// Clear: YUV Transform
 	vio_hw_set_reg(base_reg, &sif_regs[SIF_YUV422_TRANS], 0);
 
@@ -1485,7 +1482,7 @@ static void sif_disable_input_and_output(u32 __iomem *base_reg)
 		sif_disable_ipi(base_reg, i);
 	 Shadow Update: IPI + DVP
 	vio_hw_set_reg(base_reg, &sif_regs[SIF_SHD_UP_RDY], 0xFFFFFFFF);
-    #endif
+#endif
 	vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_CTRL],
 			&sif_fields[SW_SIF_ISP0_FLYBY_ENABLE], 0);
 	vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_CTRL],
@@ -1827,3 +1824,5 @@ void sif_hw_dump(u32 __iomem *base_reg)
 {
 	vio_hw_dump_regs(base_reg, sif_regs, NUM_OF_SIF_REG);
 }
+
+// PRQA S ALL --
