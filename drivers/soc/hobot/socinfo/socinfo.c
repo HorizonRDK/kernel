@@ -216,6 +216,9 @@ ssize_t name_show(struct class *class,
 	case DDR_FREQC_100:
 		snprintf(name, sizeof(name), "%s-100", name);
 		break;
+	case DDR_FREQC_2640:
+		snprintf(name, sizeof(name), "%s-2640", name);
+		break;
 
 	default:
 		snprintf(name, sizeof(name), "%s-2666", name);

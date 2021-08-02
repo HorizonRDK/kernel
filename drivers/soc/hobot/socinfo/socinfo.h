@@ -47,6 +47,7 @@
 #define DDR_FREQC_2400	0x9
 #define DDR_FREQC_100	0xa
 #define DDR_FREQC_3600	0xb
+#define DDR_FREQC_2640	0xe
 
 /* ddr capacity */
 #define DDR_CAPACITY_1G		0x1
