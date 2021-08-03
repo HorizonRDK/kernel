@@ -62,10 +62,10 @@ static int camera_fop_open(struct inode *pinode, struct file *pfile)
 		camera_cdev->start_num = 0;
 		camera_cdev->init_num = 0;
 		camera_cdev->pre_state = SENSOR_PRE_STATE_UNLOCK;
-		pfile->private_data = camera_cdev;
 		pr_info("user_mutex init !\n");
 	}
 	camera_cdev->user_num++;
+	pfile->private_data = camera_cdev;
 	mutex_unlock(&camera_cdev->slock);
 	pr_info("line %d user_num %d\n", __LINE__, camera_cdev->user_num);
 	return 0;
