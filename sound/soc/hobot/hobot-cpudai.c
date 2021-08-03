@@ -34,6 +34,8 @@
 
 #define HOBOT_I2S_FMTS (SNDRV_PCM_FMTBIT_S8 | SNDRV_PCM_FMTBIT_S16_LE)
 
+#define HOBOT_I2S_BCLK_DIV_LIMIE 8
+
 #define HOBOT_DEF_I2S_MS 1;
 static int i2s_ms = 2;
 module_param(i2s_ms, uint, S_IRUGO);
@@ -151,7 +153,7 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
         int ret = 0;
         int lrck_div = 0;
 
-	int bclk_div = 8;
+	int bclk_div = HOBOT_I2S_BCLK_DIV_LIMIE;
 	unsigned long flags;
 	spin_lock_irqsave(&i2s->lock, flags);
 
@@ -203,6 +205,9 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 				i2s->mclk_set = 12288000;
 				break;
 			}
+
+			if (i2s->mclk_set / i2s->clk > HOBOT_I2S_BCLK_DIV_LIMIE)
+				i2s->mclk_set = 4096000;
 			spin_unlock_irqrestore(&i2s->lock, flags);
 			if (i2s->ms == 1) {
 				ret = change_clk(i2s->dev, "i2s-mclk",
