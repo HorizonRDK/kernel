@@ -3722,6 +3722,12 @@ static int xj3_open(struct net_device *ndev) {
         goto init_error;
     }
 
+    enable_irq(ndev->irq);
+#ifdef HOBOT_USE_IRQ_SPLIT
+    enable_irq(priv->tx_irq);
+    enable_irq(priv->rx_irq);
+#endif
+
     hobot_init_intr_coalesce(priv);
     phy_start(ndev->phydev);
     xj3_enable_all_queues(priv);
@@ -3802,13 +3808,29 @@ static int xj3_release(struct net_device *ndev) {
         phy_disconnect(ndev->phydev);
     }
 
+    /* disable_irq: disable an irq and wait for completion
+     * so after disable_irq , no interrupt happen.
+     */
+    disable_irq(ndev->irq);
+#ifdef HOBOT_USE_IRQ_SPLIT
+    disable_irq(priv->tx_irq);
+    disable_irq(priv->rx_irq);
+#endif
+
     xj3_stop_all_queues(priv);
+
+    /* xj3_disable_all_queues->napi_disable ,napi_disable will 
+     * disable an napi poll and wait for completion.
+     * so after this , no poll will be called.
+     */
     xj3_disable_all_queues(priv);
 
     del_timer_sync(&priv->txtimer);
 
     xj3_stop_all_dma(priv);
     xj3_set_mac(priv->ioaddr, false);
+
+    /* free resource is safe , because no interrupt and poll here. */
     free_dma_desc_resources(priv);
 
     netif_carrier_off(ndev);
@@ -5122,6 +5144,7 @@ static int xj3_dvr_probe(struct device *device,
         dev_info(priv->device, "%s: error allocating the IRQ\n", __func__);
         goto irq_error;
     }
+    disable_irq(ndev->irq);
 
 #ifdef HOBOT_USE_IRQ_SPLIT
     ret = devm_request_irq(priv->device, priv->tx_irq, &xj3_interrupt, 0,
@@ -5131,6 +5154,7 @@ static int xj3_dvr_probe(struct device *device,
                  __func__, priv->txirq_name, priv->tx_irq);
         goto irq_error;
     }
+    disable_irq(priv->tx_irq);
     ret = devm_request_irq(priv->device, priv->rx_irq, &xj3_interrupt, 0,
                            priv->rxirq_name, ndev);
     if (ret < 0) {
@@ -5138,6 +5162,7 @@ static int xj3_dvr_probe(struct device *device,
                  __func__, priv->rxirq_name, priv->rx_irq);
         goto irq_error;
     }
+    disable_irq(priv->rx_irq);
 #endif
 
     ndev->sysfs_groups[0] = &phy_reg_group;
