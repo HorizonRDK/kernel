@@ -530,6 +530,8 @@ int32_t diagnose_register(const struct diag_register_info *register_info)
 		event->id_handle = register_info->event_handle[j];
 		event->last_sta = (uint8_t)DiagEventStaUnknown;
 		event->last_snd_time = 0;
+		/* lockless here ,for the reason that event list is traversed only when
+		 * related module has been inserted to module_list */
 		list_add_tail(&event->list, &module->events);
 		pr_debug("module:%hx event:%hx will be resgtered\n", module->module_id,
 						register_info->event_handle[j].event_id);
@@ -854,6 +856,9 @@ static int32_t __init diag_init(void)
 		return -1;
 	} else {
 		int32_t i;
+
+		/* lockless here,for the reason that no diagnose work will be processed
+		 * befor diagnose finish initialisation itsellf */
 		for (i = 0; i < EVENT_ELEMENT_ALL; i++)
 			list_add_tail(&g_diag_info->module_event[i].list,
 					&g_diag_info->empty_list);
@@ -945,6 +950,9 @@ static void __exit diag_exit(void)
 		}
 
 		/* diag_module release */
+		/* PRQA S 0497, 0602 ++ */
+		/* lockless here, for the reason that no more diagnose message should be
+		 * processed when diagnose is exiting itself */
 		list_for_each_entry_safe(mod_pos, mod_nxt, &g_diag_info->module_list, list) {
 		/* PRQA S 0497, 0602 -- */
 			/* free events of this module first */
