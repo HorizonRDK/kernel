@@ -511,7 +511,7 @@ int32_t diagnose_register(const struct diag_register_info *register_info)
 	}
 	spin_unlock_irqrestore(&g_diag_info->module_lock, flags);
 
-	module = (struct diag_module *)kzalloc(sizeof(struct diag_module), GFP_KERNEL);
+	module = (struct diag_module *)kzalloc(sizeof(struct diag_module), GFP_ATOMIC);
 	if (module == NULL) {
 		pr_err("module:%hx register fail\n", register_info->module_id);
 		return -ENOMEM;
@@ -522,7 +522,7 @@ int32_t diagnose_register(const struct diag_register_info *register_info)
 	module->event_cnt = register_info->event_cnt;
 	INIT_LIST_HEAD(&module->events);
 	for (j = 0; (j < module->event_cnt) && (j < (uint8_t)EVENT_ID_MAX); j++) {
-		event = (struct diag_event_id *)kzalloc(sizeof(*event), GFP_KERNEL);
+		event = (struct diag_event_id *)kzalloc(sizeof(*event), GFP_ATOMIC);
 		if (event == NULL) {
 			pr_err("module:%hx register fail\n", module->module_id);
 			return -ENOMEM;
@@ -822,7 +822,7 @@ static ssize_t diag_store(struct kobject *kobj, /* PRQA S ALL */
 static int32_t __init diag_init(void)
 {
 	if (g_diag_info == NULL) {
-		g_diag_info = (struct diag *)kmalloc(sizeof(struct diag), GFP_KERNEL);
+		g_diag_info = (struct diag *)kmalloc(sizeof(struct diag), GFP_ATOMIC);
 		if (g_diag_info == NULL) {
 			pr_err("struct diag allocate fail\n");
 			return -1;
@@ -847,11 +847,12 @@ static int32_t __init diag_init(void)
 	/* allocate module_event node and add to empty list */
 	g_diag_info->module_event = (struct diag_module_event *)kmalloc(
 			(size_t)sizeof(struct diag_module_event) *
-			(size_t)EVENT_ELEMENT_ALL, GFP_KERNEL);
+			(size_t)EVENT_ELEMENT_ALL, GFP_ATOMIC);
 	if (g_diag_info->module_event == NULL) {
 		pr_err("event element allocate fail\n");
 
 		kfree(g_diag_info);
+		g_diag_info = NULL;
 
 		return -1;
 	} else {
@@ -870,10 +871,7 @@ static int32_t __init diag_init(void)
 	if (g_diag_info->netlink_sock == NULL) {
 		pr_err("netlink socket create fail\n");
 
-		kfree(g_diag_info->module_event);
-		kfree(g_diag_info);
-
-		return -1;
+		goto err_out;
 	}
 
 	diag_had_init = 1;
@@ -885,9 +883,7 @@ static int32_t __init diag_init(void)
 
 		netlink_kernel_release(g_diag_info->netlink_sock);
 		g_diag_info->netlink_sock = NULL;
-		kfree(g_diag_info->module_event);
-		kfree(g_diag_info);
-		return -1;
+		goto err_out;
 	}
 
 	/* allocate device number */
@@ -898,9 +894,7 @@ static int32_t __init diag_init(void)
 		class_destroy(g_diag_info->diag_class);
 		netlink_kernel_release(g_diag_info->netlink_sock);
 		g_diag_info->netlink_sock = NULL;
-		kfree(g_diag_info->module_event);
-		kfree(g_diag_info);
-		return -1;
+		goto err_out;
 	}
 
 	/* create device */
@@ -913,23 +907,30 @@ static int32_t __init diag_init(void)
 		class_destroy(g_diag_info->diag_class);
 		netlink_kernel_release(g_diag_info->netlink_sock);
 		g_diag_info->netlink_sock = NULL;
-		kfree(g_diag_info->module_event);
-		kfree(g_diag_info);
-		return -1;
+		goto err_out;
 	}
 
 	if (sysfs_create_file(&g_diag_info->diag_device->kobj,
 				&diag_attr.attr) == 0)
 		return 0;
-	else
-		pr_err("sysfs file create fail\n");
 
-	return -1;
+	pr_err("sysfs file create fail\n");
+	unregister_chrdev_region((dev_t)g_diag_info->diag_dev_num, 1);
+	class_destroy(g_diag_info->diag_class);
+	netlink_kernel_release(g_diag_info->netlink_sock);
+	g_diag_info->netlink_sock = NULL;
+	goto err_out;
 #endif
 
 	PDEBUG("diag_init succeed\n");
 
 	return 0;
+err_out:
+	kfree(g_diag_info->module_event);
+	g_diag_info->module_event = NULL;
+	kfree(g_diag_info);
+	g_diag_info = NULL;
+	return -1;
 }
 
 static void __exit diag_exit(void)
