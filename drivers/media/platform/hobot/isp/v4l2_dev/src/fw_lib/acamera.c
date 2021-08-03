@@ -1105,15 +1105,19 @@ extern void isp_input_port_size_config(sensor_fsm_ptr_t p_fsm);
 extern int ips_get_isp_frameid(void);
 extern int dma_writer_configure_pipe( dma_pipe *pipe );
 extern void dma_writer_fr_dma_disable(dma_pipe *pipe, int plane, int flip);
+int isp_error_sts = 0;
+int temper_dma_error = 0;
+
 /*
  * offline isp only, isp hw/sw register transfer.
  */
 int sif_isp_ctx_sync_func(int ctx_id)
 {
     int ret = 0;
-	acamera_context_ptr_t p_ctx;
+    acamera_context_ptr_t p_ctx;
     acamera_fsm_mgr_t *instance;
     struct timeval tv1, tv2;
+    general_fsm_ptr_t p_fsm;
 
     do_gettimeofday(&tv1);
 	mutex_lock(&g_firmware.ctx_chg_lock);
@@ -1185,6 +1189,11 @@ int sif_isp_ctx_sync_func(int ctx_id)
             // dma_writer_configure_pipe(&dh->pipe[dma_fr]);
         }
 
+		p_fsm = (general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm);
+		if (p_fsm->temper_mode != NOTHING) {
+			general_temper_lsb_dma_switch((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm), 0, temper_dma_error);
+		}
+
         /*
             switch to ping/pong contexts for the next frame.
             ping space is unconfiged, we must config it at first frame,
@@ -1247,8 +1256,7 @@ out:
 	return 0;
 }
 
-int isp_error_sts = 0;
-int temper_dma_error = 0;
+
 inline int acamera_dma_alarms_error_occur(void)
 {
     uint32_t dma_monitor_sts = system_hw_read_32(0x54L);
@@ -1549,8 +1557,11 @@ int32_t acamera_interrupt_handler()
 
                     y_done = 0;
                     uv_done = 0;
+
                     //clear error status
                     isp_error_sts = 0;
+					temper_dma_error = 0;
+
                     // frame_start
                     isp_irq_completion(cur_ctx_id, 0);
 
@@ -1657,15 +1668,13 @@ int32_t acamera_interrupt_handler()
                     acamera_dma_alarms_error_occur();
 
                     p_fsm = (general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm);
-                    if (p_fsm->temper_mode != NOTHING) {
+                    if (p_ctx->p_gfw->sif_isp_offline == 0 && p_fsm->temper_mode != NOTHING) {
                         if (acamera_isp_isp_global_ping_pong_config_select_read(0) == ISP_CONFIG_PONG) {
                             general_temper_lsb_dma_switch((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm), ISP_CONFIG_PING, temper_dma_error);
                         } else {
                             general_temper_lsb_dma_switch((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm), ISP_CONFIG_PONG, temper_dma_error);
                         }
                     }
-
-                    temper_dma_error = 0;
 
                     p_ctx->sts.fe_irq_cnt++;
 					if (ip_sts_dbg)

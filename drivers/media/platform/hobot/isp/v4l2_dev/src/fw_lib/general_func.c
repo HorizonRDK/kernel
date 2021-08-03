@@ -1047,16 +1047,16 @@ static int general_temper_configure( general_fsm_ptr_t p_fsm )
     acamera_isp_temper_dma_lsb_bank_base_writer_write_hw( 0, msb_frame->address );
     acamera_isp_temper_dma_lsb_bank_base_reader_write_hw( ISP_CONFIG_PING_SIZE, lsb_frame->address );
     acamera_isp_temper_dma_lsb_bank_base_writer_write_hw( ISP_CONFIG_PING_SIZE, msb_frame->address );
- 
+
     acamera_isp_temper_dma_frame_write_on_lsb_dma_write( isp_base, 1 );
     acamera_isp_temper_dma_frame_read_on_lsb_dma_write( isp_base, 1 );
 
     /* Configure MSB if TEMPER3_MODE */
     if ( p_fsm->temper_mode == TEMPER3_MODE ) {
-        acamera_isp_temper_dma_msb_bank_base_reader_write( isp_base, msb_frame->address );
-        acamera_isp_temper_dma_msb_bank_base_writer_write( isp_base, msb_frame->address );
-        acamera_isp_temper_dma_frame_write_on_msb_dma_write( isp_base, 1 );
-        acamera_isp_temper_dma_frame_read_on_msb_dma_write( isp_base, 1 );
+	    acamera_isp_temper_dma_msb_bank_base_reader_write( isp_base, msb_frame->address );
+	    acamera_isp_temper_dma_msb_bank_base_writer_write( isp_base, msb_frame->address );
+	    acamera_isp_temper_dma_frame_write_on_msb_dma_write( isp_base, 1 );
+	    acamera_isp_temper_dma_frame_read_on_msb_dma_write( isp_base, 1 );
     } else {
 	acamera_isp_temper_temper2_mode_write( isp_base, p_fsm->temper_mode == TEMPER2_MODE );
     }
@@ -1085,6 +1085,7 @@ void general_temper_lsb_dma_switch(general_fsm_ptr_t p_fsm, uint8_t next_frame_p
     uint32_t isp_base_cur = 0, isp_base_next = 0;
     uint32_t r_addr = 0, w_addr = 0;
     uint8_t current_frame_ppf = !next_frame_ppf;
+	uintptr_t isp_base = p_fsm->cmn.isp_base;
 
     if (current_frame_ppf == ISP_CONFIG_PONG)
         isp_base_cur = ISP_CONFIG_PING_SIZE;
@@ -1092,29 +1093,44 @@ void general_temper_lsb_dma_switch(general_fsm_ptr_t p_fsm, uint8_t next_frame_p
     if (next_frame_ppf == ISP_CONFIG_PONG)
         isp_base_next = ISP_CONFIG_PING_SIZE;
 
-    r_addr = acamera_isp_temper_dma_lsb_bank_base_reader_read_hw(isp_base_cur);
-    w_addr = acamera_isp_temper_dma_lsb_bank_base_writer_read_hw(isp_base_cur);
-    pr_debug("current: frame ppf %d, r dma %x, w dma %x, err %d\n", current_frame_ppf, r_addr, w_addr, dma_error);
+	if (p_fsm->p_fsm_mgr->p_ctx->p_gfw->sif_isp_offline) {
+		r_addr = acamera_isp_temper_dma_lsb_bank_base_reader_read(isp_base);
+		w_addr = acamera_isp_temper_dma_lsb_bank_base_writer_read(isp_base);
+	} else {
+	    r_addr = acamera_isp_temper_dma_lsb_bank_base_reader_read_hw(isp_base_cur);
+	    w_addr = acamera_isp_temper_dma_lsb_bank_base_writer_read_hw(isp_base_cur);
+	}
+    pr_debug("[s%d] current: frame ppf %d, r dma %x, w dma %x, err %d\n", p_fsm->cmn.ctx_id, current_frame_ppf, r_addr, w_addr, dma_error);
 
     rc = ion_check_in_heap_carveout(r_addr, 0);
     rc |= ion_check_in_heap_carveout(w_addr, 0);
     if (rc) {
-        pr_err("addr r %x, w %x is invalid.\n", r_addr, w_addr);
+        pr_err("[s%d] addr r %x, w %x is invalid.\n", p_fsm->cmn.ctx_id, r_addr, w_addr);
         return;
     }
 
     if (dma_error == 0) { // no temper r empty or w full error
-        acamera_isp_temper_dma_lsb_bank_base_reader_write_hw( isp_base_next, w_addr );
-        acamera_isp_temper_dma_lsb_bank_base_writer_write_hw( isp_base_next, r_addr );
+	    if (p_fsm->p_fsm_mgr->p_ctx->p_gfw->sif_isp_offline) {
+		    acamera_isp_temper_dma_lsb_bank_base_reader_write( isp_base, w_addr );
+		    acamera_isp_temper_dma_lsb_bank_base_writer_write( isp_base, r_addr );
+	    } else {
+		    acamera_isp_temper_dma_lsb_bank_base_reader_write_hw( isp_base_next, w_addr );
+		    acamera_isp_temper_dma_lsb_bank_base_writer_write_hw( isp_base_next, r_addr );
+	    }
     } else {
         acamera_isp_temper_dma_lsb_bank_base_reader_write_hw( isp_base_next, r_addr );
-        acamera_isp_temper_dma_lsb_bank_base_writer_write_hw( isp_base_next, w_addr );        
+        acamera_isp_temper_dma_lsb_bank_base_writer_write_hw( isp_base_next, w_addr );
     }
 
     if (temper_dma_debug) {
-        r_addr = acamera_isp_temper_dma_lsb_bank_base_reader_read_hw(isp_base_next);
-        w_addr = acamera_isp_temper_dma_lsb_bank_base_writer_read_hw(isp_base_next);
-        pr_debug("after: next frame ppf %d, r dma %x, w dma %x\n", next_frame_ppf, r_addr, w_addr);
+	    if (p_fsm->p_fsm_mgr->p_ctx->p_gfw->sif_isp_offline) {
+		    r_addr = acamera_isp_temper_dma_lsb_bank_base_reader_read(isp_base);
+		    w_addr = acamera_isp_temper_dma_lsb_bank_base_writer_read(isp_base);
+		} else {
+			r_addr = acamera_isp_temper_dma_lsb_bank_base_reader_read_hw(isp_base_next);
+			w_addr = acamera_isp_temper_dma_lsb_bank_base_writer_read_hw(isp_base_next);
+		}
+        pr_debug("[s%d] after: next frame ppf %d, r dma %x, w dma %x\n", p_fsm->cmn.ctx_id, next_frame_ppf, r_addr, w_addr);
     }
 }
 
