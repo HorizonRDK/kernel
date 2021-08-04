@@ -1061,12 +1061,14 @@ int isp_init_iridix(uint32_t ctx_id, uint32_t ctrl_val)
 				 break;
 		 }
 		if (i < HW_CONTEXT_NUMBER) {
-			ptr->iridix_chn_idx = i;
-			pr_debug("ctx_id = %d, iridix_chn_idx =%d\n", ctx_id, ptr->iridix_chn_idx);
-			set_bit(i, &ptr->p_gfw->iridix_chn_bitmap);
-			acamera_isp_iridix_context_no_write(ptr->settings.isp_base, i);
-			acamera_isp_top_bypass_iridix_write(ptr->settings.isp_base, 0);
-			acamera_isp_iridix_enable_write(ptr->settings.isp_base, 1);
+            if (acamera_isp_top_bypass_iridix_read(ptr->settings.isp_base) == 0) {
+                ptr->iridix_chn_idx = i;
+                pr_debug("ctx_id = %d, iridix_chn_idx =%d\n", ctx_id, ptr->iridix_chn_idx);
+                set_bit(i, &ptr->p_gfw->iridix_chn_bitmap);
+                acamera_isp_iridix_context_no_write(ptr->settings.isp_base, i);
+                acamera_isp_top_bypass_iridix_write(ptr->settings.isp_base, 0);
+                acamera_isp_iridix_enable_write(ptr->settings.isp_base, 1);
+            }
 		} else if (ctrl_val == WDR_MODE_NATIVE) {
 			for (i = FIRMWARE_CONTEXT_NUMBER - 1; i >= 0; i--) {
 				ptr_tmp = acamera_get_ctx_ptr(i);
