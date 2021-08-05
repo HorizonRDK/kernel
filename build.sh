@@ -189,12 +189,10 @@ function all()
 {
     prefix=$TARGET_KERNEL_DIR
     config=$KERNEL_DEFCONFIG
-    cur_commit=$(git rev-parse --short HEAD 2>/dev/null)
-    [ "$?" = "0" -a ! -z "${cur_commit}" ] && { extra_ver="-${cur_commit}"; }
 
     echo "kernel config: $config"
     # real build
-    make ARCH=${ARCH_KERNEL} O=${BUILD_OUTPUT_PATH} EXTRAVERSION=${extra_ver} $config || {
+    make ARCH=${ARCH_KERNEL} O=${BUILD_OUTPUT_PATH} $config || {
         echo "make $config failed"
         exit 1
     }
@@ -205,7 +203,7 @@ function all()
     # For GCOV only, will modify the resulting .config
     set_kernel_config
 
-    make ARCH=${ARCH_KERNEL} O=${BUILD_OUTPUT_PATH} EXTRAVERSION=${extra_ver} -j${N} || {
+    make ARCH=${ARCH_KERNEL} O=${BUILD_OUTPUT_PATH} -j${N} || {
         echo "make failed"
         exit 1
     }
