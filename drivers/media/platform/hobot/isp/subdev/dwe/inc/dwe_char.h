@@ -19,6 +19,7 @@
 
 #include <linux/types.h>
 #include <linux/mutex.h>
+#include <linux/atomic.h>
 #include "buffer_vb2.h"
 
 #define CHARDEVNAME_LEN  20
@@ -42,8 +43,7 @@
 typedef struct _dwe_charmod_s {
 	char name[CHARDEVNAME_LEN];
 	uint32_t devflag;
-	struct mutex slock;
-	uint32_t user_num;
+	atomic_t user_num;
 
 //miscdevice
 	int dev_minor_id;

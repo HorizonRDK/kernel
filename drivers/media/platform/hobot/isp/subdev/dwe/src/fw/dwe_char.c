@@ -41,6 +41,7 @@
 #include <linux/mutex.h>
 #include <linux/dma-mapping.h>
 #include <linux/delay.h>
+#include <linux/atomic.h>
 #include "dwe_char.h"
 #include "acamera_logger.h"
 #include "system_dwe_api.h"
@@ -83,16 +84,14 @@ static int dwe_fop_open(struct inode *pinode, struct file *pfile)
 		return -EINVAL;
 	}
 
-	if (dwe_cdev->user_num > 0) {
+	if (atomic_cmpxchg(&dwe_cdev->user_num, 0, 1) != 0) {
 		LOG(LOG_ERR, " more than one pthred use !\n");
-		return -ENXIO;
+		return -EBUSY;
 	}
 
-	//mutex_lock(&dwe_cdev->slock);
-	dwe_cdev->user_num++;
 	pfile->private_data = dwe_cdev;
-	//mutex_unlock(&dwe_cdev->slock);
 
+	// protect pipe_count & reset_ctrl
 	mutex_lock(&g_lock);
 	if (pipe_count == 0) {
 		vio_ldc_access_mutex_lock();
@@ -139,13 +138,13 @@ static int dwe_fop_release(struct inode *pinode, struct file *pfile)
 	dwe_charmod_s *dwe_cdev = pfile->private_data;
 	dwe_v4l2_stream_t *pstream = dwe_cdev->pstream;
 
-	if (dwe_cdev->user_num == 0) {
+	if (dwe_cdev == NULL) {
 		return -ENXIO;
 	}
 
-	//mutex_lock(&dwe_cdev->slock);
-	dwe_cdev->user_num--;
-	//mutex_unlock(&dwe_cdev->slock);
+	if (atomic_cmpxchg(&dwe_cdev->user_num, 1, 0) != 1) {
+		return -EPERM;
+	}
 
 	/* deinit stream */
 	if (pstream) {
@@ -163,7 +162,7 @@ static int dwe_fop_release(struct inode *pinode, struct file *pfile)
 		mutex_unlock(dwe_cdev->vb2_q.lock);
 
 	pfile->private_data = NULL;
-
+	// protect pipe_count & reset_ctrl
 	mutex_lock(&g_lock);
 	pipe_count--;
 	if (pipe_count == 0) {
@@ -768,7 +767,6 @@ int __init dwe_dev_init(uint32_t port)
 	ret = of_dma_configure(dwe_mod[port]->dwe_chardev.this_device,
 		dwe_mod[port]->dwe_chardev.this_device->of_node);
 	dwe_mod[port]->port = port;
-	spin_lock_init(&(dwe_mod[port]->slock));
 #endif
 //platform
 #if 1
@@ -792,11 +790,11 @@ int __init dwe_dev_init(uint32_t port)
 	}
 
 	dwe_mod[port]->port = port;
-	mutex_init(&(dwe_mod[port]->slock));
-	if (!pipe_key) {
-		pipe_key = 1;
+	atomic_set(&dwe_mod[port]->user_num, 0);
+	if (pipe_key == 0) {
 		mutex_init(&g_lock);
 	}
+	pipe_key++;
 #endif
 	LOG(LOG_INFO, "%s register success !\n", dwe_mod[port]->name);
 	return ret;
@@ -820,6 +818,10 @@ void __exit dwe_dev_exit(int port)
 		platform_driver_unregister(&dwe_device_driver[port]);
 		platform_device_unregister(dwe_mod[port]->g_dwe_dev);
 #endif
+		if (pipe_key == 1) {
+			mutex_destroy(&g_lock);
+		}
+		pipe_key--;
 		kzfree(dwe_mod[port]);
 		dwe_mod[port] = NULL;
 	}
