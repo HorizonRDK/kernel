@@ -860,8 +860,15 @@ uvc_copy_descriptors(struct uvc_device *uvc, enum usb_device_speed speed)
 	 */
 	if (!opts->streaming_bulk && opts->streaming_multi_altsetting &&
 			speed == USB_SPEED_HIGH) {
+		/* backup some descriptor which will be written */
+		u8 alternate_setting_backup = ((struct usb_interface_descriptor *)uvc_streaming_std[0])
+				->bAlternateSetting;
+		u8 max_packet_size_backup = ((struct usb_endpoint_descriptor *)uvc_streaming_std[1])
+				->wMaxPacketSize;
+		u8 interval_backup = ((struct usb_endpoint_descriptor *)uvc_streaming_std[1])
+				->bInterval;
+
 		for (i = 0; i < MAX_ALTSETTING_NUM; i++) {
-			uvc_streaming_std = uvc_hs_streaming;
 			((struct usb_interface_descriptor *)uvc_streaming_std[0])
 				->bAlternateSetting = i + 1;
 			((struct usb_endpoint_descriptor *)uvc_streaming_std[1])
@@ -871,6 +878,17 @@ uvc_copy_descriptors(struct uvc_device *uvc, enum usb_device_speed speed)
 
 			UVC_COPY_DESCRIPTORS(mem, dst, uvc_streaming_std);
 		}
+
+		/*
+		 * reset uvc_streaming_std after descriptors copy, for some shared
+		 * descriptor accuracy and the next time driver load.
+		 */
+		((struct usb_interface_descriptor *)uvc_streaming_std[0])
+			->bAlternateSetting = alternate_setting_backup;
+		((struct usb_endpoint_descriptor *)uvc_streaming_std[1])
+			->wMaxPacketSize = max_packet_size_backup;
+		((struct usb_endpoint_descriptor *)uvc_streaming_std[1])
+			->bInterval = interval_backup;
 	} else {
 		UVC_COPY_DESCRIPTORS(mem, dst, uvc_streaming_std);
 	}
