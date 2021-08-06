@@ -3861,17 +3861,23 @@ static void ipu_diag_report(uint8_t errsta, unsigned int status)
 {
 	unsigned int sta;
 	static uint8_t last_status = DiagEventStaUnknown;
+	uint8_t env_data[5];
+	uint8_t i;
 
 	sta = status;
 	if (errsta) {
+		env_data[0] = errsta;
+		for (i = 0; i < sizeof(sta); i++) {
+			env_data[i + 1] = (uint8_t)((sta >> (i * 8)) & 0xff);
+		}
 		diag_send_event_stat_and_env_data(
 				DiagMsgPrioHigh,
 				ModuleDiag_VIO,
 				EventIdVioIpuErr,
 				DiagEventStaFail,
 				DiagGenEnvdataWhenErr,
-				(uint8_t *)&sta,
-				sizeof(unsigned int));
+				(uint8_t *)env_data,
+				sizeof(env_data));
 	} else if (last_status != DiagEventStaSuccess) {
 		diag_send_event_stat(
 				DiagMsgPrioMid,
