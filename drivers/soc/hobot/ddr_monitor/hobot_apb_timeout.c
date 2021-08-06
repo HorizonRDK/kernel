@@ -38,8 +38,8 @@ struct apb_timeout_dev {
 	u32 cnt;
 } apb_tmt;
 
-static int timeout_s = 10; /* default timeout in seconds */
-static int timeout_s_set(const char *val, const struct kernel_param *kp)
+static int timeout_ms = 20; /* default timeout in milliseconds */
+static int timeout_ms_set(const char *val, const struct kernel_param *kp)
 {
 	int ret;
 	u32 tgt_cnt;
@@ -48,31 +48,31 @@ static int timeout_s_set(const char *val, const struct kernel_param *kp)
 	if (ret < 0)
 		return ret;
 
-	if (timeout_s == 0)
-		timeout_s = 1;
+	if (timeout_ms == 0)
+		timeout_ms = 10;
 
 	if (apb_tmt.reg_base == NULL)
 		return ret;
 
-	if (timeout_s > 0xffffffff / apb_tmt.clk_hz)
-		timeout_s = 0xffffffff / apb_tmt.clk_hz;
+	if ((timeout_ms / 1000)  > 0xffffffff / apb_tmt.clk_hz)
+		timeout_ms = (0xffffffff / apb_tmt.clk_hz) * 1000;
 
-	tgt_cnt = timeout_s * apb_tmt.clk_hz;
+	tgt_cnt = timeout_ms * (apb_tmt.clk_hz / 1000);
 
 	writel(tgt_cnt, apb_tmt.reg_base + APB_TIMEOUT_CNT_TGT);
 	apb_tmt.cnt = tgt_cnt;
-	pr_debug("set apb timeout tgt_cnt:%u, timeout_s:%d, clk_hz=%u\n",
-		tgt_cnt, timeout_s, apb_tmt.clk_hz);
+	pr_debug("set apb timeout tgt_cnt:%u, timeout_ms:%d, clk_hz=%u\n",
+		tgt_cnt, timeout_ms, apb_tmt.clk_hz);
 
 	return ret;
 }
 
-static const struct kernel_param_ops timeout_s_param_ops = {
-	.set = timeout_s_set,
+static const struct kernel_param_ops timeout_ms_param_ops = {
+	.set = timeout_ms_set,
 	.get = param_get_int,
 };
 
-module_param_cb(timeout_s, &timeout_s_param_ops, &timeout_s, 0644);
+module_param_cb(timeout_ms, &timeout_ms_param_ops, &timeout_ms, 0644);
 
 static int err_mode = 1; /* default error mode, 1: data abort, 0: no data abort */
 static int err_mode_set(const char *val, const struct kernel_param *kp)
@@ -191,15 +191,15 @@ static int apb_timeout_probe(struct platform_device *pdev)
 	}
 	apb_tmt.clk_hz = clk_get_rate(apb_tmt.pclk);
 
-	apb_tmt.cnt = timeout_s * apb_tmt.clk_hz;
+	apb_tmt.cnt = timeout_ms * (apb_tmt.clk_hz / 1000);
 
 	writel(apb_tmt.cnt, apb_tmt.reg_base + APB_TIMEOUT_CNT_TGT);
 
 	writel(err_mode, apb_tmt.reg_base + APB_TIMEOUT_PERR);
 	writel(cnt_enable, apb_tmt.reg_base + APB_TIMEOUT_CNT_ENABLE);
 
-	pr_info("set apb timeout tgt_cnt:%u, timeout_s:%d, clk_hz=%u\n",
-		apb_tmt.cnt, timeout_s, apb_tmt.clk_hz);
+	pr_info("set apb timeout tgt_cnt:%u, timeout_ms:%d, clk_hz=%u\n",
+		apb_tmt.cnt, timeout_ms, apb_tmt.clk_hz);
 
 	return 0;
 }
