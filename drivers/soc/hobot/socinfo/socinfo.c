@@ -43,6 +43,7 @@ const char *base_board_name;
 const char *board_name;
 const char *chip_id;
 static unsigned int secure_chip = 0;
+static unsigned int efuse_bit_cnt = 0;
 static void __iomem *sec_flag_addr;
 EXPORT_SYMBOL_GPL(base_board_name);
 
@@ -340,6 +341,16 @@ ssize_t secure_chip_show(struct class *class,
 	return strlen(buf);
 }
 
+ssize_t efuse_bit_cnt_show(struct class *class,
+			struct class_attribute *attr, char *buf)
+{
+	if (!buf)
+		return 0;
+	snprintf(buf, BUF_LEN, "%d\n", efuse_bit_cnt);
+
+	return strlen(buf);
+}
+
 ssize_t soc_store(struct class *class, struct class_attribute *attr,
 				const char *buf, size_t count)
 {
@@ -388,6 +399,9 @@ static struct class_attribute chip_id_attribute =
 static struct class_attribute secure_chip_attribute =
 	__ATTR(secure_chip, 0444, secure_chip_show, NULL);
 
+static struct class_attribute efuse_bit_cnt_attribute =
+	__ATTR(efuse_bit_cnt, 0444, efuse_bit_cnt_show, NULL);
+
 static struct attribute *socinfo_attributes[] = {
 	&name_attribute.attr,
 	&id_attribute.attr,
@@ -403,6 +417,7 @@ static struct attribute *socinfo_attributes[] = {
 	&socuid_attribute.attr,
 	&chip_id_attribute.attr,
 	&secure_chip_attribute.attr,
+	&efuse_bit_cnt_attribute.attr,
 	NULL
 };
 
@@ -524,7 +539,7 @@ static int socinfo_probe(struct platform_device *pdev)
 	if (!sec_flag_addr)
 		return -ENOMEM;
 	secure_chip = readl(sec_flag_addr) & 0x1;
-
+	efuse_bit_cnt = (readl(sec_flag_addr) >> 4) & 0xfff;
 	ret = class_register(&socinfo_class);
 	if (ret < 0)
 		return ret;
