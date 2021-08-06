@@ -1054,20 +1054,20 @@ int isp_init_iridix(uint32_t ctx_id, uint32_t ctrl_val)
 	acamera_context_t *ptr = acamera_get_ctx_ptr(ctx_id);
 	mutex_lock(&ptr->p_gfw->ctx_chg_lock);
 	if (ptr->initialized == 1 && ptr->iridix_chn_idx == -1) {
-		acamera_isp_top_bypass_iridix_write(ptr->settings.isp_base, 1);
-		acamera_isp_iridix_enable_write(ptr->settings.isp_base, 0);
 		for (i = 0; i < HW_CONTEXT_NUMBER; i++) {
 			 if (!test_bit(i, &ptr->p_gfw->iridix_chn_bitmap))
 				 break;
 		 }
 		if (i < HW_CONTEXT_NUMBER) {
+            /* two way to config iridix:
+                first - isp_config_seq.h, bypass iridix 0, iridix enable 1
+                second - dynamic_context_settings set by user
+            */
             if (acamera_isp_top_bypass_iridix_read(ptr->settings.isp_base) == 0) {
                 ptr->iridix_chn_idx = i;
                 pr_debug("ctx_id = %d, iridix_chn_idx =%d\n", ctx_id, ptr->iridix_chn_idx);
                 set_bit(i, &ptr->p_gfw->iridix_chn_bitmap);
                 acamera_isp_iridix_context_no_write(ptr->settings.isp_base, i);
-                acamera_isp_top_bypass_iridix_write(ptr->settings.isp_base, 0);
-                acamera_isp_iridix_enable_write(ptr->settings.isp_base, 1);
             }
 		} else if (ctrl_val == WDR_MODE_NATIVE) {
 			for (i = FIRMWARE_CONTEXT_NUMBER - 1; i >= 0; i--) {
