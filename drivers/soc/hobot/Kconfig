@@ -188,6 +188,19 @@ source "drivers/soc/hobot/performance/Kconfig"
 
 endif #HOBOT_PM_PERF
 
+menuconfig HOBOT_SOC_DEBUG
+        bool "Kernel Debugging Support on Hobot Platform"
+        depends on ARCH_HOBOT
+        default y
+        help
+          Say yes to enable the kernle debugging drivers for Hobot platform
+
+if HOBOT_SOC_DEBUG
+
+source "drivers/soc/hobot/debug/Kconfig"
+
+endif #HOBOT_SOC_DEBUG
+
 endif #HOBOT_SOC_DRIVERS
 
 menuconfig HOBOT_BIF_AP
