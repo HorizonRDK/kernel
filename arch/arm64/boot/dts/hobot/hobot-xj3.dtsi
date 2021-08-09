@@ -741,6 +741,46 @@
 			status = "disabled";
 		};
 
+		coresight: coresight@0xA0410000 {
+			compatible = "hobot,coresight";
+			#address-cells = <2>;
+			#size-cells = <2>;
+			reg = <0 0xA0410000 0 0x600000>;
+			ranges;
+			dbg0: dbg0@0xA0410000 {
+				compatible = "hobot,coresight-dbg0";
+				reg = <0 0xA0410000 0 0x10000>;
+			};
+			cti0: cti0@0xA0420000 {
+				compatible = "hobot,coresight-cti0";
+				reg = <0 0xA0420000 0 0x10000>;
+			};
+			dbg1: dbg1@0xA0510000 {
+				compatible = "hobot,coresight-dbg1";
+				reg = <0 0xA0510000 0 0x10000>;
+			};
+			cti1: cti1@0xA0520000 {
+				compatible = "hobot,coresight-cti1";
+				reg = <0 0xA0520000 0 0x10000>;
+			};
+			dbg2: dbg2@0xA0610000 {
+				compatible = "hobot,coresight-dbg2";
+				reg = <0 0xA0610000 0 0x10000>;
+			};
+			cti2: cti2@0xA0620000 {
+				compatible = "hobot,coresight-cti2";
+				reg = <0 0xA0620000 0 0x10000>;
+			};
+			dbg3: dbg3@0xA0710000 {
+				compatible = "hobot,coresight-dbg3";
+				reg = <0 0xA0710000 0 0x10000>;
+			};
+			cti3: cti3@0xA0720000 {
+				compatible = "hobot,coresight-cti3";
+				reg = <0 0xA0720000 0 0x10000>;
+			};
+		};
+
 		pwm_gpio: pwm@0 {
 				compatible = "pwm-gpio";
 				status = "disabled";
