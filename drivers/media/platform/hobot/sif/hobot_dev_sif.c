@@ -1651,14 +1651,6 @@ p_err:
 	return ret;
 }
 
-#ifdef CONFIG_HOBOT_DIAG
-uint16_t get_fps_from_sif(void)
-{
-	return testpattern_fps;
-}
-EXPORT_SYMBOL(get_fps_from_sif);
-#endif
-
 /*
   * @brief
   * Configure common register

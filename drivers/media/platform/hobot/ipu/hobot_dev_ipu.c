@@ -34,7 +34,6 @@
 #include "hobot_dev_ipu.h"
 #include "ipu_hw_api.h"
 
-
 #define MODULE_NAME "X3 IPU"
 #define MR_FIFO_THRED0 0
 #define MR_FIFO_THRED1 0
@@ -49,9 +48,6 @@ extern struct vio_frame_id	ipu_frame_info[VIO_MAX_STREAM];
 
 char ipu_node_name[MAX_DEVICE-1][8] =
 	{"src", "us", "ds0", "ds1", "ds2", "ds3", "ds4"};
-#ifdef CONFIG_HOBOT_DIAG
-static uint64_t g_diag_last_frame;
-#endif
 
 void ipu_hw_set_cfg(struct ipu_subdev *subdev);
 void ipu_update_hw_param(struct ipu_subdev *subdev);
@@ -61,10 +57,6 @@ void ipu_disable_all_channels(void __iomem *base_reg, u8 shadow_index);
 int ipu_hw_enable_channel(struct ipu_subdev *subdev, bool enable);
 void ipu_frame_ndone(struct ipu_subdev *subdev);
 void ipu_frame_done(struct ipu_subdev *subdev);
-#ifdef CONFIG_HOBOT_DIAG
-uint16_t get_fps_from_mipi_host(void);
-uint16_t get_fps_from_sif(void);
-#endif
 
 
 extern struct ion_device *hb_ion_dev;
@@ -121,9 +113,6 @@ static int x3_ipu_open(struct inode *inode, struct file *file)
 		atomic_set(&ipu->backup_fcount, 0);
 		atomic_set(&ipu->sensor_fcount, 0);
 		atomic_set(&ipu->enable_cnt, 0);
-#ifdef CONFIG_HOBOT_DIAG
-		g_diag_last_frame = 0;
-#endif
 		if (sif_mclk_freq)
 			vio_set_clk_rate("sif_mclk", sif_mclk_freq);
 		ips_set_clk_ctrl(IPU0_CLOCK_GATE, true);
@@ -3887,20 +3876,6 @@ static void ipu_diag_report(uint8_t errsta, unsigned int status)
 	}
 	last_status = !errsta ? DiagEventStaSuccess : DiagEventStaFail;
 }
-
-static void lost_fps_send(uint8_t errsta)
-{
-	static uint8_t last_status = DiagEventStaUnknown;
-
-   if (errsta == 1) {
-       diag_send_event_stat(DiagMsgPrioHigh,
-           ModuleDiag_VIO, EventIdVioFrameLost, DiagEventStaFail);
-	} else if ((errsta == 0) && (last_status != DiagEventStaSuccess)) {
-       diag_send_event_stat(DiagMsgPrioHigh,
-           ModuleDiag_VIO, EventIdVioFrameLost, DiagEventStaSuccess);
-   }
-	last_status = (errsta == 1) ? DiagEventStaFail : DiagEventStaSuccess;
-}
 #endif
 
 static irqreturn_t ipu_isr(int irq, void *data)
@@ -3918,11 +3893,6 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	struct vio_group_task *gtask;
 	struct ipu_subdev	*subdev, *src_subdev;
 	struct vio_frame_id frmid;
-#ifdef CONFIG_HOBOT_DIAG
-	uint64_t now_frame;
-	uint8_t err;
-	uint16_t frame_fps;
-#endif
 
 	ipu = data;
 	gtask = &ipu->gtask;
@@ -4250,24 +4220,6 @@ static irqreturn_t ipu_isr(int irq, void *data)
 
 		vio_set_stat_info(group->instance, IPU_MOD, event_ipu_fs,
 			group->frameid.frame_id, 0, src_subdev->framemgr.queued_count);
-#ifdef CONFIG_HOBOT_DIAG
-		frame_fps = get_fps_from_mipi_host();
-		/* mipi host should not configured,when sif test pattern used */
-		if (!frame_fps)
-			frame_fps = get_fps_from_sif();
-		now_frame = jiffies_to_msecs(get_jiffies_64());
-		if (((now_frame - g_diag_last_frame) > (1000/frame_fps + 10)) &&
-				g_diag_last_frame != 0) {
-			pr_debug("vio frame lost fps:%d curts:%llu lasts:%llu diff:%llu\n",
-							frame_fps, now_frame, g_diag_last_frame,
-							now_frame - g_diag_last_frame);
-			err = 1;
-		} else {
-			err = 0;
-		}
-		lost_fps_send(err);
-		g_diag_last_frame = now_frame;
-#endif
 	}
 
 	if (ipu->frame_drop_count > 20) {
@@ -5039,10 +4991,6 @@ static int x3_ipu_probe(struct platform_device *pdev)
 	if (diag_register(ModuleDiag_VIO, EventIdVioIpuErr,
 			4, DIAG_MSG_INTERVAL_MIN, DIAG_MSG_INTERVAL_MAX, NULL) < 0)
 		pr_err("ipu dual diag register fail\n");
-	if (diag_register(ModuleDiag_VIO, EventIdVioFrameLost,
-			4, DIAG_MSG_INTERVAL_MIN, DIAG_MSG_INTERVAL_MAX, NULL) < 0)
-		pr_err("ipu dual diag register fail\n");
-	g_diag_last_frame = 0;
 #endif
 	vio_info("[FRT:D] %s(%d)\n", __func__, ret);
 

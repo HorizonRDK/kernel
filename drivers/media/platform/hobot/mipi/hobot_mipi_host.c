@@ -784,7 +784,6 @@ typedef struct _mipi_hdev_s {
 static int g_mh_major;
 static struct class *g_mh_class;
 static mipi_hdev_t *g_hdev[MIPI_HOST_MAX_NUM];
-uint16_t g_mipi_host_cfg_fps;
 
 static int mipi_host_port_group(mipi_hdev_t *hdev)
 {
@@ -2186,12 +2185,6 @@ static void mipi_host_deinit(mipi_hdev_t *hdev)
 	return;
 }
 
-uint16_t get_fps_from_mipi_host(void)
-{
-	return g_mipi_host_cfg_fps;
-}
-EXPORT_SYMBOL(get_fps_from_mipi_host);
-
 /**
  * @brief mipi_host_init : mipi host init function
  *
@@ -2251,7 +2244,6 @@ static int32_t mipi_host_init(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 			return -1;
 		}
 		hdev->ipi_clock = pixclk;
-		g_mipi_host_cfg_fps = cfg->fps;
 	}
 #ifdef CONFIG_HOBOT_MIPI_PHY
 	mipi_dphy_set_freqrange(MIPI_DPHY_TYPE_HOST, hdev->port,
