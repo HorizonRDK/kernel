@@ -296,6 +296,7 @@
 				/* dr_mode: {peripheral, host, otg} */
 				dr_mode = "otg";
 				/* phy_type: {utmi, utmi_wide, ulpi, serial, hsic} */
+				snps,dis-u1-entry-quirk;    /* disable u1 entry */
 				snps,dis_u2_susphy_quirk;
 				/* snps,dis_u3_susphy_quirk; */
 				extcon = <&usb_id>;
