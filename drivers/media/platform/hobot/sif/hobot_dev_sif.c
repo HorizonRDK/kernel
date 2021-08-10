@@ -2574,32 +2574,38 @@ void sif_frame_done(struct sif_subdev *subdev) {
 }
 
 #ifdef CONFIG_HOBOT_DIAG
-static void sif_diag_report(uint8_t errsta, unsigned int status,
-	uint32_t instance)
+static void sif_diag_report(u8 errsta, u8 err_type,
+	u32 status, u32 instance)
 {
-	uint32_t env_data[2];
-	env_data[0] = status;
-	env_data[1] = instance;
+	uint8_t env_data[8];
+	env_data[0] = instance;
+	env_data[2] = 0xff;
+	env_data[3] = 4;
+	env_data[4] = status & 0xff;
+	env_data[5] = (status >> 8) & 0xff;
+	env_data[6] = (status >> 16) & 0xff;
+	env_data[7] = (status >> 24) & 0xff;
 
 	if (errsta) {
+		env_data[1] = err_type;
 		diag_send_event_stat_and_env_data(
 				DiagMsgPrioHigh,
 				ModuleDiag_VIO,
 				EventIdVioSifErr,
 				DiagEventStaFail,
 				DiagGenEnvdataWhenErr,
-				(uint8_t *)&env_data,
-				sizeof(uint32_t) * 2);
+				env_data,
+				sizeof(env_data));
 	} else {
+		env_data[1] = 0xff;
 		diag_send_event_stat_and_env_data(
 				DiagMsgPrioMid,
 				ModuleDiag_VIO,
 				EventIdVioSifErr,
 				DiagEventStaSuccess,
 				DiagGenEnvdataWhenErr,
-				(uint8_t *)&env_data,
-				sizeof(uint32_t) * 2);
-
+				env_data,
+				sizeof(env_data));
 	}
 }
 #endif
@@ -2694,11 +2700,13 @@ void sif_overflow_diag_report(struct x3_sif_dev *sif, uint32_t mux_index,
 	subdev->overflow = sif_find_overflow_instance(mux_index, subdev, of_value);
 	if(subdev->overflow != 0) {
 		atomic_set(&subdev->diag_state, 1);
-		sif_diag_report(1, sif_frm_int, subdev->group->instance);
+		sif_diag_report(1, INTR_SIF_IN_OVERFLOW,
+			sif_frm_int, subdev->group->instance);
 	} else {
 		if (atomic_read(&subdev->diag_state) == 1) {
 			atomic_set(&subdev->diag_state, 0);
-			sif_diag_report(0, sif_frm_int, subdev->group->instance);
+			sif_diag_report(0, INTR_SIF_IN_OVERFLOW,
+				sif_frm_int, subdev->group->instance);
 		}
 	}
 	return;
@@ -2719,11 +2727,13 @@ void sif_mismatch_diag_report(struct x3_sif_dev *sif, uint32_t mux_index,
 	if ((err_status & 1 << subdev->ipi_index) ||
 		(err_status & 1 << (subdev->ipi_index + 16))) {
 		atomic_set(&subdev->diag_state, 1);
-		sif_diag_report(1, sif_frm_int, subdev->group->instance);
+		sif_diag_report(1, INTR_SIF_IN_SIZE_MISMATCH,
+			sif_frm_int, subdev->group->instance);
 	} else {
 		if (atomic_read(&subdev->diag_state) == 1) {
 			atomic_set(&subdev->diag_state, 0);
-			sif_diag_report(0, sif_frm_int, subdev->group->instance);
+			sif_diag_report(0, INTR_SIF_IN_SIZE_MISMATCH,
+				sif_frm_int, subdev->group->instance);
 		}
 	}
 	return;
@@ -2953,8 +2963,8 @@ static irqreturn_t sif_isr(int irq, void *data)
 		instance = atomic_read(&sif->instance);
 		sif->statistic.hard_buf_err[instance]++;
 #ifdef CONFIG_HOBOT_DIAG
-		sif_diag_report(err_occured, irq_src.sif_frm_int,
-				atomic_read(&sif->instance));
+		sif_diag_report(err_occured, INTR_SIF_OUT_BUF_ERROR,
+			irq_src.sif_frm_int, 0xFF);
 #endif
 	}
 

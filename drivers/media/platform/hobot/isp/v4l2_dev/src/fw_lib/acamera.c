@@ -1318,33 +1318,36 @@ int isp_status_check(void)
 EXPORT_SYMBOL(isp_status_check);
 
 #ifdef CONFIG_HOBOT_DIAG
-static void isp_diag_report(int errsta, isp_status_t *sts)
+static void isp_diag_report(int errsta, uint32_t irq_mask, isp_status_t *sts)
 {
-	unsigned int sta;
-	uint32_t env_data[2];
+	uint8_t env_data[8];
+	env_data[0] = sts->ctx_id;
+	env_data[1] = 0xff;
+	env_data[2] = 0xff;
+	env_data[3] = 4;
+	env_data[4] = irq_mask & 0xff;
+	env_data[5] = (irq_mask >> 8) & 0xff;
+	env_data[6] = (irq_mask >> 16) & 0xff;
+	env_data[7] = (irq_mask >> 24) & 0xff;
 
 	if (errsta) {
-		if (sts->broken_frame || sts->dma_error || sts->frame_collision ||
-			sts->context_manage_error || sts->watchdog_timeout) {
-			/*isp hw error*/
-			sta = 1;
-		}
-		env_data[0] = sta;
-		env_data[1] = sts->ctx_id;
 		diag_send_event_stat_and_env_data(
 				DiagMsgPrioHigh,
 				ModuleDiag_VIO,
 				EventIdVioIspErr,
 				DiagEventStaFail,
 				DiagGenEnvdataWhenErr,
-				(uint8_t *)&env_data,
-				sizeof(unsigned int) * 2);
+				env_data,
+				sizeof(env_data));
 	} else {
-		diag_send_event_stat(
+		diag_send_event_stat_and_env_data(
 				DiagMsgPrioMid,
 				ModuleDiag_VIO,
 				EventIdVioIspErr,
-				DiagEventStaSuccess);
+				DiagEventStaSuccess,
+				DiagGenEnvdataWhenErr,
+				env_data,
+				sizeof(env_data));
 	}
 }
 #endif
@@ -1519,7 +1522,7 @@ int32_t acamera_interrupt_handler()
 #ifdef CONFIG_HOBOT_DIAG
 				atomic_set(&p_ctx->sts.diag_state, 1);
 				p_ctx->sts.ctx_id = cur_ctx_id;
-				isp_diag_report(isp_error_sts, &p_ctx->sts);
+				isp_diag_report(isp_error_sts, irq_mask, &p_ctx->sts);
 
 #if 0
             pr_debug("isp error handle routine\n");
@@ -1536,7 +1539,7 @@ int32_t acamera_interrupt_handler()
         } else {
 			if (atomic_read(&p_ctx->sts.diag_state) == 1) {
 				atomic_set(&p_ctx->sts.diag_state, 0);
-				isp_diag_report(0, &p_ctx->sts);
+				isp_diag_report(0, irq_mask, &p_ctx->sts);
 			}
 #endif
 	   }
