@@ -1574,9 +1574,9 @@ static int check_memory_validity(struct vm_area_struct *vma)
 
 	get_ion_cma_area();
 
-	if (!((offset >= ion_cma.start && offset + size < ion_cma.end) ||
-		(offset >= ion_pool.start && offset + size < ion_pool.end) ||
-		(offset >= reserved_cma.start && offset + size < reserved_cma.end))) {
+	if (!((offset >= ion_cma.start && offset + size - 1 < ion_cma.end) ||
+		(offset >= ion_pool.start && offset + size - 1 < ion_pool.end) ||
+		(offset >= reserved_cma.start && offset + size - 1 < reserved_cma.end))) {
 #ifdef IO_REGION_MMAP_CONTROL
 		if (!((offset >= IO_REGION1_START &&
 				offset + size < IO_REGION1_START + IO_REGION1_SIZE) ||
