@@ -2773,6 +2773,7 @@ static void xj3_start_all_queues(struct xj3_priv *priv) {
 static void dwceqos_diag_process(u32 errsta, uint32_t regval) {
     u8 sta;
     u8 envgen_timing;
+    u8 env_data[8];
     u32 int_status;
 	static uint8_t last_status = DiagEventStaUnknown;
 
@@ -2780,9 +2781,18 @@ static void dwceqos_diag_process(u32 errsta, uint32_t regval) {
     if (errsta) {
         sta = DiagEventStaFail;
         envgen_timing = DiagGenEnvdataWhenErr;
+        /* no channel & error type & reg size = 4 */
+        env_data[0] = 0xFF;
+        env_data[1] = 0xFF;
+        env_data[2] = 0x00;
+        env_data[3] = 0x04;
+        env_data[4] = (u8)(int_status & 0xFF);
+        env_data[5] = (u8)((int_status >> 8) & 0xFF);
+        env_data[6] = (u8)((int_status >> 16) & 0xFF);
+        env_data[7] = (u8)((int_status >> 24) & 0xFF);
         if (diag_send_event_stat_and_env_data(
                 DiagMsgPrioHigh, ModuleDiag_eth, EventIdEthDmaBusErr, sta,
-                envgen_timing, (uint8_t *)&int_status, 4) < 0) {
+                envgen_timing, (uint8_t *)env_data, 8) < 0) {
             pr_debug("eth: event %d snd diag msg with env data error\n",
                      EventIdEthDmaBusErr);
         }
