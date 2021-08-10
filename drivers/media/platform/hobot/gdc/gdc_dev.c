@@ -527,30 +527,37 @@ static long x3_gdc_ioctl(struct file *file, unsigned int cmd,
 
 #ifdef CONFIG_HOBOT_DIAG
 static void gdc_diag_report(uint8_t errsta, unsigned int status,
-	uint32_t instance, uint32_t hw_id)
+	uint32_t instance, uint32_t hw_id, uint32_t err_type)
 {
-	uint32_t env_data[2];
-	env_data[0] = status;
-	env_data[1] = instance;
+	uint8_t env_data[8];
+	env_data[0] = instance;
+	env_data[2] = 0;
+	env_data[3] = sizeof(uint32_t);
+	env_data[4] = status & 0xff;
+	env_data[5] = (status >> 8) & 0xff;
+	env_data[6] = (status >> 16) & 0xff;
+	env_data[7] = (status >> 24) & 0xff;
 
 	if (errsta) {
+		env_data[1] = (uint8_t)err_type;
 		diag_send_event_stat_and_env_data(
 				DiagMsgPrioHigh,
 				ModuleDiag_VIO,
 				EventIdVioGdc0Err + hw_id,
 				DiagEventStaFail,
 				DiagGenEnvdataWhenErr,
-				(uint8_t *)&env_data,
-				sizeof(unsigned int) * 2);
+				env_data,
+				sizeof(env_data));
 	} else {
+		env_data[1] = 0xff;
 		diag_send_event_stat_and_env_data(
 				DiagMsgPrioMid,
 				ModuleDiag_VIO,
 				EventIdVioGdc0Err + hw_id,
 				DiagEventStaSuccess,
 				DiagGenEnvdataWhenErr,
-				(uint8_t *)&env_data,
-				sizeof(unsigned int) * 2);
+				env_data,
+				sizeof(env_data));
 	}
 
 	return;
@@ -614,13 +621,15 @@ static irqreturn_t gdc_isr(int irq, void *data)
 		gdc_ctx->event = VIO_FRAME_NDONE;
 #ifdef CONFIG_HOBOT_DIAG
 		atomic_set(&gdc->diag_state, 1);
-		gdc_diag_report(1, status, atomic_read(&gdc->instance), gdc->hw_id);
+		gdc_diag_report(1, status, atomic_read(&gdc->instance), gdc->hw_id,
+			gdc->isr_err);
 #endif
 	} else {
 #ifdef CONFIG_HOBOT_DIAG
 		if (atomic_read(&gdc->diag_state) == 1) {
 			atomic_set(&gdc->diag_state, 0);
-			gdc_diag_report(0, status, atomic_read(&gdc->instance), gdc->hw_id);
+			gdc_diag_report(0, status, atomic_read(&gdc->instance), gdc->hw_id,
+				gdc->isr_err);
 		}
 #endif
 	}
