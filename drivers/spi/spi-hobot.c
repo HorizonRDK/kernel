@@ -588,6 +588,15 @@ static int hb_spi_drain_rxdma(struct hb_spi *hbspi)
 static void spi_diag_report(uint8_t errsta, uint32_t srcpndreg,
 						struct hb_spi *hbspi)
 {
+	uint8_t env_data[8];
+	env_data[0] = hbspi->spi_id;
+	env_data[1] = 0xff;
+	env_data[2] = 0;
+	env_data[3] = sizeof(uint32_t);
+	env_data[4] = srcpndreg & 0xff;
+	env_data[5] = (srcpndreg >> 8) & 0xff;
+	env_data[6] = (srcpndreg >> 16) & 0xff;
+	env_data[7] = (srcpndreg >> 24) & 0xff;
 	if (errsta) {
 		diag_send_event_stat_and_env_data(
 				DiagMsgPrioHigh,
@@ -595,8 +604,8 @@ static void spi_diag_report(uint8_t errsta, uint32_t srcpndreg,
 				EventIdSpi0Err + hbspi->spi_id,
 				DiagEventStaFail,
 				DiagGenEnvdataWhenErr,
-				(uint8_t *)&srcpndreg,
-				4);
+				(uint8_t *)&env_data,
+				sizeof(uint8_t) * 8);
 	} else {
 		diag_send_event_stat(
 			DiagMsgPrioHigh,

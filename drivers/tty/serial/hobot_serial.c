@@ -647,6 +647,15 @@ static void hobot_uart_handle_tx(void *dev_id, unsigned char in_irq)
 static void uart_diag_report(uint8_t errsta, uint32_t srcpndreg,
 						struct hobot_uart *hbuart)
 {
+	uint8_t env_data[8];
+	env_data[0] = hbuart->uart_id;
+	env_data[1] = 0xff;
+	env_data[2] = 0;
+	env_data[3] = sizeof(uint32_t);
+	env_data[4] = srcpndreg & 0xff;
+	env_data[5] = (srcpndreg >> 8) & 0xff;
+	env_data[6] = (srcpndreg >> 16) & 0xff;
+	env_data[7] = (srcpndreg >> 24) & 0xff;
 	if (errsta) {
 		diag_send_event_stat_and_env_data(
 				DiagMsgPrioHigh,
@@ -654,8 +663,8 @@ static void uart_diag_report(uint8_t errsta, uint32_t srcpndreg,
 				EventIdUart0Err + hbuart->uart_id,
 				DiagEventStaFail,
 				DiagGenEnvdataWhenErr,
-				(uint8_t *)&srcpndreg,
-				4);
+				(uint8_t *)&env_data,
+				sizeof(uint8_t) * 8);
 	} else {
 		diag_send_event_stat(
 			DiagMsgPrioHigh,

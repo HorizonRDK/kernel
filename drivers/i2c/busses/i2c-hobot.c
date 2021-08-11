@@ -287,7 +287,7 @@ static void hobot_i2c_diag_process(u32 errsta, struct hobot_i2c_dev *i2c_contro)
 	u8 sta;
 	u8 envgen_timing;
 	u32 int_status;
-	u8 envdata[7]; // channel num + srcpnd reg value.
+	uint8_t envdata[10];
 	u8 i2c_event;
 	u16 slave_addr;
 
@@ -295,21 +295,25 @@ static void hobot_i2c_diag_process(u32 errsta, struct hobot_i2c_dev *i2c_contro)
 	slave_addr = (u16)i2c_contro->i2c_regs->addr.all;
 	slave_addr = (~BIT(11) & slave_addr) >> 1;
 	envdata[0] = i2c_contro->i2c_id;
+	envdata[1] = 0xff;
+	envdata[2] = 0;
 	if (errsta) {
+		envdata[3] = sizeof(u32) + sizeof(u16);
 		sta = DiagEventStaFail;
 		envgen_timing = DiagGenEnvdataWhenErr;
 		int_status = i2c_contro->msg_err;
-		memcpy(envdata + 1, (uint8_t *)&int_status, sizeof(u32));
-		memcpy(envdata + 5, (uint8_t *)&slave_addr, sizeof(u16));
+		memcpy(envdata + 4, (uint8_t *)&slave_addr, sizeof(u16));
+		memcpy(envdata + 6, (uint8_t *)&int_status, sizeof(u32));
 		diag_send_event_stat_and_env_data(DiagMsgPrioHigh,
 						ModuleDiag_i2c, i2c_event, sta,
-						envgen_timing, envdata, 7);
+						envgen_timing, envdata, sizeof(uint8_t) * 10);
 	} else if (pre_errsta == 1 && errsta == 0) {
+		envdata[3] = sizeof(u16);
 		sta = DiagEventStaSuccess;
-		memcpy(envdata + 1, (uint8_t *)&slave_addr, sizeof(u16));
+		memcpy(envdata + 4, (uint8_t *)&slave_addr, sizeof(u16));
 		diag_send_event_stat_and_env_data(DiagMsgPrioHigh,
 						ModuleDiag_i2c, i2c_event, sta,
-						DiagGenEnvdataWhenSuccess, envdata, 3);
+						DiagGenEnvdataWhenSuccess, envdata, sizeof(uint8_t) * 6);
 	}
 	pre_errsta = errsta;
 }
