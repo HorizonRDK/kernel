@@ -19,6 +19,7 @@
 
 #include <linux/kernel.h>
 #include <linux/slab.h>
+#include <linux/rtmutex.h>
 #include <linux/mm.h>
 #include <linux/fs.h>
 #include <linux/miscdevice.h>
@@ -120,7 +121,7 @@ struct isp_dev_context {
     size_t mem_size;
 
     struct miscdevice isp_dev;
-    struct mutex fops_lock;
+    struct rt_mutex fops_lock;
 
     struct kfifo isp_kfifo_in;
     struct kfifo isp_kfifo_out;
@@ -143,7 +144,7 @@ int system_chardev_lock(void)
 {
 	int rc = 0;
 
-    rc = mutex_lock_interruptible( &isp_dev_ctx.fops_lock );
+    rc = rt_mutex_lock_interruptible( &isp_dev_ctx.fops_lock );
     if ( rc ) {
         LOG( LOG_ERR, "Error: lock failed of dev: %s.", isp_dev_ctx.dev_name );
         return rc;
@@ -154,7 +155,7 @@ int system_chardev_lock(void)
 
 void system_chardev_unlock(void)
 {
-	mutex_unlock( &isp_dev_ctx.fops_lock );
+	rt_mutex_unlock( &isp_dev_ctx.fops_lock );
 }
 
 static int isp_fops_open( struct inode *inode, struct file *f )
@@ -180,7 +181,7 @@ static int isp_fops_open( struct inode *inode, struct file *f )
         return -ERESTARTSYS;
     }
 
-    rc = mutex_lock_interruptible( &p_ctx->fops_lock );
+    rc = rt_mutex_lock_interruptible( &p_ctx->fops_lock );
     if ( rc ) {
         LOG( LOG_ERR, "Error: lock failed of dev: %s.", p_ctx->dev_name );
         goto lock_failure;
@@ -190,7 +191,7 @@ static int isp_fops_open( struct inode *inode, struct file *f )
 		rc = isp_dev_mem_alloc();
 		if (rc) {
 			pr_err("ac_isp alloc mem failed. rc %d\n", rc);
-			mutex_unlock( &p_ctx->fops_lock );
+			rt_mutex_unlock( &p_ctx->fops_lock );
 			return rc;
 		}
 
@@ -216,7 +217,7 @@ static int isp_fops_open( struct inode *inode, struct file *f )
         LOG( LOG_INFO, "Af set, private_data: %p.", f->private_data );
     }
 #endif
-    mutex_unlock( &p_ctx->fops_lock );
+    rt_mutex_unlock( &p_ctx->fops_lock );
 
 lock_failure:
     return rc;
@@ -233,7 +234,7 @@ static int isp_fops_release( struct inode *inode, struct file *f )
         return -EINVAL;
     }
 
-    rc = mutex_lock_interruptible( &p_ctx->fops_lock );
+    rc = rt_mutex_lock_interruptible( &p_ctx->fops_lock );
     if ( rc ) {
         LOG( LOG_ERR, "Error: lock failed of dev: %s.", p_ctx->dev_name );
         return rc;
@@ -270,7 +271,7 @@ static int isp_fops_release( struct inode *inode, struct file *f )
         pr_info("device name is %s, dev_opened reference count: %d.\n", p_ctx->dev_name, p_ctx->dev_opened);
     }
 
-    mutex_unlock( &p_ctx->fops_lock );
+    rt_mutex_unlock( &p_ctx->fops_lock );
 
     return 0;
 }
@@ -287,7 +288,7 @@ static ssize_t isp_fops_write( struct file *file, const char __user *buf, size_t
         return -EINVAL;
     }
 
-    if ( mutex_lock_interruptible( &p_ctx->fops_lock ) ) {
+    if ( rt_mutex_lock_interruptible( &p_ctx->fops_lock ) ) {
         LOG( LOG_ERR, "Fatal error: access lock failed." );
         return -ERESTARTSYS;
     }
@@ -299,7 +300,7 @@ static ssize_t isp_fops_write( struct file *file, const char __user *buf, size_t
 
     LOG( LOG_DEBUG, "wake up reader." );
 
-    mutex_unlock( &p_ctx->fops_lock );
+    rt_mutex_unlock( &p_ctx->fops_lock );
 
     return rc ? rc : copied;
 }
@@ -315,14 +316,14 @@ static ssize_t isp_fops_read( struct file *file, char __user *buf, size_t count,
         return -EINVAL;
     }
 
-    if ( mutex_lock_interruptible( &p_ctx->fops_lock ) ) {
+    if ( rt_mutex_lock_interruptible( &p_ctx->fops_lock ) ) {
         LOG( LOG_ERR, "Fatal error: access lock failed." );
         return -ERESTARTSYS;
     }
 
     if ( kfifo_is_empty( &p_ctx->isp_kfifo_out ) ) {
         long time_out_in_jiffies = 1;      /* jiffies is depend on HW, in x86 Ubuntu, it's 4 ms, 1 is 4ms. */
-        mutex_unlock( &p_ctx->fops_lock ); /* unlock before we return or go sleeping */
+        rt_mutex_unlock( &p_ctx->fops_lock ); /* unlock before we return or go sleeping */
 
         /* return if it's a non-blocking reading  */
         if ( file->f_flags & O_NONBLOCK )
@@ -335,14 +336,14 @@ static ssize_t isp_fops_read( struct file *file, char __user *buf, size_t count,
         LOG( LOG_DEBUG, "data is coming or timeout, kfifo_out size: %u, rc: %d.", kfifo_len( &p_ctx->isp_kfifo_out ), rc );
 
         /* after wake up, we need to re-gain the mutex */
-        if ( mutex_lock_interruptible( &p_ctx->fops_lock ) ) {
+        if ( rt_mutex_lock_interruptible( &p_ctx->fops_lock ) ) {
             LOG( LOG_ERR, "Fatal error: access lock failed." );
             return -ERESTARTSYS;
         }
     }
 
     rc = kfifo_to_user( &p_ctx->isp_kfifo_out, buf, count, &copied );
-    mutex_unlock( &p_ctx->fops_lock );
+    rt_mutex_unlock( &p_ctx->fops_lock );
 
     return rc ? rc : copied;
 }
@@ -432,7 +433,7 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 	}
 
 	if (cmd != ISPIOC_IRQ_WAIT) {
-		mutex_lock(&isp_dev_ctx.fops_lock);
+		rt_mutex_lock(&isp_dev_ctx.fops_lock);
 	}
 
 	switch (cmd) {
@@ -882,7 +883,7 @@ buf_free:
 
 out:
 	if (cmd != ISPIOC_IRQ_WAIT) {
-		mutex_unlock(&isp_dev_ctx.fops_lock);
+		rt_mutex_unlock(&isp_dev_ctx.fops_lock);
 	}
 
 	return ret;
@@ -999,7 +1000,7 @@ static int isp_dev_context_init( struct isp_dev_context *p_ctx )
         goto failed_kfifo_out_alloc;
     }
 
-    mutex_init( &p_ctx->fops_lock );
+    rt_mutex_init( &p_ctx->fops_lock );
     init_waitqueue_head( &p_ctx->kfifo_in_queue );
     init_waitqueue_head( &p_ctx->kfifo_out_queue );
 
@@ -1049,11 +1050,11 @@ int system_chardev_read( char *data, int size )
         return -1;
     }
 
-    mutex_lock( &isp_dev_ctx.fops_lock );
+    rt_mutex_lock( &isp_dev_ctx.fops_lock );
 
     if ( kfifo_is_empty( &isp_dev_ctx.isp_kfifo_in ) ) {
         long time_out_in_jiffies = 2;           /* jiffies is depend on HW, in x86 Ubuntu, it's 4 ms, 2 is 8ms. */
-        mutex_unlock( &isp_dev_ctx.fops_lock ); /* unlock before we return or go sleeping */
+        rt_mutex_unlock( &isp_dev_ctx.fops_lock ); /* unlock before we return or go sleeping */
 
         /* wait for the event */
         LOG( LOG_DEBUG, "input FIFO is empty, wait for data, timeout_in_jiffies: %ld, HZ: %d.", time_out_in_jiffies, HZ );
@@ -1062,7 +1063,7 @@ int system_chardev_read( char *data, int size )
         LOG( LOG_DEBUG, "data is coming or timeout, kfifo_in size: %u, rc: %d.", kfifo_len( &isp_dev_ctx.isp_kfifo_in ), rc );
 
         /* after wake up, we need to re-gain the mutex */
-        mutex_lock( &isp_dev_ctx.fops_lock );
+        rt_mutex_lock( &isp_dev_ctx.fops_lock );
     }
 
 	acamera_context_ptr_t context_ptr = (acamera_context_ptr_t)acamera_get_api_ctx_ptr();
@@ -1072,7 +1073,7 @@ int system_chardev_read( char *data, int size )
 		rc = kfifo_out( &isp_dev_ctx.isp_kfifo_in, data, size );
 	}
 
-    mutex_unlock( &isp_dev_ctx.fops_lock );
+    rt_mutex_unlock( &isp_dev_ctx.fops_lock );
     return rc;
 }
 
@@ -1085,7 +1086,7 @@ int system_chardev_write( const char *data, int size )
         return -1;
     }
 
-    mutex_lock( &isp_dev_ctx.fops_lock );
+    rt_mutex_lock( &isp_dev_ctx.fops_lock );
 
     rc = kfifo_in( &isp_dev_ctx.isp_kfifo_out, data, size );
 
@@ -1093,7 +1094,7 @@ int system_chardev_write( const char *data, int size )
     wake_up_interruptible( &isp_dev_ctx.kfifo_out_queue );
     LOG( LOG_DEBUG, "wake up reader who wait on kfifo out." );
 
-    mutex_unlock( &isp_dev_ctx.fops_lock );
+    rt_mutex_unlock( &isp_dev_ctx.fops_lock );
     return rc;
 }
 

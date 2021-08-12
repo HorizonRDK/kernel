@@ -121,8 +121,6 @@ extern void system_interrupts_disable( void );
 extern void frame_buffer_fr_finished(dma_writer_fsm_ptr_t p_fsm);
 extern void general_temper_lsb_dma_switch(general_fsm_ptr_t p_fsm, uint8_t next_frame_ppf, uint8_t dma_error);
 
-static void isp_ctxsv_work(struct work_struct *w);
-
 int isp_print_fps(s8* buf, u32 size)
 {
 	u32 offset = 0;
@@ -431,8 +429,6 @@ int32_t acamera_init( acamera_settings *settings, uint32_t ctx_num )
 
         g_firmware.context_number = ctx_num;
 
-        INIT_WORK(&g_firmware.ctxsv_work, isp_ctxsv_work);
-
         result = system_dma_init( &g_firmware.dma_chan_isp_config );
         result |= system_dma_init( &g_firmware.dma_chan_isp_metering );
         if ( result == 0 ) {
@@ -697,12 +693,11 @@ EXPORT_SYMBOL(dma_writer_config_done);
 /*
  * isp sw register dump, exclude metering data
  */
-static void isp_ctxsv_work(struct work_struct *w)
+void acamera_isp_ctxsv(uint8_t ctx_id)
 {
     int rc = -1;
     isp_ctx_node_t *cn;
     volatile void *offset;
-    uint8_t ctx_id = cur_ctx_id;
     struct vio_frame_id frmid;
     acamera_context_t *p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[ctx_id];
 
@@ -741,9 +736,6 @@ static void dma_complete_context_func( void *arg )
     if ( g_firmware.dma_flag_isp_config_completed && g_firmware.dma_flag_isp_metering_completed ) {
 
         pr_debug("START PROCESSING FROM CONTEXT CALLBACK, ctx_id %d\n", ctx_id);
-
-        if (p_ctx->isp_ctxsv_on)
-            schedule_work(&g_firmware.ctxsv_work);
 
          // indicate dma writer is disabled
         if (p_ctx->p_gfw->sif_isp_offline && p_ctx->fsm_mgr.reserved == 0

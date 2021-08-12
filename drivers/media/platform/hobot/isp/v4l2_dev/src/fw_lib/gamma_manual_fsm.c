@@ -86,7 +86,7 @@ int gamma_manual_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint3
     return rc;
 }
 
-
+extern void acamera_isp_ctxsv(uint8_t ctx_id);
 uint8_t gamma_manual_fsm_process_event( gamma_manual_fsm_t *p_fsm, event_id_t event_id )
 {
     uint8_t b_event_processed = 0;
@@ -95,6 +95,12 @@ uint8_t gamma_manual_fsm_process_event( gamma_manual_fsm_t *p_fsm, event_id_t ev
         break;
     case event_id_gamma_new_param_ready:
         gamma_manual_update( p_fsm );
+
+        /* gamma_manual_update is the last function write to sram per frame,
+            after that, it will be ok to save context data */
+        if (p_fsm->p_fsm_mgr->p_ctx->isp_ctxsv_on)
+            acamera_isp_ctxsv(p_fsm->cmn.ctx_id);
+
         b_event_processed = 1;
         break;
     }

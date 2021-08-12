@@ -275,7 +275,6 @@ struct _acamera_firmware_t {
     uint32_t initialized;
     uint8_t sif_isp_offline;
 
-    struct work_struct ctxsv_work;
     //byte3:status
     //byte2:iridix turn over(1), iridix share(2)
     //byte1:giver ctx id
