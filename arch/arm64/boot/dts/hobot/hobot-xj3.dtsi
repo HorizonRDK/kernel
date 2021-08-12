@@ -1080,6 +1080,11 @@
 			status = "disabled";
 		};
 
+        fiq_debugger: fiq-debugger {
+			compatible = "hobot,fiq-debugger";
+			status = "disabled";
+		};
+
 		cnn0: cnn@0xA3000000 {
 			compatible = "hobot,hobot-bpu";
 			reg = <0x0 0xA3000000 0x0 0x1000>,

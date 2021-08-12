@@ -8,3 +8,7 @@ config HOBOT_CORESIGHT
 	help
 	  Support coresight features such as dump pcsr, trigger panic etc.
 
+config HOBOT_FIQ_DEBUGGER
+    tristate "support fiq debugger after hardlock"
+    help
+        Support fiq debugger to get registers, backtrace

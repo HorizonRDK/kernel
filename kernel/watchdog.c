@@ -33,6 +33,9 @@
 #include <soc/hobot/hobot_coresight.h>
 #endif
 
+#ifdef CONFIG_HOBOT_FIQ_DEBUGGER
+#include <soc/hobot/hobot_fiq_debugger.h>
+#endif
 static DEFINE_MUTEX(watchdog_mutex);
 
 #if defined(CONFIG_HARDLOCKUP_DETECTOR) || defined(CONFIG_HAVE_NMI_WATCHDOG)
@@ -454,7 +457,12 @@ static void watchdog_check_hardlockup_other_cpu(void)
 		 * triggering panic on hardlockup cpu
 		 */
 		hardlockup_det_en = false;
-		coresight_trigger_panic(next_cpu);
+#ifdef CONFIG_HOBOT_FIQ_DEBUGGER
+        if (hobot_hardlockup_fiq_support())
+           hobot_fiqdebug_affinity_set(next_cpu);
+        else
+#endif
+		    coresight_trigger_panic(next_cpu);
 #endif
 	}
 }

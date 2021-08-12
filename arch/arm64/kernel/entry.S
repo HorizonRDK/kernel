@@ -158,6 +158,9 @@ alternative_cb_end
 	.endm
 
 	.macro	kernel_entry, el, regsize = 64
+#ifdef CONFIG_HOBOT_FIQ_DEBUGGER
+	msr daifclr, #1		//fiq enable
+#endif
 	.if	\regsize == 32
 	mov	w0, w0				// zero upper 32 bits of x0
 	.endif

@@ -132,6 +132,12 @@
                         reg = <0x0 0x3EFF000 0x0 0x1000>;
                         no-map;
                 };
+
+		/*Reserved 4k memory for bl31*/
+        bl31_share_rsv: bl31_share_rsv{
+			reg = <0x0 0x3FFF000 0x0 0x1000>;
+			no-map;
+		};
 	};
 };
 
@@ -694,4 +700,8 @@
                         sound-dai = <&i2sidma1>;
                 };
         };
+};
+
+&fiq_debugger {
+    shared-region = <&bl31_share_rsv>;
 };

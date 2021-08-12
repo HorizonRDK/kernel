@@ -303,3 +303,7 @@
 		reg = <0>;
 	};
 };
+
+&fiq_debugger {
+    status = "okay";
+};
