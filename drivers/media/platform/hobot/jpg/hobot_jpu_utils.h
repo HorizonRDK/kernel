@@ -86,6 +86,8 @@ typedef struct _hb_jpu_dev {
 	wait_queue_head_t poll_wait_q[MAX_NUM_JPU_INSTANCE];
 	int64_t poll_int_event;
 	wait_queue_head_t poll_int_wait;
+	int64_t total_poll;
+	int64_t total_release;
 
 	struct fasync_struct *async_queue;
 	u32 open_count;		/*!<< device reference count. Not instance count */

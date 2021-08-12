@@ -13,7 +13,7 @@
 #include <linux/kfifo.h>
 #include <linux/kthread.h>
 #include <linux/pm_qos.h>
-
+#include <linux/ion.h>
 #include "hobot_vpu_user.h"
 #include "hobot_vpu_config.h"
 
@@ -73,6 +73,8 @@ typedef struct _hb_vpu_dev {
 	hb_vpu_driver_data_t *drv_data;
 	struct resource *vpu_mem;
 	void __iomem *regs_base;
+	struct resource *vpu_reset;
+	void __iomem *rst_regs_base;
 	int irq;
 	int vpu_dev_num;
 	int major;
@@ -84,9 +86,7 @@ typedef struct _hb_vpu_dev {
 	struct clk *vpu_aclk;
 	struct clk *vpu_bclk;
 	struct clk *vpu_cclk;
-#ifdef CONFIG_ION_HOBOT
 	struct ion_client *vpu_ion_client;
-#endif
 
 	wait_queue_head_t poll_int_wait_q[MAX_NUM_VPU_INSTANCE];
 	int64_t poll_int_event[MAX_NUM_VPU_INSTANCE];

@@ -713,7 +713,7 @@
 
 		vpu: vpu@0xA8000000 {
 			compatible = "hobot,hobot_vpu";
-			reg = <0 0xA8000000 0 0x10000>;
+			reg = <0 0xA8000000 0 0x10000>, <0 0xA1000460 0 0x10>;
 			clocks = <&vpu_cclk>,<&vpu_bclk>;
 			clock-names = "vpu_cclk","vpu_bclk";
 			interrupt-parent = <&gic>;

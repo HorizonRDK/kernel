@@ -20,12 +20,17 @@
 #include <linux/poll.h>
 #include <linux/eventpoll.h>
 #include <linux/debugfs.h>
+#include <linux/sched/signal.h>
 
 #include "hobot_vpu_ctl.h"
 #include "hobot_vpu_debug.h"
 #include "hobot_vpu_pm.h"
 #include "hobot_vpu_reg.h"
 #include "hobot_vpu_utils.h"
+
+#define VPU_ION_TYPE 19
+
+extern struct ion_device *hb_ion_dev;
 
 int vpu_debug_flag = 5;
 int vpu_debug_info = 0;
@@ -393,14 +398,14 @@ static int vpuapi_wait_reset_busy(hb_vpu_dev_t *dev, u32 core)
 	return ret;
 }
 
-static int vpuapi_wait_vpu_busy(hb_vpu_dev_t *dev, u32 core)
+static int vpuapi_wait_vpu_busy(hb_vpu_dev_t *dev, u32 core, unsigned long timeout)
 {
 	int ret;
 	u32 val = 0;
 	u32 cmd;
 	u32 pc;
 	int product_code;
-	unsigned long timeout = jiffies + VPU_BUSY_CHECK_TIMEOUT;
+	//unsigned long timeout = jiffies + VPU_BUSY_CHECK_TIMEOUT;
 
 	product_code = VPU_READL(VPU_PRODUCT_CODE_REGISTER);
 	while(1) {
@@ -421,7 +426,7 @@ static int vpuapi_wait_vpu_busy(hb_vpu_dev_t *dev, u32 core)
 			ret = VPUAPI_RET_TIMEOUT;
 			break;
 		}
-		vpu_err("%s cmd=0x%x, pc=0x%x\n", __FUNCTION__, cmd, pc);
+		vpu_debug(7, "%s cmd=0x%x, pc=0x%x\n", __FUNCTION__, cmd, pc);
 		udelay(0);	// delay more to give idle time to OS;
 	}
 
@@ -465,9 +470,11 @@ static int vpuapi_wait_bus_busy(hb_vpu_dev_t *dev, u32 core,
 static int wave_sleep_wake(hb_vpu_dev_t *dev, u32 core, int mode)
 {
 	u32 val;
+	unsigned long timeout = jiffies + VPU_BUSY_CHECK_TIMEOUT;
+
 	vpu_debug(5, "%s core=%d, mode=%d\n", __FUNCTION__, core, mode);
 	if (mode == VPU_SLEEP_MODE) {
-		if (vpuapi_wait_vpu_busy(dev, core) == VPUAPI_RET_TIMEOUT) {
+		if (vpuapi_wait_vpu_busy(dev, core, timeout) == VPUAPI_RET_TIMEOUT) {
 			return VPUAPI_RET_TIMEOUT;
 		}
 
@@ -475,7 +482,7 @@ static int wave_sleep_wake(hb_vpu_dev_t *dev, u32 core, int mode)
 		VPU_WRITEL(W5_COMMAND, W5_SLEEP_VPU);
 		VPU_WRITEL(W5_VPU_HOST_INT_REQ, 1);
 
-		if (vpuapi_wait_vpu_busy(dev, core) == VPUAPI_RET_TIMEOUT) {
+		if (vpuapi_wait_vpu_busy(dev, core, timeout) == VPUAPI_RET_TIMEOUT) {
 			return VPUAPI_RET_TIMEOUT;
 		}
 
@@ -552,7 +559,7 @@ static int wave_sleep_wake(hb_vpu_dev_t *dev, u32 core, int mode)
 		VPU_WRITEL(W5_COMMAND, W5_WAKEUP_VPU);
 		VPU_WRITEL(W5_VPU_REMAP_CORE_START, 1);
 
-		if (vpuapi_wait_vpu_busy(dev, core) == VPUAPI_RET_TIMEOUT) {
+		if (vpuapi_wait_vpu_busy(dev, core, timeout) == VPUAPI_RET_TIMEOUT) {
 			vpu_err("%s timeout pc=0x%x\n", __FUNCTION__,
 				VPU_READL(W5_VCPU_CUR_PC));
 			return VPUAPI_RET_TIMEOUT;
@@ -586,10 +593,10 @@ static int wave_close_instance(hb_vpu_dev_t *dev, u32 core, u32 inst)
 			core, inst,  ret, error_reason);
 		if (ret == VPUAPI_RET_SUCCESS) {
 			if ((error_reason & 0xf0000000)) {
-				if (vpu_do_sw_reset(dev, core, inst, error_reason)
-					== VPUAPI_RET_TIMEOUT) {
+				//if (vpu_do_sw_reset(dev, core, inst, error_reason)
+				//	== VPUAPI_RET_TIMEOUT) {
 					break;
-				}
+				//}
 			}
 		}
 
@@ -916,7 +923,7 @@ int vpuapi_sw_reset(hb_vpu_dev_t *dev, u32 core, u32 inst, int reset_mode)
 }
 
 static int wave_issue_command(hb_vpu_dev_t *dev, u32 core, u32 inst,
-				u32 cmd)
+				u32 cmd, unsigned long timeout)
 {
 	int ret;
 	u32 codec_mode;
@@ -937,7 +944,7 @@ static int wave_issue_command(hb_vpu_dev_t *dev, u32 core, u32 inst,
 
 	VPU_WRITEL(W5_VPU_HOST_INT_REQ, 1);
 
-	ret = vpuapi_wait_vpu_busy(dev, core);
+	ret = vpuapi_wait_vpu_busy(dev, core, timeout);
 
 	return ret;
 }
@@ -946,9 +953,11 @@ static int wave_send_query_command(hb_vpu_dev_t *dev,
 			unsigned long core, unsigned long inst, u32 queryOpt)
 {
 	int ret;
+	unsigned long timeout = jiffies + VPU_BUSY_CHECK_TIMEOUT;
+
 	VPU_WRITEL(W5_QUERY_OPTION, queryOpt);
 	VPU_WRITEL(W5_VPU_BUSY_STATUS, 1);
-	ret = wave_issue_command(dev, core, inst, W5_QUERY);
+	ret = wave_issue_command(dev, core, inst, W5_QUERY, timeout);
 	if (ret != VPUAPI_RET_SUCCESS) {
 		vpu_err("fail1 ret=%d\n", ret);
 		return ret;
@@ -1058,6 +1067,7 @@ int vpuapi_dec_set_stream_end(hb_vpu_dev_t *dev, u32 core, u32 inst)
 	int ret = VPUAPI_RET_SUCCESS;
 	u32 val;
 	int product_code;
+	unsigned long timeout = jiffies + VPU_BUSY_CHECK_TIMEOUT;
 
 #ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
 	vdi_lock(dev, core, VPUDRV_MUTEX_VPU);
@@ -1071,7 +1081,7 @@ int vpuapi_dec_set_stream_end(hb_vpu_dev_t *dev, u32 core, u32 inst)
 		// keep not to be changed
 		// WriteVpuRegister(core, W5_BS_WR_PTR, pDecInfo->streamWrPtr);
 
-		ret = wave_issue_command(dev, core, inst, W5_UPDATE_BS);
+		ret = wave_issue_command(dev, core, inst, W5_UPDATE_BS, timeout);
 		if (ret != VPUAPI_RET_SUCCESS) {
 			vpu_err("ret=%d\n", ret);
 #ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
@@ -1113,7 +1123,8 @@ int vpuapi_close(hb_vpu_dev_t *dev, u32 core, u32 inst)
 	int ret = VPUAPI_RET_SUCCESS;
 	u32 val;
 	int product_code;
-	u32 intr_reason;
+	//u32 intr_reason;
+	unsigned long timeout = jiffies + VPU_BUSY_CHECK_TIMEOUT;
 
 #ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
 	vdi_lock(dev, core, VPUDRV_MUTEX_VPU);
@@ -1125,7 +1136,7 @@ int vpuapi_close(hb_vpu_dev_t *dev, u32 core, u32 inst)
 		product_code);
 
 	if (PRODUCT_CODE_W_SERIES(product_code)) {
-		ret = wave_issue_command(dev, core, inst, W5_DESTROY_INSTANCE);
+		ret = wave_issue_command(dev, core, inst, W5_DESTROY_INSTANCE, timeout);
 		if (ret != VPUAPI_RET_SUCCESS) {
 			vpu_err("ret=%d\n", ret);
 #ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
@@ -1141,13 +1152,8 @@ int vpuapi_close(hb_vpu_dev_t *dev, u32 core, u32 inst)
 			val = VPU_READL(W5_RET_FAIL_REASON);
 			if (val == WAVE5_SYSERR_VPU_STILL_RUNNING) {
 				ret = VPUAPI_RET_STILL_RUNNING;
-				intr_reason = VPU_READL(W5_VPU_INT_REASON);
-				if (intr_reason != 0) {
-					//VPU_WRITEL(W5_VPU_INT_REASON_CLEAR, intr_reason);
-					//VPU_WRITEL(W5_VPU_VINT_CLEAR, 0x1);
-					//vpu_debug(7, "Clear interrupt(reason %x)\n", intr_reason);
-				}
 			} else {
+				vpu_err("command result=%d\n", val);
 				ret = VPUAPI_RET_FAILURE;
 			}
 		} else {
@@ -1174,40 +1180,26 @@ int vpu_do_sw_reset(hb_vpu_dev_t *dev, u32 core, u32 inst, u32 error_reason)
 {
 	int ret;
 	hb_vpu_instance_pool_t *vip = get_instance_pool_handle(dev, core);
-	int doSwResetInstIdx;
+	//int doSwResetInstIdx;
 
 	vpu_debug(5, "[+] core=%d, inst=%d, error_reason=0x%x\n",
 		core, inst, error_reason);
 	if (vip == NULL)
 		return VPUAPI_RET_FAILURE;
 
-#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
-	vdi_lock(dev, core, VPUDRV_MUTEX_VPU);
-#else
-	vdi_lock(dev, VPUDRV_MUTEX_RESET);
-#endif
 	ret = VPUAPI_RET_SUCCESS;
-	doSwResetInstIdx = vip->doSwResetInstIdxPlus1 - 1;
-	if (doSwResetInstIdx == inst || (error_reason & 0xf0000000)) {
+	if (error_reason & 0xf0000000) {
 		ret = vpuapi_sw_reset(dev, core, inst, 0);
 		if (ret == VPUAPI_RET_STILL_RUNNING) {
 			vpu_debug(5, "VPU is still running\n");
-			vip->doSwResetInstIdxPlus1 = (inst + 1);
 		} else if (ret == VPUAPI_RET_SUCCESS) {
 			vpu_debug(5, "success\n");
-			vip->doSwResetInstIdxPlus1 = 0;
 		} else {
 			vpu_err("Fail result=0x%x\n", ret);
-			vip->doSwResetInstIdxPlus1 = 0;
 		}
 	}
-#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
-	vdi_unlock(dev, core, VPUDRV_MUTEX_VPU);
-#else
-	vdi_unlock(dev, VPUDRV_MUTEX_RESET);
-#endif
-	vpu_debug(5, "[-] vip->doSwResetInstIdx=%d, ret=%d\n",
-		vip->doSwResetInstIdxPlus1, ret);
+
+	vpu_debug(5, "[-] ret=%d\n", ret);
 	mdelay(10);
 	return ret;
 }
@@ -1215,6 +1207,10 @@ int vpu_do_sw_reset(hb_vpu_dev_t *dev, u32 core, u32 inst, u32 error_reason)
 
 static int vpu_alloc_dma_buffer(hb_vpu_dev_t *dev, hb_vpu_drv_buffer_t * vb)
 {
+	int32_t ret = 0;
+	size_t size;
+	void * vaddr;
+	struct ion_handle *vpu_com_mem_handle;
 	if (!vb || !dev)
 		return -1;
 
@@ -1228,20 +1224,51 @@ static int vpu_alloc_dma_buffer(hb_vpu_dev_t *dev, hb_vpu_drv_buffer_t * vb)
 	vb->base = (unsigned long)(s_video_memory.base +
 				   (vb->phys_addr - s_video_memory.phys_addr));
 #else
-	vb->base = (unsigned long)dma_alloc_coherent(dev->device, PAGE_ALIGN(vb->size),
+	/*vb->base = (unsigned long)dma_alloc_coherent(dev->device, PAGE_ALIGN(vb->size),
 						     (dma_addr_t
 						      *) (&vb->phys_addr),
 						     GFP_DMA | GFP_KERNEL);
 	if ((void *)(vb->base) == NULL) {
 		vpu_err("Physical memory allocation error size=%d\n", vb->size);
 		return -1;
+	}*/
+	if (dev->vpu_ion_client == NULL) {
+		return -EFAULT;
 	}
+
+	vpu_com_mem_handle = ion_alloc(dev->vpu_ion_client, vb->size, 0,
+		ION_HEAP_TYPE_DMA_MASK, vb->fd);
+	if (IS_ERR_OR_NULL(vpu_com_mem_handle)) {
+		vpu_err("failed to allocate ion memory, ret = %p.\n", vpu_com_mem_handle);
+		return (int32_t)PTR_ERR(vpu_com_mem_handle);
+	}
+
+	ret = ion_phys(dev->vpu_ion_client, vpu_com_mem_handle->id,
+			(phys_addr_t *)&vb->phys_addr, &size);
+	if (ret != 0) {
+		vpu_err("failed to get ion phys address.\n");
+		ion_free(dev->vpu_ion_client, vpu_com_mem_handle);
+		return ret;
+	}
+
+	vaddr = ion_map_kernel(dev->vpu_ion_client, vpu_com_mem_handle);
+	if (IS_ERR(vaddr)) {
+		vpu_err("failed to get ion virt address.\n");
+		ion_free(dev->vpu_ion_client, vpu_com_mem_handle);
+		return -EFAULT;
+	}
+	vb->base = (unsigned long)vaddr;
+	vb->handle = (int64_t)vpu_com_mem_handle;
+
+	return 0;
+
 #endif
 	return 0;
 }
 
 static void vpu_free_dma_buffer(hb_vpu_dev_t *dev, hb_vpu_drv_buffer_t * vb)
 {
+	struct ion_handle *vpu_com_mem_handle;
 	if (!vb || !dev)
 		return;
 
@@ -1249,9 +1276,13 @@ static void vpu_free_dma_buffer(hb_vpu_dev_t *dev, hb_vpu_drv_buffer_t * vb)
 	if (vb->base)
 		vmem_free(&s_vmem, vb->phys_addr, 0);
 #else
-	if (vb->base)
+	/*if (vb->base)
 		dma_free_coherent(dev->device, PAGE_ALIGN(vb->size), (void *)vb->base,
-				  vb->phys_addr);
+				  vb->phys_addr);*/
+
+	vpu_com_mem_handle = (struct ion_handle *)vb->handle;
+	ion_unmap_kernel(dev->vpu_ion_client, vpu_com_mem_handle);
+	ion_free(dev->vpu_ion_client, vpu_com_mem_handle);
 #endif
 }
 
@@ -1735,15 +1766,17 @@ static irqreturn_t vpu_irq_handler(int irq, void *dev_id)
 				wake_up_interruptible(&dev->poll_int_wait_q[idx]);
 			}
 		}
-		spin_lock(&dev->irq_spinlock);
-		if (dev->irq_trigger == 1 &&
-			test_bit(intr_inst_index, vpu_inst_bitmap) == 0) {
-			enable_irq(dev->irq);
-			dev->irq_trigger = 0;
+	}
+	spin_lock(&dev->irq_spinlock);
+	if (dev->irq_trigger == 1 &&
+		test_bit(intr_inst_index, vpu_inst_bitmap) == 0) {
+		enable_irq(dev->irq);
+		dev->irq_trigger = 0;
+		if (intr_inst_index >= 0 && intr_inst_index < MAX_NUM_VPU_INSTANCE) {
 			dev->interrupt_flag[intr_inst_index] = 0;
 		}
-		spin_unlock(&dev->irq_spinlock);
 	}
+	spin_unlock(&dev->irq_spinlock);
 #else
 	dev->interrupt_flag = 1;
 	wake_up_interruptible(&dev->interrupt_wait_q);
@@ -1792,6 +1825,109 @@ static void *vpu_get_drv_data(struct platform_device *pdev)
 		}
 	}
 	return drv_data;
+}
+
+static int vpu_user_open_instance(hb_vpu_dev_t *dev, u32 core, u32 inst) {
+	int ret;
+	u32 val;
+	unsigned long timeout = jiffies + VPU_CREAT_INST_CHECK_TIMEOUT;
+
+	ret = wave_issue_command(dev, core, inst, W5_CREATE_INSTANCE, timeout);
+	if (ret != VPUAPI_RET_SUCCESS) {
+		if (ret == VPUAPI_RET_TIMEOUT) {
+			ret = RETCODE_VPU_RESPONSE_TIMEOUT;
+		} else if (ret == VPUAPI_RET_INVALID_PARAM) {
+			ret = RETCODE_INVALID_PARAM;
+		} else {
+			ret = RETCODE_FAILURE;
+		}
+		vpu_err("Failed to issue open instance command ret = %d\n", ret);
+		return ret;
+	}
+
+	val = VPU_READL(W5_RET_SUCCESS);
+	if (val == 0) {
+		val = VPU_READL(W5_RET_FAIL_REASON);
+
+		if (vpu_check_is_decoder(dev, core, inst) == 0) {
+			if (val != WAVE5_SYSERR_QUEUEING_FAIL)
+				vpu_err("Failed to open encoder FAIL_REASON = 0x%x\n", val);
+			if (val == 2)
+				ret = RETCODE_INVALID_SFS_INSTANCE;
+			else if (val == WAVE5_SYSERR_WATCHDOG_TIMEOUT)
+				ret = RETCODE_VPU_RESPONSE_TIMEOUT;
+			else
+				ret = RETCODE_FAILURE;
+		} else {
+			vpu_err("Failed to open decoder FAIL_REASON = 0x%x\n", val);
+			ret = RETCODE_FAILURE;
+		}
+	} else {
+		ret = RETCODE_SUCCESS;
+	}
+
+	return ret;
+}
+
+static int vpu_user_close_instance(hb_vpu_dev_t *dev, u32 core, u32 inst) {
+	int ret;
+	u32 val;
+	unsigned char *codec_inst;
+	unsigned long timeout = jiffies + VPU_BUSY_CHECK_TIMEOUT;
+	hb_vpu_instance_pool_t *vip = get_instance_pool_handle(dev, core);
+	if (vip == NULL) {
+		vpu_err("Invalid instance pool\n");
+		return RETCODE_INVALID_PARAM;
+	}
+
+	ret = wave_issue_command(dev, core, inst, W5_DESTROY_INSTANCE, timeout);
+	if (ret != VPUAPI_RET_SUCCESS) {
+		if (ret == VPUAPI_RET_TIMEOUT) {
+			ret = RETCODE_VPU_RESPONSE_TIMEOUT;
+		} else if (ret == VPUAPI_RET_INVALID_PARAM) {
+			ret = RETCODE_INVALID_PARAM;
+		} else {
+			ret = RETCODE_FAILURE;
+		}
+		vpu_err("Failed to issue close instance command ret = %d\n", ret);
+		return ret;
+	}
+
+	val = VPU_READL(W5_RET_SUCCESS);
+	if (val == 0) {
+		val = VPU_READL(W5_RET_FAIL_REASON);
+		if (vpu_check_is_decoder(dev, core, inst) == 0) {
+			if (val != WAVE5_SYSERR_VPU_STILL_RUNNING)
+				vpu_err("Failed to close encoder FAIL_REASON = 0x%x\n", val);
+
+			if (val == WAVE5_SYSERR_VPU_STILL_RUNNING) {
+				ret = RETCODE_VPU_STILL_RUNNING;
+			} else {
+				ret = RETCODE_FAILURE;
+			}
+		} else {
+			if (val != WAVE5_SYSERR_QUEUEING_FAIL && val != WAVE5_SYSERR_VPU_STILL_RUNNING)
+				vpu_err("Failed to close decoder FAIL_REASON = 0x%x\n", val);
+
+			if (val == WAVE5_SYSERR_VPU_STILL_RUNNING)
+				ret = RETCODE_VPU_STILL_RUNNING;
+			else if (val == WAVE5_SYSERR_ACCESS_VIOLATION_HW)
+				ret = RETCODE_MEMORY_ACCESS_VIOLATION;
+			else if (val == WAVE5_SYSERR_WATCHDOG_TIMEOUT)
+				ret = RETCODE_VPU_RESPONSE_TIMEOUT;
+			else if (val == WAVE5_SYSERR_VLC_BUF_FULL)
+				ret = RETCODE_VLC_BUF_FULL;
+			else
+				ret = RETCODE_FAILURE;
+		}
+	} else {
+		ret = RETCODE_SUCCESS;
+	}
+
+	codec_inst = &vip->codec_inst_pool[inst][0];
+	// indicates codecMode in CodecInst structure in vpuapifunc.h
+	memset(&codec_inst, 0x00, 4);
+	return ret;
 }
 
 static int vpu_open(struct inode *inode, struct file *filp)
@@ -1848,7 +1984,7 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 	case VDI_IOCTL_ALLOCATE_PHYSICAL_MEMORY:
 		{
 			hb_vpu_drv_buffer_pool_t *vbp;
-			vpu_debug(5, "[+]VDI_IOCTL_ALLOCATE_PHYSICAL_MEMORY\n");
+			vpu_debug(7, "[+]VDI_IOCTL_ALLOCATE_PHYSICAL_MEMORY\n");
 
 			if ((ret = down_interruptible(&dev->vpu_sem)) == 0) {
 				vbp = kzalloc(sizeof(*vbp), GFP_KERNEL);
@@ -1868,7 +2004,7 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 				}
 
 				ret = vpu_alloc_dma_buffer(dev, &(vbp->vb));
-				if (ret == -1) {
+				if (ret != 0) {
 					ret = -ENOMEM;
 					kfree(vbp);
 					up(&dev->vpu_sem);
@@ -1891,14 +2027,14 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 
 				up(&dev->vpu_sem);
 			}
-			vpu_debug(5, "[-]VDI_IOCTL_ALLOCATE_PHYSICAL_MEMORY\n");
+			vpu_debug(7, "[-]VDI_IOCTL_ALLOCATE_PHYSICAL_MEMORY\n");
 		}
 		break;
 	case VDI_IOCTL_FREE_PHYSICALMEMORY:
 		{
 			hb_vpu_drv_buffer_pool_t *vbp, *n;
 			hb_vpu_drv_buffer_t vb;
-			vpu_debug(5, "[+]VDI_IOCTL_FREE_PHYSICALMEMORY\n");
+			vpu_debug(7, "[+]VDI_IOCTL_FREE_PHYSICALMEMORY\n");
 
 			if ((ret = down_interruptible(&dev->vpu_sem)) == 0) {
 				ret =
@@ -1926,7 +2062,7 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 
 				up(&dev->vpu_sem);
 			}
-			vpu_debug(5, "[-]VDI_IOCTL_FREE_PHYSICALMEMORY\n");
+			vpu_debug(7, "[-]VDI_IOCTL_FREE_PHYSICALMEMORY\n");
 		}
 		break;
 	case VDI_IOCTL_GET_RESERVED_VIDEO_MEMORY_INFO:
@@ -2022,7 +2158,7 @@ static long vpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 				break;
 			}
 #endif
-#if 0
+#if 1
 			if (signal_pending(current)) {
 				ret = -ERESTARTSYS;
 				break;
@@ -2073,12 +2209,7 @@ INTERRUPT_REMAIN_IN_QUEUE:
 			}
 			spin_unlock_irqrestore(&dev->irq_spinlock, flags_mp);
 #endif
-#ifdef SUPPORT_MULTI_INST_INTR
-			if (dev->interrupt_reason[intr_inst_index] != 0)
-#else
-			if (dev->interrupt_reason != 0)
-#endif
-			{
+			if (info.intr_reason != 0) {
 				spin_lock_irqsave(&dev->poll_int_wait_q[intr_inst_index].lock, flags_mp);
 				dev->poll_int_event[intr_inst_index]--;
 				dev->total_release[intr_inst_index]++;
@@ -2165,7 +2296,7 @@ INTERRUPT_REMAIN_IN_QUEUE:
 #else
 						if (vpu_alloc_dma_buffer
 						    (dev, &dev->instance_pool,
-						     dev) != -1)
+						     dev) == 0)
 #endif
 						{
 							/*clearing memory */
@@ -2216,7 +2347,7 @@ INTERRUPT_REMAIN_IN_QUEUE:
 						     (hb_vpu_drv_buffer_t));
 				if (ret == 0) {
 					if (vpu_alloc_dma_buffer
-					    (dev, &dev->common_memory) != -1) {
+					    (dev, &dev->common_memory) == 0) {
 						ret =
 						    copy_to_user((void __user *)
 								 arg,
@@ -2257,6 +2388,12 @@ INTERRUPT_REMAIN_IN_QUEUE:
 			    || inst_info.inst_idx >= MAX_NUM_VPU_INSTANCE) {
 				kfree(vil);
 				return -EINVAL;
+			}
+
+			ret = vpu_user_open_instance(dev, inst_info.core_idx, inst_info.inst_idx);
+			if (ret != 0) {
+				kfree(vil);
+				return ret;
 			}
 
 			vil->inst_idx = inst_info.inst_idx;
@@ -2326,6 +2463,11 @@ INTERRUPT_REMAIN_IN_QUEUE:
 			if (inst_info.core_idx >= MAX_NUM_VPU_CORE
 			    || inst_info.inst_idx >= MAX_NUM_VPU_INSTANCE)
 				return -EINVAL;
+
+			ret = vpu_user_close_instance(dev, inst_info.core_idx, inst_info.inst_idx);
+			if (ret != 0) {
+				return ret;
+			}
 
 			spin_lock(&dev->vpu_spinlock);
 			list_for_each_entry_safe(vil, n, &dev->inst_list_head,
@@ -2418,7 +2560,7 @@ INTERRUPT_REMAIN_IN_QUEUE:
 	case VDI_IOCTL_RESET:
 		{
 			vpu_debug(5, "[+]VDI_IOCTL_RESET\n");
-			hb_vpu_hw_reset();
+			hb_vpu_hw_reset(dev);
 			vpu_debug(5, "[-]VDI_IOCTL_RESET\n");
 		}
 		break;
@@ -2530,6 +2672,8 @@ INTERRUPT_REMAIN_IN_QUEUE:
 					info.intr_reason == VPU_INST_CLOSED) {
 					spin_lock(&dev->poll_wait_q[intr_inst_index].lock);
 					dev->poll_event[intr_inst_index]++;
+					vpu_debug(7, "ioctl poll wait event dev->poll_event[%u]=%lld.\n",
+						intr_inst_index, dev->poll_event[intr_inst_index]);
 					spin_unlock(&dev->poll_wait_q[intr_inst_index].lock);
 					wake_up_interruptible(&dev->poll_wait_q[intr_inst_index]);
 				} else {
@@ -2725,8 +2869,6 @@ static int vpu_release(struct inode *inode, struct file *filp)
 		/* found and free the not handled buffer by user applications */
 		spin_lock(&dev->vpu_spinlock);	//check this place
 
-		vpu_free_buffers(filp);
-
 #ifdef USE_MUTEX_IN_KERNEL_SPACE
 		for (j = 0; j < VPUDRV_MUTEX_MAX; j++) {
 			if (dev->current_vdi_lock_pid[j] == current->tgid) {
@@ -2742,6 +2884,8 @@ static int vpu_release(struct inode *inode, struct file *filp)
 		vpu_free_instances(filp);
 		dev->open_count--;
 		open_count = dev->open_count;
+		spin_unlock(&dev->vpu_spinlock);
+		vpu_free_buffers(filp);
 		if (open_count == 0) {
 #ifdef SUPPORT_MULTI_INST_INTR
 			for (i = 0; i < MAX_NUM_VPU_INSTANCE; i++) {
@@ -2750,6 +2894,11 @@ static int vpu_release(struct inode *inode, struct file *filp)
 #endif
 			if (dev->instance_pool.base) {
 				vpu_debug(5, "free instance pool\n");
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+				for (i = 0; i < VPUDRV_MUTEX_MAX; i++) {
+					vdi_lock_release(dev, 0, i);
+				}
+#endif
 #ifdef USE_VMALLOC_FOR_INSTANCE_POOL_MEMORY
 				vfree((const void *)dev->instance_pool.base);
 #else
@@ -2774,7 +2923,6 @@ static int vpu_release(struct inode *inode, struct file *filp)
 #endif
 			pm_qos_remove_request(&dev->vpu_pm_qos_req);
 		}
-		spin_unlock(&dev->vpu_spinlock);
 	}
 	kfree(priv);
 	up(&dev->vpu_sem);
@@ -4278,6 +4426,24 @@ static int vpu_probe(struct platform_device *pdev)
 		"virtual base addr = %p\n", dev->vpu_mem->start,
 		dev->regs_base);
 
+	dev->vpu_reset = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	if (!dev->vpu_reset) {
+		dev_err(&pdev->dev, "failed to get memory resource\n");
+		err = -ENOENT;
+		goto ERR_RES_RESET;
+	}
+	dev->rst_regs_base = ioremap_nocache(dev->vpu_reset->start,
+					 resource_size(dev->vpu_reset));
+	if (!dev->rst_regs_base) {
+		dev_err(&pdev->dev, "failed to ioremap address region\n");
+		err = -ENOENT;
+		goto ERR_RESET_REMAP;
+	}
+	dev_dbg(&pdev->dev,
+		"vpu reset memory resource: physical base addr = 0x%llx,"
+		"virtual base addr = %p\n", dev->vpu_reset->start,
+		dev->rst_regs_base);
+
 	res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
 	if (!res) {
 		dev_err(&pdev->dev, "failed to get irq resource\n");
@@ -4348,14 +4514,12 @@ static int vpu_probe(struct platform_device *pdev)
 	}
 	vpu_clk_node_init(g_vpu_clk_devs);
 
-#ifdef CONFIG_ION_HOBOT
-	dev->vpu_ion_client = ion_client_create(ion_exynos, "vpu");
-	if (IS_ERR(dev->vpu_ion_client)) {
+	dev->vpu_ion_client = ion_client_create(hb_ion_dev, "vpu");
+	if (IS_ERR((const void *)dev->vpu_ion_client)) {
 		dev_err(&pdev->dev, "failed to ion_client_create\n");
 		err = PTR_ERR(dev->vpu_dev);
 		goto ERR_ION_CLIENT;
 	}
-#endif
 
 #ifdef VPU_SUPPORT_RESERVED_VIDEO_MEMORY
 	if (s_vmem.base_addr == 0) {
@@ -4428,6 +4592,7 @@ static int vpu_probe(struct platform_device *pdev)
 	INIT_LIST_HEAD(&dev->inst_list_head);
 
 	dev->common_memory.size = SIZE_COMMON;
+	dev->common_memory.fd = (VPU_ION_TYPE << 16) | 0;
 	err = vpu_alloc_dma_buffer(dev, &dev->common_memory);
 	if (err) {
 		dev->common_memory.size = 0;
@@ -4487,10 +4652,8 @@ ERR_ALLOC_FIFO:
 ERROR_INIT_VMEM:
 ERR_RESERVED_MEM:
 #endif
-#ifdef CONFIG_ION_HOBOT
 	ion_client_destroy(dev->vpu_ion_client);
 ERR_ION_CLIENT:
-#endif
 	hb_vpu_clk_put(dev);
 ERR_GET_CLK:
 	device_destroy(dev->vpu_class, dev->vpu_dev_num);
@@ -4504,6 +4667,9 @@ ERR_CREATE_CLASS:
 	free_irq(dev->irq, dev);
 ERR_REQ_IRQ:
 ERR_RES_IRQ:
+	iounmap(dev->rst_regs_base);
+ERR_RESET_REMAP:
+ERR_RES_RESET:
 	iounmap(dev->regs_base);
 ERR_IO_REMAP:
 	release_mem_region(dev->vpu_mem->start, resource_size(dev->vpu_mem));
@@ -4525,6 +4691,8 @@ static int vpu_remove(struct platform_device *pdev)
 	dev_dbg(&pdev->dev, "%s()\n", __func__);
 
 	dev = platform_get_drvdata(pdev);
+
+	hb_vpu_hw_reset(dev);
 
 	debugfs_remove_recursive(dev->debug_file_venc);
 	debugfs_remove_recursive(dev->debug_file_vdec);
@@ -4558,9 +4726,7 @@ static int vpu_remove(struct platform_device *pdev)
 	}
 #endif
 
-#ifdef CONFIG_ION_HOBOT
 	ion_client_destroy(dev->vpu_ion_client);
-#endif
 
 	//hb_vpu_clk_disable(dev);
 	//hb_vpu_clk_put(dev);

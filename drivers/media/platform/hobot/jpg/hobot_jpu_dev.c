@@ -20,6 +20,7 @@
 #include <linux/poll.h>
 #include <linux/eventpoll.h>
 #include <linux/debugfs.h>
+#include <linux/sched/signal.h>
 
 #include "hobot_jpu_ctl.h"
 #include "hobot_jpu_debug.h"
@@ -253,7 +254,6 @@ static int jpu_free_instances(struct file *filp)
 			test_and_clear_bit(vil->inst_idx, jpu_inst_bitmap);
 			dev->poll_event[vil->inst_idx] = LLONG_MIN;
 			wake_up_interruptible(&dev->poll_wait_q[vil->inst_idx]);
-			dev->poll_int_event = LLONG_MIN;
 			wake_up_interruptible(&dev->poll_int_wait);
 			memset(&dev->jpu_ctx[vil->inst_idx], 0x00,
 				sizeof(dev->jpu_ctx[vil->inst_idx]));
@@ -334,6 +334,10 @@ static irqreturn_t jpu_irq_handler(int irq, void *dev_id)
 	wake_up_interruptible(&dev->interrupt_wait_q[i]);
 	spin_lock(&dev->poll_int_wait.lock);
 	dev->poll_int_event++;
+	jpu_debug(7, "jpu_irq_handler poll_int_event[%d]=%lld.\n",
+		i, dev->poll_int_event);
+	dev->total_poll++;
+	jpu_debug(7, "jpu_irq_handler total_poll=%lld.\n", dev->total_poll);
 	spin_unlock(&dev->poll_int_wait.lock);
 	wake_up_interruptible(&dev->poll_int_wait);
 
@@ -529,7 +533,7 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 				ret = -ETIME;
 				break;
 			}
-#if 0
+#if 1
 			if (signal_pending(current)) {
 				ret = -ERESTARTSYS;
 				jpu_debug(5, "INSTANCE NO: %d ERESTARTSYS\n",
@@ -553,6 +557,9 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 #endif
 			spin_lock_irqsave(&dev->poll_int_wait.lock, flags_mp);
 			dev->poll_int_event--;
+			dev->total_release++;
+			jpu_debug(7, "ioctl poll event %lld total_release=%lld.\n",
+				dev->poll_int_event, dev->total_release);
 			spin_unlock_irqrestore(&dev->poll_int_wait.lock, flags_mp);
 
 			jpu_debug(7, "[-]VDI_IOCTL_WAIT_INTERRUPT\n");
@@ -742,7 +749,6 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 
 			dev->poll_event[inst_info.inst_idx] = LLONG_MIN;
 			wake_up_interruptible(&dev->poll_wait_q[inst_info.inst_idx]);
-			dev->poll_int_event = LLONG_MIN;
 			wake_up_interruptible(&dev->poll_int_wait);
 
 
@@ -828,7 +834,6 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 			if (inst_index < MAX_NUM_JPU_INSTANCE) {
 				set_bit(inst_index, jpu_inst_bitmap);
 				dev->poll_event[inst_index] = 0;
-				dev->poll_int_event = 0;
 			} else {
 				inst_index = -1;
 			}
@@ -903,6 +908,8 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 				info.intr_reason == JPU_INST_CLOSED) {
 				spin_lock(&dev->poll_wait_q[inst_no].lock);
 				dev->poll_event[inst_no]++;
+				jpu_debug(7, "ioctl poll wait event dev->poll_event[%u]=%lld.\n",
+					inst_no, dev->poll_event[inst_no]);
 				spin_unlock(&dev->poll_wait_q[inst_no].lock);
 				wake_up_interruptible(&dev->poll_wait_q[inst_no]);
 			} else {
@@ -1034,12 +1041,19 @@ static int jpu_release(struct inode *inode, struct file *filp)
 		if (open_count == 0) {
 			if (dev->instance_pool.base) {
 				jpu_debug(5, "free instance pool\n");
+#ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
+				for (i = 0; i < JPUDRV_MUTEX_MAX; i++) {
+					jdi_lock_release(dev, (u32)0, i);
+				}
+#endif
 				vfree((const void *)dev->instance_pool.base);
 				dev->instance_pool.base = 0;
 			}
 			for (i = 0; i < MAX_NUM_JPU_INSTANCE; i++)
 				test_and_clear_bit(i, jpu_inst_bitmap);
 			pm_qos_remove_request(&dev->jpu_pm_qos_req);
+			dev->total_poll = 0;
+			dev->total_release = 0;
 		}
 		spin_unlock(&dev->jpu_spinlock);
 	}
@@ -1205,7 +1219,7 @@ static unsigned int jpu_poll(struct file *filp, struct poll_table_struct *wait)
 	hb_jpu_dev_t *dev;
 	hb_jpu_priv_t *priv;
 	unsigned int mask = 0;
-	int64_t count;
+	int64_t count, count2;
 
 	priv = filp->private_data;
 	dev = priv->jpu_dev;
@@ -1226,9 +1240,11 @@ static unsigned int jpu_poll(struct file *filp, struct poll_table_struct *wait)
 	} else {
 		poll_wait(filp, &dev->poll_int_wait, wait);
 		count = dev->poll_int_event;
+		// here we check the poll event state for user stopping case
+		count2 = dev->poll_event[priv->inst_index];
 		if (count > 0) {
 			mask = EPOLLIN | EPOLLET;
-		} else if (count == LLONG_MIN) {
+		} else if (count2 == LLONG_MIN) {
 			mask = EPOLLHUP;
 		}
 	}
@@ -1641,7 +1657,7 @@ static int jpu_probe(struct platform_device *pdev)
 			s_video_memory.phys_addr, s_video_memory.base);
 	}
 #endif
-	for (i = 0; i < MAX_NUM_JPU_INSTANCE; i++) {
+	for (i = 0; i < MAX_HW_NUM_JPU_INSTANCE; i++) {
 		init_waitqueue_head(&dev->interrupt_wait_q[i]);
 	}
 

@@ -23,6 +23,7 @@
 #define VPU_REG_SIZE				(0x4000*MAX_NUM_VPU_CORE)
 
 #ifdef USE_VPU_CLOSE_INSTANCE_ONCE_ABNORMAL_RELEASE
+#define VPU_CREAT_INST_CHECK_TIMEOUT    (HZ/2)
 #define VPU_BUSY_CHECK_TIMEOUT          (5*HZ)
 #define VPU_DEC_TIMEOUT                 (10*HZ)
 
@@ -281,7 +282,26 @@ typedef enum {
 #define W5_RET_DEC_ERR_INFO                 (W5_REG_BASE + 0x01D8)
 #endif
 #define W5_BS_OPTION                            (W5_REG_BASE + 0x0120)
-#define WAVE5_SYSERR_VPU_STILL_RUNNING          0x00001000
+
+#define WAVE5_SYSERR_QUEUEING_FAIL                                     0x00000001
+#define WAVE5_SYSERR_ACCESS_VIOLATION_HW                               0x00000040
+#define WAVE5_SYSERR_RESULT_NOT_READY                                  0x00000800
+#define WAVE5_SYSERR_VPU_STILL_RUNNING                                 0x00001000
+#define WAVE5_SYSERR_UNKNOWN_CMD                                       0x00002000
+#define WAVE5_SYSERR_UNKNOWN_CODEC_STD                                 0x00004000
+#define WAVE5_SYSERR_UNKNOWN_QUERY_OPTION                              0x00008000
+#define WAVE5_SYSERR_VLC_BUF_FULL                                      0x00010000
+#define WAVE5_SYSERR_WATCHDOG_TIMEOUT                                  0x00020000
+#define WAVE5_SYSERR_VCPU_TIMEOUT                                      0x00080000
+#define WAVE5_SYSERR_NEED_MORE_TASK_BUF                                0x00400000
+#define WAVE5_SYSERR_PRESCAN_ERR                                       0x00800000
+#define WAVE5_SYSERR_ENC_GBIN_OVERCONSUME                              0x01000000
+#define WAVE5_SYSERR_ENC_MAX_ZERO_DETECT                               0x02000000
+#define WAVE5_SYSERR_ENC_LVL_FIRST_ERROR                               0x04000000
+#define WAVE5_SYSERR_ENC_EG_RANGE_OVER                                 0x08000000
+#define WAVE5_SYSERR_ENC_IRB_FRAME_DROP                                0x10000000
+#define WAVE5_SYSERR_INPLACE_V                                         0x20000000
+#define WAVE5_SYSERR_FATAL_VPU_HANGUP                                  0xf0000000
 
 typedef enum {
     GET_VPU_INFO        = 0,
@@ -305,6 +325,7 @@ typedef enum {
 #define W5_CMD_INIT_VPU				(0x0001)
 #define W5_CMD_SLEEP_VPU			(0x0004)
 #define W5_CMD_WAKEUP_VPU			(0x0002)
+#define W5_CREATE_INSTANCE			(0x0008)
 #define W5_DESTROY_INSTANCE			(0x0020)
 #define W5_QUERY				(0x4000)
 

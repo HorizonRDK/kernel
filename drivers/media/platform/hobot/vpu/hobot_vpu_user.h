@@ -51,6 +51,9 @@ typedef struct _hb_vpu_drv_buffer {
 
 	/* virtual user space address */
 	unsigned long virt_addr;
+
+	int fd;
+	int64_t handle;
 } hb_vpu_drv_buffer_t;
 
 typedef struct _hb_vpu_drv_inst {
