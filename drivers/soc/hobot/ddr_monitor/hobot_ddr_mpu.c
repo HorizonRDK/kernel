@@ -422,7 +422,7 @@ static int ddr_mpu_protect_kernel(void)
 {
 	u32 phy_start0 = 0x0;
 	u32 phy_end0   = virt_to_phys(__end_rodata);
-	u32 phy_start1 = virt_to_phys(_sinittext);
+	u32 phy_start1 = virt_to_phys(__end_rodata);
 	u32 phy_end1   = 0;
 	u32 phy_start2 = 0;
 	u32 phy_end2   = 0;
@@ -518,6 +518,12 @@ static int ddr_mpu_protect_kernel(void)
 		writel(phy_start3 >> 12, mpu_prt.secreg + MPU_S_RANGE3);
 		writel(phy_end3   >> 12, mpu_prt.secreg + MPU_E_RANGE3);
 		writel(0xE000F000, mpu_prt.secreg + MPU_RANGE3_WUSER);
+	} else {
+		/* range 3, Prevent BPU from accessing IO area and 0xC00000000 */
+		writel(0x00090000, mpu_prt.secreg + MPU_S_RANGE3);
+		writel(0x000dffff, mpu_prt.secreg + MPU_E_RANGE3);
+		writel(0x0000F000, mpu_prt.secreg + MPU_RANGE3_WUSER);
+		writel(0x0000F000, mpu_prt.secreg + MPU_RANGE3_RUSER);
 	}
 
 	return 0;
