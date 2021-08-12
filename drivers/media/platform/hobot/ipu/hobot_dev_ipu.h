@@ -182,6 +182,15 @@ enum ipu_interrupt_map {
 	INTR_IPU_PRE_1_FRAME_DONE,
 };
 
+#ifdef CONFIG_HOBOT_DIAG
+typedef enum ipu_diag_type_e {
+	DIAG_IPU_NORMAL = 0,
+	DIAG_IPU_SIZE_ERROR,
+	DIAG_IPU_FRAME_DROP,
+	DIAG_IPU_INVALID = 0xFF
+} ipu_diag_type_t;
+#endif
+
 enum ipu_status {
 	IPU_OTF_INPUT,
 	IPU_DMA_INPUT,

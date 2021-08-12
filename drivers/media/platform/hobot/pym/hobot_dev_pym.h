@@ -104,7 +104,13 @@ enum pym_interrupt_map {
 	INTR_PYM_FRAME_DONE,
 	INTR_PYM_FRAME_START,
 };
-
+#ifdef CONFIG_HOBOT_DIAG
+typedef enum pym_diag_type_e {
+	DIAG_PYM_NORMAL = 0,
+	DIAG_PYM_FRAME_DROP = 2,
+	DIAG_PYM_INVALID = 0xFF
+} pym_diag_type_t;
+#endif
 enum pym_status {
 	PYM_OTF_INPUT,
 	PYM_DMA_INPUT,

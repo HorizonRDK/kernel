@@ -3848,27 +3848,24 @@ void ipu_frame_ndone(struct ipu_subdev *subdev)
 }
 
 #ifdef CONFIG_HOBOT_DIAG
-static void ipu_diag_report(uint8_t errsta, unsigned int status)
+static void ipu_diag_report(u8 instance, u8 errsta, u32 status)
 {
-	unsigned int sta;
 	static uint8_t last_status = DiagEventStaUnknown;
-	uint8_t env_data[5];
-	uint8_t i;
+	u8 reserved = 0xFF;
+	u8 data_len = sizeof(status);
+	u32 head = data_len << 24 | reserved << 16 | errsta << 8 | instance;
+	u32 msg[] = {head, status};
 
-	sta = status;
-	if (errsta) {
-		env_data[0] = errsta;
-		for (i = 0; i < sizeof(sta); i++) {
-			env_data[i + 1] = (uint8_t)((sta >> (i * 8)) & 0xff);
-		}
+	if (errsta != DIAG_IPU_NORMAL) {
+		vio_dbg("ipu diag msg[0]: %x, msg[1]: %x\n", msg[0], msg[1]);
 		diag_send_event_stat_and_env_data(
 				DiagMsgPrioHigh,
 				ModuleDiag_VIO,
 				EventIdVioIpuErr,
 				DiagEventStaFail,
 				DiagGenEnvdataWhenErr,
-				(uint8_t *)env_data,
-				sizeof(env_data));
+				(uint8_t *)msg,
+				sizeof(msg));
 	} else if (last_status != DiagEventStaSuccess) {
 		diag_send_event_stat(
 				DiagMsgPrioMid,
@@ -3888,13 +3885,18 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	u32 instance = 0;
 	u32 size_err = 0;
 	u32 err_status = 0;
-	u32 err_occured = 0;
 	u32 enable_flag_set = 0;
 	struct x3_ipu_dev *ipu;
 	struct vio_group *group;
 	struct vio_group_task *gtask;
 	struct ipu_subdev	*subdev, *src_subdev;
 	struct vio_frame_id frmid;
+#ifdef CONFIG_HOBOT_DIAG
+	static int last_instance = -1;
+	static u32 last_occured = DIAG_IPU_NORMAL;
+	u32 err_occured = DIAG_IPU_NORMAL;
+	u32 diag_info = 0;
+#endif
 
 	ipu = data;
 	gtask = &ipu->gtask;
@@ -3911,9 +3913,19 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		ipu_clear_size_err(ipu->base_reg, 0);
 		vio_dbg("IPU size error detection(0x%x)\n", size_err);
 		vio_dbg("IPU size error status(0x%x)\n", err_status);
-		err_occured = 1;
+		/* Different pipelines reused and configured with different sizes scenario,
+		 * IPU will report size error. So that comment err_occured = 1
+		 */
+		//err_occured = 1;
+		/* same instance should not size err */
+#ifdef CONFIG_HOBOT_DIAG
+		if ((last_instance == instance) &&
+			(last_occured != DIAG_IPU_FRAME_DROP)) {
+			err_occured = DIAG_IPU_SIZE_ERROR;
+			diag_info = err_status;
+		}
+#endif
 	}
-
 	/*
 	 * in some abnormal scene, FS & FE maybe occurs at same time
 	 * cur_enable_flag set in FS hanle behind FE handle, it will lost wakeup
@@ -3942,7 +3954,6 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		if (subdev)
 			ipu_frame_ndone(subdev);
 
-		err_occured = 2;
 		ipu->frame_drop_count++;
 		ipu->statistic.hard_frame_drop[instance][GROUP_ID_US]++;
 		drop_cnt++;
@@ -3956,7 +3967,6 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		if (subdev)
 			ipu_frame_ndone(subdev);
 
-		err_occured = 2;
 		ipu->frame_drop_count++;
 		ipu->statistic.hard_frame_drop[instance][GROUP_ID_DS0]++;
 		drop_cnt++;
@@ -3970,7 +3980,6 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		if (subdev)
 			ipu_frame_ndone(subdev);
 
-		err_occured = 2;
 		ipu->frame_drop_count++;
 		ipu->statistic.hard_frame_drop[instance][GROUP_ID_DS1]++;
 		drop_cnt++;
@@ -3984,7 +3993,6 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		if (subdev)
 			ipu_frame_ndone(subdev);
 
-		err_occured = 2;
 		ipu->frame_drop_count++;
 		ipu->statistic.hard_frame_drop[instance][GROUP_ID_DS2]++;
 		drop_cnt++;
@@ -3998,7 +4006,6 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		if (subdev)
 			ipu_frame_ndone(subdev);
 
-		err_occured = 2;
 		ipu->frame_drop_count++;
 		ipu->statistic.hard_frame_drop[instance][GROUP_ID_DS3]++;
 		drop_cnt++;
@@ -4012,7 +4019,6 @@ static irqreturn_t ipu_isr(int irq, void *data)
 		if (subdev)
 			ipu_frame_ndone(subdev);
 
-		err_occured = 2;
 		ipu->frame_drop_count++;
 		ipu->statistic.hard_frame_drop[instance][GROUP_ID_DS4]++;
 		drop_cnt++;
@@ -4252,10 +4258,13 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	}
 
 #ifdef CONFIG_HOBOT_DIAG
-	if (err_occured == 1)
-		ipu_diag_report(err_occured, err_status);
-	else
-		ipu_diag_report(err_occured, status);
+	if ( drop_cnt > 0 ) {
+		err_occured = DIAG_IPU_FRAME_DROP;
+		diag_info = status;
+	}
+	ipu_diag_report((u8)instance, (u8)err_occured, diag_info);
+	last_occured = err_occured;
+	last_instance = instance;
 #endif
 	return IRQ_HANDLED;
 }

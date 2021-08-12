@@ -2094,21 +2094,24 @@ void pym_frame_ndone(struct pym_subdev *subdev)
 }
 
 #ifdef CONFIG_HOBOT_DIAG
-static void pym_diag_report(uint8_t errsta, unsigned int status)
+static void pym_diag_report(u8 instance, u8 errsta, u32 status)
 {
-	unsigned int sta;
 	static uint8_t last_status = DiagEventStaUnknown;
+	u8 reserved = 0xFF;
+	u8 data_len = sizeof(status);
+	u32 head = data_len << 24 | reserved << 16 | errsta << 8 | instance;
+	u32 msg[] = {head, status};
 
-	sta = status;
-	if (errsta) {
+	if (errsta != DIAG_PYM_NORMAL) {
+		vio_dbg("pym diag msg[0]: %x, msg[1]: %x\n", msg[0], msg[1]);
 		diag_send_event_stat_and_env_data(
 				DiagMsgPrioHigh,
 				ModuleDiag_VIO,
 				EventIdVioPymErr,
 				DiagEventStaFail,
 				DiagGenEnvdataWhenErr,
-				(uint8_t *)&sta,
-				sizeof(unsigned int));
+				(uint8_t *)msg,
+				sizeof(msg));
 	} else if (last_status != DiagEventStaSuccess) {
 		diag_send_event_stat(
 				DiagMsgPrioMid,
@@ -2125,12 +2128,12 @@ static irqreturn_t pym_isr(int irq, void *data)
 	u32 status;
 	u32 instance;
 	bool drop_flag = 0;
-	u32 err_occured = 0;
 	struct x3_pym_dev *pym;
 	struct vio_group *group;
 	struct vio_group_task *gtask;
 	struct pym_subdev *subdev;
 	struct pym_subdev *subdev_src;
+	u32 err_occured = 0;
 
 	pym = data;
 	gtask = &pym->gtask;
@@ -2147,7 +2150,6 @@ static irqreturn_t pym_isr(int irq, void *data)
 			pym->statistic.soft_frame_drop_ds[instance]++;
 		else
 			pym->statistic.hard_frame_drop_ds[instance]++;
-		err_occured = 1;
 	}
 
 	if (status & (1 << INTR_PYM_US_FRAME_DROP)) {
@@ -2157,7 +2159,6 @@ static irqreturn_t pym_isr(int irq, void *data)
 			pym->statistic.soft_frame_drop_us[instance]++;
 		else
 			pym->statistic.hard_frame_drop_us[instance]++;
-		err_occured = 2;
 	}
 
 	if (status & (1 << INTR_PYM_FRAME_DONE)) {
@@ -2215,7 +2216,8 @@ static irqreturn_t pym_isr(int irq, void *data)
 	}
 
 #ifdef CONFIG_HOBOT_DIAG
-	pym_diag_report(err_occured, status);
+	err_occured = drop_flag ? DIAG_PYM_FRAME_DROP : DIAG_PYM_NORMAL;
+	pym_diag_report((u8)instance, (u8)err_occured, status);
 #endif
 	return IRQ_HANDLED;
 }
