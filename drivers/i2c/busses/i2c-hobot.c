@@ -799,6 +799,7 @@ static int hobot_i2c_probe(struct platform_device *pdev)
 		ret = -ENODEV;
 		goto err_irq;
 	}
+	disable_irq(dev->irq);
 
 	if (NULL == client_req)
 		client_req = (struct client_request*)
