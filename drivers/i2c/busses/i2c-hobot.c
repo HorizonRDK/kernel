@@ -74,6 +74,10 @@ static int timeout_enable = 0;
 static int pre_errsta = 0;
 module_param(timeout_enable, int, S_IRUGO|S_IWUSR);
 MODULE_PARM_DESC(timeout_enable, "i2c:i2c hardware timeout 0:off 1:on");
+/*control whether the i2C clock is always on*/
+static int i2c_clk_keep_on = 0;
+module_param(i2c_clk_keep_on, int, S_IRUGO|S_IWUSR);
+MODULE_PARM_DESC(i2c_clk_keep_on, "i2c:i2c clk keep on 0:off 1:on");
 
 static const int supported_speed[] = {50000, 100000, 400000};
 
@@ -511,6 +515,7 @@ static int hobot_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int n
 	} else {
 		hobot_i2c_cfg(dev, 1, timeout_enable);
 	}
+	enable_irq(dev->irq);
 
 	for (i = 0; i < num; i++) {
 		ret = hobot_i2c_xfer_msg(dev, &msgs[i]);
@@ -523,7 +528,6 @@ static int hobot_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int n
 	disable_irq(dev->irq);
 	hobot_mask_int(dev);
 	hobot_clear_int(dev);
-	enable_irq(dev->irq);
 
 	clk_disable_unprepare(dev->clk);
 	mutex_unlock(&dev->lock);
@@ -632,6 +636,7 @@ static int hobot_i2c_xfer_smbus(struct i2c_adapter *adap, u16 addr,
 	hobot_i2c_reset(dev);
 	recal_clk_div(dev);
 	hobot_i2c_cfg(dev, 0, 1);
+	enable_irq(dev->irq);
 
 	switch (size) {
 	case I2C_SMBUS_BYTE:
@@ -669,7 +674,6 @@ static int hobot_i2c_xfer_smbus(struct i2c_adapter *adap, u16 addr,
 	disable_irq(dev->irq);
 	hobot_mask_int(dev);
 	hobot_clear_int(dev);
-	enable_irq(dev->irq);
 
 	clk_disable_unprepare(dev->clk);
 	mutex_unlock(&dev->lock);
@@ -835,7 +839,8 @@ static int hobot_i2c_probe(struct platform_device *pdev)
 	dev->dpm.dpm_call = i2c_dpm_callback;
 	hobot_dpm_register(&dev->dpm, &pdev->dev);
 #endif
-	clk_disable_unprepare(dev->clk);
+	if (!i2c_clk_keep_on)
+		clk_disable_unprepare(dev->clk);
 	dev_info(&pdev->dev, "hobot_i2c_%d probe done\n", i2c_id);
 	return 0;
 
@@ -857,6 +862,8 @@ static int hobot_i2c_remove(struct platform_device *pdev)
 		kfree(dev->adapter.algo_data);
 		dev->adapter.algo_data = NULL;
 	}
+	if (i2c_clk_keep_on)
+		clk_disable_unprepare(dev->clk);
 
 #ifdef CONFIG_HOBOT_BUS_CLK_X3
 	hobot_dpm_unregister(&dev->dpm);
