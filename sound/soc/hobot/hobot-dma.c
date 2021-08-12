@@ -139,7 +139,7 @@ static int hobot_copy_usr(struct snd_pcm_substream *substream,
 		void *buf, unsigned long bytes)
 {
 	char *dma_ptr;
-	int channel_buf_offset, i, j;
+	int channel_buf_offset, i, j, k;
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct idma_ctrl_s *dma_ctrl = substream->runtime->private_data;
 	//char *tmp_buf;
@@ -181,20 +181,22 @@ static int hobot_copy_usr(struct snd_pcm_substream *substream,
 			dma_sync_single_for_cpu(hobot_i2sidma[dma_ctrl->id].dev,
 				runtime->dma_addr + hwoff,
 				bytes, DMA_FROM_DEVICE);
-			dma_ptr = runtime->dma_area + hwoff;
-			for (i = 0; i < bytes;) {
-				for (j = 0; j < dma_ctrl->ch_num; j++) {
-					memcpy(&dma_ctrl->tmp_buf[i+j*dma_ctrl->word_len],
-						&dma_ptr[j*channel_buf_offset],
-						dma_ctrl->word_len);
+			bytes_count = bytes / dma_ctrl->periodsz;
+			for (k = 0; k < bytes_count; k++) { // bytes_count
+				dma_ptr = runtime->dma_area + hwoff + k * dma_ctrl->periodsz;
+				for (i = 0; i < dma_ctrl->periodsz;) {  // periodsz
+					for (j = 0; j < dma_ctrl->ch_num; j++) {
+						memcpy(&dma_ctrl->tmp_buf[i+j*dma_ctrl->word_len+k*dma_ctrl->periodsz],
+							&dma_ptr[j*channel_buf_offset],
+							dma_ctrl->word_len);
+					}
+					dma_ptr = dma_ptr + dma_ctrl->word_len;
+					i = i + dma_ctrl->ch_num * dma_ctrl->word_len;
 				}
-				dma_ptr = dma_ptr + dma_ctrl->word_len;
-				i = i + dma_ctrl->ch_num * dma_ctrl->word_len;
 			}
 			//tstamp info
 			if (tstamp_mode == 1) {
 				count = hwoff / (runtime->dma_bytes / runtime->periods);
-				bytes_count = bytes / (runtime->period_size * dma_ctrl->word_len * runtime->channels);
 				for (i = 0; i < bytes_count; i++) {
 					if (copy_to_user((void __user *)buf+(count+i)*sizeof(struct timespec) + i*runtime->period_size*dma_ctrl->word_len*runtime->channels,
 						&tstamp[count+i], sizeof(struct timespec)))

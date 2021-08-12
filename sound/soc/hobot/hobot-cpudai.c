@@ -114,6 +114,7 @@ static int i2s_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 		dev_dbg(i2s->dev, "x2 config dsp mode\n");
 		break;
 	default:
+		spin_unlock_irqrestore(&i2s->lock, flags);
 		dev_err(i2s->dev, "Format not supported\n");
 		return -EINVAL;
 	}
@@ -130,6 +131,7 @@ static int i2s_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 		dev_dbg(i2s->dev, "x2 config slave mode\n");
 		break;
 	default:
+		spin_unlock_irqrestore(&i2s->lock, flags);
 		dev_err(i2s->dev, "master/slave format not supported\n");
 		return -EINVAL;
 	}
@@ -349,8 +351,6 @@ static int i2s_hw_params(struct snd_pcm_substream *substream,
 	spin_lock_irqsave(&i2s->lock, flags);
 	i2s->channel_num = params_channels(params);
 	i2s->samplerate = params_rate(params);
-	dev_err(i2s->dev, "x2 config channel %d, samplerate is %d\n",
-		i2s->channel_num, i2s->samplerate);
 
 	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
 		mod = readl(i2s->regaddr_rx + I2S_MODE);
@@ -391,9 +391,9 @@ static int i2s_hw_params(struct snd_pcm_substream *substream,
 			mod &= ~MOD_WORD_LEN;
 			break;
 		default:
+			spin_unlock_irqrestore(&i2s->lock, flags);
 			dev_err(i2s->dev, "not supported data format %d\n",
 				params_format(params));
-			spin_unlock_irqrestore(&i2s->lock, flags);
 			return -EINVAL;
 		}
 		if (i2s->ms == 4) {
@@ -417,9 +417,9 @@ static int i2s_hw_params(struct snd_pcm_substream *substream,
 			chan |= 0x1;
 			break;
 		default:
+			spin_unlock_irqrestore(&i2s->lock, flags);
 			dev_err(i2s->dev, "%d channels not supported\n",
 				params_channels(params));
-			spin_unlock_irqrestore(&i2s->lock, flags);
 			return -EINVAL;
 		}
 		switch (params_format(params)) {	/* 16bit or 8bit. */
@@ -434,17 +434,19 @@ static int i2s_hw_params(struct snd_pcm_substream *substream,
 			i2s->wordlength  = 8;
 			break;
 		default:
+			spin_unlock_irqrestore(&i2s->lock, flags);
 			dev_err(i2s->dev, "not supported data format %d\n",
 				params_format(params));
-			spin_unlock_irqrestore(&i2s->lock, flags);
 			return -EINVAL;
 		}
 		writel(mod, i2s->regaddr_tx + I2S_MODE);
 		writel(chan, i2s->regaddr_tx + I2S_CH_EN);
 	}
+	spin_unlock_irqrestore(&i2s->lock, flags);
+	dev_err(i2s->dev, "x2 config channel %d, samplerate is %d\n",
+		i2s->channel_num, i2s->samplerate);
 	dev_dbg(i2s->dev, "x2 config wordlength is %d\n", i2s->wordlength);
 
-	spin_unlock_irqrestore(&i2s->lock, flags);
 	hobot_i2s_sample_rate_set(substream, i2s);
 	return 0;
 }
