@@ -690,23 +690,32 @@ static void report_bpu_diagnose_msg(u32 err, int core_index)
 {
 	u32 ret;
 	u8 bpu_event;
-	u8 bpu_diag_envdata[5]; // core_id(1ybte) + error_code(4bytes)
+	u8 bpu_diag_envdata[8];
 
 	ret = err & 0xf000;
 	bpu_event = EventIdBpu0Err + core_index;
 
+	bpu_diag_envdata[0] = 0xff;
+	bpu_diag_envdata[1] = 0xff;
+	bpu_diag_envdata[2] = 0;
+	bpu_diag_envdata[3] = 4;
+	bpu_diag_envdata[4] = err & 0xff;
+	bpu_diag_envdata[5] = (err >> 8) & 0xff;
+	bpu_diag_envdata[6] = (err >> 16) & 0xff;
+	bpu_diag_envdata[7] = (err >> 24) & 0xff;
+
 	if (ret == 0x1000 || ret == 0x2000 || ret == 0x3000 ||
 		ret == 0x4000 || ret == 0x5000 || ret == 0x6000 ||
 		ret == 0x7000 || ret == 0x8000 || ret == 0x9000 ) {
-		bpu_diag_envdata[0] = (u8)core_index;
-		memcpy(bpu_diag_envdata + 1, (uint8_t *)&ret, sizeof(u32));
 		diag_send_event_stat_and_env_data(
 				DiagMsgPrioHigh, ModuleDiag_bpu,
 				bpu_event, DiagEventStaFail,
-				DiagGenEnvdataWhenErr, bpu_diag_envdata, 5);
+				DiagGenEnvdataWhenErr, bpu_diag_envdata, 8);
 	} else {
-		diag_send_event_stat(DiagMsgPrioMid, ModuleDiag_bpu,
-					bpu_event, DiagEventStaSuccess);
+		diag_send_event_stat_and_env_data(
+				DiagMsgPrioHigh, ModuleDiag_bpu,
+				bpu_event, DiagEventStaSuccess,
+				DiagGenEnvdataWhenErr, bpu_diag_envdata, 8);
 	}
 }
 #endif
