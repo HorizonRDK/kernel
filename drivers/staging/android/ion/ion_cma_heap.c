@@ -175,7 +175,14 @@ int ion_cma_get_info(struct ion_device *dev, phys_addr_t *base, size_t *size)
 	struct ion_heap *heap;
 	struct ion_cma_heap *cma_heap;
 
-	down_read(&dev->lock);
+	/* 
+	 * the dev->lock trys to pretect the heaps list which creatd at
+	 * the initialization stage of ion driver and would nerver be 
+	 * inserted or destroyed later.So the rw_semaphore acquisition can
+	 * be skiped to prevent scheduling in atomic context.
+	 */
+	if (!in_atomic())
+		down_read(&dev->lock);
 	plist_for_each_entry(heap, &dev->heaps, node) {
 		if (!((1 << heap->type) & ION_HEAP_TYPE_DMA_MASK))
 			continue;
@@ -185,7 +192,8 @@ int ion_cma_get_info(struct ion_device *dev, phys_addr_t *base, size_t *size)
 		*size = cma_get_size(cma_heap->cma);
 		break;
 	}
-	up_read(&dev->lock);
+	if (!in_atomic())
+		up_read(&dev->lock);
 
 	return 0;
 }
