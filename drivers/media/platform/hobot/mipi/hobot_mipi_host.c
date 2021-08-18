@@ -1812,18 +1812,25 @@ static void mipi_host_irq_disable(mipi_hdev_t *hdev)
 
 #ifdef CONFIG_HOBOT_DIAG
 static void mipi_host_diag_report(mipi_hdev_t *hdev,
-		uint8_t errsta, uint32_t total_irq)
+		uint8_t errsta, uint8_t errchn, uint8_t errtype, uint32_t total_irq)
 {
+	uint8_t env_data[8];
+
 	hdev->last_err_tm_ms = jiffies_to_msecs(get_jiffies_64());
 	if (errsta) {
+		env_data[0] = errchn;
+		env_data[1] = errtype;
+		env_data[2] = 0;
+		env_data[3] = 4;
+		memcpy(&env_data[4], &total_irq, 4);
 		diag_send_event_stat_and_env_data(
 				DiagMsgPrioHigh,
 				ModuleDiag_VIO,
 				EventIdVioMipiHost0Err + hdev->port,
 				DiagEventStaFail,
 				DiagGenEnvdataWhenErr,
-				(uint8_t *)&total_irq,
-				4);
+				env_data,
+				sizeof(env_data));
 	}
 }
 
@@ -2064,6 +2071,9 @@ static irqreturn_t mipi_host_irq_func(int this_irq, void *data)
 	uint32_t subirq_do;
 	char err_str[256];
 #endif
+#ifdef CONFIG_HOBOT_DIAG
+	uint8_t errchn, errtype;
+#endif
 
 	if (!hdev || !iomem)
 		return IRQ_NONE;
@@ -2114,6 +2124,22 @@ static irqreturn_t mipi_host_irq_func(int this_irq, void *data)
 				}
 			}
 #endif
+#ifdef CONFIG_HOBOT_DIAG
+			errchn = 0xff;
+			errtype = 0xff;
+			if (icnt_n >= 4 || icnt_n <= 9) {
+				/* bndry_frm seq_frm crc_frm pld_crc data_id ecc_corrected */
+				for (errchn = 0; errchn < 32; errchn++) {
+					if (subirq & (0x1 << errchn))
+						break;
+				}
+				errtype = icnt_n;
+			} else if (icnt_n >= 13) {
+				/* ipi fatal */
+				errchn = icnt_n - 13;
+				errtype = 0x80 | subirq;
+			}
+#endif
 			if (param->irq_debug & MIPI_HOST_IRQ_DEBUG_PRERR)
 				mipierr("  %s: 0x%x%s",
 					g_mh_icnt_names[icnt_n], subirq, perr);
@@ -2141,7 +2167,7 @@ static irqreturn_t mipi_host_irq_func(int this_irq, void *data)
 		enable_irq(this_irq);
 
 #ifdef CONFIG_HOBOT_DIAG
-	mipi_host_diag_report(hdev, err_occurred, irq);
+	mipi_host_diag_report(hdev, err_occurred, errchn, errtype, irq);
 #endif
 	return IRQ_HANDLED;
 }

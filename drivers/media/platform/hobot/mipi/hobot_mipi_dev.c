@@ -1163,23 +1163,61 @@ static void mipi_dev_diag_report(mipi_ddev_t *ddev,
 		uint8_t errsta, uint32_t total_irq,
 		uint32_t *sub_irq_data, uint32_t elem_cnt)
 {
-	uint32_t buff[MIPI_DEV_ICNT_NUM];
-	int i;
+	uint8_t env_data[(MIPI_DEV_ICNT_NUM+1) * 4];
+	uint8_t errchn = 0xff, errtype = 0xff;
 
 	ddev->last_err_tm_ms = jiffies_to_msecs(get_jiffies_64());
 	if (errsta) {
-		buff[0] = total_irq;
-		for (i = 0; i < elem_cnt && i < (MIPI_DEV_ICNT_NUM - 1); i++)
-			buff[1 + i] = sub_irq_data[i];
+		if (sub_irq_data[1]) {
+			/* idi fatal */
+			if (sub_irq_data[1] & 0x22) {
+				errchn = 0;
+				errtype = (sub_irq_data[1] & 0x22) >> 1;
+			} else if (sub_irq_data[1] & 0x44) {
+				errchn = 1;
+				errtype = (sub_irq_data[1] & 0x44) >> 2;
+			} else if (sub_irq_data[1] & 0x88) {
+				errchn = 2;
+				errtype = (sub_irq_data[1] & 0x88) >> 3;
+			} else if (sub_irq_data[1] & 0x110) {
+				errchn = 3;
+				errtype = (sub_irq_data[1] & 0x110) >> 4;
+			} else {
+				errchn = 0;
+				errtype = ((sub_irq_data[1] & 0x200) >> 3 |
+						   (sub_irq_data[1] & 0x1) << 5);
+			}
+		} else if (sub_irq_data[2]) {
+			/* ipi fatal */
+			if (sub_irq_data[2] & 0x1f) {
+				errchn = 0;
+				errtype = 0x80 | (sub_irq_data[2] & 0x1f);
+			} else if (sub_irq_data[2] & 0x1f00) {
+				errchn = 1;
+				errtype = 0x80 | ((sub_irq_data[2] & 0x1f00) >> 8);
+			} else if (sub_irq_data[2] & 0x1f0000) {
+				errchn = 2;
+				errtype = 0x80 | ((sub_irq_data[2] & 0x1f0000) >> 16);
+			} else {
+				errchn = 3;
+				errtype = 0x80 | ((sub_irq_data[2] & 0x1f000000) >> 24);
+			}
+		}
 
+		env_data[0] = errchn;
+		env_data[1] = errtype;
+		env_data[2] = 0;
+		env_data[3] = 4 + (elem_cnt * sizeof(sub_irq_data[0]));
+		memcpy(&env_data[4], &total_irq, 4);
+		memcpy(&env_data[8], &sub_irq_data, elem_cnt * sizeof(sub_irq_data[0]));
 		diag_send_event_stat_and_env_data(
 				DiagMsgPrioHigh,
 				ModuleDiag_VIO,
 				EventIdVioMipiDevErr,
 				DiagEventStaFail,
 				DiagGenEnvdataWhenErr,
-				(uint8_t *)buff,
-				sizeof(buff));
+				env_data,
+				sizeof(env_data));
 	}
 }
 
