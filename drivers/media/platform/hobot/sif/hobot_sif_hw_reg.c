@@ -904,14 +904,20 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
 				&sif_fields[SW_RX0_DOL_HDR_MODE - p_mipi->mipi_rx_index], 1);
 		//TODO:SHITF
 	} else if (p_mipi->func.enable_id_decoder) {
-	    if (p_mipi->ipi_mode == 0) {
-			p_mipi->ipi_mode = p_mipi->channels;
-		}
-		vio_hw_set_field(base_reg, &sif_regs[SIF_ISP_EXP_CFG],
+	    vio_hw_set_field(base_reg, &sif_regs[SIF_ISP_EXP_CFG],
 				&sif_fields[SW_RX0_DOL_HDR_MODE - p_mipi->mipi_rx_index], 3);
-		vio_hw_set_field(base_reg, &sif_regs[SIF_ISP_EXP_CFG],
+	    if (p_mipi->ipi_mode == 0) {
+			vio_hw_set_field(base_reg, &sif_regs[SIF_ISP_EXP_CFG],
+				&sif_fields[SW_MIPI_RX0_IDCODE_EXP_NUM - p_mipi->mipi_rx_index],
+				p_mipi->channels);
+		} else {
+			vio_hw_set_field(base_reg, &sif_regs[SIF_ISP_EXP_CFG],
 				&sif_fields[SW_MIPI_RX0_IDCODE_EXP_NUM - p_mipi->mipi_rx_index],
 				p_mipi->ipi_mode);
+		}
+		if(p_mipi->ipi_mode >= 2) {
+			frame_id_mux = 0;  /*short*/
+		}
 	} else {
 		vio_hw_set_field(base_reg, &sif_regs[SIF_ISP_EXP_CFG],
 				&sif_fields[SW_RX0_DOL_HDR_MODE - p_mipi->mipi_rx_index], 2);
@@ -923,8 +929,6 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
 		i_step = yuv_format ? 2 : 1;
 		if (p_mipi->channels > 1)
 			sif_set_dol_channels(p_mipi, &p_out->isp, ch_index);
-		if(p_mipi->ipi_mode >= 2)
-			frame_id_mux = 0;  /*short*/
 		for (i = 0; i < p_mipi->channels; i += i_step) {
 			mux_out_index = p_mipi->func.set_mux_out_index + ch_index[i];
 			ddr_mux_out_index = p_out->ddr.mux_index + ch_index[i];
@@ -1601,7 +1605,7 @@ void sif_get_frameid_timestamps(u32 __iomem *base_reg, u32 mux, u32 ipi_index,
 	sif_input_mipi_t *p_mipi = &input->mipi;
 	u32 ipi_mode = p_mipi->ipi_mode;
 
-	if (dol_num >= 2) {
+	if (dol_num >= 2 && ipi_mode == 0) {
 		value = vio_hw_get_reg(base_reg,
 					&sif_regs[SIF_FRAME_ID_IPI_0_1 + ipi_index / 2]);
 		if(mux % 2 == 0)
