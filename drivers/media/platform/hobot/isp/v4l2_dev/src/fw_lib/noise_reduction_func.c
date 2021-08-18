@@ -525,6 +525,24 @@ void noise_reduction_update( noise_reduction_fsm_t *p_fsm )
     if ( ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_manual_demosaic == 0 ) {
         int tbl_inx = CALIBRATION_DEMOSAIC_NP_OFFSET;
         acamera_isp_demosaic_rgb_np_offset_write( p_fsm->cmn.isp_base, acamera_calc_modulation_u16( log2_gain, _GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), tbl_inx ), _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), tbl_inx ) ) );
+
+        uint32_t len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_DEMOSAIC_UU_SH_SLOPE );
+        if (len > 0) {
+            acamera_isp_demosaic_rgb_uu_sh_slope_write( p_fsm->cmn.isp_base,
+            acamera_calc_modulation_u16( log2_gain, _GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_DEMOSAIC_UU_SH_SLOPE ), _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_DEMOSAIC_UU_SH_SLOPE ) ) );
+        }
+
+        len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_DEMOSAIC_UU_SH_THRESH );
+        if (len > 0) {
+            acamera_isp_demosaic_rgb_uu_sh_thresh_write( p_fsm->cmn.isp_base,
+            acamera_calc_modulation_u16( log2_gain, _GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_DEMOSAIC_UU_SH_THRESH ), _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_DEMOSAIC_UU_SH_THRESH ) ) );
+        }
+
+        len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_DEMOSAIC_UU_SH_OFFSET );
+        if (len > 0) {
+            acamera_isp_demosaic_rgb_uu_sh_offset_write( p_fsm->cmn.isp_base,
+            acamera_calc_modulation_u16( log2_gain, _GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_DEMOSAIC_UU_SH_OFFSET ), _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_DEMOSAIC_UU_SH_OFFSET ) ) );
+        }
     }
 
     //  Do not update values if manual mode

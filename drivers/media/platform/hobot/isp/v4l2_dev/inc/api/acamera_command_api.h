@@ -210,12 +210,14 @@
 #define CALIBRATION_USER_TEMPER_NOISE_LUT_1               0x0000008c
 #define CALIBRATION_USER_TEMPER_NOISE_LUT_2               0x0000008d
 #define CALIBRATION_USER_SINTER_LUT                       0x0000008e
-
+#define CALIBRATION_DEMOSAIC_UU_SH_SLOPE                  0x0000008f
+#define CALIBRATION_DEMOSAIC_UU_SH_THRESH                 0x00000090
+#define CALIBRATION_DEMOSAIC_UU_SH_OFFSET                 0x00000091
 // ------------------------------------------------------------------------------ //
 //		DYNAMIC STATE VALUES
 // ------------------------------------------------------------------------------ //
 
-#define CALIBRATION_TOTAL_SIZE 143
+#define CALIBRATION_TOTAL_SIZE 146
 //------------------FILE TRANSFER-------------------
 
 
