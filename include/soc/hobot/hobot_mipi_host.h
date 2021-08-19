@@ -76,4 +76,6 @@ typedef struct _mipi_host_sigpid_t {
 #define MIPIHOSTIOC_IPI_GET_INFO     _IOR(MIPIHOSTIOC_MAGIC, 11, mipi_host_ipi_info_t)
 #define MIPIHOSTIOC_IPI_SET_INFO     _IOW(MIPIHOSTIOC_MAGIC, 12, mipi_host_ipi_info_t)
 #define MIPIHOSTIOC_SIGPID_SET       _IOW(MIPIHOSTIOC_MAGIC, 13, mipi_host_sigpid_t)
+int32_t mipi_host_reset_ipi(uint32_t port, int32_t ipi, int32_t enable);
+
 #endif /*__HOBOT_MIPI_HOST_H__*/

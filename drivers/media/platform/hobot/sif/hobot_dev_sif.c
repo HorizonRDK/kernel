@@ -27,10 +27,12 @@
 #include <linux/io.h>
 #include <linux/timer.h>
 #include <linux/poll.h>
+
 #ifdef CONFIG_HOBOT_DIAG
 #include <soc/hobot/diag.h>
 #endif
 #include <linux/pm_qos.h>
+#include "soc/hobot/hobot_mipi_host.h"
 #include "hobot_dev_sif.h"
 #include "sif_hw_api.h"
 
@@ -2185,6 +2187,20 @@ static int sif_wake_up_poll(struct sif_video_ctx *sif_ctx)
 	return 0;
 }
 
+void sif_set_ipi_disable(struct sif_video_ctx *sif_ctx)
+{
+	struct x3_sif_dev *sif;
+	uint32_t mux_index, buf_index;
+	struct sif_subdev *subdev;
+
+	sif = sif_ctx->sif_dev;
+	subdev = sif_ctx->subdev;
+	if(subdev)
+		subdev->ipi_enable = 1;
+	vio_info("%s ipi disable %d\n", __func__, subdev->ipi_enable);
+	return;
+}
+
 static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 			  unsigned long arg)
 {
@@ -2311,6 +2327,9 @@ static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 			}
 			ips_sif_mclk_set(sif_mclk);
 		}
+		break;
+	case SIF_IOC_IPI_RESET:
+		sif_set_ipi_disable(sif_ctx);
 		break;
 	default:
 		vio_err("wrong ioctl command\n");
@@ -2753,6 +2772,12 @@ static irqreturn_t sif_isr(int irq, void *data)
 			if (status & 1 << (mux_index + INTR_SIF_MUX0_FRAME_DONE)) {
 				group = sif->sif_mux[mux_index];
 				subdev = group->sub_ctx[0];
+				if(subdev->ipi_enable == 1) {
+					vio_info("%s : rx_index = %d vc_index %d instance %d \n", __func__,
+						subdev->rx_index, subdev->vc_index, group->instance);
+					mipi_host_reset_ipi(subdev->rx_index, subdev->vc_index, 0);
+					subdev->ipi_enable = 0;
+				}
 				subdev->overflow = sif_find_overflow_instance(mux_index,
 					subdev, temp_flow);
 				temp_flow &= ~(subdev->overflow);

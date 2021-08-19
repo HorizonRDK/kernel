@@ -720,6 +720,13 @@ typedef struct _mipi_host_s {
 	mipi_host_cfg_t   cfg;
 	mipi_host_param_t param;
 	mipi_host_snrclk_t snrclk;
+	/*
+	 * spin_lock: reglock
+	 * protect: iomem reg r&w.
+	 * init: probe, see: hobot_mipi_host_probe_param, hobot_mipi_host_probe.
+	 * call: ipi reset, see mipi_host_ipi_reset.
+	 */
+	spinlock_t 		  reglock;
 #if MIPI_HOST_INT_DBG
 	mipi_host_ierr_t ierr;
 	mipi_host_icnt_t icnt;
@@ -1132,6 +1139,7 @@ static int32_t mipi_host_ipi_reset(mipi_hdev_t *hdev, mipi_host_ipi_reset_t *ipi
 	void __iomem *iomem = host->iomem;
 	int32_t i, ipi_max, done = 0;
 	uint32_t softrstn, rstn_bit, reg_mode, ipi_mode;
+	unsigned long flags;
 
 	if (!ipi_reset || !iomem)
 		return -1;
@@ -1165,21 +1173,22 @@ static int32_t mipi_host_ipi_reset(mipi_hdev_t *hdev, mipi_host_ipi_reset_t *ipi
 			rstn_bit = MIPI_HOST_IPI1_SOFTRSTN;
 			break;
 		}
+		mipiinfo("%d:ipi%d reset: %s", i, i + 1, ipi_reset->enable ? "enable" : "disable");
+		spin_lock_irqsave(&host->reglock, flags);
 		softrstn = mipi_getreg(iomem + REG_MIPI_HOST_IPI_SOFTRSTN);
 		ipi_mode = mipi_getreg(iomem + reg_mode);
 		if (ipi_reset->enable) {
-			mipiinfo("%d:ipi%d reset: enable", i, i + 1);
 			softrstn |= rstn_bit;
 			ipi_mode |= MIPI_HOST_IPI_ENABLE;
 			mipi_putreg(iomem + REG_MIPI_HOST_IPI_SOFTRSTN, softrstn);
 			mipi_putreg(iomem + reg_mode, ipi_mode);
 		} else {
-			mipiinfo("%d:ipi%d reset: disable", i, i + 1);
 			softrstn &= ~rstn_bit;
 			ipi_mode &= ~MIPI_HOST_IPI_ENABLE;
 			mipi_putreg(iomem + reg_mode, ipi_mode);
 			mipi_putreg(iomem + REG_MIPI_HOST_IPI_SOFTRSTN, softrstn);
 		}
+		spin_unlock_irqrestore(&host->reglock, flags);
 		done++;
 	}
 	if (done == 0) {
@@ -1189,6 +1198,37 @@ static int32_t mipi_host_ipi_reset(mipi_hdev_t *hdev, mipi_host_ipi_reset_t *ipi
 
 	return 0;
 }
+
+/**
+ * @brief mipi_host_reset_ipi: reset ipi of mipi host
+ *
+ * @param [in] port: host port index.
+ * @param [in] ipi: ipi index.
+ * @param [in] enable: ipi enable.
+ *
+ * @return int32_t : 0/-1
+ */
+int32_t mipi_host_reset_ipi(uint32_t port, int32_t ipi, int32_t enable)
+{
+	mipi_hdev_t *hdev;
+	mipi_host_ipi_reset_t ipi_reset;
+	int32_t ipi_max;
+
+	if (port >= MIPI_HOST_MAX_NUM)
+		return -ENODEV;
+	hdev = g_hdev[port];
+	ipi_max = mipi_host_port_ipi(hdev);
+	if (ipi >= ipi_max)
+		return-EINVAL;
+
+	if (ipi < 0)
+		ipi_reset.mask = (0x1u << ipi_max) - 1;
+	else
+		ipi_reset.mask = (0x1u << ipi);
+	ipi_reset.enable = enable;
+	return mipi_host_ipi_reset(hdev, &ipi_reset);
+}
+EXPORT_SYMBOL_GPL(mipi_host_reset_ipi);
 
 /**
  * @brief mipi_host_ipi_get_info: get ipi info of mipi host
@@ -3672,6 +3712,7 @@ static int hobot_mipi_host_probe_param(void)
 		g_hdev[i] = hdev;
 		port_num ++;
 
+		spin_lock_init(&host->reglock);
 		ret = mipi_getreg(host->iomem + REG_MIPI_HOST_VERSION);
 		dev_info(hdev->dev, "ver %c%c%c%c port%d(%d:%d)\n",
 			(ret >> 24), (ret >> 16), (ret >> 8), ret,
@@ -3852,6 +3893,7 @@ static int hobot_mipi_host_probe(struct platform_device *pdev)
 	g_hdev[port] = hdev;
 	port_num ++;
 
+	spin_lock_init(&host->reglock);
 	ret = mipi_getreg(host->iomem + REG_MIPI_HOST_VERSION);
 	dev_info(hdev->dev, "ver %c%c%c%c port%d(%d:%d)\n",
 		(ret >> 24), (ret >> 16), (ret >> 8), ret,

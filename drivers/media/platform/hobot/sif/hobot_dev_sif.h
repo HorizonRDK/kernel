@@ -43,13 +43,14 @@
 #define SIF_IOC_BYPASS    		 _IOW(SIF_IOC_MAGIC, 7, int)
 #define SIF_IOC_MD_EVENT    	 _IOR(SIF_IOC_MAGIC, 8, int)
 #define SIF_IOC_MD_CFG	    	 _IOW(SIF_IOC_MAGIC, 9, int)
-#define SIF_IOC_PATTERN_CFG	     _IOW(SIF_IOC_MAGIC, 10, int)
+#define SIF_IOC_PATTERN_CFG	 _IOW(SIF_IOC_MAGIC, 10, int)
 #define SIF_IOC_USER_STATS       _IOR(SIF_IOC_MAGIC, 11, struct user_statistic)
-#define SIF_IOC_MD_ENABLE	     _IO(SIF_IOC_MAGIC, 12)
+#define SIF_IOC_MD_ENABLE	 _IO(SIF_IOC_MAGIC, 12)
 #define SIF_IOC_MD_DISENABLE	 _IO(SIF_IOC_MAGIC, 13)
 #define SIF_IOC_ORDER            _IOWR(SIF_IOC_MAGIC, 14, struct user_seq_info)
-#define SIF_STOP_WAKE_UP	     _IO(SIF_IOC_MAGIC, 15)
-#define SIF_IOC_MCLK_SET	     _IOW(SIF_IOC_MAGIC, 16, u32)
+#define SIF_STOP_WAKE_UP	 _IO(SIF_IOC_MAGIC, 15)
+#define SIF_IOC_MCLK_SET	 _IOW(SIF_IOC_MAGIC, 16, u32)
+#define SIF_IOC_IPI_RESET	 _IO(SIF_IOC_MAGIC, 17)
 
 
 #define VIO_MP_IOC_MAGIC 'm'
@@ -268,6 +269,7 @@ struct sif_subdev {
 	u32 id;
 	struct splice_info  splice_info;
 	fps_ctrl_t fps_ctrl;
+	u32 ipi_enable;
 #ifdef CONFIG_HOBOT_DIAG
 	atomic_t diag_state;
 #endif
