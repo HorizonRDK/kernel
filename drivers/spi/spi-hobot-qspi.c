@@ -42,7 +42,7 @@
 #include "./spi-hobot-qspi.h"
 
 #ifdef CONFIG_HOBOT_DIAG
-static void hb_qspiflash_diag_report(uint8_t errsta, uint32_t sta_reg);
+static void hb_qspiflash_diag_report(uint8_t errsta, uint8_t sta_reg);
 #endif
 
 struct hb_qspi;
@@ -960,9 +960,20 @@ static const struct spi_controller_mem_ops hb_mem_ops = {
 };
 
 #ifdef CONFIG_HOBOT_DIAG
-static void hb_qspiflash_diag_report(uint8_t errsta, uint32_t sta_reg)
+static void hb_qspiflash_diag_report(uint8_t errsta, uint8_t sta_reg)
 {
 	static uint8_t last_status = DiagEventStaUnknown;
+	uint64_t envdata = 0;
+	uint8_t ch_info = 0xff;
+	uint8_t err_type = 0xff;
+	uint8_t rsv_byte = 0xff;
+	uint8_t data_len = 1;
+	int total_len = sizeof(sta_reg) + sizeof(data_len) + sizeof(ch_info) + sizeof(err_type) + sizeof(rsv_byte);
+	envdata |= sta_reg;
+	envdata = (envdata << 8) | data_len;
+	envdata = (envdata << 8) | rsv_byte;
+	envdata = (envdata << 8) | err_type;
+	envdata = (envdata << 8) | ch_info;
 
 	if (errsta) {
 		diag_send_event_stat_and_env_data(
@@ -971,8 +982,8 @@ static void hb_qspiflash_diag_report(uint8_t errsta, uint32_t sta_reg)
 				EventIdqspiErr,
 				DiagEventStaFail,
 				DiagGenEnvdataWhenErr,
-				(uint8_t *)&sta_reg,
-				4);
+				(uint8_t *)&envdata,
+				total_len);
 	} else if (last_status != DiagEventStaSuccess) {
 		diag_send_event_stat(
 				DiagMsgPrioMid,
@@ -1014,7 +1025,7 @@ static int hbqspi_dpm_callback(struct hobot_dpm *self,
 static irqreturn_t hb_qspi_irq_handler(int irq, void *dev_id)
 {
 #ifdef CONFIG_HOBOT_DIAG
-	unsigned int err_status;
+	uint8_t err_status;
 	int err = 0;
 #endif
 	struct hb_qspi *hbqspi = dev_id;
