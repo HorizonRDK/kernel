@@ -2740,18 +2740,28 @@ static int mmc_dpm_callback(struct hobot_dpm *self,
 #endif
 
 #ifdef CONFIG_HOBOT_DIAG
-static void hb_emmc_diag_process(u32 errsta, u32 envdata)
+static void hb_emmc_diag_process(u32 errsta, u32 int_reg)
 {
 	u8 sta;
 	u8 envgen_timing;
 	static u8 last_status = DiagEventStaUnknown;
+	uint64_t envdata = 0;
+	uint8_t ch_info = 0xff;
+	uint8_t err_type = 0xff;
+	uint8_t rsv_byte = 0xff;
+	uint8_t data_len = 4;
+	envdata |= int_reg;
+	envdata = (envdata << 8) | data_len;
+	envdata = (envdata << 8) | rsv_byte;
+	envdata = (envdata << 8) | err_type;
+	envdata = (envdata << 8) | ch_info;
 
 	if (errsta > 0) {
 		sta = DiagEventStaFail;
 		envgen_timing = DiagGenEnvdataWhenErr;
 		diag_send_event_stat_and_env_data(DiagMsgPrioHigh,
 					ModuleDiag_emmc, EventIdEmmcErr, sta,
-					envgen_timing, (uint8_t *)&envdata, 4);
+					envgen_timing, (uint8_t *)&envdata, sizeof(envdata));
 	} else if (last_status != DiagEventStaSuccess) {
 		sta = DiagEventStaSuccess;
 		diag_send_event_stat(DiagMsgPrioMid, ModuleDiag_emmc,
