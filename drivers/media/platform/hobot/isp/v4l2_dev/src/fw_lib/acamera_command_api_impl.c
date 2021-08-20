@@ -5064,6 +5064,9 @@ uint8_t acamera_api_calibration( uint32_t ctx_id, uint8_t type, uint8_t id, uint
                 case CALIBRATION_SHADING_LS_TL84_R:
                 case CALIBRATION_SHADING_LS_TL84_G:
                 case CALIBRATION_SHADING_LS_TL84_B:
+                case CALIBRATION_SHADING_LS_D50_R:
+                case CALIBRATION_SHADING_LS_D50_G:
+                case CALIBRATION_SHADING_LS_D50_B:
                 case CALIBRATION_SHADING_LS_D65_R:
                 case CALIBRATION_SHADING_LS_D65_G:
                 case CALIBRATION_SHADING_LS_D65_B:
