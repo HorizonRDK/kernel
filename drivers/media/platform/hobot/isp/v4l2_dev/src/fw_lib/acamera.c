@@ -1098,7 +1098,7 @@ extern int ips_get_isp_frameid(void);
 extern int dma_writer_configure_pipe( dma_pipe *pipe );
 extern void dma_writer_fr_dma_disable(dma_pipe *pipe, int plane, int flip);
 int isp_error_sts = 0;
-int temper_dma_error = 0;
+int temper_dma_error[FIRMWARE_CONTEXT_NUMBER] = {0};
 
 /*
  * offline isp only, isp hw/sw register transfer.
@@ -1183,7 +1183,7 @@ int sif_isp_ctx_sync_func(int ctx_id)
 
 		p_fsm = (general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm);
 		if (p_fsm->temper_mode != NOTHING) {
-			general_temper_lsb_dma_switch((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm), 0, temper_dma_error);
+			general_temper_lsb_dma_switch((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm), 0, temper_dma_error[ctx_id]);
 		}
 
         /*
@@ -1288,11 +1288,11 @@ inline int acamera_dma_alarms_error_occur(void)
         pr_err("fr y dma frame drop\n");
     }
     if (temper_dma_r_empty) {
-        temper_dma_error = 1;
+        temper_dma_error[cur_ctx_id] = 1;
         pr_err("temper_dma_r_empty\n");
     }
     if (temper_dma_w_full) {
-        temper_dma_error = 1;
+        temper_dma_error[cur_ctx_id] = 1;
         pr_err("temper_dma_w_full\n");
     }
 
@@ -1553,7 +1553,7 @@ int32_t acamera_interrupt_handler()
 
                     //clear error status
                     isp_error_sts = 0;
-					temper_dma_error = 0;
+					temper_dma_error[cur_ctx_id] = 0;
 
                     // frame_start
                     isp_irq_completion(cur_ctx_id, 0);
@@ -1664,9 +1664,9 @@ int32_t acamera_interrupt_handler()
                     p_fsm = (general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm);
                     if (p_ctx->p_gfw->sif_isp_offline == 0 && p_fsm->temper_mode != NOTHING) {
                         if (acamera_isp_isp_global_ping_pong_config_select_read(0) == ISP_CONFIG_PONG) {
-                            general_temper_lsb_dma_switch((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm), ISP_CONFIG_PING, temper_dma_error);
+                            general_temper_lsb_dma_switch((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm), ISP_CONFIG_PING, temper_dma_error[cur_ctx_id]);
                         } else {
-                            general_temper_lsb_dma_switch((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm), ISP_CONFIG_PONG, temper_dma_error);
+                            general_temper_lsb_dma_switch((general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm), ISP_CONFIG_PONG, temper_dma_error[cur_ctx_id]);
                         }
                     }
 
