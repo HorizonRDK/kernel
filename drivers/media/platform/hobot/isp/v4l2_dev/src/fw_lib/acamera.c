@@ -1253,10 +1253,10 @@ inline int acamera_dma_alarms_error_occur(void)
 {
     uint32_t dma_monitor_sts = system_hw_read_32(0x54L);
     uint16_t dma_alarms_sts = (dma_monitor_sts & 0x3fff0000) >> 16;
-    uint8_t temper_dma_r_full = (dma_monitor_sts & 0x800) >> 11;
+    //uint8_t temper_dma_r_full = (dma_monitor_sts & 0x800) >> 11;
     uint8_t temper_dma_r_empty = (dma_monitor_sts & 0x400) >> 10;
     uint8_t temper_dma_w_full = (dma_monitor_sts & 0x200) >> 9;
-    uint8_t temper_dma_w_empty = (dma_monitor_sts & 0x100) >> 8;
+    //uint8_t temper_dma_w_empty = (dma_monitor_sts & 0x100) >> 8;
     acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[cur_ctx_id];
 
     acamera_isp_isp_global_monitor_output_dma_clr_alarm_write(0, 0);
@@ -1356,7 +1356,8 @@ void inline acamera_buffer_done(acamera_context_ptr_t p_ctx)
 {
     if (y_done && uv_done) {
         if (isp_error_sts == 0) {
-            pr_debug("raise whole frame to user\n");
+            pr_debug("raise whole frame to user isp_frame_counter %d\n",
+				p_ctx->isp_frame_counter);
             acamera_fw_raise_event( p_ctx, event_id_frame_done );
         } else {
             pr_debug("raise broken frame to user\n");
@@ -1647,7 +1648,8 @@ int32_t acamera_interrupt_handler()
                     struct timeval tmp_tv;
                     general_fsm_ptr_t p_fsm;
 
-                    pr_debug("frame done, ctx id %d\n", cur_ctx_id);
+                    pr_debug("frame done, ctx id %d isp_frame_counter %d\n",
+							cur_ctx_id, p_ctx->isp_frame_counter);
 
 					if (p_ctx->p_gfw->sif_isp_offline == 0) {
 						vio_get_sif_frame_info(cur_ctx_id, &frmid);
@@ -1715,6 +1717,15 @@ int32_t acamera_interrupt_handler()
                         atomic_set(&g_firmware.y_dma_done, 1);
                         wake_up(&wq_dma_done);
                     }
+		    if (p_ctx->p_gfw->sif_isp_offline == 0) {
+			    vio_get_sif_frame_info(cur_ctx_id, &frmid);
+			    p_ctx->isp_frame_counter = frmid.frame_id;
+			    p_ctx->timestamps = frmid.timestamps;
+			    p_ctx->tv = frmid.tv;
+			    pr_debug("[s%d] Y write done frame id %d\n", cur_ctx_id, frmid.frame_id);
+		    }
+                    //update frame id to metadata for vb2 buffer that will transfer to ipu
+                    frame_buffer_fr_finished((dma_writer_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_DMA_WRITER]->p_fsm));
 
                     dma_writer_fr_dma_disable(&dh->pipe[dma_fr], PLANE_Y, 0);
 
