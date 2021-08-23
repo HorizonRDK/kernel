@@ -53,6 +53,15 @@ static int g_sif_fps[VIO_MAX_STREAM] = {0, };
 static int g_sif_idx[VIO_MAX_STREAM] = {0, };
 static int g_sif_fps_lasttime[VIO_MAX_STREAM] = {0, };
 static u32 temp_flow = 0;
+u32 sif_frm_value = 0;
+
+void sif_get_mismatch_status(void)
+{
+	if (sif_frm_value & 1 << INTR_SIF_IN_SIZE_MISMATCH) {
+		vio_err("input size mismatch happend");
+	}
+}
+EXPORT_SYMBOL(sif_get_mismatch_status);
 
 static int x3_sif_suspend(struct device *dev)
 {
@@ -2738,6 +2747,7 @@ static irqreturn_t sif_isr(int irq, void *data)
 	ret = sif_get_irq_src(sif->base_reg, &irq_src, true);
 	intr_en = sif_get_frame_intr(sif->base_reg);
 	status = intr_en & irq_src.sif_frm_int;
+	sif_frm_value = irq_src.sif_frm_int;
 
 	vio_dbg("%s: sif_frm_int = 0x%x,sif_out_int =0x%x, status  = 0x%x\n",
 		__func__, irq_src.sif_frm_int, irq_src.sif_out_int, status);

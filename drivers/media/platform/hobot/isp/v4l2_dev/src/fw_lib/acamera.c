@@ -50,7 +50,6 @@
 #include "dma_writer.h"
 #include "dma_writer_fsm.h"
 #include "vio_group_api.h"
-
 #if FW_HAS_CONTROL_CHANNEL
 #include "acamera_ctrl_channel.h"
 #endif
@@ -120,6 +119,8 @@ extern int isp_stream_onoff_check(void);
 extern void system_interrupts_disable( void );
 extern void frame_buffer_fr_finished(dma_writer_fsm_ptr_t p_fsm);
 extern void general_temper_lsb_dma_switch(general_fsm_ptr_t p_fsm, uint8_t next_frame_ppf, uint8_t dma_error);
+extern int camera_register_status_print(int port);
+static void camera_reg_check_work(struct work_struct *w);
 
 int isp_print_fps(s8* buf, u32 size)
 {
@@ -429,6 +430,7 @@ int32_t acamera_init( acamera_settings *settings, uint32_t ctx_num )
 
         g_firmware.context_number = ctx_num;
 
+        INIT_WORK(&g_firmware.reg_check_work, camera_reg_check_work);
         result = system_dma_init( &g_firmware.dma_chan_isp_config );
         result |= system_dma_init( &g_firmware.dma_chan_isp_metering );
         if ( result == 0 ) {
@@ -1367,6 +1369,19 @@ void inline acamera_buffer_done(acamera_context_ptr_t p_ctx)
 }
 
 /*
+ * check camera register status when isp error
+ */
+static void camera_reg_check_work(struct work_struct *w)
+{
+	int ret = 0;
+	ret = camera_register_status_print(cur_ctx_id);
+	if (ret < 0) {
+		pr_err("get camera_register_status fail!\n");
+	}
+	return;
+}
+
+/*
  * isp frame start, frame done, fr dma y done, fr dma uv done and some error interrupt handler.
  * online isp, isp hw/sw register will be transferred in this function.
  * offline isp, isp hw/sw register will be transferred at function sif_isp_ctx_sync_func().
@@ -1491,6 +1506,7 @@ int32_t acamera_interrupt_handler()
             p_ctx->sts.watchdog_timeout = 0;
             p_ctx->sts.frame_collision = 0;
             input_port_status();
+	    schedule_work(&g_firmware.reg_check_work);
         }
 
         if ( ( irq_mask & 1 << ISP_INTERRUPT_EVENT_BROKEN_FRAME ) ||

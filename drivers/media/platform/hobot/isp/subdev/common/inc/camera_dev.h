@@ -20,7 +20,6 @@
 #include <linux/spi/spi.h>
 
 #include "inc/camera_subdev.h"
-
 #define CHAR_DEVNAME_LEN  20
 #define I2C_BUS  0
 #define SPI_BUS  1
@@ -38,6 +37,8 @@
 #define SENSOR_GET_INIT_CNT  _IOR(CAMERA_IOC_MAGIC, 9, int)
 #define SENSOR_GPIO_CONTROL  _IOW(CAMERA_IOC_MAGIC, 10, gpio_info_t)
 
+#define CAMERA_REG_PARAM      _IOW(CAMERA_IOC_MAGIC, 11, camera_state_register_t)
+
 typedef enum _mipi_pre_state_t {
 	SENSOR_PRE_STATE_LOCK = 0,
 	SENSOR_PRE_STATE_UNLOCK,
@@ -53,6 +54,26 @@ struct sensor_ctrl_ops {
 	void (*camera_alloc_dgain)(uint32_t port, uint32_t *a_gain);
 };
 
+typedef struct register_info {
+	uint8_t reg_width;
+	uint8_t value_width;
+	uint16_t *register_table;
+	uint32_t register_table_size;
+}register_info_t;
+
+typedef struct camera_state_register_info {
+	uint8_t  bus_num;
+	uint8_t  mipi_index;
+	uint8_t  deserial_addr;
+	uint8_t  serial_addr;
+	uint8_t  sensor_addr;
+	register_info_t deserial_register_info;
+	register_info_t serial_register_info;
+	register_info_t sensor_register_info;
+}camera_state_register_t;
+
+int camera_register_status_print(int port);
+
 typedef struct _camera_charmod_s {
 	char name[CHAR_DEVNAME_LEN];
 	uint32_t devflag;
@@ -67,6 +88,8 @@ typedef struct _camera_charmod_s {
 	struct spi_board_info spi_board;
     sensor_turning_data_t camera_param;
     sensor_turning_data_ex_t camera_param_ex;
+    camera_state_register_t camera_state_register_info;
+	int camera_check_flag;
 	struct file *mst_file;
 	struct mutex user_mutex;
 	uint32_t start_num;
@@ -76,11 +99,13 @@ typedef struct _camera_charmod_s {
 	uint32_t pre_state;
 	bool pre_done;
 	wait_queue_head_t pre_wq;
+	uint32_t write_flag;
 } camera_charmod_s;
 
 extern camera_charmod_s *camera_mod[CAMERA_TOTAL_NUMBER];
 
+int camera_state_register_set(uint32_t port,
+		camera_state_register_t *camera_register_data);
 int camera_cdev_init(void);
 void camera_cdev_exit(void);
-
 #endif // DRIVERS_MEDIA_PLATFORM_HOBOT_ISP_SUBDEV_COMMON_INC_CAMERA_DEV_H_

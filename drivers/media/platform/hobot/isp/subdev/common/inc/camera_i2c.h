@@ -21,6 +21,9 @@ int camera_i2c_open(uint32_t port, uint32_t i2c_bus,
 			char *sensor_name, uint32_t sensor_addr);
 int camera_i2c_read(uint32_t port, uint32_t reg_addr,
 			uint32_t bit_width, char *buf, uint32_t count);
+int camrea_i2c_adapter_read(uint32_t port, uint16_t slave_addr,
+		uint32_t reg_addr, int bit_width,
+		uint16_t *value, int count);
 int camera_i2c_write(uint32_t port, uint32_t reg_addr,
 			uint32_t bit_width, const char *buf, uint32_t count);
 int camera_user_i2c_read(struct i2c_client *client,

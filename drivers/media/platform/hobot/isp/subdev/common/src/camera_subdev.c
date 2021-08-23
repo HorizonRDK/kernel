@@ -139,7 +139,13 @@ static void cmd_add_to_work(uint32_t cmd, void *arg)
 {
 	struct list_head *list;
 	event_node_t *event_p;
+	int port;
 
+	port = ARGS_TO_PTR(arg)->port;
+	if(camera_mod[port]->write_flag == 1) {
+		pr_err("port %d sensor sts checking now, drop write!\n", port);
+		return;
+	}
 	spin_lock(&event_header.lock);
 	if (!list_empty(&event_header.list_free)) {
 		list = event_header.list_free.next;

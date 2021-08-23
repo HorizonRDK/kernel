@@ -416,5 +416,6 @@ struct vio_bind_info_dev {
 };
 
 int sif_get_stride(u32 pixel_length, u32 width);
+void sif_get_mismatch_status(void);
 
 #endif

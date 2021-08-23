@@ -38,7 +38,8 @@
 #include "inc/camera_spi.h"
 
 camera_charmod_s *camera_mod[CAMERA_TOTAL_NUMBER];
-
+extern void sif_get_mismatch_status(void);
+extern int mipi_host_int_fatal_show(int port);
 static int camera_fop_open(struct inode *pinode, struct file *pfile)
 {
 	uint32_t tmp = 0;
@@ -74,6 +75,7 @@ static int camera_fop_open(struct inode *pinode, struct file *pfile)
 static int camera_fop_release(struct inode *pinode, struct file *pfile)
 {
 	camera_charmod_s *camera_cdev = pfile->private_data;
+	int port = camera_cdev->port;
 
 	mutex_lock(&camera_cdev->slock);
 	camera_cdev->user_num--;
@@ -84,6 +86,12 @@ static int camera_fop_release(struct inode *pinode, struct file *pfile)
 		camera_i2c_release(camera_cdev->port);
 		memset(&camera_mod[camera_cdev->port]->camera_param, 0,
 			sizeof(sensor_turning_data_t));
+		kzfree(camera_mod[port]->camera_state_register_info.\
+			deserial_register_info.register_table);
+		kzfree(camera_mod[port]->camera_state_register_info.\
+			serial_register_info.register_table);
+		kzfree(camera_mod[port]->camera_state_register_info.\
+			sensor_register_info.register_table);
 		camera_cdev->start_num = 0;
 		camera_cdev->init_num = 0;
 	}
@@ -100,6 +108,7 @@ static long camera_fop_ioctl(struct file *pfile, unsigned int cmd,
 	camera_charmod_s *camera_cdev = pfile->private_data;
 	sensor_turning_data_t turning_data;
 	sensor_turning_data_ex_t turning_param_ex;
+	camera_state_register_t camera_register_data;
 	int mst_flg = 0;
 
 	mutex_lock(&camera_cdev->slock);
@@ -269,6 +278,32 @@ static long camera_fop_ioctl(struct file *pfile, unsigned int cmd,
 				}
 			}
 			break;
+		case CAMERA_REG_PARAM: {
+			if (arg == 0) {
+				pr_err("arg is null !\n");
+				return -EINVAL;
+			}
+			if (mst_flg == 0) {
+				pr_info("this file is not master,cmd tunning!\n");
+				return 0;
+			}
+			if (copy_from_user((void *)&camera_register_data, (void __user *)arg,
+				sizeof(camera_register_data))) {
+				pr_err("copy is err !\n");
+				return -EINVAL;
+			}
+		}
+			if(camera_mod[camera_cdev->port]->client == NULL) {
+				camera_i2c_open(camera_cdev->port,
+						camera_register_data.bus_num,
+						NULL, 0);
+			}
+			ret = camera_state_register_set(camera_cdev->port,
+					&camera_register_data);
+			if (ret < 0) {
+				pr_err("camera state register set is error!\n");
+			}
+			break;
 		default: {
 			pr_err("ioctl cmd is err \n");
 			ret = -1;
@@ -278,6 +313,176 @@ static long camera_fop_ioctl(struct file *pfile, unsigned int cmd,
 
 	return ret;
 }
+
+static int camera_copy_from_user_alloc(void *user_addr,
+		uint16_t **kernel_addr, int bit_width, int count)
+{
+	*kernel_addr = kzalloc(count*bit_width, GFP_KERNEL);
+	if(*kernel_addr == NULL) {
+		pr_err("camera register table kzalloc fail!\n");
+		return -ENOMEM;
+	}
+	if (copy_from_user((void *)*kernel_addr,
+				(void __user *)user_addr, count*bit_width)) {
+		pr_err("copy form user is err!\n");
+		return -EINVAL;
+	}
+	return 0;
+}
+
+int camera_state_register_set(uint32_t port,
+		camera_state_register_t *camera_register_data)
+{
+	int ret = 0;
+	int buf_len = 0;
+	uint16_t *tmp_buf;
+	int reg_width;
+
+	pr_err("camera register set begin\n");
+	camera_mod[port]->port = port;
+	memcpy(&camera_mod[port]->camera_state_register_info, camera_register_data,
+			sizeof(camera_state_register_t));
+
+	/* Deserial register table copy form user */
+	reg_width = camera_register_data->deserial_register_info.reg_width;
+	buf_len = camera_register_data->deserial_register_info.register_table_size;
+	tmp_buf = camera_register_data->deserial_register_info.register_table;
+	if (buf_len) {
+		ret = camera_copy_from_user_alloc(tmp_buf,
+			&camera_mod[port]->camera_state_register_info.\
+				deserial_register_info.register_table,
+			reg_width,
+			buf_len);
+		if(ret < 0) {
+			return ret;
+		}
+	}
+
+	/* Serial register table copy form user */
+	reg_width = camera_register_data->serial_register_info.reg_width;
+	buf_len = camera_register_data->serial_register_info.register_table_size;
+	tmp_buf = camera_register_data->serial_register_info.register_table;
+	if (buf_len) {
+		ret = camera_copy_from_user_alloc(tmp_buf,
+			&camera_mod[port]->camera_state_register_info.\
+				serial_register_info.register_table,
+			reg_width,
+			buf_len);
+		if(ret < 0) {
+			kzfree(camera_mod[port]->camera_state_register_info.\
+				deserial_register_info.register_table);
+			camera_mod[port]->camera_state_register_info.\
+				deserial_register_info.register_table = NULL;
+			return ret;
+		}
+	}
+
+	/* Sensor register table copy form user */
+	reg_width = camera_register_data->sensor_register_info.reg_width;
+	buf_len = camera_register_data->sensor_register_info.register_table_size;
+	tmp_buf = camera_register_data->sensor_register_info.register_table;
+	if (buf_len) {
+		ret = camera_copy_from_user_alloc(tmp_buf,
+			&camera_mod[port]->camera_state_register_info.\
+				sensor_register_info.register_table,
+			reg_width,
+			buf_len);
+		if (ret < 0) {
+			kzfree(camera_mod[port]->camera_state_register_info.\
+				deserial_register_info.register_table);
+			camera_mod[port]->camera_state_register_info.\
+				deserial_register_info.register_table = NULL;
+			kzfree(camera_mod[port]->camera_state_register_info.\
+				serial_register_info.register_table);
+			camera_mod[port]->camera_state_register_info.\
+				serial_register_info.register_table = NULL;
+		}
+	}
+	if (ret == 0) {
+		camera_mod[port]->camera_check_flag = 1;
+	}
+	return ret;
+}
+
+static int camera_register_status_read(int port, uint8_t bus_num,
+		uint16_t slave_addr, register_info_t register_info)
+{
+	int ret = 0, i;
+	uint16_t reg_addr;
+	uint8_t reg_width;
+	uint8_t value_width;
+	uint16_t value;
+	int size;
+
+	reg_width = register_info.reg_width;
+	value_width = register_info.value_width;
+	size = register_info.register_table_size;
+	if (register_info.register_table == NULL) {
+		pr_err("register table is NULL.\n");
+	} else {
+		for(i = 0; i < size; i++) {
+			reg_addr = register_info.register_table[i];
+			ret = camrea_i2c_adapter_read(port, slave_addr, reg_addr,
+					reg_width, &value, value_width/8);
+			if (ret < 0) {
+				pr_err("i2c read error!!!\n");
+			}
+			pr_err("i2c_bus:0x%x, reg_addr:0x%x, value:0x%x\n",
+					bus_num, reg_addr, value);
+		}
+	}
+	return ret;
+}
+int camera_register_status_print(int port)
+{
+	int ret = 0;
+	uint8_t bus_num;
+	uint8_t deserial_addr;
+	uint8_t serial_addr;
+	uint8_t sensor_addr;
+	uint8_t mipi_index;
+
+	if (camera_mod[port]->camera_check_flag == 0) {
+		pr_info("camera check register is not set!\n");
+		return 0;
+	}
+	camera_mod[port]->write_flag = 1;
+	pr_err("camera port %d register status print begin\n", port);
+	camera_state_register_t camera_register_data;
+	memcpy(&camera_register_data,
+		&camera_mod[port]->camera_state_register_info,
+		sizeof(camera_state_register_t));
+
+	bus_num = camera_register_data.bus_num;
+	deserial_addr = camera_register_data.deserial_addr;
+	serial_addr = camera_register_data.serial_addr;
+	sensor_addr = camera_register_data.sensor_addr;
+
+	/* Deserial register print */
+	pr_err("deserial 0x%x register statues:\n", deserial_addr);
+	camera_register_status_read(port, bus_num, deserial_addr,
+			camera_register_data.deserial_register_info);
+
+	/* Serial register print */
+	pr_err("Serial 0x%x register statues:\n", serial_addr);
+	camera_register_status_read(port, bus_num, serial_addr,
+			camera_register_data.serial_register_info);
+
+	/* Sensor register print */
+	pr_err("Sensor 0x%x register statues:\n", sensor_addr);
+	camera_register_status_read(port, bus_num, sensor_addr,
+			camera_register_data.sensor_register_info);
+	camera_mod[port]->write_flag = 0;
+
+	/* SIF status check */
+	sif_get_mismatch_status();
+
+	/* MIPI status check */
+	mipi_index = camera_register_data.mipi_index;
+	ret = mipi_host_int_fatal_show(mipi_index);
+	return ret;
+}
+EXPORT_SYMBOL(camera_register_status_print);
 
 const struct file_operations camera_fops = {
 	.owner = THIS_MODULE,

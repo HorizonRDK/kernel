@@ -1921,6 +1921,119 @@ static int mipi_host_send_sig_fatal(mipi_hdev_t *hdev, uint32_t fatal, uint32_t 
 	return ret;
 }
 
+static int mipi_host_int_fatal_pr(mipi_hdev_t *hdev)
+{
+	struct device *dev;
+	mipi_user_t *user;
+	mipi_host_t *host;
+	mipi_host_ierr_t *ierr;
+	const mipi_host_ireg_t *ireg;
+	mipi_host_param_t *param;
+	mipi_host_icnt_t *icnt;
+	void __iomem *iomem;
+	uint32_t *icnt_p;
+	uint32_t reg, mask, icnt_n;
+	uint32_t irq = 0, irq_do;
+	uint32_t subirq = 0;
+	int i;
+	int irq_occurred = 0;
+	char *perr = "";
+#if MIPI_HOST_INT_DBG_ERRSTR
+	int j, l;
+	uint32_t subirq_do;
+	char err_str[256];
+#endif
+
+
+
+	if (!hdev)
+		return -EINVAL;
+
+	user = &hdev->user;
+	dev = hdev->dev;
+	host = &hdev->host;
+	ierr = &host->ierr;
+	param = &host->param;
+	icnt = &host->icnt;
+	iomem = host->iomem;
+	icnt_p = (uint32_t *)icnt;
+	if (!iomem)
+		return -EFAULT;
+	if (user->init_cnt == 0)
+		return -EACCES;
+
+#ifdef MIPI_HOST_INT_USE_TIMER
+	irq = hdev->irq_st_main;
+#else
+	irq = mipi_getreg(iomem + REG_MIPI_HOST_INT_ST_MAIN);
+#endif
+	if(irq) {
+		if (param->irq_debug & MIPI_HOST_IRQ_DEBUG_PRERR)
+			mipierr("irq status 0x%x (%d)", irq, icnt->st_main);
+		else
+			mipidbg("irq status 0x%x (%d)", irq, icnt->st_main);
+
+		irq_do = irq;
+		icnt->st_main++;
+		for (i = 0; i < ierr->num; i++) {
+			ireg = &ierr->iregs[i];
+			mask = ireg->st_mask;
+			if (!(irq_do & mask))
+				continue;
+
+			reg = ireg->reg_st;
+			icnt_n = ireg->icnt_n;
+			subirq = mipi_getreg(iomem + reg) & ireg->err_mask;
+			if (!subirq) {
+				irq_do &= ~mask;
+				continue;
+			}
+
+#if MIPI_HOST_INT_DBG_ERRSTR
+			err_str[0] = '\0';
+			perr = err_str;
+			if (param->irq_debug & MIPI_HOST_IRQ_DEBUG_ERRSTR) {
+				subirq_do = subirq;
+				j = 0;
+				l = 0;
+				while(subirq_do && j < 32 && l < sizeof(err_str)) {
+					if (subirq_do & (0x1 << j)) {
+						l += snprintf(&err_str[l], sizeof(err_str) - l,
+								" %d:%s", j, (ireg->err_str[j]) ? ireg->err_str[j] : "rsv");
+						subirq_do &= ~(0x1 << j);
+					}
+					j++;
+				}
+			}
+#endif
+			if (param->irq_debug & MIPI_HOST_IRQ_DEBUG_PRERR)
+				mipierr("  %s: 0x%x%s",
+					g_mh_icnt_names[icnt_n], subirq, perr);
+			else
+				mipidbg("  %s: 0x%x%s",
+					g_mh_icnt_names[icnt_n], subirq, perr);
+			icnt_p[icnt_n]++;
+			irq_occurred |= mask;
+			irq_do &= ~mask;
+			if (!irq_do)
+				break;
+		}
+	} else {
+		mipidbg("irq status 0x%x (%d)", irq, icnt->st_main);
+	}
+
+	return irq_occurred;
+}
+
+int mipi_host_int_fatal_show(int port)
+{
+	if (port < 0 || port >= MIPI_HOST_MAX_NUM)
+		return -ENODEV;
+
+	return mipi_host_int_fatal_pr(g_hdev[port]);
+}
+EXPORT_SYMBOL(mipi_host_int_fatal_show);
+
 /**
  * @brief mipi_host_irq_func : irq func
  *

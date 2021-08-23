@@ -34,20 +34,23 @@ extern camera_charmod_s *camera_mod[CAMERA_TOTAL_NUMBER];
 int camera_i2c_open(uint32_t port, uint32_t i2c_bus,
 		char *sensor_name, uint32_t sensor_addr)
 {
-    struct i2c_adapter *adap;
+	struct i2c_adapter *adap;
 	uint32_t minor = 0, i;
 
-	pr_info("camera_i2c_open come in sensor_name %s sensor_addr 0x%x\n",
-			sensor_name, sensor_addr);
-	strncpy(camera_mod[port]->board_info.type, sensor_name,
-			sizeof(camera_mod[port]->board_info.type));
-	camera_mod[port]->board_info.addr = sensor_addr;
-	for (i = 0; i < CAMERA_TOTAL_NUMBER; i++) {
-		if ((camera_mod[i]->camera_param.sensor_addr == sensor_addr) &&
-			(camera_mod[i]->camera_param.bus_num == i2c_bus) &&
-			(camera_mod[i]->client)) {
+	pr_info("camera_i2c_open come in port %d\n", port);
+	if (sensor_name != NULL) {
+		pr_info("camera_i2c_open come in sensor_name %s sensor_addr 0x%x\n",
+				sensor_name, sensor_addr);
+		strncpy(camera_mod[port]->board_info.type, sensor_name,
+				sizeof(camera_mod[port]->board_info.type));
+		camera_mod[port]->board_info.addr = sensor_addr;
+		for (i = 0; i < CAMERA_TOTAL_NUMBER; i++) {
+			if ((camera_mod[i]->camera_param.sensor_addr == sensor_addr) &&
+					(camera_mod[i]->camera_param.bus_num == i2c_bus) &&
+					(camera_mod[i]->client)) {
 				camera_mod[port]->client = camera_mod[i]->client;
 				return 0;
+			}
 		}
 	}
 	if(camera_mod[port]->client) {
@@ -59,10 +62,14 @@ int camera_i2c_open(uint32_t port, uint32_t i2c_bus,
 		pr_err("can not get i2c_adapter");
 		return -ENODEV;
 	}
-	camera_mod[port]->client = i2c_new_device(adap, &camera_mod[port]->board_info);
+	camera_mod[port]->client = kzalloc(sizeof(struct i2c_client), GFP_KERNEL);
 	if (!camera_mod[port]->client) {
 		i2c_put_adapter(adap);
 		return -ENOMEM;
+	}
+	camera_mod[port]->client->adapter = adap;
+	if (sensor_name != NULL) {
+		camera_mod[port]->client->addr = sensor_addr;
 	}
 
 	pr_info("the %s is open success !", camera_mod[port]->client->name);
@@ -83,7 +90,7 @@ int camera_i2c_release(uint32_t port)
 				return 0;
 		}
 	}
-	i2c_unregister_device(camera_mod[port]->client);
+	kzfree(camera_mod[port]->client);
 	camera_mod[port]->client = NULL;
     return 0;
 }
@@ -129,6 +136,60 @@ int camera_i2c_read(uint32_t port, uint32_t reg_addr,
 		ret = -1;
 	}
 
+	return ret;
+}
+
+int camrea_i2c_adapter_read(uint32_t port, uint16_t slave_addr,
+		uint32_t reg_addr, int bit_width,
+		uint16_t *value, int count)
+{
+	char tmp[4];
+	struct i2c_msg msg[2];
+	int ret = 0;
+	char buf[2];
+
+	if (count > 2)
+				count = 2;
+	if (!camera_mod[port]->client) {
+		pr_err("can not get client[%d]", port);
+		return -ENOMEM;
+	}
+
+	struct i2c_adapter *adap = camera_mod[port]->client->adapter;
+
+	tmp[0] = (char)((reg_addr >> 8) & 0xff);
+	tmp[1] = (char)(reg_addr & 0xff);
+	msg[0].len = 2;
+	if (bit_width == 8) {
+		tmp[0] = tmp[1];
+		msg[0].len = 1;
+	}
+
+	msg[0].addr = slave_addr;
+	msg[0].flags = camera_mod[port]->client->flags & I2C_M_TEN;
+	msg[0].buf = (char *)tmp;
+
+	msg[1].addr = slave_addr;
+	msg[1].flags = camera_mod[port]->client->flags & I2C_M_TEN;
+	msg[1].flags |= I2C_M_RD;
+	msg[1].len = count;
+	msg[1].buf = buf;
+
+	ret = i2c_transfer(adap, msg, 2);
+	if(ret != 2) {
+		pr_err("[%s %d]read failed reg_addr 0x%x! bit_width %d count %d",
+			__func__, __LINE__, reg_addr, bit_width, count);
+		ret = -1;
+	}
+
+	if (count == 1) {
+		*value = buf[0];
+	} else if (count == 2) {
+		*value = (buf[0] << 8) | buf[1];
+	} else {
+		pr_err("value count is invaild!\n");
+	}
+	pr_info("value = 0x%x\n", *value);
 	return ret;
 }
 
