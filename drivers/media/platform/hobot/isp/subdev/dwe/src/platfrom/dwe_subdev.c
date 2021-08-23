@@ -307,8 +307,18 @@ static irqreturn_t x3_dis_irq(int this_irq, void *data)
 }
 
 #ifdef CONFIG_HOBOT_DIAG
-static void ldc_diag_report(uint8_t errsta, unsigned int status)
+static void ldc_diag_report(uint8_t errsta, uint32_t status)
 {
+	uint8_t env_data[8];
+	env_data[0] = 0xff;
+	env_data[1] = 0xff;
+	env_data[2] = 0xff;
+	env_data[3] = sizeof(uint32_t);
+	env_data[4] = status & 0xff;
+	env_data[5] = (status >> 8) & 0xff;
+	env_data[6] = (status >> 16) & 0xff;
+	env_data[7] = (status >> 24) & 0xff;
+
 	if (errsta) {
 		diag_send_event_stat_and_env_data(
 				DiagMsgPrioHigh,
@@ -316,8 +326,8 @@ static void ldc_diag_report(uint8_t errsta, unsigned int status)
 				EventIdVioLdcErr,
 				DiagEventStaFail,
 				DiagGenEnvdataWhenErr,
-				(uint8_t *)&status,
-				sizeof(unsigned int));
+				env_data,
+				sizeof(env_data));
 	}
 
 	return;
