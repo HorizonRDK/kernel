@@ -71,16 +71,21 @@ uint32_t cpu_cal_test_init(void)
 }
 static void cpu_cal_diag_report(uint8_t err_id)
 {
-	uint8_t env_data = err_id;
+	uint8_t env_data[5];
 	if(err_id >= 1 && err_id <= total_test_num + 1) {
+		env_data[0] = 0xFF;
+		env_data[1] = 0xFF;
+		env_data[2] = 0xFF;
+		env_data[3] = 1;
+		env_data[4] = (uint8_t)err_id;
 		diag_send_event_stat_and_env_data(
 							   DiagMsgPrioHigh,
 							   ModuleDiag_cpu_cal,
 							   EventIdCpuCalTestErr,
 							   DiagEventStaFail,
 							   DiagGenEnvdataWhenErr,
-							   (uint8_t *)(&env_data),
-							   sizeof(uint8_t));
+							   (uint8_t *)env_data,
+							   5);
 	}
 }
 static int cpu_cal_test_kthread(void *data)
