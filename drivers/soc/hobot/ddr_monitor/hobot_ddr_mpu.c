@@ -50,6 +50,16 @@ enum layout_type {
 	ION_LAYOUT_END,
 };
 
+#ifdef CONFIG_HOBOT_DIAG
+struct diag_event_mpu {
+	u8 channel;
+	u8 type;
+	u8 reserved;
+	u8 len;
+	u8 block_id;
+};
+#endif
+
 static struct mpu_protection mpu_prt;
 static enum layout_type ion_layout = ION_LAYOUT_INVAL;
 
@@ -261,6 +271,12 @@ static void check_mpu_violation(int check_write, int port_id)
 
 #ifdef CONFIG_HOBOT_DIAG
 	if (user != 0xff && block_id != 0xff) {
+		struct diag_event_mpu evt;
+		evt.channel = 0xff;
+		evt.type = 0xff;
+		evt.reserved = 0xff;
+		evt.len = sizeof(evt.block_id);
+		evt.block_id = block_id;
 		pr_err("report err_id(%d) and block_id(%d) to diag\n",
 			user, block_id);
 		diag_send_event_stat_and_env_data(
@@ -269,8 +285,8 @@ static void check_mpu_violation(int check_write, int port_id)
 					   user,
 					   DiagEventStaFail,
 					   DiagGenEnvdataWhenErr,
-					   (uint8_t *)&block_id,
-					   sizeof(uint8_t));
+					   (uint8_t *)&evt,
+					   sizeof(evt));
 	}
 #endif
 }
