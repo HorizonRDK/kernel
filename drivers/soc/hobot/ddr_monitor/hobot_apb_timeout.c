@@ -216,12 +216,36 @@ static const struct of_device_id apb_timeout_match[] = {
 
 MODULE_DEVICE_TABLE(of, apb_timeout_match);
 
+#ifdef CONFIG_PM
+static int apb_timeout_suspend(struct device *dev)
+{
+        return 0;
+}
+
+static int apb_timeout_resume(struct device *dev)
+{
+	writel(apb_tmt.cnt, apb_tmt.reg_base + APB_TIMEOUT_CNT_TGT);
+	writel(err_mode, apb_tmt.reg_base + APB_TIMEOUT_PERR);
+	writel(cnt_enable, apb_tmt.reg_base + APB_TIMEOUT_CNT_ENABLE);
+
+	return 0;
+}
+
+static const struct dev_pm_ops apbtimeout_pm_ops = {
+        SET_SYSTEM_SLEEP_PM_OPS(apb_timeout_suspend,
+                                apb_timeout_resume)
+};
+#endif
+
 static struct platform_driver apb_timeout_driver = {
 	.probe	= apb_timeout_probe,
 	.remove = apb_timeout_remove,
 	.driver = {
 		.name	= "apb_timeout",
 		.of_match_table = apb_timeout_match,
+#ifdef CONFIG_PM
+		.pm	= &apbtimeout_pm_ops,
+#endif
 	},
 };
 
