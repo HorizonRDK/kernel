@@ -3338,6 +3338,8 @@ int ipu_set_splice_info(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 			vio_err("[S%d][V%d] %s complete no buf, can't process again\n",
 					instance, ipu_ctx->id, __func__);
 		}
+	} else {
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
 	}
 
 	vio_dbg("[S%d][V%d] %s tgt_stride%d first%d last%d roi %d %d %d %d"
