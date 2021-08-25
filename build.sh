@@ -222,14 +222,19 @@ function all()
         exit 1
     fi
 
+    #release: module signature: use fixed public and private keys
+    if [ "$TARGET_MODE" = "release" ];then
+        cp -rf ${SRC_KERNEL_DIR}/certs/signing_key.* ${BUILD_OUTPUT_PATH}/certs/
+    fi
+
     # make modules_install to INSTALL_MOD_PATH for debug ko (default: /)
-    make ARCH=${ARCH_KERNEL} O=${BUILD_OUTPUT_PATH} INSTALL_MOD_PATH=${BUILD_OUTPUT_PATH}/_debug INSTALL_NO_SUBDIR=1 MODULE_SIG_KEY_SRCPREFIX=${BUILD_OUTPUT_PATH}/ modules_install || {
+    make ARCH=${ARCH_KERNEL} O=${BUILD_OUTPUT_PATH} INSTALL_MOD_PATH=${BUILD_OUTPUT_PATH}/_debug INSTALL_NO_SUBDIR=1 modules_install || {
         echo "make modules_install to INSTALL_MOD_PATH for debug ko failed"
         exit 1
     }
 
     # make modules_install to INSTALL_MOD_PATH release ko (default: /)
-	make ARCH=${ARCH_KERNEL} O=${BUILD_OUTPUT_PATH} INSTALL_MOD_PATH=${TARGET_TMPROOTFS_DIR}/ INSTALL_MOD_STRIP=1 INSTALL_NO_SUBDIR=1 MODULE_SIG_KEY_SRCPREFIX=${BUILD_OUTPUT_PATH}/ modules_install || {
+	make ARCH=${ARCH_KERNEL} O=${BUILD_OUTPUT_PATH} INSTALL_MOD_PATH=${TARGET_TMPROOTFS_DIR}/ INSTALL_MOD_STRIP=1 INSTALL_NO_SUBDIR=1 modules_install || {
         echo "make modules_install to INSTALL_MOD_PATH for release ko failed"
         exit 1
     }
@@ -237,7 +242,10 @@ function all()
    # strip kernel modules
     [ -z "${KERNEL_VER}" ] && { KERNEL_VER=$(cat ${BUILD_OUTPUT_PATH}/include/config/kernel.release 2> /dev/null); }
     ${CROSS_COMPILE}strip -v -g $TARGET_TMPROOTFS_DIR/lib/modules/${KERNEL_VER}/*.ko
-    pre_pkg_preinst
+
+    if [ "$TARGET_MODE" = "release" ];then
+        pre_pkg_preinst
+    fi
 
     # copy firmware
     cpfiles "$SRC_KERNEL_DIR/drivers/staging/marvell/FwImage/sd8801_uapsta.bin" "$TARGET_TMPROOTFS_DIR/lib/firmware/mrvl/"
