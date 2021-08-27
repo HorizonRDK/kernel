@@ -966,6 +966,7 @@ static struct ctl_table kern_table[] = {
 		.extra1         = &zero,
 		.extra2         = &one,
 	},
+#ifdef CONFIG_HOBOT_CORESIGHT
 	{
 		.procname       = "panic_on_hardlockup",
 		.data           = &panic_on_hardlockup,
@@ -975,6 +976,7 @@ static struct ctl_table kern_table[] = {
 		.extra1         = &zero,
 		.extra2         = &one,
 	},
+#endif
 #endif
 #endif
 
