@@ -94,7 +94,7 @@ static int cpu_cal_test_kthread(void *data)
 		err_test_id = -1;
 		err_event_id = 1;
 		cpu_cal_diag_report(err_event_id);
-		return 0;
+		goto thread_out;
 	}
 	while (1) {
 		if (cpu_cal_data->cpu_cal_test_kthread_end)
@@ -116,6 +116,10 @@ static int cpu_cal_test_kthread(void *data)
 				cpu_cal_diag_report(err_event_id);
 			}
 		}
+		msleep(100);
+	}
+thread_out:
+	while(!kthread_should_stop()) {
 		msleep(100);
 	}
     return 0;
