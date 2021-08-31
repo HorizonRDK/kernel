@@ -2778,6 +2778,11 @@ static void dwceqos_diag_process(u32 errsta, uint32_t regval) {
 	static uint8_t last_status = DiagEventStaUnknown;
 
     int_status = regval;
+#if IS_ENABLED(CONFIG_HOBOT_DIAG_INJECT)
+	diag_inject_val(ModuleDiag_eth, EventIdEthDmaBusErr, &int_status);
+	if (int_status & (DMA_CHAN_STATUS_TPS | DMA_CHAN_STATUS_FBE))
+		errsta = 1;
+#endif
     if (errsta) {
         sta = DiagEventStaFail;
         envgen_timing = DiagGenEnvdataWhenErr;
