@@ -310,6 +310,18 @@ static irqreturn_t x3_dis_irq(int this_irq, void *data)
 static void ldc_diag_report(uint8_t errsta, uint32_t status)
 {
 	uint8_t env_data[8];
+
+#if IS_ENABLED(CONFIG_HOBOT_DIAG_INJECT)
+	ldc_irqstatus_u irq_stat = {0};
+	diag_inject_val(ModuleDiag_VIO, EventIdVioLdcErr, &irq_stat.status_g);
+	if (irq_stat.status_b.frame_overwrite
+					|| irq_stat.status_b.line_overwrite
+					|| irq_stat.status_b.isp_in_overwrite
+					|| irq_stat.status_b.overflow) {
+		errsta = 1;
+		status = irq_stat.status_g;
+	}
+#endif
 	env_data[0] = 0xff;
 	env_data[1] = 0xff;
 	env_data[2] = 0xff;
