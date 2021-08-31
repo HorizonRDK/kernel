@@ -744,6 +744,11 @@ static irqreturn_t hobot_uart_isr(int irq, void *dev_id)
 #endif /* CONFIG_HOBOT_TTY_IRQ_MODE */
 
 #ifdef CONFIG_HOBOT_DIAG
+#if IS_ENABLED(CONFIG_HOBOT_DIAG_INJECT)
+	diag_inject_val(ModuleDiag_uart, EventIdAny, &status);
+	if (status & (UART_RXOE | UART_PE | UART_FE))
+		errflag = 1;
+#endif
 	if (errflag)
 		uart_diag_report(1, status, hobot_uart);
 	if (pre_errflag == 1 && errflag == 0)
