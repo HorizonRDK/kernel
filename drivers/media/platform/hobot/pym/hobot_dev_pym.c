@@ -2094,13 +2094,22 @@ void pym_frame_ndone(struct pym_subdev *subdev)
 }
 
 #ifdef CONFIG_HOBOT_DIAG
-static void pym_diag_report(u8 instance, u8 errsta, u32 status)
+static void pym_diag_report(u8 instance, u8 errsta, u32 stat)
 {
 	static uint8_t last_status = DiagEventStaUnknown;
+	u32 status = stat;
 	u8 reserved = 0xFF;
 	u8 data_len = sizeof(status);
-	u32 head = data_len << 24 | reserved << 16 | errsta << 8 | instance;
-	u32 msg[] = {head, status};
+	u32 head;
+	u32 msg[2];
+#if IS_ENABLED(CONFIG_HOBOT_DIAG_INJECT)
+	diag_inject_val(ModuleDiag_VIO, EventIdVioPymErr, &status);
+	if (status & (BIT(INTR_PYM_DS_FRAME_DROP) | BIT(INTR_PYM_US_FRAME_DROP)))
+		errsta = DIAG_PYM_FRAME_DROP;
+#endif
+	head = data_len << 24 | reserved << 16 | errsta << 8 | instance;
+	msg[0] = head;
+	msg[1] = status;
 
 	if (errsta != DIAG_PYM_NORMAL) {
 		vio_dbg("pym diag msg[0]: %x, msg[1]: %x\n", msg[0], msg[1]);
