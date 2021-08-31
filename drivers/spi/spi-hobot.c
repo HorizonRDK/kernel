@@ -589,6 +589,7 @@ static void spi_diag_report(uint8_t errsta, uint32_t srcpndreg,
 						struct hb_spi *hbspi)
 {
 	uint8_t env_data[8];
+
 	env_data[0] = hbspi->spi_id;
 	env_data[1] = 0xff;
 	env_data[2] = 0;
@@ -624,6 +625,9 @@ static irqreturn_t hb_spi_int_handle(int irq, void *data)
 	struct hb_spi *hbspi = (struct hb_spi *)data;
 
 	pnd = hb_spi_rd(hbspi, HB_SPI_SRCPND_REG);
+#if IS_ENABLED(CONFIG_HOBOT_DIAG_INJECT)
+	diag_inject_val(ModuleDiag_spi, EventIdAny, &pnd);
+#endif
 	if (debug)
 		dev_err(hbspi->dev, "irq=%d SRCPND=%08X\n", irq, pnd);
 	if (pnd & (HB_SPI_INT_RX_FULL | HB_SPI_INT_DMA_TRDONE)) {
