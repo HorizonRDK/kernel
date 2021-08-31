@@ -686,12 +686,16 @@ static int32_t bpu_core_hw_write_fc(const struct bpu_core *core,
 }
 
 #ifdef CONFIG_HOBOT_DIAG
-static void report_bpu_diagnose_msg(u32 err, int core_index)
+static void report_bpu_diagnose_msg(u32 error, int core_index)
 {
-	u32 ret;
+	u32 ret, err;
 	u8 bpu_event;
 	u8 bpu_diag_envdata[8];
 
+	err = error;
+#if IS_ENABLED(CONFIG_HOBOT_DIAG_INJECT)
+	diag_inject_val(ModuleDiag_bpu, EventIdAny, &err);
+#endif
 	ret = err & 0xf000;
 	bpu_event = EventIdBpu0Err + core_index;
 
