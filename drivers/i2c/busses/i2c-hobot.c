@@ -286,11 +286,17 @@ static void hobot_i2c_diag_process(u32 errsta, struct hobot_i2c_dev *i2c_contro)
 {
 	u8 sta;
 	u8 envgen_timing;
-	u32 int_status;
+	union sprcpnd_reg_e int_status;
 	uint8_t envdata[10];
 	u8 i2c_event;
 	u16 slave_addr;
 
+	int_status.all = i2c_contro->msg_err;
+#if IS_ENABLED(CONFIG_HOBOT_DIAG_INJECT)
+	diag_inject_val(ModuleDiag_i2c, EventIdAny, &int_status.all);
+	errsta = int_status.bit.nack | int_status.bit.sterr | int_status.bit.al |
+			int_status.bit.to | int_status.bit.aerr;
+#endif
 	i2c_event = EventIdI2cController0Err + i2c_contro->i2c_id;
 	slave_addr = (u16)i2c_contro->i2c_regs->addr.all;
 	slave_addr = (~BIT(11) & slave_addr) >> 1;
@@ -301,9 +307,8 @@ static void hobot_i2c_diag_process(u32 errsta, struct hobot_i2c_dev *i2c_contro)
 		envdata[3] = sizeof(u32) + sizeof(u16);
 		sta = DiagEventStaFail;
 		envgen_timing = DiagGenEnvdataWhenErr;
-		int_status = i2c_contro->msg_err;
 		memcpy(envdata + 4, (uint8_t *)&slave_addr, sizeof(u16));
-		memcpy(envdata + 6, (uint8_t *)&int_status, sizeof(u32));
+		memcpy(envdata + 6, (uint8_t *)&int_status.all, sizeof(u32));
 		diag_send_event_stat_and_env_data(DiagMsgPrioHigh,
 						ModuleDiag_i2c, i2c_event, sta,
 						envgen_timing, envdata, sizeof(uint8_t) * 10);
