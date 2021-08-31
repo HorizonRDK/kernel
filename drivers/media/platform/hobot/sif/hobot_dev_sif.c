@@ -2199,7 +2199,6 @@ static int sif_wake_up_poll(struct sif_video_ctx *sif_ctx)
 void sif_set_ipi_disable(struct sif_video_ctx *sif_ctx)
 {
 	struct x3_sif_dev *sif;
-	uint32_t mux_index, buf_index;
 	struct sif_subdev *subdev;
 
 	sif = sif_ctx->sif_dev;
@@ -2578,6 +2577,7 @@ static void sif_diag_report(u8 errsta, u8 err_type,
 	u32 status, u32 instance)
 {
 	uint8_t env_data[8];
+
 	env_data[0] = instance;
 	env_data[2] = 0xff;
 	env_data[3] = 4;
@@ -2756,6 +2756,9 @@ static irqreturn_t sif_isr(int irq, void *data)
 	memset(&irq_src, 0x0, sizeof(struct sif_irq_src));
 	ret = sif_get_irq_src(sif->base_reg, &irq_src, true);
 	intr_en = sif_get_frame_intr(sif->base_reg);
+#if IS_ENABLED(CONFIG_HOBOT_DIAG_INJECT)
+	diag_inject_val(ModuleDiag_VIO, EventIdVioSifErr, &irq_src.sif_frm_int);
+#endif
 	status = intr_en & irq_src.sif_frm_int;
 	sif_frm_value = irq_src.sif_frm_int;
 
