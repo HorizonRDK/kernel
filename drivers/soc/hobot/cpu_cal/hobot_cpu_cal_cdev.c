@@ -72,6 +72,7 @@ uint32_t cpu_cal_test_init(void)
 static void cpu_cal_diag_report(uint8_t err_id)
 {
 	uint8_t env_data[5];
+
 	if(err_id >= 1 && err_id <= total_test_num + 1) {
 		env_data[0] = 0xFF;
 		env_data[1] = 0xFF;
@@ -115,6 +116,11 @@ static int cpu_cal_test_kthread(void *data)
 				result = A53_STL();
 				local_irq_enable();
 			}
+#if IS_ENABLED(CONFIG_HOBOT_DIAG_INJECT)
+	diag_inject_val(ModuleDiag_cpu_cal, EventIdCpuCalTestErr, &err_test_id);
+	if (err_test_id < 1 || err_test_id > total_test_num + 1)
+		err_test_id = -1;
+#endif
 			if(result != A53_STL_RET_OK || err_test_id == i + 2) {
 				err_test_id = -1;
 				err_event_id = i + 2;
