@@ -183,6 +183,10 @@ enum ipu_interrupt_map {
 };
 
 #ifdef CONFIG_HOBOT_DIAG
+
+#define ERR_IPU_SIZE_H	(2U)
+#define ERR_IPU_SIZE_W	(1U)
+
 typedef enum ipu_diag_type_e {
 	DIAG_IPU_NORMAL = 0,
 	DIAG_IPU_SIZE_ERROR,

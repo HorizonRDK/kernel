@@ -3853,11 +3853,21 @@ static void ipu_diag_report(u8 instance, u8 errsta, u32 status)
 	static uint8_t last_status = DiagEventStaUnknown;
 	u8 reserved = 0xFF;
 	u8 data_len = sizeof(status);
-	u32 head = data_len << 24 | reserved << 16 | errsta << 8 | instance;
-	u32 msg[] = {head, status};
+	u32 head;
+	u32 msg[2];
+#if IS_ENABLED(CONFIG_HOBOT_DIAG_INJECT)
+	u32 err_type;
+	diag_inject_val(ModuleDiag_VIO, EventIdVioIpuErr, &err_type);
+	if ((err_type == DIAG_IPU_SIZE_ERROR) ||
+					(err_type == DIAG_IPU_FRAME_DROP))
+		errsta = (u8)err_type;
+#endif
+	head = data_len << 24 | reserved << 16 | errsta << 8 | instance;
+	msg[0] = head;
+	msg[1] = status;
 
 	if (errsta != DIAG_IPU_NORMAL) {
-		vio_dbg("ipu diag msg[0]: %x, msg[1]: %x\n", msg[0], msg[1]);
+	vio_dbg("ipu diag msg[0]: %x, msg[1]: %x\n", msg[0], msg[1]);
 		diag_send_event_stat_and_env_data(
 				DiagMsgPrioHigh,
 				ModuleDiag_VIO,
