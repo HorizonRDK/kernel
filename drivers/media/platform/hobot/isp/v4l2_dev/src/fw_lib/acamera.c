@@ -1321,6 +1321,7 @@ EXPORT_SYMBOL(isp_status_check);
 static void isp_diag_report(int errsta, uint32_t irq_mask, isp_status_t *sts)
 {
 	uint8_t env_data[8];
+
 	env_data[0] = sts->ctx_id;
 	env_data[1] = 0xff;
 	env_data[2] = 0xff;
@@ -1466,6 +1467,9 @@ int32_t acamera_interrupt_handler()
         do_gettimeofday(&tv1);
 	}
 
+#if IS_ENABLED(CONFIG_HOBOT_DIAG_INJECT)
+	diag_inject_val(ModuleDiag_VIO, EventIdVioIspErr, &irq_mask);
+#endif
     if ( irq_mask > 0 ) {
         //check for errors in the interrupt
         if ( irq_mask & 1 << ISP_INTERRUPT_EVENT_BROKEN_FRAME ) {
