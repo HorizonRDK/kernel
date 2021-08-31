@@ -2782,7 +2782,7 @@ static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
 	pending = mci_readl(host, MINTSTS); /* read-only mask reg */
 #if IS_ENABLED(CONFIG_HOBOT_DIAG_INJECT)
 	if (slot->mmc->index == INDEX_ID_EMMC)
-		diag_inject_val(ModuleDiag_emmc, &pending);
+		diag_inject_val(ModuleDiag_emmc, EventIdEmmcErr, &pending);
 #endif
 	if (pending) {
 		/* Check volt switch first, since it can look like an error */

@@ -1042,7 +1042,7 @@ static irqreturn_t hb_qspi_irq_handler(int irq, void *dev_id)
 #ifdef CONFIG_HOBOT_DIAG
 	err_status = hb_qspi_rd_reg(hbqspi, HB_QSPI_ST2_REG);
 #if IS_ENABLED(CONFIG_HOBOT_DIAG_INJECT)
-	diag_inject_val(ModuleDiag_qspi, &err_status);
+	diag_inject_val(ModuleDiag_qspi, EventIdqspiErr, &err_status);
 #endif
 	if (err_status & (HB_QSPI_RXWR_FULL | HB_QSPI_TXRD_EMPTY))
 		err = 1;

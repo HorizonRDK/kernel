@@ -19,7 +19,7 @@
 #define MSG_WITH_ENV		1
 #define MSG_WITHOUT_ENV		0
 #define EVENT_ID_MAX 32
-
+#define EventIdAny		(0xFFFFU)
 /*
  * Modules can use those two parameters below when register
  * to diagnose module.Message will be filerted when they meet
@@ -49,7 +49,7 @@ enum diag_module_id {
 	ModuleDiag_cpu_cal,
 	ModuleDiag_mpu,
 	ModuleDiag_uart,
-	ModuleIdMax = 1000,
+	ModuleIdMax,
 };
 
 /*
@@ -94,6 +94,7 @@ enum diag_gen_envdata_timing {
 enum diag_driver_module_eventid {
 	EventIdKernelToUserSelfTest = 1,
 	EventIdKernelToUserSelfTest2 = 2,
+	EventIdDrvMax,
 };
 
 /* i2c module event id */
@@ -104,6 +105,7 @@ enum diag_i2c_driver_module_eventid {
 	EventIdI2cController3Err,
 	EventIdI2cController4Err,
 	EventIdI2cController5Err,
+	EventIdI2cMax,
 };
 
 /* VIO module event id */
@@ -119,19 +121,22 @@ enum diag_vio_module_eventid {
 	EventIdVioGdc0Err,
 	EventIdVioGdc1Err,
 	EventIdVioLdcErr,
-	EventIdVioPymErr
+	EventIdVioPymErr,
+	EventIdVioMax,
 };
 
 /* bpu module event id */
 enum diag_bpu_module_eventid {
 	EventIdBpu0Err = 1,
 	EventIdBpu1Err = 2,
+	EventIdBpuMax,
 };
 
 /* sound module event id */
 enum diag_sound_module_eventid {
 	EventIdSoundI2s0Err = 1,
 	EventIdSoundI2s1Err,
+	EventIdI2sMax,
 };
 
 /* bif module event id */
@@ -140,33 +145,38 @@ enum diag_bif_module_eventid {
 	EventIdBifSdErr,
 	//EventIdBifEthernetErr,
 	//EventIdBifSioErr,
+	EventIdBifMax,
 };
 
 /* eth module event id */
 enum diag_eth_module_eventid {
 	EventIdEthDmaBusErr = 1,
+	EventIdEthMax,
 };
 
 /* qspi module event id */
 enum diag_qspi_module_eventid {
 	EventIdqspiErr = 1,
+	EventIdqspiMax,
 };
 
 /* cpu cal module event id */
 enum diag_cpu_cal_module_eventid {
 	EventIdCpuCalTestErr = 1,
+	EventIdAluMax,
 };
 /* spi module event id */
 enum diag_spi_module_eventid {
 	EventIdSpi0Err = 1,
 	EventIdSpi1Err,
 	EventIdSpi2Err,
-	EventIdQspiErr,
+	EventIdSpiMax,
 };
 
 /* emmc module event id */
 enum diag_emmc_module_eventid {
 	EventIdEmmcErr = 1,
+	EventIdEmmcMax,
 };
 
 /* mpu module event id */
@@ -178,6 +188,7 @@ enum diag_mpu_module_eventid {
 	EventIdMpuVioM0Err = 29,
 	EventIdMpuVpuErr,
 	EventIdMpuVioM1Err,
+	EventIdMpuMax,
 };
 
 /* uart module event id */
@@ -186,6 +197,7 @@ enum diag_uart_module_eventid {
 	EventIdUart1Err,
 	EventIdUart2Err,
 	EventIdUart3Err,
+	EventIdUartMax,
 };
 
 /*
@@ -314,8 +326,9 @@ extern int32_t diag_event_unregister(uint16_t module, uint16_t event);
  * @module_inject_registered will check if the current module_id is injected
  * @module_inject_val_get will return the registered inject value
  */
-extern int32_t diag_inject_ops_register(bool (*module_inject_registered)(uint16_t),
-							 int (*module_inject_val_get)(uint16_t, uint32_t *));
+extern int32_t diag_inject_ops_register(
+				bool (*module_inject_registered)(uint16_t, uint16_t),
+				int (*module_inject_val_get)(uint16_t, uint16_t, uint32_t *));
 
 /*
  * Unregister diagnose inject functions
@@ -327,6 +340,7 @@ extern void diag_inject_ops_unregister(void);
  * @module_id: the targeted module, used to check if current module requires injection
  * @*reg_val: the pointer to the variable storing the targeted injection
  */
-extern int32_t diag_inject_val(uint16_t module_id, uint32_t *reg_val);
+extern int32_t diag_inject_val(uint16_t module_id, uint16_t event,
+				uint32_t *reg_val);
 
 #endif

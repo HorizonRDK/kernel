@@ -44,12 +44,14 @@
 struct diag *g_diag_info = NULL;
 static int32_t diag_had_init;
 static struct diag_inject_ops {
-	bool(*module_inject_registered) (uint16_t module_id);
-	int(*module_inject_val_get) (uint16_t module_id, uint32_t *val);
+	bool(*module_inject_registered) (uint16_t module_id, uint16_t event);
+	int(*module_inject_val_get) (uint16_t module_id, uint16_t event,
+					uint32_t *val);
 } hb_diag_inject;
 
-int32_t diag_inject_ops_register(bool (*module_inject_registered)(uint16_t),
-							 int (*module_inject_val_get)(uint16_t, uint32_t *))
+int32_t diag_inject_ops_register(
+				bool (*module_inject_registered)(uint16_t, uint16_t),
+				int (*module_inject_val_get)(uint16_t, uint16_t, uint32_t *))
 {
 	if (module_inject_registered == NULL || module_inject_val_get == NULL) {
 		pr_err("%s: diag_inject_ops register failed!\n", __func__);
@@ -69,16 +71,16 @@ void diag_inject_ops_unregister()
 }
 EXPORT_SYMBOL(diag_inject_ops_unregister);
 
-int32_t diag_inject_val(uint16_t module_id, uint32_t *reg_val)
+int32_t diag_inject_val(uint16_t module_id, uint16_t event, uint32_t *reg_val)
 {
 	int32_t ret = 0;
 	if (hb_diag_inject.module_inject_registered == NULL)
 		return -EIO;
 
-	if (!hb_diag_inject.module_inject_registered(module_id))
+	if (!hb_diag_inject.module_inject_registered(module_id, event))
 		return -EINVAL;
 
-	ret = hb_diag_inject.module_inject_val_get(module_id, reg_val);
+	ret = hb_diag_inject.module_inject_val_get(module_id, event, reg_val);
 	return ret;
 }
 EXPORT_SYMBOL(diag_inject_val);
