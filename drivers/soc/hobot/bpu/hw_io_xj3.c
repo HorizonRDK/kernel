@@ -691,6 +691,8 @@ static void report_bpu_diagnose_msg(u32 error, int core_index)
 	u32 ret, err;
 	u8 bpu_event;
 	u8 bpu_diag_envdata[8];
+	static u8 last_status[BPU_MAX_CORE_NUM] = {DiagEventStaUnknown};
+	bool err_occur = false;
 
 	err = error;
 #if IS_ENABLED(CONFIG_HOBOT_DIAG_INJECT)
@@ -711,16 +713,18 @@ static void report_bpu_diagnose_msg(u32 error, int core_index)
 	if (ret == 0x1000 || ret == 0x2000 || ret == 0x3000 ||
 		ret == 0x4000 || ret == 0x5000 || ret == 0x6000 ||
 		ret == 0x7000 || ret == 0x8000 || ret == 0x9000 ) {
+		err_occur = true;
 		diag_send_event_stat_and_env_data(
 				DiagMsgPrioHigh, ModuleDiag_bpu,
 				bpu_event, DiagEventStaFail,
 				DiagGenEnvdataWhenErr, bpu_diag_envdata, 8);
-	} else {
+	} else if (last_status[core_index] != DiagEventStaSuccess) {
 		diag_send_event_stat_and_env_data(
 				DiagMsgPrioHigh, ModuleDiag_bpu,
 				bpu_event, DiagEventStaSuccess,
 				DiagGenEnvdataWhenErr, bpu_diag_envdata, 8);
 	}
+	last_status[core_index] = err_occur ? DiagEventStaFail : DiagEventStaSuccess;
 }
 #endif
 
