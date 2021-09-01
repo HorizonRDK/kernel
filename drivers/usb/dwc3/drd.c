@@ -634,7 +634,7 @@ void dwc3_drd_exit(struct dwc3 *dwc)
 	if (dwc->role_sw)
 		usb_role_switch_unregister(dwc->role_sw);
 
-	if (dwc->edev)
+	if (dwc->edev && extcon_dev_is_alive(dwc->edev))
 		extcon_unregister_notifier(dwc->edev, EXTCON_USB_HOST,
 					   &dwc->edev_nb);
 

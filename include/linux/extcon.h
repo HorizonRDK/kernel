@@ -257,6 +257,9 @@ extern void devm_extcon_unregister_notifier_all(struct device *dev,
 				struct extcon_dev *edev,
 				struct notifier_block *nb);
 
+
+int extcon_dev_is_alive(struct extcon_dev *edev);
+
 /*
  * Following APIs get the extcon_dev from devicetree or by through extcon name.
  */

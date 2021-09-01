@@ -891,6 +891,30 @@ out:
 }
 EXPORT_SYMBOL_GPL(extcon_get_extcon_dev);
 
+int extcon_dev_is_alive(struct extcon_dev *edev)
+{
+	struct extcon_dev *sd;
+	int find = 0;
+
+	if (!edev)
+		return 0;
+
+	mutex_lock(&extcon_dev_list_lock);
+	list_for_each_entry(sd, &extcon_dev_list, entry) {
+		if (sd == edev) {
+			find = 1;
+			goto out;
+		}
+	}
+out:
+	mutex_unlock(&extcon_dev_list_lock);
+
+	if (find)
+		return 1;
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(extcon_dev_is_alive);
 /**
  * extcon_register_notifier() - Register a notifier block to get notified by
  *				any state changes from the extcon.
