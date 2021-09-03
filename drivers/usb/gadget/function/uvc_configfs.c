@@ -309,7 +309,7 @@ static ssize_t uvcg_default_processing_bm_controls_show(
 
 	mutex_lock(&opts->lock);
 	for (result = 0, i = 0; i < pd->bControlSize; ++i) {
-		result += sprintf(pg, "%u\n", pd->bmControls[i]);
+		result += sprintf(pg, "%x\n", pd->bmControls[i]);
 		pg = page + result;
 	}
 	mutex_unlock(&opts->lock);
@@ -319,7 +319,49 @@ static ssize_t uvcg_default_processing_bm_controls_show(
 	return result;
 }
 
-UVC_ATTR_RO(uvcg_default_processing_, bm_controls, bmControls);
+/*Add modification function about processing_bmcontrols attribute
+  need to change the read-only property to read&write
+*/
+
+/**
+ * uvcg_default_processing_bm_controls_store - store the modified value of the default_processing_bmcontrols
+ * @item: point to the config item
+ * @page: point to the Modified characters
+ * @len: the length of string
+**/
+static ssize_t uvcg_default_processing_bm_controls_store(
+	struct config_item *item, const char *page, size_t len)
+{
+	struct config_group *group = to_config_group(item);
+	struct f_uvc_opts *opts;
+	struct config_item *opts_item;
+	struct mutex *su_mutex = &group->cg_subsys->su_mutex;
+	struct uvc_processing_unit_descriptor *pd;
+	unsigned int getbmcontrols;
+	char *pg = page;
+
+	mutex_lock(su_mutex); /* for navigating configfs hierarchy */
+
+	opts_item = group->cg_item.ci_parent->ci_parent->ci_parent;
+	opts = to_f_uvc_opts(opts_item);
+	pd = &opts->uvc_processing;
+
+	mutex_lock(&opts->lock);
+
+	int ret = kstrtou32(page, 0, &getbmcontrols);
+	if (!ret) {
+		pd->bmControls[0] = getbmcontrols&0xFF;
+		pd->bmControls[1] = (getbmcontrols&0xFFFF)>>8;
+	}
+
+	mutex_unlock(&opts->lock);
+
+	mutex_unlock(su_mutex);
+
+	return len;
+}
+/*change the property type to read&write*/
+UVC_ATTR(uvcg_default_processing_, bm_controls, bmControls);
 
 static struct configfs_attribute *uvcg_default_processing_attrs[] = {
 	&uvcg_default_processing_attr_b_unit_id,
@@ -413,7 +455,7 @@ static ssize_t uvcg_default_extension_bm_controls_show(
 
 	mutex_lock(&opts->lock);
 	for (result = 0, i = 0; i < ed->bControlSize; ++i) {
-		result += sprintf(pg, "%d\n", ed->bmControls[i]);
+		result += sprintf(pg, "%x\n", ed->bmControls[i]);
 		pg = page + result;
 	}
 	mutex_unlock(&opts->lock);
@@ -423,7 +465,48 @@ static ssize_t uvcg_default_extension_bm_controls_show(
 	return result;
 }
 
-UVC_ATTR_RO(uvcg_default_extension_, bm_controls, bmControls);
+/*Add modification function about extension_bmcontrols attribute
+  need to change the read-only property to read&write
+*/
+
+/**
+ * uvcg_default_extension_bm_controls_store - store the modified value of the default_extension_bmcontrols
+ * @item: point to the config item
+ * @page: point to the Modified characters
+ * @len: the length of string
+**/
+static ssize_t uvcg_default_extension_bm_controls_store(
+	struct config_item *item, const char *page, size_t len)
+{
+	struct config_group *group = to_config_group(item);
+	struct f_uvc_opts *opts;
+	struct config_item *opts_item;
+	struct mutex *su_mutex = &group->cg_subsys->su_mutex;
+	struct UVC_EXTENSION_UNIT_DESCRIPTOR(1, 2) *ed;
+	unsigned int getbmcontrols;
+	char *pg = page;
+	mutex_lock(su_mutex); /* for navigating configfs hierarchy */
+
+	opts_item = group->cg_item.ci_parent->ci_parent->ci_parent;
+	opts = to_f_uvc_opts(opts_item);
+	ed = &opts->uvc_extension;
+
+	mutex_lock(&opts->lock);
+
+	int ret = kstrtou32(page, 0, &getbmcontrols);
+	if (!ret) {
+		ed->bmControls[0] = getbmcontrols&0xFF;
+		ed->bmControls[1] = (getbmcontrols&0xFFFF)>>8;
+	}
+
+	mutex_unlock(&opts->lock);
+
+	mutex_unlock(su_mutex);
+
+	return len;
+}
+/*change the property type to read&write*/
+UVC_ATTR(uvcg_default_extension_, bm_controls, bmControls);
 
 static struct configfs_attribute *uvcg_default_extension_attrs[] = {
 	&uvcg_default_extension_attr_b_unit_id,
@@ -521,7 +604,7 @@ static ssize_t uvcg_default_camera_bm_controls_show(
 
 	mutex_lock(&opts->lock);
 	for (result = 0, i = 0; i < cd->bControlSize; ++i) {
-		result += sprintf(pg, "%u\n", cd->bmControls[i]);
+		result += sprintf(pg, "%x\n", cd->bmControls[i]);
 		pg = page + result;
 	}
 	mutex_unlock(&opts->lock);
@@ -530,7 +613,51 @@ static ssize_t uvcg_default_camera_bm_controls_show(
 	return result;
 }
 
-UVC_ATTR_RO(uvcg_default_camera_, bm_controls, bmControls);
+/*Add modification function about camera_bmcontrols attribute
+  need to change the read-only property to read&write
+*/
+
+/**
+ * uvcg_default_camera_bm_controls_store - store the modified value of the default_camera_bmcontrols
+ * @item: point to the config item
+ * @page: point to the Modified characters
+ * @len: the length of string
+**/
+static ssize_t uvcg_default_camera_bm_controls_store(
+	struct config_item *item, const char *page, size_t len)
+{
+	struct config_group *group = to_config_group(item);
+	struct f_uvc_opts *opts;
+	struct config_item *opts_item;
+	struct mutex *su_mutex = &group->cg_subsys->su_mutex;
+	struct uvc_camera_terminal_descriptor *cd;
+	unsigned int getbmcontrols;
+	char *pg = page;
+
+	mutex_lock(su_mutex); /* for navigating configfs hierarchy */
+
+	opts_item = group->cg_item.ci_parent->ci_parent->ci_parent->
+			ci_parent;
+	opts = to_f_uvc_opts(opts_item);
+	cd = &opts->uvc_camera_terminal;
+
+	mutex_lock(&opts->lock);
+
+	int ret = kstrtou32(page, 0, &getbmcontrols);
+	if (!ret) {
+		cd->bmControls[0] = getbmcontrols&0xFF;
+		cd->bmControls[1] = (getbmcontrols&0xFFFF)>>8;
+		cd->bmControls[2] = (getbmcontrols&0xFFFFFF)>>16;
+	}
+
+	mutex_unlock(&opts->lock);
+
+	mutex_unlock(su_mutex);
+
+	return len;
+}
+/*change the property type to read&write*/
+UVC_ATTR(uvcg_default_camera_, bm_controls, bmControls);
 
 static struct configfs_attribute *uvcg_default_camera_attrs[] = {
 	&uvcg_default_camera_attr_b_terminal_id,
