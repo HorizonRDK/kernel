@@ -362,6 +362,8 @@
 				<0 0xA1000000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 36 4>;
+			dummy_node = <0>;  //0: false 1: true
+			i2s-bind = "i2s0";
 			status = "disabled";
 		};
 
@@ -372,6 +374,8 @@
 				<0 0xA1000000 0 0x1000>;
 			interrupt-parent = <&gic>;
 			interrupts = <0 37 4>;
+			dummy_node = <0>;  //0: false 1: true
+			i2s-bind = "i2s0";
 			status = "disabled";
 		};
 
@@ -415,8 +419,85 @@
                         status = "disabled";
                 };
 
+		snd5: sndcard@5 {
+                        compatible = "hobot, hobot-snd5";
+                        i2s_mode = <4>;
+                        master = <1>;
+                        channel_max = <8>;
+                        status = "disabled";
+                };
+			
+		snd6: sndcard@6 {
+                        compatible = "hobot, hobot-snd6";
+                        i2s_mode = <4>;
+                        master = <1>;
+                        channel_max = <8>;
+                        status = "disabled";
+                };
+
 		codec0: codec@0 {
 			compatible = "hobot,hobot-codec0";
+			status = "disabled";
+		};
+
+		dummyi2s0: dummy-i2s@0 {
+			compatible = "hobot, hobot-dummy-i2s0";
+			status = "disabled";
+		};
+
+		i2sidma2: dummy-idma@2 {
+			compatible = "hobot-i2s2-idma";
+			dummy_node = <1>;
+			i2s-bind = "i2s0";
+			status = "disabled";
+		};
+
+		i2sidma3: dummy-idma@3 {
+			compatible = "hobot-i2s3-idma";
+			dummy_node = <1>;
+			i2s-bind = "i2s0";
+			status = "disabled";
+		};
+
+		i2sidma4: dummy-idma@4 {
+			compatible = "hobot-i2s4-idma";
+			dummy_node = <1>;
+			i2s-bind = "i2s0";
+			status = "disabled";
+		};
+
+		i2sidma5: dummy-idma@5 {
+			compatible = "hobot-i2s5-idma";
+			dummy_node = <1>;
+			i2s-bind = "i2s0";
+			status = "disabled";
+		};
+
+		i2sidma6: dummy-idma@6 {
+			compatible = "hobot-i2s6-idma";
+			dummy_node = <1>;
+			i2s-bind = "i2s1";
+			status = "disabled";
+		};
+
+		i2sidma7: dummy-idma@7 {
+			compatible = "hobot-i2s7-idma";
+			dummy_node = <1>;
+			i2s-bind = "i2s1";
+			status = "disabled";
+		};
+
+		i2sidma8: dummy-idma@8 {
+			compatible = "hobot-i2s8-idma";
+			dummy_node = <1>;
+			i2s-bind = "i2s1";
+			status = "disabled";
+		};
+
+		i2sidma9: dummy-idma@9 {
+			compatible = "hobot-i2s9-idma";
+			dummy_node = <1>;
+			i2s-bind = "i2s1";
 			status = "disabled";
 		};
 

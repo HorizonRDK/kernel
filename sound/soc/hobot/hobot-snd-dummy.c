@@ -25,42 +25,8 @@ static int snd_card = HOBOT_DEF_SND_CARD;
 module_param(snd_card, uint, S_IRUGO);
 MODULE_PARM_DESC(snd_card, "Hobot Sound card");
 
-static int hobot_snd_hw_params(struct snd_pcm_substream *substream,
-			     struct snd_pcm_hw_params *params)
-{
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	unsigned long sample_rate = params_rate(params);
-	int ret = 0;
-
-	if(rtd->dai_link){
-		if(rtd->dai_link->dai_fmt){
-			ret = snd_soc_runtime_set_dai_fmt(rtd, rtd->dai_link->dai_fmt);
-			if(0 > ret)
-				return ret;
-		}
-		if(rtd->dai_link->dai_fmt & SND_SOC_DAIFMT_CBS_CFS){
-			/* below div is getted by sample_rate */
-			/*
-			ret = snd_soc_dai_set_clkdiv(rtd->codec_dai, 0, sample_rate);
-			if (ret < 0) {
-				pr_err("%s, line:%d\n", __func__, __LINE__);
-				return ret;
-			}
-			*/
-		} else {
-			ret = snd_soc_dai_set_clkdiv(rtd->cpu_dai, 0, sample_rate);
-			if (ret < 0) {
-				pr_err("%s, line:%d\n", __func__, __LINE__);
-				return ret;
-			}
-		}
-	}
-
-	return ret;
-}
-
-static struct snd_soc_ops hobot_snd_ops = {
-	.hw_params = hobot_snd_hw_params,
+struct dummy_data {
+	struct snd_soc_dai_link dai_link[3];
 };
 
 static int hobot_snd_probe(struct platform_device *pdev)
@@ -70,6 +36,7 @@ static int hobot_snd_probe(struct platform_device *pdev)
 	struct snd_soc_dai_link *link = NULL, *links = NULL;
 	struct device *dev = &pdev->dev;
 	struct device_node *np, *codec, *cpu, *platform, *node = dev->of_node;
+	struct dummy_data *data;
 
 	card = devm_kzalloc(dev, sizeof(*card), GFP_KERNEL);
 	if (!card) {
@@ -94,21 +61,26 @@ static int hobot_snd_probe(struct platform_device *pdev)
 		num = 1;
 	pr_debug("Number dai_link: %d\n", num);
 
-	links = devm_kzalloc(dev, sizeof(*link) * num, GFP_KERNEL);
-	if (!links) {
-		pr_err("No memory for snd_soc_dai_link alloc for card:%d\n", id);
-		return -ENOMEM;
-	}
-	card->dai_link = links;
+	data = devm_kzalloc(dev, sizeof(*data) + sizeof(*link) * num,
+            GFP_KERNEL);
+	 if (!data)
+        return ERR_PTR(-ENOMEM);
+
+	card->dai_link = &data->dai_link[0];
+	card->num_links = num;
+
+	link = data->dai_link;
+
 	id = of_alias_get_id(pdev->dev.of_node, "sndcard");
 	if (id < 0) {
 		pr_debug("id: %d\n", id);
 		if (!strcmp(card->name, "hobotsnd4"))
 			id = 4;
+		else if (!strcmp(card->name, "hobotsnd5"))
+                        id = 5;
 	}
+	if (id == snd_card) {
 		for_each_child_of_node(node, np) {
-			link = links + idx;
-			link->ops = &hobot_snd_ops;
 			cpu = of_get_child_by_name(np, "cpu");
 			codec = of_get_child_by_name(np, "codec");
 			if (!cpu || !codec) {
@@ -123,6 +95,13 @@ static int hobot_snd_probe(struct platform_device *pdev)
 			}
 
 			pr_debug("Name of link->cpu_of_node : %s\n", link->cpu_of_node->name);
+
+			ret = snd_soc_of_get_dai_name(cpu, &link->cpu_dai_name);
+			if (ret) {
+					dev_err(card->dev, "error getting cpu dai name\n");
+					return ERR_PTR(ret);
+			}
+			pr_debug("cpu_dai_name: %s\n", link->cpu_dai_name);
 		
 			ret = snd_soc_of_get_dai_link_codecs(dev, codec, link);
 			if (!link->codecs) {
@@ -152,9 +131,9 @@ static int hobot_snd_probe(struct platform_device *pdev)
 			}
 			link->dai_fmt = snd_soc_of_parse_daifmt(np, NULL, NULL, NULL);
 			pr_debug("Data of link->dai_fmt: 0x%08X\n", link->dai_fmt);
-			card->num_links++;
-			idx++;
+			link++;
 		}
+	}
 	ret = snd_soc_register_card(card);
 	if (ret) {
  		dev_err(dev, "snd_soc_register_card() failed: %d\n", ret);
@@ -180,6 +159,7 @@ static int hobot_snd_remove(struct platform_device *pdev)
 #ifdef CONFIG_OF
 static const struct of_device_id hobot_snd_of_match[] = {
 	{.compatible = "hobot, hobot-snd4", },
+	{.compatible = "hobot, hobot-snd5", },
 	{}
 };
 
@@ -191,7 +171,7 @@ static struct platform_driver hobot_snd_driver = {
 	.probe = hobot_snd_probe,
 	.remove = hobot_snd_remove,
 	.driver = {
-	   .name = "hobot-snd",
+	   .name = "hobot-snd-dummy",
 #ifdef CONFIG_OF
 	   .of_match_table = hobot_snd_of_match,
 #endif

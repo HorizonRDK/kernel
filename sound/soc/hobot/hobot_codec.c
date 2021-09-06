@@ -21,37 +21,120 @@
 #include <sound/pcm.h>
 #include <sound/initval.h>
 
-struct snd_soc_dai_driver dummy_dai = {
-	.name = "hobot-codec0",
-	.playback = {
-		.stream_name = "Dummy Playback",
-		.channels_min = 1,
-		.channels_max = 8,
-		.rates = SNDRV_PCM_RATE_8000_192000,
-		.formats = (SNDRV_PCM_FMTBIT_S16_LE |
-			    SNDRV_PCM_FMTBIT_S20_3LE |
-			    SNDRV_PCM_FMTBIT_S24_LE |
-			    SNDRV_PCM_FMTBIT_S32_LE),
+struct snd_soc_dai_driver dummy_dai[] = {
+	{
+		.name = "hobot-codec0",
+		.capture = {
+			.stream_name = "Dummy Capture",
+			.channels_min = 1,
+			.channels_max = 8,
+			.rates = SNDRV_PCM_RATE_8000_192000,
+			.formats = (SNDRV_PCM_FMTBIT_S16_LE |
+					SNDRV_PCM_FMTBIT_S20_3LE |
+					SNDRV_PCM_FMTBIT_S24_LE |
+					SNDRV_PCM_FMTBIT_S32_LE),
+		},
 	},
-	.capture = {
-		.stream_name = "Dummy Capture",
-		.channels_min = 1,
-		.channels_max = 8,
-		.rates = SNDRV_PCM_RATE_8000_192000,
-		.formats = (SNDRV_PCM_FMTBIT_S16_LE |
-			    SNDRV_PCM_FMTBIT_S20_3LE |
-			    SNDRV_PCM_FMTBIT_S24_LE |
-			    SNDRV_PCM_FMTBIT_S32_LE),
+	{
+		.name = "hobot-codec1",
+		.capture = {
+			.stream_name = "Dummy Capture",
+			.channels_min = 1,
+			.channels_max = 8,
+			.rates = SNDRV_PCM_RATE_8000_192000,
+			.formats = (SNDRV_PCM_FMTBIT_S16_LE |
+					SNDRV_PCM_FMTBIT_S20_3LE |
+					SNDRV_PCM_FMTBIT_S24_LE |
+					SNDRV_PCM_FMTBIT_S32_LE),
+		},
+	},
+	{
+		.name = "hobot-codec2",
+		.capture = {
+			.stream_name = "Dummy Capture",
+			.channels_min = 1,
+			.channels_max = 8,
+			.rates = SNDRV_PCM_RATE_8000_192000,
+			.formats = (SNDRV_PCM_FMTBIT_S16_LE |
+					SNDRV_PCM_FMTBIT_S20_3LE |
+					SNDRV_PCM_FMTBIT_S24_LE |
+					SNDRV_PCM_FMTBIT_S32_LE),
+		},
+	},
+	{
+		.name = "hobot-codec3",
+		.capture = {
+			.stream_name = "Dummy Capture",
+			.channels_min = 1,
+			.channels_max = 8,
+			.rates = SNDRV_PCM_RATE_8000_192000,
+			.formats = (SNDRV_PCM_FMTBIT_S16_LE |
+					SNDRV_PCM_FMTBIT_S20_3LE |
+					SNDRV_PCM_FMTBIT_S24_LE |
+					SNDRV_PCM_FMTBIT_S32_LE),
+		},
+	},
+	{
+		.name = "hobot-codec4",
+		.capture = {
+			.stream_name = "Dummy Capture",
+			.channels_min = 1,
+			.channels_max = 8,
+			.rates = SNDRV_PCM_RATE_8000_192000,
+			.formats = (SNDRV_PCM_FMTBIT_S16_LE |
+					SNDRV_PCM_FMTBIT_S20_3LE |
+					SNDRV_PCM_FMTBIT_S24_LE |
+					SNDRV_PCM_FMTBIT_S32_LE),
+		},
+	},
+	{
+		.name = "hobot-codec5",
+		.capture = {
+			.stream_name = "Dummy Capture",
+			.channels_min = 1,
+			.channels_max = 8,
+			.rates = SNDRV_PCM_RATE_8000_192000,
+			.formats = (SNDRV_PCM_FMTBIT_S16_LE |
+					SNDRV_PCM_FMTBIT_S20_3LE |
+					SNDRV_PCM_FMTBIT_S24_LE |
+					SNDRV_PCM_FMTBIT_S32_LE),
+		},
+	},
+	{
+		.name = "hobot-codec6",
+		.capture = {
+			.stream_name = "Dummy Capture",
+			.channels_min = 1,
+			.channels_max = 8,
+			.rates = SNDRV_PCM_RATE_8000_192000,
+			.formats = (SNDRV_PCM_FMTBIT_S16_LE |
+					SNDRV_PCM_FMTBIT_S20_3LE |
+					SNDRV_PCM_FMTBIT_S24_LE |
+					SNDRV_PCM_FMTBIT_S32_LE),
+		},
+	},
+	{
+		.name = "hobot-codec7",
+		.capture = {
+			.stream_name = "Dummy Capture",
+			.channels_min = 1,
+			.channels_max = 8,
+			.rates = SNDRV_PCM_RATE_8000_192000,
+			.formats = (SNDRV_PCM_FMTBIT_S16_LE |
+					SNDRV_PCM_FMTBIT_S20_3LE |
+					SNDRV_PCM_FMTBIT_S24_LE |
+					SNDRV_PCM_FMTBIT_S32_LE),
+		},
 	},
 };
 
-static struct snd_soc_codec_driver soc_dummy_codec;
+static const struct snd_soc_codec_driver soc_dummy_codec;
 
 static int hobot_codec_probe(struct platform_device *pdev)
 {
 	int ret;
 	ret = snd_soc_register_codec(&pdev->dev, &soc_dummy_codec,
-		&dummy_dai, 1);
+		dummy_dai, ARRAY_SIZE(dummy_dai));
 
 	return ret;
 }

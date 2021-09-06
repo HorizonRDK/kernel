@@ -34,6 +34,7 @@
 		i2c5	= &i2c5;
 		i2s0	= &i2s0;
 		i2s1	= &i2s1;
+		dummyi2s0 	= &dummyi2s0;
 		spi0	= &spi0;
 		spi1	= &spi1;
 		spi2	= &spi2;
@@ -57,11 +58,22 @@
 		sndcard2 = &snd2;
 		sndcard3 = &snd3;
 		sndcard4 = &snd4;
+		sndcard5 = &snd5;
+		sndcard6 = &snd6;
 
 		codec0 = &codec0;
 
 		idma0 = &i2sidma0;
 		idma1 = &i2sidma1;
+
+		idma2 = &i2sidma2;
+		idma3 = &i2sidma3;
+		idma4 = &i2sidma4;
+		idma5 = &i2sidma5;
+		idma6 = &i2sidma6;
+		idma7 = &i2sidma7;
+		idma8 = &i2sidma8;
+		idma9 = &i2sidma9;
 
 		pwm_c0 = &pwm_c0;
 		pwm_c1 = &pwm_c1;
@@ -460,7 +472,7 @@
 
 &codec0 {
 	status = "okay";
-	#sound-dai-cells = <0>;
+	#sound-dai-cells = <1>;
 };
 
 &i2s0 {
@@ -479,12 +491,65 @@
 	bclk_set = <1536000>;
 };
 
+&dummyi2s0 {
+	status = "okay";
+	#sound-dai-cells = <1>;
+};
+
 &i2sidma0 {
 	status = "okay";
 };
 
 &i2sidma1 {
 	status = "okay";
+};
+
+&i2sidma2 {
+	status = "okay";
+	dummy_node = <1>;
+	i2s-bind = "i2s0";
+};
+
+&i2sidma3 {
+	status = "okay";
+	dummy_node = <1>;
+	i2s-bind = "i2s0";
+};
+
+&i2sidma4 {
+	status = "okay";
+	dummy_node = <1>;
+	i2s-bind = "i2s0";
+};
+
+&i2sidma5 {
+	status = "okay";
+	dummy_node = <1>;
+	i2s-bind = "i2s0";
+};
+
+&i2sidma6 {
+	status = "okay";
+	dummy_node = <1>;
+	i2s-bind = "i2s1";
+};
+
+&i2sidma7 {
+	status = "okay";
+	dummy_node = <1>;
+	i2s-bind = "i2s1";
+};
+
+&i2sidma8 {
+	status = "okay";
+	dummy_node = <1>;
+	i2s-bind = "i2s1";
+};
+
+&i2sidma9 {
+	status = "okay";
+	dummy_node = <1>;
+	i2s-bind = "i2s1";
 };
 
 &snd0 {
@@ -504,6 +569,14 @@
 };
 
 &snd4 {
+	status = "okay";
+};
+
+&snd5 {
+	status = "okay";
+};
+
+&snd6 {
 	status = "okay";
 };
 
@@ -556,7 +629,7 @@
                         sound-dai = <&i2sidma0>;
                 };
         };
-        dai-link@1 {
+		dai-link@1 {
                 dai-format = "i2s";
                 bitclock-master;   //not need setting in duplex
                 frame-master;      //not need setting in duplex
@@ -639,29 +712,13 @@
                 frame-inversion;
                 link-name = "hobotdailink0";
                 cpu {
-                        sound-dai = <&i2s0>;
-                };
-                codec {
-                        sound-dai = <&ac108_0 0>;
-                };
-                platform {
-                        sound-dai = <&i2sidma0>;
-                };
-        };
-        dai-link@1 {
-                dai-format = "dsp_a";
-                bitclock-master;
-                frame-master;
-                //frame-inversion;
-                link-name = "hobotdailink1";
-                cpu {
                         sound-dai = <&i2s1>;
                 };
                 codec {
-                        sound-dai = <&ac101>;
+                        sound-dai = <&codec0>;
                 };
                 platform {
-                        sound-dai = <&i2sidma1>;
+                        sound-dai = <&i2sidma0>;
                 };
         };
 };
@@ -678,7 +735,7 @@
                         sound-dai = <&i2s0>;
                 };
                 codec {
-                        sound-dai = <&codec0>;
+                        sound-dai = <&codec0 0>;
                 };
                 platform {
                         sound-dai = <&i2sidma0>;
@@ -694,10 +751,142 @@
                         sound-dai = <&i2s1>;
                 };
                 codec {
-                        sound-dai = <&codec0>;
+                        sound-dai = <&codec0 1>;
                 };
                 platform {
                         sound-dai = <&i2sidma1>;
+                };
+        };
+};
+
+&snd5 { //dummy-codec
+        model = "hobotsnd5";
+        dai-link@0 {
+                dai-format = "dsp";
+                bitclock-master;
+                frame-master;
+                frame-inversion;
+                link-name = "dummylink0";
+                cpu {
+                        sound-dai = <&dummyi2s0 0>;
+                };
+                codec {
+                        sound-dai = <&codec0 0>;
+                };
+                platform {
+                        sound-dai = <&i2sidma2>;
+                };
+        };
+        dai-link@1 {
+                dai-format = "dsp";
+                bitclock-master;
+                frame-master;
+                frame-inversion;
+                link-name = "dummylink1";
+                cpu {
+                        sound-dai = <&dummyi2s0 1>;
+                };
+                codec {
+                        sound-dai = <&codec0 1>;
+                };
+                platform {
+                        sound-dai = <&i2sidma3>;
+                };
+        };
+		dai-link@2 {
+                dai-format = "dsp";
+                bitclock-master;
+                frame-master;
+                frame-inversion;
+                link-name = "dummylink2";
+                cpu {
+                        sound-dai = <&dummyi2s0 2>;
+                };
+                codec {
+                        sound-dai = <&codec0 2>;
+                };
+                platform {
+                        sound-dai = <&i2sidma4>;
+                };
+        };
+		dai-link@3 {
+                dai-format = "dsp";
+                bitclock-master;
+                frame-master;
+                frame-inversion;
+                link-name = "dummylink3";
+                cpu {
+                        sound-dai = <&dummyi2s0 3>;
+                };
+                codec {
+                        sound-dai = <&codec0 3>;
+                };
+                platform {
+                        sound-dai = <&i2sidma5>;
+                };
+        };
+        dai-link@4 {
+                dai-format = "dsp";
+                bitclock-master;
+                frame-master;
+                frame-inversion;
+                link-name = "dummylink4";
+                cpu {
+                        sound-dai = <&dummyi2s0 4>;
+                };
+                codec {
+                        sound-dai = <&codec0 4>;
+                };
+                platform {
+                        sound-dai = <&i2sidma6>;
+                };
+        };
+		dai-link@5 {
+                dai-format = "dsp";
+                bitclock-master;
+                frame-master;
+                frame-inversion;
+                link-name = "dummylink5";
+                cpu {
+                        sound-dai = <&dummyi2s0 5>;
+                };
+                codec {
+                        sound-dai = <&codec0 5>;
+                };
+                platform {
+                        sound-dai = <&i2sidma7>;
+                };
+        };
+		dai-link@6 {
+                dai-format = "dsp";
+                bitclock-master;
+                frame-master;
+                frame-inversion;
+                link-name = "dummylink6";
+                cpu {
+                        sound-dai = <&dummyi2s0 6>;
+                };
+                codec {
+                        sound-dai = <&codec0 6>;
+                };
+                platform {
+                        sound-dai = <&i2sidma8>;
+                };
+        };
+        dai-link@7 {
+                dai-format = "dsp";
+                bitclock-master;
+                frame-master;
+                frame-inversion;
+                link-name = "dummylink7";
+                cpu {
+                        sound-dai = <&dummyi2s0 7>;
+                };
+                codec {
+                        sound-dai = <&codec0 7>;
+                };
+                platform {
+                        sound-dai = <&i2sidma9>;
                 };
         };
 };
