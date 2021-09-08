@@ -870,13 +870,12 @@ static int mipi_host_port_ipi(mipi_hdev_t *hdev)
  */
 static int32_t mipi_host_configure_lanemode(mipi_hdev_t *hdev, int lane)
 {
+	if (!hdev)
+		return -1;
 	struct device *dev = hdev->dev;
 	mipi_host_t *host = &hdev->host;
 	int group, poth;
 	int i, ret, target_mode = -1;
-
-	if (!hdev)
-		return -1;
 
 	for (i = 0; i < 2; i++) {
 		if (lane <= mipi_host_port_lane(hdev, i)) {
@@ -891,6 +890,8 @@ static int32_t mipi_host_configure_lanemode(mipi_hdev_t *hdev, int lane)
 
 	group = mipi_host_port_group(hdev);
 	poth = mipi_host_port_other(hdev);
+	if(poth < 0)
+		return -1;
 	if (target_mode < 0) {
 		mipierr("port%d not support %dlane",
 				hdev->port, lane);
@@ -948,6 +949,8 @@ match_ex_hdev:
  */
 static int32_t mipi_host_configure_ipi(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 {
+	if (!hdev)
+		return -1;
 	struct device *dev = hdev->dev;
 	mipi_host_t *host = &hdev->host;
 	mipi_host_param_t *param = &host->param;
@@ -956,7 +959,7 @@ static int32_t mipi_host_configure_ipi(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 	int vcid, datatype;
 	uint32_t ipi_mode;
 
-	if (!hdev || !iomem)
+	if (!iomem)
 		return -1;
 
 	ipi_max = mipi_host_port_ipi(hdev);
@@ -1576,7 +1579,7 @@ static unsigned long mipi_host_pixel_clk_select(mipi_hdev_t *hdev, mipi_host_cfg
 	struct device *dev = hdev->dev;
 	mipi_host_t *host = &hdev->host;
 	mipi_host_param_t *param = &host->param;
-	unsigned long pixclk = cfg->linelenth * cfg->framelenth * cfg->fps;
+	unsigned long pixclk = (unsigned long)(cfg->linelenth * cfg->framelenth * cfg->fps);
 	unsigned long pixclk_act = pixclk;
 	unsigned long linelenth = cfg->linelenth;
 	unsigned long framelenth = cfg->framelenth;
@@ -1674,35 +1677,35 @@ static uint16_t mipi_host_get_hsd(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg,
 	switch (cfg->datatype) {
 	case MIPI_CSI2_DT_YUV420_8:
 		bits_per_pixel = 8 * 3 / 2;
-		cycles_to_trans = cfg->width * yuv_cycle;
+		cycles_to_trans = (unsigned long)(cfg->width * yuv_cycle);
 		break;
 	case MIPI_CSI2_DT_YUV420_10:
 		bits_per_pixel = 16 * 3 / 2;
-		cycles_to_trans = cfg->width * yuv_cycle;
+		cycles_to_trans = (unsigned long)(cfg->width * yuv_cycle);
 		break;
 	case MIPI_CSI2_DT_YUV422_8:
 		bits_per_pixel = 8 * 2;
-		cycles_to_trans = cfg->width * yuv_cycle;
+		cycles_to_trans = (unsigned long)(cfg->width * yuv_cycle);
 		break;
 	case MIPI_CSI2_DT_YUV422_10:
 		bits_per_pixel = 16 * 2;
-		cycles_to_trans = cfg->width * yuv_cycle;
+		cycles_to_trans = (unsigned long)(cfg->width * yuv_cycle);
 		break;
 	case MIPI_CSI2_DT_RAW_8:
 		bits_per_pixel = 8;
-		cycles_to_trans = (cfg->width + 2) / raw_pixel;
+		cycles_to_trans = (unsigned long)((cfg->width + 2) / raw_pixel);
 		break;
 	case MIPI_CSI2_DT_RAW_10:
 		bits_per_pixel = 10;
-		cycles_to_trans = (cfg->width + 2) / raw_pixel;
+		cycles_to_trans = (unsigned long)((cfg->width + 2) / raw_pixel);
 		break;
 	case MIPI_CSI2_DT_RAW_12:
 		bits_per_pixel = 12;
-		cycles_to_trans = (cfg->width + 2) / raw_pixel;
+		cycles_to_trans = (unsigned long)((cfg->width + 2) / raw_pixel);
 		break;
 	case MIPI_CSI2_DT_RAW_14:
 		bits_per_pixel = 14;
-		cycles_to_trans = (cfg->width + 2) / raw_pixel;
+		cycles_to_trans = (unsigned long)((cfg->width + 2) / raw_pixel);
 		break;
 	default:
 		bits_per_pixel = 16;
@@ -1712,7 +1715,7 @@ static uint16_t mipi_host_get_hsd(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg,
 		rx_bit_clk = (unsigned long)cfg->mipiclk * 1000000;
 		line_size = cfg->width;
 	} else {
-		rx_bit_clk = cfg->linelenth * cfg->framelenth * cfg->fps * bits_per_pixel;
+		rx_bit_clk = ((unsigned long)(cfg->linelenth * cfg->framelenth * cfg->fps)) * bits_per_pixel;
 		line_size = cfg->linelenth;
 	}
 	mipiinfo("linelenth: %d, framelenth: %d, fps: %d, bits_per_pixel: %lu, pixclk: %lu, rx_bit_clk: %lu",
@@ -2052,6 +2055,8 @@ EXPORT_SYMBOL(mipi_host_int_fatal_show);
 static irqreturn_t mipi_host_irq_func(int this_irq, void *data)
 {
 	mipi_hdev_t *hdev = (mipi_hdev_t *)data;
+	if (!hdev)
+		return IRQ_NONE;
 	struct device *dev = hdev->dev;
 	mipi_host_t *host = &hdev->host;
 	mipi_host_ierr_t *ierr = &host->ierr;
@@ -2075,7 +2080,7 @@ static irqreturn_t mipi_host_irq_func(int this_irq, void *data)
 	uint8_t errchn, errtype;
 #endif
 
-	if (!hdev || !iomem)
+	if (!iomem)
 		return IRQ_NONE;
 
 	if (this_irq >= 0)
@@ -2201,6 +2206,8 @@ static void mipi_host_irq_timer_func(unsigned long data)
 
 static int32_t mipi_host_dphy_wait_stop(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 {
+	if (!hdev)
+		return -1;
 	struct device *dev = hdev->dev;
 	mipi_host_t *host = &hdev->host;
 	mipi_host_param_t *param = &host->param;
@@ -2208,7 +2215,7 @@ static int32_t mipi_host_dphy_wait_stop(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 	uint16_t ncount = 0;
 	uint32_t stopstate = 0;
 
-	if (!hdev || !iomem || !cfg)
+	if (!iomem || !cfg)
 		return -1;
 
 	mipiinfo("check phy stop state");
@@ -2234,23 +2241,29 @@ static int32_t mipi_host_dphy_wait_stop(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
  */
 static int32_t mipi_host_dphy_start_hs_reception(mipi_hdev_t *hdev)
 {
+	if (!hdev)
+		return -1;
 	struct device *dev = hdev->dev;
 	mipi_host_t *host = &hdev->host;
 	mipi_host_param_t *param;
 	void __iomem *iomem = host->iomem;
 	uint16_t ncount = 0;
 	uint32_t state = 0;
+	int poth;
 
-	if (!hdev || !iomem)
+	if (!iomem)
 		return -1;
 
 	mipiinfo("check hs reception");
-
 	/* param from main host if ex */
-	if (hdev->is_ex)
-		param = &(g_hdev[mipi_host_port_other(hdev)]->host.param);
-	else
+	if (hdev->is_ex) {
+		poth = mipi_host_port_other(hdev);
+		if(poth < 0)
+			return -1;
+		param = &(g_hdev[poth]->host.param);
+	} else {
 		param = &host->param;
+	}
 	/*Check that clock lane is in HS mode*/
 	do {
 		state = mipi_getreg(iomem + REG_MIPI_HOST_PHY_RX);
@@ -2275,13 +2288,16 @@ static int32_t mipi_host_dphy_start_hs_reception(mipi_hdev_t *hdev)
  */
 static int32_t mipi_host_start(mipi_hdev_t *hdev)
 {
+	if (!hdev)
+		return -1;
 	struct device *dev = hdev->dev;
 	mipi_host_t *host = &hdev->host;
 	mipi_host_param_t *param = &host->param;
 	void __iomem *iomem = host->iomem;
 	uint32_t nocheck;
+	int poth;
 
-	if (!hdev || !iomem)
+	if (!iomem)
 		return -1;
 
 	if (!hdev->is_ex && !param->need_stop_check && param->stop_check_instart) {
@@ -2291,8 +2307,11 @@ static int32_t mipi_host_start(mipi_hdev_t *hdev)
 			return -1;
 		}
 	}
+	poth = mipi_host_port_other(hdev);
+	if(poth < 0)
+		return -1;
 	nocheck = (hdev->is_ex) ?
-		g_hdev[mipi_host_port_other(hdev)]->host.param.nocheck : param->nocheck;
+		g_hdev[poth]->host.param.nocheck : param->nocheck;
 	if (!nocheck) {
 		if (0 != mipi_host_dphy_start_hs_reception(hdev)) {
 			mipierr("hs reception state error!!!");
@@ -2373,13 +2392,16 @@ static void mipi_host_deinit(mipi_hdev_t *hdev)
  */
 static int32_t mipi_host_init(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 {
+	if (!hdev)
+		return -1;
 	struct device *dev = hdev->dev;
 	mipi_host_t *host = &hdev->host;
 	mipi_host_param_t *param;
 	void __iomem  *iomem = host->iomem;
 	unsigned long pixclk = 0;
+	int poth;
 
-	if (!hdev || !iomem)
+	if (!iomem)
 		return -1;
 
 	mipiinfo("init begin");
@@ -2387,10 +2409,14 @@ static int32_t mipi_host_init(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 			 cfg->lane, cfg->width, cfg->height, cfg->fps, cfg->datatype);
 
 	/* param from main host if ex */
-	if (hdev->is_ex)
-		param = &(g_hdev[mipi_host_port_other(hdev)]->host.param);
-	else
+	if (hdev->is_ex) {
+		poth = mipi_host_port_other(hdev);
+		if(poth < 0)
+			return -1;
+		param = &(g_hdev[poth]->host.param);
+	} else {
 		param = &host->param;
+	}
 
 	if (!hdev->is_ex) {
 		/* cfg->mclk:
@@ -3346,22 +3372,22 @@ static ssize_t mipi_host_status_show(struct device *dev,
 				MH_REG_SHOW(INT_MSK_FRAME_FATAL);
 				MH_REG_SHOW(INT_MSK_PKT);
 			}
-			if (cfg->channel_num >= 0 && cfg->channel_sel[0] >= 0) {
-				MH_REG_SHOW(IPI_MODE);
-				MH_REG_SHOW(IPI_VCID);
-				MH_REG_SHOW(IPI_DATA_TYPE);
-				MH_REG_SHOW(IPI_MEM_FLUSH);
-				MH_REG_SHOW(IPI_HSA_TIME);
-				MH_REG_SHOW(IPI_HBP_TIME);
-				MH_REG_SHOW(IPI_HSD_TIME);
-				MH_REG_SHOW(IPI_HLINE_TIME);
-				MH_REG_SHOW(IPI_ADV_FEATURES);
-				MH_REG_SHOW(IPI_VSA_LINES);
-				MH_REG_SHOW(IPI_VBP_LINES);
-				MH_REG_SHOW(IPI_VFP_LINES);
-				MH_REG_SHOW(IPI_VACTIVE_LINES);
-			}
-			if (cfg->channel_num > 1 && cfg->channel_sel[1] >= 0) {
+
+			MH_REG_SHOW(IPI_MODE);
+			MH_REG_SHOW(IPI_VCID);
+			MH_REG_SHOW(IPI_DATA_TYPE);
+			MH_REG_SHOW(IPI_MEM_FLUSH);
+			MH_REG_SHOW(IPI_HSA_TIME);
+			MH_REG_SHOW(IPI_HBP_TIME);
+			MH_REG_SHOW(IPI_HSD_TIME);
+			MH_REG_SHOW(IPI_HLINE_TIME);
+			MH_REG_SHOW(IPI_ADV_FEATURES);
+			MH_REG_SHOW(IPI_VSA_LINES);
+			MH_REG_SHOW(IPI_VBP_LINES);
+			MH_REG_SHOW(IPI_VFP_LINES);
+			MH_REG_SHOW(IPI_VACTIVE_LINES);
+
+			if (cfg->channel_num > 1) {
 				MH_REG_SHOW(IPI2_MODE);
 				MH_REG_SHOW(IPI2_VCID);
 				MH_REG_SHOW(IPI2_DATA_TYPE);
@@ -3371,7 +3397,7 @@ static ssize_t mipi_host_status_show(struct device *dev,
 				MH_REG_SHOW(IPI2_HSD_TIME);
 				MH_REG_SHOW(IPI2_ADV_FEATURES);
 			}
-			if (cfg->channel_num > 2 && cfg->channel_sel[2] >= 0) {
+			if (cfg->channel_num > 2) {
 				MH_REG_SHOW(IPI3_MODE);
 				MH_REG_SHOW(IPI3_VCID);
 				MH_REG_SHOW(IPI3_DATA_TYPE);
@@ -3381,7 +3407,7 @@ static ssize_t mipi_host_status_show(struct device *dev,
 				MH_REG_SHOW(IPI3_HSD_TIME);
 				MH_REG_SHOW(IPI3_ADV_FEATURES);
 			}
-			if (cfg->channel_num > 3 && cfg->channel_sel[3] >= 0) {
+			if (cfg->channel_num > 3) {
 				MH_REG_SHOW(IPI4_MODE);
 				MH_REG_SHOW(IPI4_VCID);
 				MH_REG_SHOW(IPI4_DATA_TYPE);

@@ -321,7 +321,7 @@ static int dwe_v4l2_querybuf(void *priv, struct v4l2_buffer *p)
 	dwe_charmod_s *sp = priv;
 
 	rc = vb2_querybuf(&sp->vb2_q, p);
-	LOG(LOG_DEBUG, "querybuf p->type:%d p->index:%d p->length , rc %d",
+	LOG(LOG_DEBUG, "querybuf p->type:%d p->index:%d p->length %d, rc %d",
 		p->type, p->index, p->length, rc);
 	return rc;
 }
@@ -619,7 +619,7 @@ const struct file_operations dwe_fops = {
 static int dwe_probe(struct platform_device *dev)
 {
         int ret = 0;
-	uint32_t port = 0;
+	    int port = 0;
 
 	if (strstr(dev->name, "dwe_sbuf0") != 0) {
 		port = 0;
@@ -639,21 +639,16 @@ static int dwe_probe(struct platform_device *dev)
 		port = 7;
 	}
 
-	if (port < FIRMWARE_CONTEXT_NUMBER) { /*PRQA S 2995,2991 ++*/
-		ret = register_chrdev(0, dev->name, &dwe_fops);
-		if (ret < 0) {
-			return ret;
-		}
-
-		dwe_mod[port]->dev_minor_id = ret;
-		device_create(vps_class, NULL, MKDEV(dwe_mod[port]->dev_minor_id, 0),
-			NULL, "dwe_sbuf%d", port);
-		ret = of_dma_configure(&dev->dev, dev->dev.of_node);
-	} else {
-		ret = -EINVAL;
+	ret = register_chrdev(0, dev->name, &dwe_fops);
+	if (ret < 0) {
+		return ret;
 	}
 
-        return 0;
+	dwe_mod[port]->dev_minor_id = ret;
+	device_create(vps_class, NULL, MKDEV(dwe_mod[port]->dev_minor_id, 0),
+		NULL, "dwe_sbuf%d", port);
+	ret = of_dma_configure(&dev->dev, dev->dev.of_node);
+    return 0;
 }
 
 static int dwe_remove(struct platform_device *dev)

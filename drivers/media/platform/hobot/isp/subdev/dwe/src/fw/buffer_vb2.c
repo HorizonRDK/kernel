@@ -91,7 +91,7 @@ static int dwe_vb2_buf_prepare(struct vb2_buffer *vb)
 		}
 
 		vb2_set_plane_payload(vb, 0, size);
-		LOG(LOG_INFO, "single plane payload set %d", size);
+		LOG(LOG_INFO, "single plane payload set %lu", size);
 	} else if (vfmt.type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
 		for (i = 0; i < vfmt.fmt.pix_mp.num_planes; i++) {
 			size = vfmt.fmt.pix_mp.plane_fmt[i].sizeimage;
@@ -101,7 +101,7 @@ static int dwe_vb2_buf_prepare(struct vb2_buffer *vb)
 				return -EINVAL;
 			}
 			vb2_set_plane_payload(vb, i, size);
-			LOG(LOG_INFO, "i:%d payload set %d", i, size);
+			LOG(LOG_INFO, "i:%d payload set %lu", i, size);
 		}
 	}
 

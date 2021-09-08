@@ -1521,6 +1521,10 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 	}
 	if(splice_enable) {
 		for (i = 0; i < pipe_num; i++) {
+			if(mux_index + 1 + i > 7) {
+				vio_err("splice mode, mux_index %d exceed 8 mux", mux_index);
+				return -1;
+			}
 			subdev->splice_info.mux_index[i] = mux_index + 1 + i;
 			subdev->splice_info.splice_rx_index[i] =
 				sif_config->input.splice.mipi_rx_index[i];
@@ -2264,7 +2268,7 @@ int sif_set_pattern_cfg(struct sif_video_ctx *sif_ctx, unsigned long arg)
 		return -EFAULT;
 	}
 
-	if (cfg.instance > VIO_MAX_STREAM) {
+	if (cfg.instance >= VIO_MAX_STREAM) {
 		vio_err("%s : wrong instance %d\n", __func__, cfg.instance);
 		return -EFAULT;
 	}
@@ -2291,6 +2295,7 @@ void sif_video_user_stats(struct sif_video_ctx *sif_ctx,
 	group = sif_ctx->group;
 	if (!sif || !group) {
 		vio_err("%s init err", __func__);
+		return;
 	}
 
 	if (sif_ctx->ctx_index == 0) {
@@ -3934,7 +3939,7 @@ static ssize_t vio_bind_info_store(struct device *dev,
 		memset(bind_info[pipe_num], 0,
 			sizeof(struct hb_bind_info_s) * HB_ID_MAX);
 	if (pipe_num == MAX_VIO_DEV)
-		memset(&bind_info[0][0], 0,
+		memset(&bind_dev->bind_info, 0,
 			sizeof(struct hb_bind_info_s) *\
 			HB_ID_MAX * MAX_VIO_DEV);
 

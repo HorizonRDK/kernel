@@ -45,15 +45,15 @@ typedef struct _mipi_host_ipi_reset_t {
 } mipi_host_ipi_reset_t;
 
 typedef struct _mipi_host_ipi_info_t {
-	uint16_t index;
-	uint16_t fatal;
-	uint16_t mode;
-	uint16_t vc;
-	uint16_t datatype;
-	uint16_t hsa;
-	uint16_t hbp;
-	uint16_t hsd;
-	uint32_t adv;
+	uint8_t index;
+    uint8_t vc;
+    uint16_t fatal;
+    uint16_t datatype;
+    uint16_t hsa;
+    uint16_t hbp;
+    uint16_t hsd;
+    uint32_t adv;
+    uint32_t mode;
 } mipi_host_ipi_info_t;
 
 typedef struct _mipi_host_sigpid_t {

@@ -930,7 +930,7 @@ int ldc_hwpath_set(dwe_context_t *ctx, uint32_t port)
 
 	// if size is zero, disable irq.
 	if ((dwe_param[port].ldc_param.picsize.size_b.pic_w == 0) ||
-		(dwe_param[port].ldc_param.picsize.size_b.pic_w == 0)) {
+		(dwe_param[port].ldc_param.picsize.size_b.pic_h == 0)) {
 		set_tmp = 0x0;
 		set_ldc_int_mask(dev_ptr->ldc_dev->io_vaddr, &set_tmp);
 	} else {

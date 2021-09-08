@@ -358,9 +358,6 @@ void sif_start_pattern_gen(u32 __iomem *base_reg, u32 pat_index)
 				vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN_ENABLE],
 						&sif_fields[SW_PAT_GEN4_ENABLE], 1);
 				break;
-			default:
-				vio_err("wrong pat index %d\n", s_enable_pattern_gen);
-
 		}
     }
 }
@@ -1499,9 +1496,11 @@ static void sif_disable_input_and_output(u32 __iomem *base_reg)
 			mdelay(1);
 			vio_info("wait for SIF idle");
 			continue;
+		} else {
+			break;
 		}
 		vio_err("Timeout to wait idle: 1s");
-	} while(0);
+	} while (1);
 }
 
 void sif_disable_isp_out_config(u32 __iomem *base_reg)

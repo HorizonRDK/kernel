@@ -1367,7 +1367,7 @@ static int x3vio_mipi_set_lanemode(int type, int port, int lanemode)
 		spin_lock_irqsave(&dphy->lock, flags);
 		val = readl(dphy->iomem + REG_X3VIO_MIPI_TX_DPHY_CTRL);
 		val &= ~DP_VMASK(X3VIO, TX_DPHY_SEL);
-		val = DP_V2REG(X3VIO, TX_DPHY_SEL, lanemode);
+		val |= DP_V2REG(X3VIO, TX_DPHY_SEL, lanemode);
 		writel(val, dphy->iomem + REG_X3VIO_MIPI_TX_DPHY_CTRL);
 		spin_unlock_irqrestore(&dphy->lock, flags);
 	} else {
@@ -2009,7 +2009,7 @@ static int hobot_mipi_dphy_probe_cdev(void)
 	pdev->devno = MKDEV(g_mp_major, 0);
 	cdev_init(p_cdev, &hobot_mipi_dphy_regs_fops);
 	p_cdev->owner = THIS_MODULE;
-	ret = cdev_add(p_cdev, devno, 1);
+	ret = cdev_add(p_cdev, pdev->devno, 1);
 	if (ret) {
 		pr_err("[%s] cdev add error %d\n", __func__, ret);
 		goto err_add;

@@ -139,7 +139,7 @@ typedef struct _ldc_setting_s {
 	uint32_t rg_redirect_3: 2;
 	uint32_t reserverved0: 7;
 	uint32_t rg_update_select: 1;
-} ldc_setting_s; 
+} ldc_setting_s;
 
 typedef union _ldc_setting_u {
 	uint32_t set_g;
@@ -252,7 +252,7 @@ static __inline void set_chn_ldc_param(char __iomem *regbase,
 		ldc_write_buffer(regbase, (model_sw + LDC_IMAGE_SIZE_0),
 			(uint32_t *)param + 4, 5);
 		ldc_write_buffer(regbase, (model_sw + LDC_IN_WOI_X_0),
-			(uint32_t *)param + 9, 3);
+			(uint32_t *)param + 9, 2);
 	}
 }
 
