@@ -181,10 +181,7 @@ int sensor_i2c_read(uint8_t chn, uint16_t reg_addr, uint8_t bit_width, char *buf
 			goto failed;
 	}
 	
-	if (ret < 0)
-		return ret;
-	
-        ret = i2c_master_recv(client[chn], buf, count);
+    ret = i2c_master_recv(client[chn], buf, count);
 	
 	if(ret != count) {
 		LOG(LOG_ERR, "read failed !");

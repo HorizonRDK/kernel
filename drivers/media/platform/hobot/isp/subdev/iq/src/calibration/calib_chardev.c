@@ -473,10 +473,12 @@ static long calib_fops_ioctl(struct file *file, unsigned int cmd, unsigned long 
 
 arg_err:
 	rc = -CALIB_NULL_ERR;
+	mutex_unlock( &p_ctx->fops_lock );
+	return rc;
 copy_err:
 	rc = -CALIB_COPY_ERR;
 	mutex_unlock( &p_ctx->fops_lock );
-	return -1;
+	return rc;
 }
 
 

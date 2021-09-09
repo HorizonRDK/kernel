@@ -160,7 +160,7 @@ void sensor_sw_init( sensor_fsm_ptr_t p_fsm )
     bitwidth = (param.modes_table[param.mode].bits - 8) / 2;
     if (bitwidth == 6)
         bitwidth = 5;
-    if (0 <= bitwidth && bitwidth <= 5)
+    if (bitwidth <= 5)
         acamera_isp_input_formatter_input_bitwidth_select_write(p_fsm->cmn.isp_base, bitwidth);
 /*
     acamera_isp_input_port_hc_size0_write( p_fsm->cmn.isp_base, param.active.width );

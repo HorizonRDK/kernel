@@ -44,6 +44,9 @@ if (!isp_open_check())
 	return -1;
 
 acamera_fsm_mgr_t *instance = &p_ctx->fsm_mgr;
+if (instance == NULL)
+	return -1;
+
 uint8_t ret = NOT_EXISTS;
 switch (command_type){
 case  TGENERAL:

@@ -55,6 +55,10 @@ static int camera_fop_open(struct inode *pinode, struct file *pfile)
 				break;
 			}
 	}
+	if (camera_cdev == NULL) {
+		pr_err("camera cdev null\n");
+		return -EINVAL;
+	}
 	mutex_lock(&camera_cdev->slock);
 	if (camera_cdev->user_num > 0) {
 		pr_info("more than one pthred use !\n");
@@ -497,7 +501,7 @@ int __init camera_dev_init(uint32_t port)
 {
 	int ret = 0;
 
-	if (port > CAMERA_TOTAL_NUMBER) {
+	if (port >= CAMERA_TOTAL_NUMBER) {
 		return -ENXIO;
 	}
 	camera_mod[port] = kzalloc(sizeof(camera_charmod_s), GFP_KERNEL);

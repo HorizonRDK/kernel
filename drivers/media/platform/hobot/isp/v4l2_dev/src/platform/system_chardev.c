@@ -841,6 +841,7 @@ buf_free:
 			sizeof(isp_irq_wait_s))) {
 			LOG(LOG_ERR, "copy is err !\n");
 			ret = -EINVAL;
+			break;
 		}
 		ret = isp_irq_wait_for_completion(isp_wait_info.ctx_id, isp_wait_info.irq_type, isp_wait_info.time_out);
 	}

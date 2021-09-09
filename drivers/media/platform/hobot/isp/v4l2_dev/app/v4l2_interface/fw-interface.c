@@ -200,9 +200,8 @@ int fw_intf_isp_get_sensor_info( uint32_t ctx_id, isp_v4l2_sensor_info *sensor_i
                 break;
             }
         }
+        pr_info("Sensor info current preset:%d v4l2 preset:%d", sensor_info->preset[i].fps_cur, sensor_info->preset_cur );
     }
-
-    pr_info("Sensor info current preset:%d v4l2 preset:%d", sensor_info->preset[i].fps_cur, sensor_info->preset_cur );
 
     //check current sensor settings
 
@@ -333,7 +332,7 @@ int fw_intf_stream_set_resolution( uint32_t ctx_id, const isp_v4l2_sensor_info *
 #if defined( TSENSOR ) && defined( SENSOR_PRESET )
         int result;
         uint32_t ret_val = 0;
-        uint32_t idx = 0x0;
+        int idx = 0;
 
         idx = sensor_info_get_idx(ctx_id, f);
         if (idx < 0) {
@@ -1624,7 +1623,7 @@ int fw_intf_cfa_pattern_ctrl(uint32_t ctx_id, uint32_t ctrl_val)
     if (MONOCHROME == ctrl_val)
         pattern = BAYER_RGGB;
 
-    if (BAYER_RGGB <= ctrl_val && ctrl_val <= BAYER_BGGR)
+    if (ctrl_val <= BAYER_BGGR)
         pattern = ctrl_val;
 
     acamera_isp_top_rggb_start_pre_mirror_write(ptr->settings.isp_base, pattern);

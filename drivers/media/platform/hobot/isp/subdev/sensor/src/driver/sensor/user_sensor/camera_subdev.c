@@ -307,7 +307,7 @@ static void common_disable_isp(uint8_t chn)
 static uint32_t common_read_register(uint8_t chn, uint32_t address)
 {
 	int ret = 0;
-	uint32_t value;
+	uint32_t value = 0;
 	struct sensor_arg settings;
 
 	if (common_subdev != NULL && chn < FIRMWARE_CONTEXT_NUMBER) {

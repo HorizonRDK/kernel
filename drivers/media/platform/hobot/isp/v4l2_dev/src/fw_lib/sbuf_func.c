@@ -749,7 +749,6 @@ static int sbuf_mgr_free( struct sbuf_mgr *p_sbuf_mgr )
         }
 
         vfree( p_sbuf_mgr->buf_allocated );
-        LOG( LOG_INFO, "sbuf alloc buffer %p is freed.", p_sbuf_mgr->buf_allocated );
         p_sbuf_mgr->buf_allocated = NULL;
         p_sbuf_mgr->buf_used = NULL;
         p_sbuf_mgr->sbuf_base = NULL;

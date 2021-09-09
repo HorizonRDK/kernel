@@ -58,7 +58,14 @@ static int ctrl_channel_fops_open( struct inode *inode, struct file *f )
 {
     int rc;
     int minor = iminor( inode );
-    struct ctrl_channel_dev_context *p_ctx = &ctrl_channel_ctx[minor];
+    struct ctrl_channel_dev_context *p_ctx;
+    
+    if (minor >= FIRMWARE_CONTEXT_NUMBER) {
+        LOG( LOG_ERR, "device minor %d invalid.", minor );
+        return -EINVAL;
+    }
+
+    p_ctx = &ctrl_channel_ctx[minor];
 
     LOG( LOG_INFO, "client is opening..., minor: %d.", minor );
 
@@ -96,7 +103,14 @@ static int ctrl_channel_fops_release( struct inode *inode, struct file *f )
 {
     int rc;
     int minor = iminor( inode );
-    struct ctrl_channel_dev_context *p_ctx = &ctrl_channel_ctx[minor];
+    struct ctrl_channel_dev_context *p_ctx;
+
+    if (minor >= FIRMWARE_CONTEXT_NUMBER) {
+        LOG( LOG_ERR, "device minor %d invalid.", minor );
+        return -EINVAL;
+    }
+
+    p_ctx = &ctrl_channel_ctx[minor];
 
     rc = mutex_lock_interruptible( &p_ctx->fops_lock );
     if ( rc ) {

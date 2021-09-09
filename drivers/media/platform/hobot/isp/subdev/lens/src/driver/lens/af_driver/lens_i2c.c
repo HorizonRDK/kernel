@@ -92,9 +92,6 @@ static int lens_i2c_read(const struct i2c_client *client, uint16_t reg_addr,
 		goto failed;
 	}
 
-	if (ret < 0)
-		return ret;
-
 	ret = i2c_master_recv(client, buf, count);
 	if(ret != count) {
 		LOG(LOG_ERR, "read failed !");
@@ -130,7 +127,7 @@ static int lens_i2c_write(const struct i2c_client *client, uint16_t reg_addr,
 	uint8_t bit_width, const char *buf, size_t count)
 {
 	int ret;
-	char tmp[10];
+	char tmp[12];
 
 	if (count > 10)
 		count = 10;

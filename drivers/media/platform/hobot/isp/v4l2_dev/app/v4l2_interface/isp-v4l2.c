@@ -174,7 +174,7 @@ static int isp_v4l2_fop_open( struct file *file )
     isp_v4l2_dev_t *dev = video_drvdata( file );
     struct isp_v4l2_fh *sp;
 
-    if (!(0 <= dev->ctx_id && dev->ctx_id < FIRMWARE_CONTEXT_NUMBER)) {
+    if (dev->ctx_id >= FIRMWARE_CONTEXT_NUMBER) {
         rc = -1;
         pr_err("ctx_id %d exceed valid range\n", dev->ctx_id);
         return rc;
@@ -246,7 +246,7 @@ vb2_q_fail:
     isp_v4l2_fh_release( file );
 
 fh_open_fail:
-	atomic_sub_return(1, &dev->opened);
+	atomic_dec(&dev->opened);
 	//isp hardware stop
 	if (isp_open_check() == 0) {
 		pm_qos_remove_request(&isp_pm_qos_req);
@@ -270,7 +270,7 @@ static int isp_v4l2_fop_close( struct file *file )
 	mutex_lock(&init_lock);
 
     dev->stream_mask &= ~( 1 << sp->stream_id );
-    atomic_sub_return( 1, &dev->opened );
+    atomic_dec( &dev->opened );
 
     //evt-thread will touch hardware when processing event, stop it first
     acamera_isp_evt_thread_stop(dev->ctx_id);
@@ -486,7 +486,7 @@ static int isp_v4l2_streamon( struct file *file, void *priv, enum v4l2_buf_type 
     int rc = 0;
 
     pr_info("ctx_id %d+\n", dev->ctx_id);
-    if (!(0 <= dev->ctx_id && dev->ctx_id < FIRMWARE_CONTEXT_NUMBER)) {
+    if (dev->ctx_id >= FIRMWARE_CONTEXT_NUMBER) {
         rc = -1;
         pr_err("ctx_id %d exceed valid range\n", dev->ctx_id);
         return rc;
@@ -541,7 +541,7 @@ static int _v4l2_stream_off(struct file *file)
     if (isp_v4l2_is_q_busy(&sp->vb2_q, file))
         return -EBUSY;
 
-    atomic_sub_return(1, &dev->stream_on_cnt);
+    atomic_dec(&dev->stream_on_cnt);
 
     /* Stop hardware */
     if (isp_stream_onoff_check() == 0) {

@@ -549,16 +549,7 @@ int32_t system_dma_sg_fwmem_setup( void *ctx, int32_t buff_loc, fwmem_addr_pair_
 
 void system_dma_unmap_sg( void *ctx )
 {//for FW_USE_HOBOT_DMA
-    if ( !ctx )
-        return;
-#if (HOBOT_DMA_SRAM_PA != HOBOT_DMA_SRAM_DEBUG_DRAM_MODE)
-    return;     // if use dma with sram, just return without unmap
-#endif
-    system_dma_device_t *system_dma_device = (system_dma_device_t *)ctx;
-    int32_t buff_loc = system_dma_device->buff_loc;
-    uint32_t direction = system_dma_device->direction;
-    uint32_t cur_fw_ctx_id = system_dma_device->cur_fw_ctx_id;
-    dma_unmap_sg( NULL, system_dma_device->sg_fwmem_table[cur_fw_ctx_id][buff_loc].sgl, system_dma_device->sg_fwmem_nents[cur_fw_ctx_id][buff_loc], direction );
+    return;
 }
 
 int32_t system_dma_copy_sg( void *ctx,

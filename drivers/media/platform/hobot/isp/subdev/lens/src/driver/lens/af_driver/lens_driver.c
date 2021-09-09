@@ -183,7 +183,7 @@ int fill_ctx_param(struct basic_control_ops **ops, struct motor_param_s *param,
 		if ((param->pulse_param.pulse_forward_dev != NULL) &&
 			(param->pulse_param.pulse_back_dev != NULL)) {
 			param->pulse_param.pulse_forward_num = ctx->pulse_param.pulse_forward_num;
-			param->pulse_param.pulse_forward_num = ctx->pulse_param.pulse_back_num;
+			param->pulse_param.pulse_back_num = ctx->pulse_param.pulse_back_num;
 			param->pulse_param.pulse_duty = ctx->pulse_param.pulse_duty;
 			param->pulse_param.pulse_period = ctx->pulse_param.pulse_period;
 			ret = 0;

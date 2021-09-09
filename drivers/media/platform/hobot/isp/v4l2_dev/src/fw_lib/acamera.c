@@ -750,7 +750,9 @@ static void dma_complete_context_func( void *arg )
         start_processing_frame(ctx_id);
     }
     dma_writer_config_done();
+#if (FW_USE_HOBOT_DMA == 0)
     system_dma_unmap_sg( arg );
+#endif
 }
 
 /*
@@ -778,7 +780,9 @@ static void dma_complete_metering_func( void *arg )
         start_processing_frame(ctx_id);
     }
     dma_writer_config_done();
+#if (FW_USE_HOBOT_DMA == 0)
     system_dma_unmap_sg( arg );
+#endif
     // after we finish transfer context and metering we can start processing the current data
 }
 
@@ -944,7 +948,7 @@ void _ctx_chn_idx_update(int ctx_id)
 {
     int i = 0;
     static uint8_t frame_list[FIRMWARE_CONTEXT_NUMBER] = {0};
-    acamera_context_ptr_t p_ctx, p_tmp;
+    acamera_context_ptr_t p_ctx, p_tmp = NULL;
 
     p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[ctx_id];
 
@@ -955,15 +959,17 @@ void _ctx_chn_idx_update(int ctx_id)
     }
 
     //if swap_ctx_id is invalid
-    p_tmp = (acamera_context_ptr_t)&g_firmware.fw_ctx[swap_ctx_id];
-    i = FIRMWARE_CONTEXT_NUMBER - 3;
-    while ((p_tmp->dma_chn_idx < 0 || !p_tmp->initialized) && i >= 0) {
-        swap_ctx_id = frame_list[i];
+    if (swap_ctx_id < FIRMWARE_CONTEXT_NUMBER)
         p_tmp = (acamera_context_ptr_t)&g_firmware.fw_ctx[swap_ctx_id];
+    i = FIRMWARE_CONTEXT_NUMBER - 3;
+    while (p_tmp && (p_tmp->dma_chn_idx < 0 || !p_tmp->initialized) && i >= 0) {
+        swap_ctx_id = frame_list[i];
+        if (swap_ctx_id < FIRMWARE_CONTEXT_NUMBER)
+            p_tmp = (acamera_context_ptr_t)&g_firmware.fw_ctx[swap_ctx_id];
         i--;
     }
 
-    if (p_tmp->dma_chn_idx < 0) {
+    if (p_tmp && p_tmp->dma_chn_idx < 0) {
         for(i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++) {
             p_tmp = (acamera_context_ptr_t)&g_firmware.fw_ctx[i];
             if (p_tmp->dma_chn_idx != -1) {
@@ -1114,6 +1120,11 @@ int sif_isp_ctx_sync_func(int ctx_id)
     acamera_fsm_mgr_t *instance;
     struct timeval tv1, tv2;
     general_fsm_ptr_t p_fsm;
+
+    if (ctx_id >= FIRMWARE_CONTEXT_NUMBER || last_ctx_id >= FIRMWARE_CONTEXT_NUMBER) {
+	pr_err("ctx_id %d or last_ctx_id %d is invalid.\n", ctx_id, last_ctx_id);
+	return -1;
+    }
 
     do_gettimeofday(&tv1);
 	mutex_lock(&g_firmware.ctx_chg_lock);

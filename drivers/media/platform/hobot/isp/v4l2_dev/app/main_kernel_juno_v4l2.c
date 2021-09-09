@@ -151,7 +151,7 @@ static void acamera_camera_async_unbind( struct v4l2_async_notifier *notifier,
 
     int idx = acamera_camera_v4l2_get_index_by_name( sd->name );
 
-    if ( strcmp( g_subdevs.soc_subdevs[idx]->name, V4L2_SOC_IQ_NAME ) != 0 ) { //any other subdevs need to stop firmware
+    if ( idx < V4L2_SOC_SUBDEV_NUMBER && strcmp( g_subdevs.soc_subdevs[idx]->name, V4L2_SOC_IQ_NAME ) != 0 ) { //any other subdevs need to stop firmware
         if ( v4l2devs_running == 1 ) {
             LOG( LOG_INFO, "stopping V4L2 firmware" );
             isp_v4l2_destroy_instance();
