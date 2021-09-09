@@ -54,6 +54,7 @@
  */
 static unsigned long cur_ddr_rate;
 static char ddr_method[DDR_METHOD_LEN] = "test";
+static DEFINE_PER_CPU(call_single_data_t, dfs_csd);
 
 typedef void(hobot_invoke_fn)(unsigned long, unsigned long, unsigned long,
 			unsigned long, unsigned long, unsigned long,
@@ -352,6 +353,8 @@ static void park_other_cpus(void)
 {
     int cpu;
 	struct cpumask mask;
+	call_single_data_t *csd;
+	int ret = 0;
 
     cpu = get_cpu();
 
@@ -363,10 +366,13 @@ static void park_other_cpus(void)
 
 	smp_mb();
 
-	for_each_cpu(cpu, &mask)
-		smp_call_function_single_irq_disabled(cpu,
-			spin_on_cpu, NULL, 0);
-
+	for_each_cpu(cpu, &mask) {
+		csd = &per_cpu(dfs_csd, cpu);
+		csd->func = spin_on_cpu;
+        ret = smp_call_function_single_async(cpu, csd);
+		if(ret < 0)
+			pr_err("single_async failed %d\n", ret);
+	}
 	put_cpu();
 }
 
