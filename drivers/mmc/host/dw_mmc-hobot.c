@@ -33,6 +33,12 @@
 #define DWMMC_MMC_ID			(1)
 #define DWMMC_SD1_ID			(2)
 #define DWMMC_SD2_ID			(3)
+#ifdef CONFIG_HOBOT_XJ3
+/* Maximum mmc device is 3, starting from 0 */
+#define MMC_MAX_ID				(2)
+#else
+#define MMC_MAX_ID				(1)
+#endif
 #define HOBOT_DW_MCI_FREQ_MAX		(200000000)
 #define HOBOT_SYSCTRL_REG		(0xA1000000)
 #define HOBOT_SD0_PHASE_REG		(0x320)
@@ -347,20 +353,25 @@ static int dw_mci_hb_sample_tuning(struct dw_mci_slot *slot, u32 opcode)
 		if (v) {
 			ranges[range_count - 1].end = i;
 			i++;
-		} else if (i == NUM_PHASES - 1) {
-			/* No extra skipping rules if we're at the end */
-			i++;
 		} else {
 			/*
 			 * No need to check too close to an invalid
 			 * one since testing bad phases is slow.  Skip
-			 * 20 degrees.
+			 * 20 degrees. Always test the last one.
 			 */
-			i += 1;
+			if (i != 15 && (i += 2) >= NUM_PHASES) {
+				prev_v = v;
+				hb_mmc_set_sample_phase(host, TUNING_ITERATION_TO_PHASE(NUM_PHASES - 1));
+				v = !mmc_send_tuning(mmc, opcode, NULL);
 
-			/* Always test the last one */
-			if (i >= NUM_PHASES)
-				i = NUM_PHASES - 1;
+				if ((!prev_v) && v) {
+					range_count++;
+					ranges[range_count - 1].start = i;
+				}
+
+				if (v)
+					ranges[range_count - 1].end = i;
+			}
 		}
 
 		prev_v = v;
@@ -563,8 +574,8 @@ static int dw_mci_hb_parse_dt(struct dw_mci *host)
 		return -ENOMEM;
 
 	priv->ctrl_id = of_alias_get_id(host->dev->of_node, "mmc");
-	if (priv->ctrl_id < 0)
-		priv->ctrl_id = 0;
+	if (priv->ctrl_id > MMC_MAX_ID)
+		return -EINVAL;
 
 	if (of_property_read_u32(np, "hobot,default-sample-phase",
 				 &priv->default_sample_phase))
@@ -594,7 +605,9 @@ static int dw_mci_hb_parse_dt(struct dw_mci *host)
 	of_val = 0;
 	if (!device_property_read_u32(host->dev, "powerup-gpio", &of_val)) {
 		priv->powerup_gpio = of_val;
-		gpio_request(priv->powerup_gpio, "sd-power");
+		if(gpio_request(priv->powerup_gpio, "sd-power"))
+			dev_err(host->dev, "request sd-power gpio failed!\n");
+
 		if (priv->ctrl_id == DWMMC_SD1_ID) {
 			hb_mmc_set_power(priv, 0);
 			hb_mmc_set_power(priv, 1);
@@ -611,7 +624,8 @@ static int dw_mci_hb_parse_dt(struct dw_mci *host)
 	of_val = 0;
 	if (!device_property_read_u32(host->dev, "uhs-180v-gpio", &of_val)) {
 		priv->uhs_180v_gpio = of_val;
-		gpio_request(priv->uhs_180v_gpio, NULL);
+		if (gpio_request(priv->uhs_180v_gpio, NULL))
+			dev_err(host->dev, "request uhs-180v-gpio failed!\n");
 	}
 
 	if (!device_property_read_u32
@@ -621,7 +635,8 @@ static int dw_mci_hb_parse_dt(struct dw_mci *host)
 
     priv->pin_ctrl = devm_pinctrl_get(host->dev);
     if (IS_ERR(priv->pin_ctrl)) {
-        priv->pin_ctrl = NULL;
+        dev_err(host->dev, "pin_ctrl not found!\n");
+		return -ENODEV;
     }
 
     priv->pin_state_1_8v = pinctrl_lookup_state(priv->pin_ctrl, "voltage_1_8v");
@@ -804,6 +819,11 @@ static int dw_mci_hobot_probe(struct platform_device *pdev)
 	dev_info(&pdev->dev, "ver: %s\n", VER);
 
 	match = of_match_node(dw_mci_hobot_match, pdev->dev.of_node);
+	if (match == NULL) {
+		dev_err(&pdev->dev, "of_match_node returned NULL!\n");
+		return -ENODEV;
+	}
+
 	drv_data = match->data;
 
 	pm_runtime_get_noresume(&pdev->dev);

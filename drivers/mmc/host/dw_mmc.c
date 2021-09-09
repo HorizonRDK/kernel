@@ -3296,10 +3296,11 @@ static struct dw_mci_board *dw_mci_parse_dt(struct dw_mci *host)
 		dev_info(dev,
 			 "fifo-depth property not found, using value of FIFOTH register as default\n");
 
-	device_property_read_u32(dev, "card-detect-delay",
-				 &pdata->detect_delay_ms);
+	if (device_property_read_u32(dev, "card-detect-delay", &pdata->detect_delay_ms))
+		dev_info(dev, "card-detect-delay not found.\n");
 
-	device_property_read_u32(dev, "data-addr", &host->data_addr_override);
+	if (device_property_read_u32(dev, "data-addr", &host->data_addr_override))
+		dev_info(dev, "data-addr not found.\n");
 
 	if (device_property_present(dev, "fifo-watermark-aligned"))
 		host->wm_aligned = true;
