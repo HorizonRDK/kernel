@@ -146,7 +146,7 @@ int vio_group_task_start(struct vio_group_task *group_task)
 {
 	int ret = 0;
 	char name[30];
-	struct sched_param param;
+	struct sched_param param = {0};
 
 	if(group_task->id == GROUP_ID_SIF_OUT) {
 		param.sched_priority = SIF_OUT_TASK_PRIORITY;

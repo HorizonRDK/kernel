@@ -408,10 +408,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 		}
 		if (group->group_scenario == VIO_GROUP_SIF_OFF_ISP_ON_IPU_ON_PYM ||
 				group->group_scenario == VIO_GROUP_SIF_OFF_ISP_ON_IPU_OFF_PYM) {
-			if (group != NULL)
-				vio_group_done(group);
-			else
-				vio_info("ipu group already NULL\n");
+			vio_group_done(group);
 		}
 
 		vio_reset_module(group->id);
@@ -2067,8 +2064,6 @@ void ipu_update_hw_param(struct ipu_subdev *subdev)
 				ds_info = &ipu_cfg->ds_info[i-2];
 				ipu_update_ds_param(subdev, ds_info);
 				break;
-			default:
-				break;
 			}
 		}
 	}
@@ -2745,7 +2740,6 @@ try_releas_ion:
 			x3_ipu_try_release_process_ion(ipu_ctx, frame_array_addr);
 	}
 	return ret;
-<<<<<<< HEAD
 }
 
 int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
@@ -2768,6 +2762,9 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	ctx_index = ipu_ctx->ctx_index;
 	ipu = ipu_ctx->ipu_dev;
 	group = ipu_ctx->group;
+
+	if (group == NULL || subdev == NULL)
+		return -EFAULT;
 
 	vio_set_stat_info(group->instance, IPU_MOD,
 		event_ipu_dq + subdev->id, group->frameid.frame_id,
@@ -2851,12 +2848,12 @@ int ipu_video_dqbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 		return ret;
 	} else {
 		if (atomic_read(&subdev->refcount) == 1) {
-			if (subdev && subdev->frame_is_skipped) {
-				subdev->frame_is_skipped = false;
-				framemgr_x_barrier_irqr(framemgr, 0, flags);
+			if (subdev->frame_is_skipped) {
 				ret = -ENODATA;
+				subdev->frame_is_skipped = false;
+				framemgr_x_barrier_irqr(framemgr, 0UL, flags);
 			} else {
-				framemgr_x_barrier_irqr(framemgr, 0, flags);
+				framemgr_x_barrier_irqr(framemgr, 0UL, flags);
 				ret = -EFAULT;
 				vio_err("[S%d][V%d] %s (p%d) complete empty.",
 					ipu_ctx->group->instance, ipu_ctx->id, __func__,

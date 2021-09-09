@@ -79,7 +79,7 @@ static int x3_gdc_open(struct inode *inode, struct file *file)
 	if (group == NULL) {
 		ret = -EBUSY;
 		vio_err("can get free group\n");
-		goto p_err;
+		goto p_err_free;
 	}
 
 	group->sub_ctx[0] = gdc_ctx;
@@ -94,7 +94,7 @@ static int x3_gdc_open(struct inode *inode, struct file *file)
 	ret = mutex_lock_interruptible(&gdc->gdc_mutex);
 	if (ret) {
 		vio_err("gdc mutex lock error\n");
-		goto p_err;
+		goto p_err_free;
 	}
 	vio_dwe_clk_enable();
 	vio_gdc_clk_enable(gdc->hw_id);
@@ -102,6 +102,10 @@ static int x3_gdc_open(struct inode *inode, struct file *file)
 	write_gdc_mask(gdc->hw_id, &enbale);
 
 	vio_info("GDC%d open node\n", gdc->hw_id);
+
+	return ret;
+p_err_free:
+	kfree(gdc_ctx);
 p_err:
 	return ret;
 }
@@ -348,6 +352,8 @@ int gdc_process(struct x3_gdc_dev *gdc_dev, gdc_settings_t *gdc_settings)
 			>> gdc_settings->gdc_config.div_height;
 		gdc_set_rdma2_img_addr(base_addr, input_addr[2]);
 		gdc_set_rdma2_line_offset(base_addr, lineoffset);
+		vio_dbg("GDC data3in lineoffset:%d, height:%d\n",/*PRQA S ALL*/
+			lineoffset, height);
 	}
 	//outputs
 	if (num_input >= 1) {
@@ -368,6 +374,8 @@ int gdc_process(struct x3_gdc_dev *gdc_dev, gdc_settings_t *gdc_settings)
 		gdc_set_wdma0_line_offset(base_addr, lineoffset);
 		vio_dbg("GDC out1: data1out_addr_write:%x\n",/*PRQA S ALL*/
 			 gdc_settings->Out_buffer_addr[0]);
+		vio_dbg("GDC out1 lineoffset:%d, height:%d\n",/*PRQA S ALL*/
+			lineoffset, height);
 	}
 
 	if (num_input >= 2 && gdc_settings->gdc_config.sequential_mode == 0) {
@@ -383,6 +391,8 @@ int gdc_process(struct x3_gdc_dev *gdc_dev, gdc_settings_t *gdc_settings)
 		gdc_set_wdma1_line_offset(base_addr, lineoffset);
 		vio_dbg("GDC out2: data2out_addr_write:%x\n",/*PRQA S ALL*/
 			 gdc_settings->Out_buffer_addr[1]);
+		vio_dbg("GDC out2 lineoffset:%d, height:%d\n",/*PRQA S ALL*/
+			lineoffset, height);
 	}
 
 	if (num_input >= 3 && gdc_settings->gdc_config.sequential_mode == 0) {
@@ -395,6 +405,8 @@ int gdc_process(struct x3_gdc_dev *gdc_dev, gdc_settings_t *gdc_settings)
 		gdc_set_wdma2_line_offset(base_addr, lineoffset);
 		vio_dbg("out2: data2out_addr_write:%x\n",/*PRQA S ALL*/
 			 gdc_settings->Out_buffer_addr[1]);
+		vio_dbg("GDC out3 lineoffset:%d, height:%d\n",/*PRQA S ALL*/
+			lineoffset, height);
 	}
 
 	if (gdc_settings->gdc_config.sequential_mode == 1) {			//update the planes position

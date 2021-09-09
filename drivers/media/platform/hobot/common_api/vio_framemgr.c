@@ -423,7 +423,8 @@ int frame_manager_open_mp(struct vio_framemgr *this, u32 buffers,
 	// find the first continuous index for buffers
 	ind_fst = 0;
 	for (i = 0; i < VIO_MP_MAX_FRAMES; i++) {
-		if (this->index_state[i] == FRAME_IND_FREE) {
+		if (this->index_state[i] == FRAME_IND_FREE &&
+				((i + buffers) <= VIO_MP_MAX_FRAMES)) {
 			for (j = i; j < (i + buffers); j++) {
 				if (this->index_state[j] != FRAME_IND_FREE)
 					break;

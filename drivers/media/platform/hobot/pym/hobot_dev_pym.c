@@ -336,10 +336,7 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 		}
 		if (group->group_scenario == VIO_GROUP_SIF_OFF_ISP_ON_IPU_ON_PYM ||
 				group->group_scenario == VIO_GROUP_SIF_OFF_ISP_ON_IPU_OFF_PYM) {
-			if (group != NULL)
-				vio_group_done(group);
-			else
-				vio_info("pym group already NULL\n");
+			vio_group_done(group);
 		}
 		pym_hw_enable(pym, false);
 		vio_reset_module(GROUP_ID_PYM);
@@ -693,7 +690,7 @@ void pym_update_param_ch(struct pym_subdev *subdev)
 		pym_ds_set_src_width(pym->base_reg, shadow_index, ch, roi_width);
 	} else if (pym_scale_ch->type == PYM_CH_US) {
 		ch = pym_scale_ch->ch;
-		if (ch > MAX_PYM_US_COUNT) {
+		if (ch >= MAX_PYM_US_COUNT) {
 			vio_err("%s us channel num err %d", __func__, ch);
 			pym_set_shd_rdy(pym->base_reg, shadow_index, 1);
 			return;
@@ -1597,6 +1594,7 @@ int pym_update_ch_scale_info(struct pym_video_ctx *pym_ctx, unsigned long arg)
 	subdev = pym_ctx->subdev;
 	if (!group || !subdev) {
 		vio_err("%s init err", __func__);
+		return -EFAULT;
 	}
 
 	pym_config_ch = &subdev->pym_cfg_ch; /*PRQA S ALL*/
