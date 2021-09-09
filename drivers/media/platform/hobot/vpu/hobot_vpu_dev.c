@@ -502,6 +502,7 @@ static int wave_sleep_wake(hb_vpu_dev_t *dev, u32 core, int mode)
 		u32 codeSize;
 
 		VPU_WRITEL(W5_PO_CONF, 0);
+#if 0
 		for (i = W5_CMD_REG_END; i < W5_CMD_REG_END; i++) {
 #if defined(SUPPORT_SW_UART) || defined(SUPPORT_SW_UART_V2)
 			if (i == W5_SW_UART_STATUS)
@@ -514,6 +515,7 @@ static int wave_sleep_wake(hb_vpu_dev_t *dev, u32 core, int mode)
 
 			VPU_WRITEL(i, 0);
 		}
+#endif
 		codeBase = dev->common_memory.phys_addr;
 		codeSize = (WAVE5_MAX_CODE_BUF_SIZE&~0xfff);
 		remapSize = (codeSize >> 12) & 0x1ff;
@@ -1418,7 +1420,7 @@ static int vpu_free_instances(struct file *filp)
 			}
 			dev->vpu_open_ref_count--;
 			list_del(&vil->list);
-			test_and_clear_bit(vil->inst_idx, vpu_inst_bitmap);
+			clear_bit(vil->inst_idx, vpu_inst_bitmap);
 			dev->poll_event[vil->inst_idx] = LLONG_MIN;
 			wake_up_interruptible(&dev->poll_wait_q[vil->inst_idx]);
 			dev->poll_int_event[vil->inst_idx] = LLONG_MIN;
@@ -2568,6 +2570,7 @@ INTERRUPT_REMAIN_IN_QUEUE:
 	case VDI_IOCTL_GET_REGISTER_INFO:
 		{
 			hb_vpu_drv_buffer_t reg_buf;
+			memset(&reg_buf, 0, sizeof(hb_vpu_drv_buffer_t));
 			vpu_debug(5, "[+]VDI_IOCTL_GET_REGISTER_INFO\n");
 			reg_buf.phys_addr = dev->vpu_mem->start;
 			reg_buf.virt_addr = (unsigned long)dev->regs_base;
@@ -2655,8 +2658,7 @@ INTERRUPT_REMAIN_IN_QUEUE:
 			}
 			intr_inst_index = info.intr_inst_index;
 			priv = filp->private_data;
-			if (intr_inst_index >= 0 &&
-				intr_inst_index < MAX_NUM_VPU_INSTANCE) {
+			if (intr_inst_index < MAX_NUM_VPU_INSTANCE) {
 				if (info.intr_reason == 0) {
 					spin_lock(&dev->poll_wait_q[intr_inst_index].lock);
 					priv->inst_index = intr_inst_index;
@@ -2822,12 +2824,13 @@ static ssize_t vpu_write(struct file *filp, const char __user * buf, size_t len,
 				  bit_firmware_info->size,
 				  bit_firmware_info->bit_code[0]);
 
-			if (bit_firmware_info->core_idx > MAX_NUM_VPU_CORE) {
+			if (bit_firmware_info->core_idx >= MAX_NUM_VPU_CORE) {
 				vpu_err
 				    ("vpu_write coreIdx[%d] is exceeded than "
 				     "MAX_NUM_VPU_CORE[%d]\n",
 				     bit_firmware_info->core_idx,
 				     MAX_NUM_VPU_CORE);
+				kfree(bit_firmware_info);
 				return -ENODEV;
 			}
 
@@ -2908,7 +2911,7 @@ static int vpu_release(struct inode *inode, struct file *filp)
 			}
 
 			for (j = 0; j < MAX_NUM_VPU_INSTANCE; j++)
-				test_and_clear_bit(j, vpu_inst_bitmap);	// TODO should clear bit during every close
+				clear_bit(j, vpu_inst_bitmap);	// TODO should clear bit during every close
 #ifdef USE_VPU_CLOSE_INSTANCE_ONCE_ABNORMAL_RELEASE
 #ifdef USE_MUTEX_IN_KERNEL_SPACE
 			for (j = 0; j < VPUDRV_MUTEX_MAX; j++) {
@@ -3111,7 +3114,7 @@ static unsigned int vpu_poll(struct file *filp, struct poll_table_struct *wait)
 
 	priv = filp->private_data;
 	dev = priv->vpu_dev;
-	if (priv->inst_index < 0 || priv->inst_index >= MAX_NUM_VPU_INSTANCE) {
+	if (priv->inst_index >= MAX_NUM_VPU_INSTANCE) {
 		return EPOLLERR;
 	}
 	if (priv->is_irq_poll == 0) {

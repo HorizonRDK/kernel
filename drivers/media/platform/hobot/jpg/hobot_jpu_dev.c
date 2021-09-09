@@ -251,7 +251,7 @@ static int jpu_free_instances(struct file *filp)
 			}
 			dev->jpu_open_ref_count--;
 			list_del(&vil->list);
-			test_and_clear_bit(vil->inst_idx, jpu_inst_bitmap);
+			clear_bit(vil->inst_idx, jpu_inst_bitmap);
 			dev->poll_event[vil->inst_idx] = LLONG_MIN;
 			wake_up_interruptible(&dev->poll_wait_q[vil->inst_idx]);
 			wake_up_interruptible(&dev->poll_int_wait);
@@ -318,7 +318,7 @@ static irqreturn_t jpu_irq_handler(int irq, void *dev_id)
 			break;
 		}
 	}
-	if (i == MAX_HW_NUM_JPU_INSTANCE) {
+	if (i >= MAX_HW_NUM_JPU_INSTANCE) {
 		jpu_debug(7, "unknow INTERRUPT FLAG\n");
 #ifdef JPU_IRQ_CONTROL
 		enable_irq(dev->irq);
@@ -817,6 +817,7 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 	case JDI_IOCTL_GET_REGISTER_INFO:
 		{
 			hb_jpu_drv_buffer_t reg_buf;
+			memset(&reg_buf, 0, sizeof(hb_jpu_drv_buffer_t));
 			jpu_debug(5, "[+]JDI_IOCTL_GET_REGISTER_INFO\n");
 			reg_buf.phys_addr = dev->jpu_mem->start;
 			reg_buf.virt_addr = (unsigned long)dev->regs_base;
@@ -900,7 +901,7 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 			return -EFAULT;
 		}
 		inst_no = info.inst_idx;
-		if (inst_no >= 0 && inst_no < MAX_NUM_JPU_INSTANCE) {
+		if (inst_no < MAX_NUM_JPU_INSTANCE) {
 			if (info.intr_reason == 0) {
 				spin_lock(&dev->poll_wait_q[inst_no].lock);
 				priv->inst_index = inst_no;
@@ -1057,7 +1058,7 @@ static int jpu_release(struct inode *inode, struct file *filp)
 				dev->instance_pool.base = 0;
 			}
 			for (i = 0; i < MAX_NUM_JPU_INSTANCE; i++)
-				test_and_clear_bit(i, jpu_inst_bitmap);
+				clear_bit(i, jpu_inst_bitmap);
 			pm_qos_remove_request(&dev->jpu_pm_qos_req);
 			dev->total_poll = 0;
 			dev->total_release = 0;
@@ -1230,7 +1231,7 @@ static unsigned int jpu_poll(struct file *filp, struct poll_table_struct *wait)
 
 	priv = filp->private_data;
 	dev = priv->jpu_dev;
-	if (priv->inst_index < 0 || priv->inst_index >= MAX_NUM_JPU_INSTANCE) {
+	if (priv->inst_index >= MAX_NUM_JPU_INSTANCE) {
 		return EPOLLERR;
 	}
 
@@ -1723,7 +1724,6 @@ ERR_RESERVED_MEM:
 	ion_client_destroy(dev->jpu_ion_client);
 ERR_ION_CLIENT:
 #endif
-	hb_jpu_clk_put(dev);
 ERR_GET_CLK:
 	device_destroy(dev->jpu_class, dev->jpu_dev_num);
 ERR_CREATE_DEV:
