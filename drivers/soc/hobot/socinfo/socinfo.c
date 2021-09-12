@@ -148,13 +148,13 @@ ssize_t name_show(struct class *class,
 	index = simple_strtoul(som_name, NULL, 16);
 	switch (index) {
 	case SOM_TYPE_X3:
-		snprintf(name, sizeof(name), "%sx3", name);
+		snprintf(name + strlen(name), sizeof(name) - strlen(name), "x3");
 		break;
 	case SOM_TYPE_J3:
-		snprintf(name, sizeof(name), "%sj3", name);
+		snprintf(name + strlen(name), sizeof(name) - strlen(name), "j3");
 		break;
 	default:
-		snprintf(name, sizeof(name), "%sx3", name);
+		snprintf(name + strlen(name), sizeof(name) - strlen(name) , "x3");
 		break;
 	}
 
@@ -162,16 +162,16 @@ ssize_t name_show(struct class *class,
 	index = simple_strtoul(ddr_vender, NULL, 16);
 	switch (index) {
 	case DDR_MANU_HYNIX:
-		snprintf(name, sizeof(name), "%s-hynix", name);
+		snprintf(name + strlen(name), sizeof(name) - strlen(name), "-hynix");
 		break;
 	case DDR_MANU_MICRON:
-		snprintf(name, sizeof(name), "%s-micron", name);
+		snprintf(name + strlen(name), sizeof(name) - strlen(name), "-micron");
 		break;
 	case DDR_MANU_SAMSUNG:
-		snprintf(name, sizeof(name), "%s-samsung", name);
+		snprintf(name + strlen(name), sizeof(name) - strlen(name), "-samsung");
 		break;
 	default:
-		snprintf(name, sizeof(name), "%s-hynix", name);
+		snprintf(name + strlen(name), sizeof(name) - strlen(name), "-hynix");
 		break;
 	}
 
@@ -179,50 +179,50 @@ ssize_t name_show(struct class *class,
 	index = simple_strtoul(ddr_size, NULL, 16);
 	if (index == 0 || index > 4)
 		index = 1;
-	snprintf(name, sizeof(name), "%s%dG", name, index);
+	snprintf(name + strlen(name), sizeof(name)- strlen(name), "%dG", index);
 
 	/* add ddr freq */
 	index = simple_strtoul(ddr_freq, NULL, 16);
 	switch (index) {
 	case DDR_FREQC_667:
-		snprintf(name, sizeof(name), "%s-667", name);
+		snprintf(name + strlen(name), sizeof(name) - strlen(name), "-667");
 		break;
 	case DDR_FREQC_1600:
-		snprintf(name, sizeof(name), "%s-1600", name);
+		snprintf(name + strlen(name), sizeof(name) - strlen(name), "-1600");
 		break;
 	case DDR_FREQC_2133:
-		snprintf(name, sizeof(name), "%s-2133", name);
+		snprintf(name + strlen(name), sizeof(name) - strlen(name), "-2133");
 		break;
 	case DDR_FREQC_2666:
-		snprintf(name, sizeof(name), "%s-2666", name);
+		snprintf(name + strlen(name), sizeof(name) - strlen(name), "-2666");
 		break;
 	case DDR_FREQC_3200:
-		snprintf(name, sizeof(name), "%s-3200", name);
+		snprintf(name + strlen(name), sizeof(name) - strlen(name), "-3200");
 		break;
 	case DDR_FREQC_3600:
-		snprintf(name, sizeof(name), "%s-3600", name);
+		snprintf(name + strlen(name), sizeof(name) - strlen(name), "-3600");
 		break;
 	case DDR_FREQC_3733:
-		snprintf(name, sizeof(name), "%s-3733", name);
+		snprintf(name + strlen(name), sizeof(name) - strlen(name), "-3733");
 		break;
 	case DDR_FREQC_4266:
-		snprintf(name, sizeof(name), "%s-4266", name);
+		snprintf(name + strlen(name), sizeof(name) - strlen(name), "-4266");
 		break;
 	case DDR_FREQC_1866:
-		snprintf(name, sizeof(name), "%s-1866", name);
+		snprintf(name + strlen(name), sizeof(name) - strlen(name), "-1866");
 		break;
 	case DDR_FREQC_2400:
-		snprintf(name, sizeof(name), "%s-2400", name);
+		snprintf(name + strlen(name), sizeof(name) - strlen(name), "-2400");
 		break;
 	case DDR_FREQC_100:
-		snprintf(name, sizeof(name), "%s-100", name);
+		snprintf(name + strlen(name), sizeof(name) - strlen(name), "-100");
 		break;
 	case DDR_FREQC_2640:
-		snprintf(name, sizeof(name), "%s-2640", name);
+		snprintf(name + strlen(name), sizeof(name) - strlen(name), "-2640");
 		break;
 
 	default:
-		snprintf(name, sizeof(name), "%s-2666", name);
+		snprintf(name + strlen(name), sizeof(name) - strlen(name), "-2666");
 		break;
 	}
 
