@@ -147,6 +147,7 @@ void acamera_fw_mem_free(void)
 {
     acamera_firmware_t *fw_ptr = acamera_get_firmware_ptr();
 
+    mutex_lock(&fw_ptr->ctx_chg_lock);
     fw_ptr->first_frame = 0;
     fw_ptr->sw_frame_counter = 0;
     fw_ptr->initialized = 0;
@@ -162,6 +163,7 @@ void acamera_fw_mem_free(void)
         vfree((void *)fw_ptr->backup_context);
         fw_ptr->backup_context = NULL;
     }
+    mutex_unlock(&fw_ptr->ctx_chg_lock);
 }
 
 int acamera_fw_isp_stop(int ctx_id)
