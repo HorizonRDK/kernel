@@ -21,6 +21,12 @@
 #include <linux/slab.h>
 #include <linux/clk-provider.h>
 #include <linux/delay.h>
+#include <linux/cdev.h>
+#include <linux/ioctl.h>
+#include <linux/uaccess.h>
+#include <linux/device.h>
+#include <linux/string.h>
+
 
 /* the offset of pwm registers */
 #define LPWM_EN       0x00
@@ -38,8 +44,41 @@
 #define LPWM_PPS  4
 #define LPWM_NPIN 5
 
+#define LPWM_CLASS_NAME "hobot_lpwm_dev"
+
+struct lpwm_cdev_state {
+	unsigned int lpwm_num;
+	unsigned int period;
+	unsigned int duty_cycle;
+	bool enabled;
+};
+
+#define LPWM_CDEV_MAGIC 'L'
+#define LPWM_CDEV_INIT		_IOW(LPWM_CDEV_MAGIC, 0x12, unsigned int)
+#define LPWM_CDEV_DEINIT	_IOW(LPWM_CDEV_MAGIC, 0x13, unsigned int)
+#define LPWM_CONF_SINGLE	_IOW(LPWM_CDEV_MAGIC, 0x14, struct lpwm_cdev_state)
+#define LPWM_ENABLE_SINGLE	_IOW(LPWM_CDEV_MAGIC, 0x15, unsigned int)
+#define LPWM_DISABLE_SINGLE _IOW(LPWM_CDEV_MAGIC, 0x16, unsigned int)
+#define LPWM_SWTRIG			_IOW(LPWM_CDEV_MAGIC, 0x17, int)
+#define LPWM_PPSTRIG		_IOW(LPWM_CDEV_MAGIC, 0x18, int)
+#define LPWM_GET_STATE		_IOWR(LPWM_CDEV_MAGIC, 0x19, struct lpwm_cdev_state)
+#define LPWM_OFFSET_CONF	_IOW(LPWM_CDEV_MAGIC, 0x20, int)
+#define LPWM_OFFSET_STATE	_IOR(LPWM_CDEV_MAGIC, 0x21, int)
+
 unsigned int swtrig_period = 0;
 module_param(swtrig_period, uint, 0644);
+
+struct lpwm_chip_cdev {
+	const char	*name;
+	int major;
+	int minor;
+	struct cdev cdev;
+	struct device *dev;
+	dev_t dev_num;
+	struct class *lpwm_cls;
+	struct pwm_device *pwm[LPWM_NPWM];
+	struct hobot_lpwm_chip *lpwm;
+};
 
 struct hobot_lpwm_chip {
 	struct pwm_chip chip;
@@ -55,6 +94,339 @@ struct hobot_lpwm_chip {
 
 #define to_hobot_lpwm_chip(_chip) \
 	container_of(_chip, struct hobot_lpwm_chip, chip)
+
+
+#define to_lpwm_chip_cdev(_cdev) \
+	container_of(_cdev, struct lpwm_chip_cdev, cdev)
+
+static struct lpwm_chip_cdev *lpwm_cdev = NULL;
+
+//	Read / write function declaration
+static inline u32 hobot_lpwm_rd(struct hobot_lpwm_chip*, u32);
+static inline void hobot_lpwm_wr(struct hobot_lpwm_chip*, u32, u32);
+
+static int lpwm_chip_open(struct inode *pinode, struct file *pfile)
+{
+	struct lpwm_chip_cdev *lpwm_cdev_p;
+	lpwm_cdev_p = to_lpwm_chip_cdev(pinode->i_cdev);
+	pfile->private_data = lpwm_cdev_p;
+	return 0;
+}
+
+static int lpwm_chip_release(struct inode *pinode, struct file *pfile)
+{
+	pfile->private_data = NULL;
+	return 0;
+}
+
+static long lpwm_chip_ioctl(struct file *pfile, unsigned int cmd,
+												unsigned long args)
+{
+	int ret = 0;
+	void	__user *arg = (void __user *)args;
+	struct lpwm_chip_cdev *lpwm_cdev_pctl;
+
+	lpwm_cdev_pctl = pfile->private_data;
+
+	switch (cmd) {
+	case LPWM_CDEV_INIT:
+		{
+			unsigned int num;
+			if (copy_from_user(&num, arg, sizeof(unsigned int)))
+				return -EFAULT;
+
+			if (num > 3) {
+				pr_err("lpwm_num should be 0~3 \n");
+				return -ERANGE;
+			}
+
+			if (!lpwm_cdev_pctl->pwm[num]) {
+				lpwm_cdev_pctl->pwm[num] = pwm_request_from_chip(
+						&lpwm_cdev_pctl->lpwm->chip, num, "sysfs");
+				if (IS_ERR(lpwm_cdev_pctl->pwm[num])) {
+					pr_err("lpwm%u device request failed\n", num);
+					return PTR_ERR(lpwm_cdev_pctl->pwm[num]);
+				}
+				pr_debug("lpwm device request okay!!!\n");
+			} else {
+				pr_debug("lpwm device already exists!\n");
+			}
+		}
+		break;
+	case LPWM_CDEV_DEINIT:
+		{
+			unsigned int num;
+			if (copy_from_user(&num, arg, sizeof(unsigned int)))
+				return -EFAULT;
+
+			if (num > 3) {
+				pr_err("lpwm_num should be 0~3 \n");
+				return -ERANGE;
+			}
+
+			if (lpwm_cdev_pctl->pwm[num]) {
+				pwm_free(lpwm_cdev_pctl->pwm[num]);
+				lpwm_cdev_pctl->pwm[num] = NULL;
+				pr_debug("lpwm device free okay!!!\n");
+			} else {
+				pr_err("lpwm%u device not init!!!\n", num);
+				return -ENODEV;
+			}
+		}
+		break;
+	case LPWM_CONF_SINGLE:
+		{
+			struct lpwm_cdev_state cdev_state;
+			if (copy_from_user(&cdev_state, arg, sizeof(cdev_state)))
+				return -EFAULT;
+
+			if (cdev_state.lpwm_num > 3) {
+				pr_err("lpwm_num should be 0~3 \n");
+				return -ERANGE;
+			}
+
+			if (lpwm_cdev_pctl->pwm[cdev_state.lpwm_num]) {
+				ret = pwm_config(lpwm_cdev_pctl->pwm[cdev_state.lpwm_num],
+						cdev_state.duty_cycle, cdev_state.period);
+				if (ret) {
+					pr_err("\nError config lpwm%u!!!!\n", cdev_state.lpwm_num);
+					return ret;
+				}
+				pr_debug("lpwm_cdev config is okay!!!\n");
+			} else {
+				pr_err("\nlpwm_cdev:lpwm%u should be init first!!!!\n",
+						cdev_state.lpwm_num);
+				return -ENODEV;
+			}
+		}
+		break;
+	case LPWM_ENABLE_SINGLE:
+		{
+			unsigned int num;
+			if (copy_from_user(&num, arg, sizeof(unsigned int)))
+				return -EFAULT;
+
+			if (num > 3) {
+				pr_err("lpwm_num should be 0~3 \n");
+				return -ERANGE;
+			}
+
+			if (lpwm_cdev_pctl->pwm[num]) {
+				ret = pwm_enable(lpwm_cdev_pctl->pwm[num]);
+				if (ret) {
+					pr_err("\nError enable pwm%u!!!!\n", num);
+					return ret;
+				}
+				pr_debug("pwm enable is okay!!!\n");
+			} else {
+				pr_err("\nlpwm_cdev:lpwm%u should be init first!!!!\n", num);
+				return -ENODEV;
+			}
+		}
+		break;
+	case LPWM_DISABLE_SINGLE:
+		{
+			unsigned int num;
+			if (copy_from_user(&num, arg, sizeof(unsigned int)))
+				return -EFAULT;
+
+			if (num > 3) {
+				pr_err("lpwm_num should be 0~3 \n");
+				return -ERANGE;
+			}
+
+			if (lpwm_cdev_pctl->pwm[num]) {
+				pwm_disable(lpwm_cdev_pctl->pwm[num]);
+				pr_debug("pwm disable is okay!!!\n");
+			} else {
+				pr_err("\nlpwm_cdev:lpwm%u should be init first!!!!\n", num);
+				return -ENODEV;
+			}
+		}
+		break;
+	case LPWM_SWTRIG:
+		{
+			int val;
+			if (copy_from_user(&val, arg, sizeof(int)))
+				return -EFAULT;
+
+			pr_info("trigger lpwms, val:%d\n", val);
+			val = (val == 0) ? 1 : val;
+
+			if (swtrig_period) {
+				hrtimer_start(&lpwm_cdev_pctl->lpwm->swtrig_timer,
+						ms_to_ktime(swtrig_period), HRTIMER_MODE_REL);
+			}
+			hobot_lpwm_wr(lpwm_cdev_pctl->lpwm, LPWM_SW_TRIG, val);
+		}
+		break;
+	case LPWM_PPSTRIG:
+		{
+			int val;
+			if (copy_from_user(&val, arg, sizeof(int)))
+				return -EFAULT;
+
+			pr_info("pps trigger lpwms, val:%d\n", val);
+
+			if (val == 0) {
+				val = hobot_lpwm_rd(lpwm_cdev_pctl->lpwm, LPWM_EN);
+				val &= ~(LPWM_MODE_PPS_TRIG);
+			} else {
+				if (lpwm_cdev_pctl->lpwm->pinctrl != NULL &&
+						lpwm_cdev_pctl->lpwm->pins[LPWM_PPS] != NULL)
+					pinctrl_select_state(lpwm_cdev_pctl->lpwm->pinctrl,
+							lpwm_cdev_pctl->lpwm->pins[LPWM_PPS]);
+				udelay(100);
+				val = hobot_lpwm_rd(lpwm_cdev_pctl->lpwm, LPWM_EN);
+				val |= LPWM_MODE_PPS_TRIG;
+			}
+			hobot_lpwm_wr(lpwm_cdev_pctl->lpwm, LPWM_EN, val);
+		}
+		break;
+	case LPWM_GET_STATE:
+		{
+			struct lpwm_cdev_state cdev_state;
+			struct pwm_state prestate;
+			if (copy_from_user(&cdev_state, arg, sizeof(cdev_state)))
+				return -EFAULT;
+
+			if (cdev_state.lpwm_num > 3) {
+				pr_err("lpwm_num should be 0~3 \n");
+				return -ERANGE;
+			}
+
+			if (lpwm_cdev_pctl->pwm[cdev_state.lpwm_num]) {
+				pwm_get_state(lpwm_cdev_pctl->pwm[cdev_state.lpwm_num],
+								&prestate);
+				cdev_state.period = prestate.period;
+				cdev_state.duty_cycle = prestate.duty_cycle;
+				cdev_state.enabled = prestate.enabled;
+				if (copy_to_user(arg, &cdev_state, sizeof(cdev_state)))
+					return -EFAULT;
+
+				pr_debug("lpwm_cdev get state okay!!!\n");
+			} else {
+				pr_err("\nlpwm_cdev:lpwm%u should be init first!!!!\n",
+						cdev_state.lpwm_num);
+				return -ENODEV;
+			}
+		}
+		break;
+	case LPWM_OFFSET_CONF:
+		{
+			int offset_us[4];
+			int val;
+			int i;
+			if (copy_from_user(&offset_us, arg, sizeof(offset_us)))
+				return -EFAULT;
+
+			for (i = 0; i < LPWM_NPWM; i++) {
+				if (offset_us[i] < 10 || offset_us[i] > 40960) {
+					pr_info("lpwm offset should be in [10, 40960] us\n");
+					return -EINVAL;
+				}
+				lpwm_cdev_pctl->lpwm->offset[i] = offset_us[i];
+				val = hobot_lpwm_rd(lpwm_cdev_pctl->lpwm, (i * 0x4)
+									+ LPWM0_CFG);
+				val &= 0xFFFFF000;
+				val |= offset_us[i] / 10 - 1;
+				hobot_lpwm_wr(lpwm_cdev_pctl->lpwm, (i * 0x4) + LPWM0_CFG, val);
+			}
+		}
+		break;
+	case LPWM_OFFSET_STATE:
+		{
+			int offset_us[4];
+			int i;
+			for (i = 0; i < LPWM_NPWM; i++)
+				offset_us[i] = lpwm_cdev_pctl->lpwm->offset[i];
+
+			if (copy_to_user(arg, &offset_us, sizeof(offset_us)))
+				return -EFAULT;
+		}
+		break;
+	default:
+		break;
+	}
+	return ret;
+}
+
+static const struct file_operations lpwm_cdev_ops = {
+	.owner		= THIS_MODULE,
+	.open		= lpwm_chip_open,
+	.release	= lpwm_chip_release,
+	.unlocked_ioctl = lpwm_chip_ioctl,
+};
+
+static int lpwm_chip_cdev_create(struct hobot_lpwm_chip *lpwm)
+{
+	int ret = 0;
+	struct device *devf = NULL;
+
+	lpwm_cdev = devm_kzalloc(lpwm->chip.dev,
+			sizeof(struct lpwm_chip_cdev), GFP_KERNEL);
+	if (!lpwm_cdev) {
+		printk("no memory for lpwm_cdev\n");
+		return -ENOMEM;
+	}
+	memset(lpwm_cdev, 0, sizeof(struct lpwm_chip_cdev));
+
+	lpwm_cdev->lpwm = lpwm;
+	lpwm_cdev->dev = lpwm->chip.dev;
+	lpwm_cdev->name = "lpwm_cdev";
+
+	ret = alloc_chrdev_region(&lpwm_cdev->dev_num, 0, 1, lpwm_cdev->name);
+	if (!ret) {
+		lpwm_cdev->major = MAJOR(lpwm_cdev->dev_num);
+		lpwm_cdev->minor = MINOR(lpwm_cdev->dev_num);
+	} else {
+		pr_err("%s: error alloc chrdev region with return value %d!\n",
+				__func__, ret);
+		goto err;
+	}
+
+	cdev_init(&lpwm_cdev->cdev, &lpwm_cdev_ops);
+	lpwm_cdev->cdev.owner = THIS_MODULE;
+
+	ret = cdev_add(&lpwm_cdev->cdev, lpwm_cdev->dev_num, 1);
+	if (ret) {
+		unregister_chrdev_region(lpwm_cdev->dev_num, 1);
+		pr_err("%s: error add cdev with return value %d\n", __func__, ret);
+		goto err1;
+	}
+
+	lpwm_cdev->lpwm_cls = class_create(THIS_MODULE, LPWM_CLASS_NAME);
+	if (IS_ERR(lpwm_cdev->lpwm_cls))
+		return PTR_ERR(lpwm_cdev->lpwm_cls);
+
+	devf = device_create(lpwm_cdev->lpwm_cls, NULL,
+			lpwm_cdev->dev_num, NULL, lpwm_cdev->name);
+	if (IS_ERR(devf)) {
+		pr_err("%s: error create device!\n", __func__);
+		ret = -1;
+		goto err2;
+	}
+	return 0;
+err2:
+	cdev_del(&lpwm_cdev->cdev);
+err1:
+	unregister_chrdev_region(lpwm_cdev->dev_num, 1);
+err:
+	devm_kfree(lpwm->chip.dev, lpwm_cdev);
+	lpwm_cdev = NULL;
+	return ret;
+}
+
+static int lpwm_chip_cdev_remove(struct hobot_lpwm_chip *lpwm)
+{
+	cdev_del(&lpwm_cdev->cdev);
+	unregister_chrdev_region(lpwm_cdev->dev_num, 1);
+
+	devm_kfree(lpwm->chip.dev, lpwm_cdev);
+	lpwm_cdev = NULL;
+
+	return 0;
+}
 
 /* IO accessors */
 static inline u32 hobot_lpwm_rd(struct hobot_lpwm_chip *hobot_chip, u32 reg)
@@ -365,6 +737,8 @@ static int hobot_lpwm_probe(struct platform_device *pdev)
 
 	pr_info("%s registered\n", lpwm->name);
 
+	lpwm_chip_cdev_create(lpwm);
+
 	return 0;
 }
 
@@ -379,6 +753,9 @@ static int hobot_lpwm_remove(struct platform_device *pdev)
 	sysfs_remove_file(&pdev->dev.kobj, &dev_attr_lpwm_offset.attr);
 	sysfs_remove_file(&pdev->dev.kobj, &dev_attr_lpwm_swtrig.attr);
 	sysfs_remove_file(&pdev->dev.kobj, &dev_attr_lpwm_ppstrig.attr);
+
+	lpwm_chip_cdev_remove(lpwm);
+
 	return pwmchip_remove(&lpwm->chip);
 }
 
