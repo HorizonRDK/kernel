@@ -462,10 +462,12 @@ static long ion_dummy_ioctl(struct ion_client *client,
 int ion_check_in_heap_carveout(phys_addr_t start, size_t size)
 {
 	struct ion_platform_heap *cvt = &dummy_heaps[ION_HEAP_TYPE_CARVEOUT];
-	phys_addr_t cma_base;
-	size_t cma_size;
+	static phys_addr_t cma_base = 0;;
+	static size_t cma_size = 0;
 
-	ion_cma_get_info(hb_ion_dev, &cma_base, &cma_size);
+	/* only get cma info at first */
+	if (cma_base == 0 && cma_size == 0)
+		ion_cma_get_info(hb_ion_dev, &cma_base, &cma_size);
 
 	if ((start < cvt->base || start + size > cvt->base + cvt->size)
 			&& (start < cma_base || start + size > cma_base + cma_size))
