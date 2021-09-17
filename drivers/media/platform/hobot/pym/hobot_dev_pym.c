@@ -498,8 +498,13 @@ static void pym_frame_work(struct vio_group *group)
 			if (src_frame == NULL) {
 				framemgr_x_barrier_irqr(framemgr, 0, flags);
 				vio_err("%s there is no frame in src FS_REQUEST queue\n", __func__);
+				vio_group_done(group);
 				return;
 			}
+		} else {
+			framemgr_x_barrier_irqr(framemgr, 0, flags);
+			vio_group_done(group);
+			return;
 		}
 	}
 
@@ -513,7 +518,6 @@ static void pym_frame_work(struct vio_group *group)
 			frame->frameinfo.tv = src_frame->frameinfo.tv;
 			frame->frameinfo.height = src_frame->frameinfo.height;
 			frame->frameinfo.width = src_frame->frameinfo.width;
-			trans_frame(in_framemgr, src_frame, FS_PROCESS);
 		}
 
 		pym_set_shd_rdy(pym->base_reg, shadow_index, 0);
@@ -551,6 +555,15 @@ static void pym_frame_work(struct vio_group *group)
 			pym_set_rdma_start(pym->base_reg);
 
 		trans_frame(framemgr, frame, FS_PROCESS);
+	} else {
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
+		vio_err("pym dev no FS_REQUEST\n");
+		/* dma input vio_group_done trigger */
+		if (test_bit(PYM_DMA_INPUT, &pym->state)) {
+			vio_group_done(group);
+			vio_group_start_trigger_mp(group, src_frame);
+		}
+		return;
 	}
 end_req_to_pro:
 	vio_dbg("[S%d] work (%d %d %d %d %d)",
@@ -1122,7 +1135,7 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 	framemgr = pym_ctx->framemgr;
 	group = pym_ctx->group;
 	pym = pym_ctx->pym_dev;
-	/* pym src dev only use index 0 frame to save input frame info */
+	/* pym src dev only use frame to save input frame info */
 	if (pym_ctx->id == SUBDEV_ID_SRC) {
 		index = 0;
 	}
@@ -1143,15 +1156,18 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 
 	if (pym_ctx->id == SUBDEV_ID_SRC) {
 		framemgr_e_barrier_irqs(framemgr, 0, flags);
-		frame = framemgr->frames_mp[index];
+		frame = peek_frame(framemgr, FS_FREE);
 		if (frame != NULL) {
 			memcpy(&frame->frameinfo, frameinfo, sizeof(struct frame_info));
 			trans_frame(framemgr, frame, FS_REQUEST);
-		}
-		framemgr_x_barrier_irqr(framemgr, 0, flags);
-		/* offline pym, src dev start trigger */
-		if ( (group->leader) && (test_bit(PYM_DMA_INPUT, &pym->state)) ) {
-			vio_group_start_trigger_mp(group, frame);
+			framemgr_x_barrier_irqr(framemgr, 0, flags);
+			/* offline pym, src dev start trigger */
+			if ( (group->leader) && (test_bit(PYM_DMA_INPUT, &pym->state)) ) {
+				vio_group_start_trigger_mp(group, frame);
+			}
+		} else {
+			framemgr_x_barrier_irqr(framemgr, 0, flags);
+			vio_err("[S%d] pym src frame null\n", group->instance);
 		}
 		return 0;
 	}
@@ -1944,6 +1960,9 @@ void pym_frame_done(struct pym_subdev *subdev)
 	struct vio_frame_id frmid;
 	unsigned long poll_mask = 0;
 	struct timeval tmp_tv;
+	struct pym_subdev *in_subdev;
+	struct vio_framemgr *in_framemgr;
+	struct vio_frame *src_frame;
 
 	group = subdev->group;
 	pym = subdev->pym_dev;
@@ -1995,8 +2014,10 @@ void pym_frame_done(struct pym_subdev *subdev)
 					subdev->frameinfo.bufferindex = -1;
 					cache_frame->dispatch_mask = 0xFF00;
 					trans_frame(framemgr, cache_frame, FS_REQUEST);
-					if(group->leader == true)
+					if( group->leader == true &&
+						test_bit(PYM_OTF_INPUT, &subdev->pym_dev->state) ) {
 						vio_group_start_trigger_mp(group, frame);
+					}
 				}
 			}
 		}
@@ -2022,6 +2043,18 @@ void pym_frame_done(struct pym_subdev *subdev)
 	 *check process frame to skip wakeup twice
 	 */
 	if (frame) {
+		if ( test_bit(PYM_DMA_INPUT, &pym->state) ) {
+			in_subdev = group->sub_ctx[SUBDEV_ID_SRC];
+			if (in_subdev != NULL) {
+				in_framemgr = &in_subdev->framemgr;
+				framemgr_e_barrier_irqs(in_framemgr, 0, flags);
+				src_frame = peek_frame(in_framemgr, FS_REQUEST);
+				if (src_frame) {
+					trans_frame(in_framemgr, src_frame, FS_FREE);
+				}
+				framemgr_x_barrier_irqr(in_framemgr, 0, flags);
+			}
+		}
 		spin_lock_irqsave(&subdev->slock, flags);
 		/*
 		 * bit 1 represent main process
@@ -2141,7 +2174,6 @@ static irqreturn_t pym_isr(int irq, void *data)
 	struct vio_group *group;
 	struct vio_group_task *gtask;
 	struct pym_subdev *subdev;
-	struct pym_subdev *subdev_src;
 	u32 err_occured = 0;
 
 	pym = data;
@@ -2173,13 +2205,8 @@ static irqreturn_t pym_isr(int irq, void *data)
 	if (status & (1 << INTR_PYM_FRAME_DONE)) {
 		if (!group->leader)
 			vio_group_done(group);
-
 		if (test_bit(PYM_DMA_INPUT, &pym->state)) {
 			vio_group_done(group);
-			subdev_src = group->sub_ctx[SUBDEV_ID_SRC];
-			if (subdev_src != NULL) {
-				pym_frame_done(subdev_src);
-			}
 		}
 		pym_frame_done(subdev);
 	}
