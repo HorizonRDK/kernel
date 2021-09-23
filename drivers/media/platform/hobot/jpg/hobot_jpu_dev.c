@@ -318,6 +318,13 @@ static irqreturn_t jpu_irq_handler(int irq, void *dev_id)
 			break;
 		}
 	}
+	if (i == MAX_HW_NUM_JPU_INSTANCE) {
+		jpu_debug(7, "unknow INTERRUPT FLAG\n");
+#ifdef JPU_IRQ_CONTROL
+		enable_irq(dev->irq);
+#endif
+		return IRQ_HANDLED;
+	}
 
 	dev->interrupt_reason[i] = flag;
 	dev->interrupt_flag[i] = 1;
@@ -1774,6 +1781,7 @@ static int jpu_remove(struct platform_device *pdev)
 	cdev_del(&dev->cdev);
 	unregister_chrdev_region(dev->jpu_dev_num, 1);
 	class_destroy(dev->jpu_class);
+	irq_set_affinity_hint(dev->irq, NULL);
 	free_irq(dev->irq, dev);
 	iounmap(dev->regs_base);
 	release_mem_region(dev->jpu_mem->start, resource_size(dev->jpu_mem));
