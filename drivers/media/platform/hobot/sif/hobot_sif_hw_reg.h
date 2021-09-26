@@ -440,7 +440,7 @@ static struct vio_reg_def sif_regs[NUM_OF_SIF_REG]={
 	{"SIF_PAT_GEN4_COL1" 		   , 0x05F4 , RW},
 	{"SIF_PAT_GEN4_COL2" 		   , 0x05F8 , RW},
 	{"SIF_PAT_GEN4_CFG"			   , 0x05FC , RW},
-	{"SIF_YUV422_TRANS"			   , 0x0600 , RW},                             
+	{"SIF_YUV422_TRANS"			   , 0x0600 , RW},
 };
 
 enum sif_reg_field {

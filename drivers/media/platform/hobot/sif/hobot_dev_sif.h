@@ -51,6 +51,7 @@
 #define SIF_STOP_WAKE_UP	 _IO(SIF_IOC_MAGIC, 15)
 #define SIF_IOC_MCLK_SET	 _IOW(SIF_IOC_MAGIC, 16, u32)
 #define SIF_IOC_IPI_RESET	 _IO(SIF_IOC_MAGIC, 17)
+#define SIF_IOC_MIPI_CFG_RESET	 _IO(SIF_IOC_MAGIC, 18)
 
 
 #define VIO_MP_IOC_MAGIC 'm'
@@ -265,7 +266,6 @@ struct sif_subdev {
 	struct frame_id 		info;
 	bool initial_frameid;
 	u32 md_refresh_count;
-	u64 bufcount;
 	u32 id;
 	struct splice_info  splice_info;
 	fps_ctrl_t fps_ctrl;
@@ -325,6 +325,8 @@ struct x3_sif_dev {
 	u32 mismatch_cnt;
 
 	unsigned long		state;
+	unsigned long		yuv_multiplex_a_state;
+	unsigned long		yuv_multiplex_b_state;
 	atomic_t			instance;
 	atomic_t			rsccount;
 	atomic_t			isp_init_cnt;
@@ -335,13 +337,17 @@ struct x3_sif_dev {
 	*/
 	struct mutex			shared_mutex;
 	u32 				error_count;
-	u32					hblank;
-	unsigned long	mux_mask;
+	u64 				buff_count[SIF_MUX_MAX];
+	u32				hblank;
+	unsigned long			mux_mask;
+	unsigned long			yuv422_mux_mask_a;
+	unsigned long			yuv422_mux_mask_b;
 	struct sif_status_statistic 	statistic;
 	struct vio_bind_info_dev 	*vio_bind_info_dev;
 
 	struct vio_group		*sif_input[VIO_MAX_STREAM];
 	struct vio_group		*sif_mux[SIF_MUX_MAX];
+	struct vio_group		*sif_mux_multiplex[SIF_MUX_MAX];
 
 	struct sif_subdev		sif_in_subdev[VIO_MAX_STREAM];
 	struct sif_subdev		sif_mux_subdev[VIO_MAX_STREAM];
@@ -417,5 +423,6 @@ struct vio_bind_info_dev {
 
 int sif_get_stride(u32 pixel_length, u32 width);
 void sif_get_mismatch_status(void);
+int32_t mipi_host_reset_ipi(uint32_t port, int32_t ipi, int32_t enable);
 
 #endif

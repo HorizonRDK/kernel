@@ -18,6 +18,8 @@ void sif_set_md_enable(u32 __iomem *base_reg);
 void sif_set_md_disable(u32 __iomem *base_reg);
 
 void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c);
+void sif_hw_mipi_rx_out_select(u32 __iomem *base_reg,
+				struct sif_subdev *subdev);
 void sif_set_isp_output(u32 __iomem *base_reg,
 				sif_output_t *p_out);
 void sif_raw_isp_output_config(u32 __iomem *base_reg,

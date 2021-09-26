@@ -5,6 +5,8 @@ ifneq ($(KERNELRELEASE),)
 obj-$(CONFIG_HOBOT_VIO) += hobot_sif.o
 hobot_sif-objs := hobot_sif_hw_reg.o hobot_dev_sif.o
 
+ccflags-y += -std=gnu11 -Wno-declaration-after-statement
+
 EXTRA_CFLAGS += -Idrivers/media/platform/hobot/common_api/
 
 ifeq ($(CONFIG_HOBOT_GCOV_AVIO),y)
@@ -20,7 +22,9 @@ FW_SRC := ./hobot_sif_hw_reg.c ./hobot_dev_sif.c ../common_api/vio_framemgr.c ..
 
 export FW_SRC_OBJ := $(FW_SRC:.c=.o)
 
-ccflags-y:= -I./ -I../
+ccflags-y := -I./ -I../
+ccflags-y += -std=gnu11 -Wno-declaration-after-statement
+
 EXTRA_CFLAGS += -Idrivers/media/platform/hobot/common_api/
 
 obj-$(CONFIG_HOBOT_VIO) += $(TARGET).o

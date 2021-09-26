@@ -12,7 +12,7 @@
 static uint32_t s_enable_pattern_gen = 0;
 static uint32_t path_sel = 0;
 extern struct vio_frame_id  sif_frame_info[VIO_MAX_STREAM];
-u32 frame_id_mux;
+static u32 frame_id_mux;
 
 void sif_enable_frame_intr(void __iomem *base_reg, u32 mux_index,
 				bool enable)
@@ -834,17 +834,18 @@ void sif_set_dol_channels(sif_input_mipi_t* p_mipi, sif_output_isp_t *p_isp,
  *
  * @param p_mipi the pointer of sif_input_mipi_t
  */
-static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
+static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_t* p_input,
 			sif_output_t *p_out, sif_input_splice_t *splice, bool *online_ddr_enable)
 {
 	int i = 0;
+	sif_input_mipi_t *p_mipi = &p_input->mipi;
 	u32 enable_mux_out    = p_mipi->func.enable_mux_out;
 	u32 set_mux_out_index = p_mipi->func.set_mux_out_index;
 	u32 yuv_format        = p_mipi->data.format;
 	u32 splice_enable = splice->splice_enable;
 	u32 pipe_num = splice->pipe_num;
 	u32 format = p_mipi->data.format;
-	const static u32 map_mux_input[] = {0, 4, 8, 10};
+	static const u32 map_mux_input[] = {0, 4, 8, 10};
 	u32 input_index_start = map_mux_input[p_mipi->mipi_rx_index];
 	u32 ipi_index_start;
 	u32 i_step, mux_out_index, lines, ddr_mux_out_index;
@@ -945,21 +946,22 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
 					mux_out_index,
 					input_index_start + ipi_index);
 			} else {
-				sif_enable_mux_out(base_reg,
-					mux_out_index,
-					input_index_start + ipi_index,
-					lines);
+				if (!p_input->mux_multiplexing.yuv_mux_multiplexing) {
+					sif_enable_mux_out(base_reg,
+						mux_out_index,
+						input_index_start + ipi_index,
+						lines);
+				}
 			}
 
 			if(ddr_mux_out_index != mux_out_index) {
-				vio_hw_set_field(base_reg, &sif_regs[SIF_MUX_OUT_SEL],
+				if (!p_input->mux_multiplexing.yuv_mux_multiplexing) {
+					vio_hw_set_field(base_reg, &sif_regs[SIF_MUX_OUT_SEL],
 						&sif_fields[SW_SIF_MUX0_OUT_SELECT - ddr_mux_out_index],
 						input_index_start + ipi_index);
-			//	sif_enable_frame_intr(base_reg, ddr_mux_out_index, true);
-				*online_ddr_enable = true;
+					*online_ddr_enable = true;
+				}
 			}
-			// Frame Done Interrupt
-			// sif_enable_frame_intr(base_reg, mux_out_index, true);
 
 			if (yuv_format == HW_FORMAT_YUV422) {
 				if (p_mipi->data.width == 3840 &&
@@ -968,11 +970,12 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
 						mux_out_index + 1,
 						input_index_start + ipi_index);
 				} else {
-					sif_enable_mux_out(base_reg,
+					if (!p_input->mux_multiplexing.yuv_mux_multiplexing) {
+						sif_enable_mux_out(base_reg,
 							mux_out_index + 1,
 							input_index_start + ipi_index,
 							lines);
-					//sif_enable_frame_intr(base_reg, mux_out_index + 1, true);
+					}
 				}
 			 }
 		}
@@ -987,8 +990,6 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_mipi_t* p_mipi,
 						mux_out_index,
 						ipi_index_start + ipi_index,
 						lines);
-			/* Frame Done Interrupt */
-			// sif_enable_frame_intr(base_reg, mux_out_index, true);
 		}
 	}
 	/*bypass enable*/
@@ -1300,6 +1301,52 @@ void sif_md_config(u32 __iomem *base_reg, sif_cfg_t* c)
 	sif_set_md_output(base_reg, &c->output.md);
 }
 
+/*
+ * @brief switch mipi selected resource from different mipi index
+ * @base_reg sif hardware virtual mapped addr
+ * @subdev video ctx device of each pipeline
+ */
+void sif_hw_mipi_rx_out_select(u32 __iomem *base_reg, struct sif_subdev *subdev)
+{
+	int i = 0;
+	sif_input_mipi_t *p_mipi = &subdev->sif_cfg.input.mipi;
+	sif_output_t *p_out = &subdev->sif_cfg.output;
+	u32 yuv_format = p_mipi->data.format;
+	static const u32 map_mux_input[] = {0, 4, 8, 10};
+	u32 input_index_start = map_mux_input[p_mipi->mipi_rx_index % 4];
+	u32 i_step, mux_out_index, lines, ddr_mux_out_index;
+	u8 *vc_index;
+	u8 ipi_index = 0;
+	u32 ch_index[3] = {0, 1, 2};
+
+	if (!p_mipi->enable)
+		return;
+	vio_info("multiplexing yuv_format %d mipi_rx_index %d \n", yuv_format,
+		p_mipi->mipi_rx_index);
+
+	vc_index = p_mipi->vc_index;
+	if (p_mipi->func.enable_mux_out) {
+		i_step = yuv_format ? 2 : 1;
+		for (i = 0; i < p_mipi->channels; i += i_step) {
+			mux_out_index = p_mipi->func.set_mux_out_index + ch_index[i];
+			ddr_mux_out_index = p_out->ddr.mux_index + ch_index[i];
+
+			lines = (p_mipi->data.width / LINE_BUFFER_SIZE) + 1;
+			ipi_index = vc_index[i];
+			if(yuv_format == HW_FORMAT_YUV422 && 2 == i_step) {
+				sif_enable_mux_out(base_reg,
+					mux_out_index,
+					input_index_start + ipi_index,
+					lines);
+				sif_enable_mux_out(base_reg,
+					mux_out_index + 1,
+					input_index_start + ipi_index,
+					lines);
+			 }
+		}
+	}
+}
+
 void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c)
 {
 	bool online_ddr_enable = 0;
@@ -1316,7 +1363,7 @@ void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c)
 	sif_set_dvp_input(base_reg, &c->input.dvp);
 
 	// Input: SIF
-	sif_set_mipi_rx(base_reg, &c->input.mipi, &c->output,
+	sif_set_mipi_rx(base_reg, &c->input, &c->output,
 			&c->input.splice, &online_ddr_enable);
 
 	// output: ddr

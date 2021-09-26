@@ -53,7 +53,15 @@ static int g_sif_fps[VIO_MAX_STREAM] = {0, };
 static int g_sif_idx[VIO_MAX_STREAM] = {0, };
 static int g_sif_fps_lasttime[VIO_MAX_STREAM] = {0, };
 static u32 temp_flow = 0;
-u32 sif_frm_value = 0;
+static u32 sif_frm_value = 0;
+
+enum {
+	YUV422_MULTIPLEXING_PROC_A = 1,
+	YUV422_MULTIPLEXING_PROC_B = 2
+};
+
+static void sif_fps_ctrl_init(struct sif_subdev *subdev, sif_cfg_t *sif_config);
+static void sif_fps_ctrl_deinit(struct sif_subdev *subdev);
 
 void sif_get_mismatch_status(void)
 {
@@ -277,13 +285,13 @@ void sif_write_frame_work(struct vio_group *group)
 	}
 
 	sif = subdev->sif_dev;
-	mux_index = subdev->ddr_mux_index;
+	mux_index = subdev->ddr_mux_index % SIF_MUX_MAX;
 
 	framemgr = &subdev->framemgr;
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_REQUEST);
 	if (frame) {
-		buf_index = subdev->bufcount % 4;
+		buf_index = sif->buff_count[mux_index] % 4;
 		yuv_format = (frame->frameinfo.format == HW_FORMAT_YUV422);
 		sif_set_wdma_buf_addr(sif->base_reg, mux_index, buf_index,
 				      frame->frameinfo.addr[0]);
@@ -320,10 +328,12 @@ void sif_write_frame_work(struct vio_group *group)
 			}
 		}
 		trans_frame(framemgr, frame, FS_PROCESS);
-		subdev->bufcount++;
+		sif->buff_count[mux_index]++;
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
-	vio_dbg("[S%d]%s:done", group->instance, __func__);
+	vio_dbg("[S%d]%s:done mux_index %d buf_index %d sif->buff_count %llu",
+		group->instance, __func__, mux_index, buf_index,
+		sif->buff_count[mux_index]);
 }
 
 static int x3_sif_open(struct inode *inode, struct file *file)
@@ -990,14 +1000,87 @@ exit:
 	return 0;
 }
 
-void sif_fps_ctrl_deinit(struct sif_subdev *subdev);
-static int x3_sif_close(struct inode *inode, struct file *file)
+static void sif_clear_yuv422_proc_a_mux_mask(struct x3_sif_dev *sif,
+		struct sif_subdev *subdev)
+{
+	clear_bit(subdev->mux_index, &sif->yuv422_mux_mask_a);
+	clear_bit(subdev->ddr_mux_index, &sif->yuv422_mux_mask_a);
+	clear_bit(subdev->ddr_mux_index, &sif->yuv_multiplex_a_state);
+	if (subdev->mux_nums > 1) {
+		clear_bit(subdev->mux_index + 1, &sif->yuv422_mux_mask_a);
+		clear_bit(subdev->ddr_mux_index + 1, &sif->yuv422_mux_mask_a);
+	}
+}
+
+static void sif_clear_yuv422_proc_b_mux_mask(struct x3_sif_dev *sif,
+		struct sif_subdev *subdev)
+{
+	clear_bit(subdev->mux_index, &sif->yuv422_mux_mask_b);
+	clear_bit(subdev->ddr_mux_index, &sif->yuv422_mux_mask_b);
+	clear_bit(subdev->ddr_mux_index, &sif->yuv_multiplex_b_state);
+	if (subdev->mux_nums > 1) {
+		clear_bit(subdev->mux_index + 1, &sif->yuv422_mux_mask_b);
+		clear_bit(subdev->ddr_mux_index + 1, &sif->yuv422_mux_mask_b);
+	}
+}
+
+static void sif_clear_normal_subdev_mux_mask(struct x3_sif_dev *sif,
+		struct sif_subdev *subdev)
 {
 	int i;
+
+	clear_bit(subdev->mux_index, &sif->mux_mask);
+	clear_bit(subdev->ddr_mux_index, &sif->mux_mask);
+	clear_bit(subdev->ddr_mux_index, &sif->state);
+	if (subdev->dol_num > 1)
+		clear_bit(SIF_DOL2_MODE + subdev->mux_index + 1, &sif->state);
+	if (subdev->dol_num > 2)
+		clear_bit(SIF_DOL2_MODE + subdev->mux_index + 2, &sif->state);
+
+	if (subdev->mux_nums > 1) {
+		clear_bit(subdev->mux_index + 1, &sif->mux_mask);
+		clear_bit(subdev->ddr_mux_index + 1, &sif->mux_mask);
+	}
+	if (subdev->mux_nums > 2) {
+		clear_bit(subdev->mux_index + 2, &sif->mux_mask);
+		clear_bit(subdev->ddr_mux_index + 2, &sif->mux_mask);
+	}
+	if (subdev->mux_nums > 3) {
+		clear_bit(subdev->mux_index + 3, &sif->mux_mask);
+		clear_bit(subdev->ddr_mux_index + 3, &sif->mux_mask);
+	}
+	if (subdev->mux_nums == SIF_MUX_MAX) {	/* 8M  yuv*/
+		for (i = 0; i < subdev->mux_nums; i++) {
+			clear_bit(subdev->mux_index + i, &sif->mux_mask);
+			clear_bit(subdev->ddr_mux_index + i, &sif->mux_mask);
+		}
+	}
+
+	if (subdev->fmt.width >= LINE_BUFFER_SIZE) {
+		clear_bit(subdev->mux_index + 2, &sif->mux_mask);
+		clear_bit(subdev->ddr_mux_index + 2, &sif->mux_mask);
+		if(subdev->dol_num > 2) { /*8M DOL3*/
+			clear_bit(subdev->mux_index + 4, &sif->mux_mask);
+			clear_bit(subdev->mux_index + 6, &sif->mux_mask);
+			clear_bit(subdev->ddr_mux_index + 4, &sif->mux_mask);
+			clear_bit(subdev->ddr_mux_index + 6, &sif->mux_mask);
+		}
+	}
+
+	if(subdev->splice_info.splice_enable) {
+		for (i = 0; i < subdev->splice_info.pipe_num; i++) {
+			clear_bit(SIF_SPLICE_OP + subdev->mux_index + i + 1, &sif->state);
+		}
+	}
+}
+
+static int x3_sif_close(struct inode *inode, struct file *file)
+{
 	struct sif_video_ctx *sif_ctx;
 	struct vio_group *group;
 	struct x3_sif_dev *sif;
 	struct sif_subdev *subdev;
+	u8 multiplexing_proc = 0;
 
 	sif_ctx = file->private_data;
 	sif = sif_ctx->sif_dev;
@@ -1018,54 +1101,22 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 	mutex_lock(&sif->shared_mutex);
 	if ((subdev) && atomic_dec_return(&subdev->refcount) == 0) {
 		subdev->state = 0;
+		multiplexing_proc = \
+		subdev->sif_cfg.input.mux_multiplexing.yuv_multiplexing_proc;
 		if (sif_ctx->id == GROUP_ID_SIF_OUT) {
-			clear_bit(subdev->mux_index, &sif->mux_mask);
-			clear_bit(subdev->ddr_mux_index, &sif->mux_mask);
-			clear_bit(subdev->ddr_mux_index, &sif->state);
 			temp_flow = 0;
 			subdev->overflow = 0;
 			subdev->cnt_shift = 0;
 			atomic_set(&subdev->diag_state, 0);
-			if (subdev->dol_num > 1)
-				clear_bit(SIF_DOL2_MODE + subdev->mux_index + 1, &sif->state);
-			if (subdev->dol_num > 2)
-				clear_bit(SIF_DOL2_MODE + subdev->mux_index + 2, &sif->state);
-
-			if (subdev->mux_nums > 1) {
-				clear_bit(subdev->mux_index + 1, &sif->mux_mask);
-				clear_bit(subdev->ddr_mux_index + 1, &sif->mux_mask);
+			if (YUV422_MULTIPLEXING_PROC_A == multiplexing_proc && \
+				HW_FORMAT_YUV422 == subdev->format) {
+				sif_clear_yuv422_proc_a_mux_mask(sif, subdev);
+			} else if (YUV422_MULTIPLEXING_PROC_B == multiplexing_proc && \
+				HW_FORMAT_YUV422 == subdev->format) {
+				sif_clear_yuv422_proc_b_mux_mask(sif, subdev);
+			} else {
+				sif_clear_normal_subdev_mux_mask(sif, subdev);
 			}
-			if (subdev->mux_nums > 2) {
-				clear_bit(subdev->mux_index + 2, &sif->mux_mask);
-				clear_bit(subdev->ddr_mux_index + 2, &sif->mux_mask);
-			}
-			if (subdev->mux_nums > 3) {
-				clear_bit(subdev->mux_index + 3, &sif->mux_mask);
-				clear_bit(subdev->ddr_mux_index + 3, &sif->mux_mask);
-			}
-			if (subdev->mux_nums == SIF_MUX_MAX) {  /* 8M  yuv*/
-				for (i = 0; i < subdev->mux_nums; i++) {
-					clear_bit(subdev->mux_index + i, &sif->mux_mask);
-					clear_bit(subdev->ddr_mux_index + i, &sif->mux_mask);
-				}
-			}
-
-			if (subdev->fmt.width >= LINE_BUFFER_SIZE) {
-				clear_bit(subdev->mux_index + 2, &sif->mux_mask);
-				clear_bit(subdev->ddr_mux_index + 2, &sif->mux_mask);
-				if(subdev->dol_num > 2) { /*8M DOL3*/
-					clear_bit(subdev->mux_index + 4, &sif->mux_mask);
-					clear_bit(subdev->mux_index + 6, &sif->mux_mask);
-					clear_bit(subdev->ddr_mux_index + 4, &sif->mux_mask);
-					clear_bit(subdev->ddr_mux_index + 6, &sif->mux_mask);
-				}
-			}
-
-			if(subdev->splice_info.splice_enable) {
-				for (i = 0; i < subdev->splice_info.pipe_num; i++) {
-				 clear_bit(SIF_SPLICE_OP + subdev->mux_index + i + 1, &sif->state);
-			}
-		  }
 			sif_fps_ctrl_deinit(subdev);
 		}
 
@@ -1141,7 +1192,7 @@ int sif_get_stride(u32 pixel_length, u32 width)
   * If the width exceeds 2688, two muxs are allocated for FIFO merging
   * 8M yuv sensor, alloc 8 mux
   */
-int get_free_mux(struct x3_sif_dev *sif, u32 index, int format, u32 dol_num,
+int get_free_mux(struct sif_subdev *subdev, u32 index, int format, u32 dol_num,
 		u32 width, u32 *mux_numbers, u32 splice_enable, u32 pipe_num)
 {
 	int ret = 0;
@@ -1151,6 +1202,12 @@ int get_free_mux(struct x3_sif_dev *sif, u32 index, int format, u32 dol_num,
 	int mux_for_4k[] = {0, 1, 4, 5};
 	int mux_for_2length[] = {0, 4};
 	int start_index = 0;
+	u8 multiplexing_proc = 0;
+	struct x3_sif_dev *sif = NULL;
+
+	sif = subdev->sif_dev;
+	multiplexing_proc = \
+	subdev->sif_cfg.input.mux_multiplexing.yuv_multiplexing_proc;
 
 	mux_nums = dol_num;
 	if (format == HW_FORMAT_YUV422) {
@@ -1254,23 +1311,59 @@ int get_free_mux(struct x3_sif_dev *sif, u32 index, int format, u32 dol_num,
 		vio_info("ret %d sif->mux_mask 0x%lx \n", ret, sif->mux_mask);
 	} else {
 		for (i = index; i < SIF_MUX_MAX; i += step) {
-			if (!test_bit(i, &sif->mux_mask)) {
-				if (mux_nums > 1 && test_bit(i + 1, &sif->mux_mask))
-					continue;
-				if (mux_nums > 2 && test_bit(i + 2, &sif->mux_mask))
-					continue;
-				if (mux_nums > 3 && test_bit(i + 3, &sif->mux_mask))
-					continue;
+			/*
+			 * yuv multiplexing for 8 pipeline yuv
+			 * 4 by 4 time Division Multiplexing.
+			 */
+			if (YUV422_MULTIPLEXING_PROC_A == multiplexing_proc) {
+				if (HW_FORMAT_YUV422 == format && 2 == mux_nums) {
+					if (!test_bit(i, &sif->yuv422_mux_mask_a)) {
+						if (test_bit(i + 1, &sif->yuv422_mux_mask_a))
+							continue;
 
-				set_bit(i, &sif->mux_mask);
-				if (mux_nums > 1)
-					set_bit(i + 1, &sif->mux_mask);
-				if (mux_nums > 2)
-					set_bit(i + 2, &sif->mux_mask);
-				if (mux_nums > 3)
-					set_bit(i + 3, &sif->mux_mask);
-				ret = i;
-				break;
+						set_bit(i, &sif->yuv422_mux_mask_a);
+						set_bit(i + 1, &sif->yuv422_mux_mask_a);
+						ret = i;
+						vio_info("[S%d]:yuv422_mux_mask_a: %d, mux_mask 0x%lx",
+							subdev->group->instance, ret,
+							sif->yuv422_mux_mask_a);
+						break;
+					}
+				}
+			} else if (YUV422_MULTIPLEXING_PROC_B == multiplexing_proc) {
+				if (HW_FORMAT_YUV422 == format && 2 == mux_nums) {
+					if (!test_bit(i, &sif->yuv422_mux_mask_b)) {
+						if (test_bit(i + 1, &sif->yuv422_mux_mask_b))
+							continue;
+
+						set_bit(i, &sif->yuv422_mux_mask_b);
+						set_bit(i + 1, &sif->yuv422_mux_mask_b);
+						ret = i;
+						vio_info("[S%d]:yuv422_mux_mask_b: %d, mux_mask 0x%lx",
+							subdev->group->instance, ret,
+							sif->yuv422_mux_mask_b);
+						break;
+					}
+				}
+			} else {
+				if (!test_bit(i, &sif->mux_mask)) {
+					if (mux_nums > 1 && test_bit(i + 1, &sif->mux_mask))
+						continue;
+					if (mux_nums > 2 && test_bit(i + 2, &sif->mux_mask))
+						continue;
+					if (mux_nums > 3 && test_bit(i + 3, &sif->mux_mask))
+						continue;
+
+					set_bit(i, &sif->mux_mask);
+					if (mux_nums > 1)
+						set_bit(i + 1, &sif->mux_mask);
+					if (mux_nums > 2)
+						set_bit(i + 2, &sif->mux_mask);
+					if (mux_nums > 3)
+						set_bit(i + 3, &sif->mux_mask);
+					ret = i;
+					break;
+				}
 			}
 		}
 	}
@@ -1306,6 +1399,8 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 	struct vio_group_task *gtask;
 	struct vio_group *group;
 	u32 splice_enable, pipe_num;
+	u8 yuv_multiplexing = 0;
+	u8 multiplexing_proc = 0;
 
 	sif = subdev->sif_dev;
 	group = subdev->group;
@@ -1326,13 +1421,13 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 
 	/* mux initial*/
 	if (!isp_flyby && test_bit(SIF_OTF_OUTPUT, &sif->state)) {
-		mux_index = get_free_mux(sif, 4, format, dol_exp_num, width, &mux_nums,
+		mux_index = get_free_mux(subdev, 4, format, dol_exp_num, width, &mux_nums,
 				splice_enable, pipe_num);
 		if (mux_index < 0)
 			return mux_index;
 		sif_config->output.isp.func.enable_flyby = 1;
 	} else {
-		mux_index = get_free_mux(sif, 0, format, dol_exp_num, width, &mux_nums,
+		mux_index = get_free_mux(subdev, 0, format, dol_exp_num, width, &mux_nums,
 				splice_enable, pipe_num);
 		if (mux_index < 0)
 			return mux_index;
@@ -1355,7 +1450,7 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 
 	if (isp_flyby && ddr_enable) {
 		vio_info("ddr output enable in online mode\n");
-		ddr_mux_index = get_free_mux(sif, 4, format, dol_exp_num,
+		ddr_mux_index = get_free_mux(subdev, 4, format, dol_exp_num,
 				width, &mux_nums, splice_enable, pipe_num);
 		if (ddr_mux_index < 0)
 			return ddr_mux_index;
@@ -1391,7 +1486,6 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 	}
 
 	/* MD initial*/
-	// if (md_enable)
 	subdev->md_refresh_count = 0;
 
 	subdev->rx_index = sif_config->input.mipi.mipi_rx_index;
@@ -1405,6 +1499,24 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 	subdev->initial_frameid = true;
 	subdev->cnt_shift = 0;
 	sif->sif_mux[mux_index] = group;
+
+	yuv_multiplexing = \
+	subdev->sif_cfg.input.mux_multiplexing.yuv_mux_multiplexing;
+	multiplexing_proc = \
+	subdev->sif_cfg.input.mux_multiplexing.yuv_multiplexing_proc;
+	if ((YUV422_MULTIPLEXING_PROC_A == multiplexing_proc || \
+		YUV422_MULTIPLEXING_PROC_B == multiplexing_proc) && \
+		HW_FORMAT_YUV422 == subdev->format) {
+		if(yuv_multiplexing) {
+			/*
+			 * HW_FORMAT_YUV422 multiplexing use the other handles, plus 1.
+			 * Set the instance mask for marking which way use the multiplexing bit
+			 */
+			sif->sif_mux_multiplex[mux_index + 1] = group;
+		} else {
+			sif->sif_mux_multiplex[mux_index] = group;
+		}
+	}
 	if(splice_enable) {
 		for (i = 0; i < pipe_num; i++) {
 			subdev->splice_info.mux_index[i] = mux_index + 1 + i;
@@ -1443,18 +1555,34 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 		cfg = ips_get_bus_ctrl() | 0x9002 << 16;
 
 		gtask = &sif->sifout_task[mux_index];
+		if ((YUV422_MULTIPLEXING_PROC_A == multiplexing_proc || \
+			YUV422_MULTIPLEXING_PROC_B == multiplexing_proc) && \
+			HW_FORMAT_YUV422 == subdev->format) {
+			if(yuv_multiplexing) {
+				/*
+				 * HW_FORMAT_YUV422 multiplexing use the other handles, plus 1.
+				 * Set the instance mask for marking which way use the multiplexing bit
+				 */
+				gtask = &sif->sifout_task[mux_index + 1];
+			}
+			if (YUV422_MULTIPLEXING_PROC_A == multiplexing_proc)
+				set_bit(ddr_mux_index, &sif->yuv_multiplex_a_state);
+			else
+				set_bit(ddr_mux_index, &sif->yuv_multiplex_b_state);
+		} else {
+			set_bit(ddr_mux_index, &sif->state);
+		}
 		gtask->id = group->id;
 		group->gtask = gtask;
 		group->frame_work = sif_write_frame_work;
 		vio_group_task_start(gtask);
 		sema_init(&gtask->hw_resource, 4);
-		set_bit(ddr_mux_index, &sif->state);
 	}
 
-	// ips_set_bus_ctrl(cfg);
 	sif_hw_config(sif->base_reg, sif_config);
 
-	subdev->bufcount = sif_get_current_bufindex(sif->base_reg, ddr_mux_index);
+	sif->buff_count[subdev->mux_index] = \
+		sif_get_current_bufindex(sif->base_reg, ddr_mux_index);
 	sif->mismatch_cnt = 0;
 
 	memcpy(&subdev->fmt, &sif_config->input.mipi.data,
@@ -1465,8 +1593,9 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 
 	return ret;
 }
+
 /* sif->ddr scenario, Initialize sif skip frame param */
-void sif_fps_ctrl_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
+static void sif_fps_ctrl_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 {
 	fps_ctrl_t *fps_ctrl = &subdev->fps_ctrl;
 
@@ -1486,7 +1615,8 @@ void sif_fps_ctrl_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 			fps_ctrl->skip_frame, fps_ctrl->in_fps, fps_ctrl->out_fps);
 	return;
 }
-void sif_fps_ctrl_deinit(struct sif_subdev *subdev)
+
+static void sif_fps_ctrl_deinit(struct sif_subdev *subdev)
 {
 	fps_ctrl_t *fps_ctrl = &subdev->fps_ctrl;
 	fps_ctrl->skip_frame = 0;
@@ -1775,7 +1905,6 @@ int sif_video_streamoff(struct sif_video_ctx *sif_ctx)
 	u32 isp_enable, isp_flyby;
 	u32 splice_enable, pipe_num;
 
-
 	if (!(sif_ctx->state & BIT(VIO_VIDEO_START))) {
 		vio_err("[%s][V%02d] invalid STREAM OFF is requested(%lX)",
 			__func__, sif_ctx->id, sif_ctx->state);
@@ -1799,8 +1928,6 @@ int sif_video_streamoff(struct sif_video_ctx *sif_ctx)
 		if (isp_enable && isp_flyby) {
 			vio_set_sif_exit_flag(1);
 		}
-		sif_enable_frame_intr(sif_dev->base_reg, subdev->mux_index, false);
-		sif_enable_frame_intr(sif_dev->base_reg, subdev->ddr_mux_index, false);
 		for (i = 0; i < subdev->ipi_channels; i++)
 			sif_disable_ipi(sif_dev->base_reg, subdev->ipi_index + i);
 		splice_enable = subdev->splice_info.splice_enable;
@@ -2196,6 +2323,11 @@ static int sif_wake_up_poll(struct sif_video_ctx *sif_ctx)
 	return 0;
 }
 
+/*
+ * @brief
+ * Set the flag of disabling the ipi of each channel.
+ * @sif_ctx: Each channel corresponds to the context of video image processing.
+*/
 void sif_set_ipi_disable(struct sif_video_ctx *sif_ctx)
 {
 	struct x3_sif_dev *sif;
@@ -2207,6 +2339,46 @@ void sif_set_ipi_disable(struct sif_video_ctx *sif_ctx)
 		subdev->ipi_enable = 1;
 	vio_info("%s ipi disable %d\n", __func__, subdev->ipi_enable);
 	return;
+}
+
+/*
+ * @brief
+ * 8-channel YUV422 multiplexing for switching mux resources.
+ * In YUV422 dual-process multi-channel, the multiplexing process starts
+ * the multiplexing function, and this interface is called when switching.
+ * @sif_ctx: Each channel corresponds to the context of video image processing.
+*/
+int sif_reset_mipi_hw_config(struct sif_video_ctx *sif_ctx)
+{
+	struct x3_sif_dev *sif;
+	struct sif_subdev *subdev;
+	uint32_t mux_index = 0;
+	u8 multiplexing_proc = 0;
+	u8 yuv_multiplexing = 0;
+
+	sif = sif_ctx->sif_dev;
+	subdev = sif_ctx->subdev;
+	if (!subdev || !sif)
+		return -EINVAL;
+
+	mutex_lock(&sif->shared_mutex);
+	mux_index = subdev->mux_index;
+	multiplexing_proc = \
+	subdev->sif_cfg.input.mux_multiplexing.yuv_multiplexing_proc;
+	yuv_multiplexing = \
+	subdev->sif_cfg.input.mux_multiplexing.yuv_mux_multiplexing;
+	if ((YUV422_MULTIPLEXING_PROC_A == multiplexing_proc || \
+		YUV422_MULTIPLEXING_PROC_B == multiplexing_proc) && \
+		HW_FORMAT_YUV422 == subdev->format) {
+		if (yuv_multiplexing) {
+			sif->sif_mux[mux_index] = sif->sif_mux_multiplex[mux_index + 1];
+		} else {
+			sif->sif_mux[mux_index] = sif->sif_mux_multiplex[mux_index];
+		}
+		sif_hw_mipi_rx_out_select(sif->base_reg, subdev);
+	}
+	mutex_unlock(&sif->shared_mutex);
+	return 0;
 }
 
 static long x3_sif_ioctl(struct file *file, unsigned int cmd,
@@ -2338,6 +2510,9 @@ static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 		break;
 	case SIF_IOC_IPI_RESET:
 		sif_set_ipi_disable(sif_ctx);
+		break;
+	case SIF_IOC_MIPI_CFG_RESET:
+		ret = sif_reset_mipi_hw_config(sif_ctx);
 		break;
 	default:
 		vio_err("wrong ioctl command\n");
@@ -2487,9 +2662,7 @@ static void sif_frame_done_process(struct sif_subdev *subdev,
 
 	group = subdev->group;
 	sif = subdev->sif_dev;
-
 	framemgr = &subdev->framemgr;
-
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_PROCESS);
 	if (frame) {
@@ -2668,7 +2841,7 @@ u32 sif_find_overflow_instance(uint32_t mux_index,
 			(BIT2CHN(of_value, subdev->mux_index2)))
 			subdev->overflow = ((0x1 << mux_index) | (0x1 << subdev->mux_index1) |
 				(0x1 << subdev->mux_index2));
-	} else if (subdev->format == HW_FORMAT_YUV422) {
+	} else if (HW_FORMAT_YUV422 == subdev->format) {
 		if ((BIT2CHN(of_value, mux_index)) ||
 			(BIT2CHN(of_value, subdev->mux_index1)))
 			subdev->overflow = ((0x1 << mux_index) | (0x1 << subdev->mux_index1));
@@ -2738,6 +2911,33 @@ void sif_mismatch_diag_report(struct x3_sif_dev *sif, uint32_t mux_index,
 	}
 	return;
 }
+
+static void sif_hw_resource_process(struct x3_sif_dev *sif,
+			struct vio_group *group)
+{
+	struct vio_group_task *gtask;
+	struct sif_subdev *subdev;
+
+	gtask = group->gtask;
+	subdev = group->sub_ctx[0];
+	if (unlikely(list_empty(&gtask->hw_resource.wait_list)) &&
+		 gtask->hw_resource.count >= 4) {
+		vio_err("[S%d]GP%d(res %d, rcnt %d)\n",
+			group->instance,
+			gtask->id,
+			gtask->hw_resource.count,
+			atomic_read(&group->rcount));
+		sif->statistic.fs_lack_task[group->instance]++;
+	} else {
+		if ((subdev->fps_ctrl.skip_frame)
+			&&(atomic_read(&subdev->fps_ctrl.lost_this_frame))) {
+			vio_dbg("fps_ctrl:FS:lost_this_frame\n");
+		} else {
+			up(&gtask->hw_resource);
+		}
+	}
+}
+
 static irqreturn_t sif_isr(int irq, void *data)
 {
 	int ret = 0, i;
@@ -2751,6 +2951,8 @@ static irqreturn_t sif_isr(int irq, void *data)
 	struct vio_group *group;
 	struct vio_group_task *gtask;
 	struct sif_subdev *subdev;
+	u8 multiplexing_proc = 0;
+	unsigned long multiplex_state = 0;
 
 	sif = (struct x3_sif_dev *) data;
 	memset(&irq_src, 0x0, sizeof(struct sif_irq_src));
@@ -2796,8 +2998,9 @@ static irqreturn_t sif_isr(int irq, void *data)
 				group = sif->sif_mux[mux_index];
 				subdev = group->sub_ctx[0];
 				if(subdev->ipi_enable == 1) {
-					vio_info("%s : rx_index = %d vc_index %d instance %d \n", __func__,
-						subdev->rx_index, subdev->vc_index, group->instance);
+					vio_info("%s : rx_index = %d vc_index %d ipi_index %d instance %d \n",
+							__func__, subdev->rx_index, subdev->vc_index,
+							subdev->ipi_index, group->instance);
 					mipi_host_reset_ipi(subdev->rx_index, subdev->vc_index, 0);
 					subdev->ipi_enable = 0;
 				}
@@ -2882,25 +3085,24 @@ static irqreturn_t sif_isr(int irq, void *data)
 					ips_set_md_refresh(0);
 				}
 				subdev->md_refresh_count++;
-				if (test_bit(mux_index, &sif->state)) {
-					gtask = group->gtask;
-					if (unlikely(list_empty(&gtask->hw_resource.wait_list)) &&
-						 gtask->hw_resource.count >= 4) {
-						vio_err("[S%d]GP%d(res %d, rcnt %d)\n",
-							group->instance,
-							gtask->id,
-							gtask->hw_resource.count,
-							atomic_read(&group->rcount));
-						sif->statistic.fs_lack_task[group->instance]++;
-					} else {
-						if ((subdev->fps_ctrl.skip_frame)
-							&&(atomic_read(&subdev->fps_ctrl.lost_this_frame))) {
-							vio_dbg("fps_ctrl:FS:lost_this_frame\n");
-						} else {
-							up(&gtask->hw_resource);
-						}
+				multiplexing_proc = \
+					subdev->sif_cfg.input.mux_multiplexing.yuv_multiplexing_proc;
+				if ((YUV422_MULTIPLEXING_PROC_A == multiplexing_proc || \
+					YUV422_MULTIPLEXING_PROC_B == multiplexing_proc) && \
+					HW_FORMAT_YUV422 == subdev->format) {
+					if (YUV422_MULTIPLEXING_PROC_A == multiplexing_proc)
+						multiplex_state = sif->yuv_multiplex_a_state;
+					else
+						multiplex_state = sif->yuv_multiplex_b_state;
+					if (test_bit(mux_index, &multiplex_state)) {
+						sif_hw_resource_process(sif, group);
+					}
+				} else {
+					if (test_bit(mux_index, &sif->state)) {
+						sif_hw_resource_process(sif, group);
 					}
 				}
+
 				/* fps_ctrl:FS:if not lost next frame,transfer owner to HW */
 				if (subdev->fps_ctrl.skip_frame) {
 					if (!atomic_read(&subdev->fps_ctrl.lost_next_frame)) {

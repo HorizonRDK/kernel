@@ -140,12 +140,18 @@ typedef struct sif_input_splice {
 	uint8_t vc_index[SPLICE_PIPE_NUM];
 } sif_input_splice_t;
 
+typedef struct sif_yuv_mux_multiplexing {
+	uint8_t yuv_mux_multiplexing;
+	uint8_t yuv_multiplexing_proc;
+} sif_yuv_mux_multiplexing_t;
+
 typedef struct sif_input {
 	sif_input_dvp_t 	dvp;
 	sif_input_mipi_t	mipi;
 	sif_input_iar_t 	iar;
 	sif_input_ddr_t     ddr;
 	sif_input_splice_t splice;
+	sif_yuv_mux_multiplexing_t mux_multiplexing;
 } sif_input_t;
 
 typedef enum sif_ddr_out_type_s {
