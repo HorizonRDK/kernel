@@ -4,6 +4,7 @@
  *                     All rights reserved.
  ***************************************************************************/
 
+#define pr_fmt(fmt) "vio_group_api: " fmt
 #include <linux/delay.h>
 #include <linux/sched.h>
 #include <linux/sched/signal.h>

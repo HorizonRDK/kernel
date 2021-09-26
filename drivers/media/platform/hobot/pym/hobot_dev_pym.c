@@ -4,6 +4,7 @@
  *                     All rights reserved.
  ***************************************************************************/
 
+#define pr_fmt(fmt) "hobot_dev_pym: " fmt
 #include <linux/module.h>
 #include <linux/delay.h>
 #include <linux/kernel.h>
