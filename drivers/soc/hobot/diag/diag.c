@@ -662,9 +662,9 @@ int32_t diag_send_event_stat_and_env_data(
 			uint8_t *env_data, /* PRQA S ALL */
 			size_t env_len) /* PRQA S ALL */
 {
-	struct diag_event event;
+	struct diag_event event = {0};
 	int32_t ret;
-	if (env_len > ENV_PAYLOAD_SIZE || env_len < 0) {
+	if (env_len > ENV_PAYLOAD_SIZE) {
 		pr_err("env_len is unsafe\n");
 		return -1;
 	}

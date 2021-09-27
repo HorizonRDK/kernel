@@ -53,8 +53,23 @@ struct diag_sw_range diag_sw_range_tbl[ModuleIdMax] = {
 	DIAG_SW_RANGE(UART),
 };
 
-#define DIAG_SW_INDEX_GET(module, event) \
-		(diag_sw_range_tbl[module - 1U].base + event - 1U)
+static int switch_index_get(uint16_t module, uint16_t event)
+{
+	struct diag_sw_range *range;
+	uint32_t index;
+
+	if (module >= ModuleIdMax)
+		return -EINVAL;
+	if (module == 0)
+		return DIAG_SW_MAX;
+
+	range = &diag_sw_range_tbl[module -1U];
+	index = range->base + event - 1U;
+	if (index < range->base || index > range->ceil)
+		return -EINVAL;
+
+	return index;
+}
 
 /* IO CTRL functions */
 static void inject_enable(void)
@@ -66,19 +81,14 @@ static void inject_enable(void)
 static int inject_val_set(uint16_t module_id, uint16_t event,
 				uint32_t value, bool if_clr)
 {
-	uint32_t index;
+	int32_t index;
 
-    if (module_id > ModuleIdMax) {
-        pr_err("%s:%s, id: %d over the limit\n",
-                __FILE__, __func__, module_id);
-        return -EINVAL;
-    }
     pr_debug("%s: module_id:0x%x, setting inject_val:0x%x, if_clr:0x%x\n",
                 __func__, module_id, value, if_clr);
-	index = DIAG_SW_INDEX_GET(module_id, event);
-	if (index > DIAG_SW_MAX) {
+	index = switch_index_get(module_id, event);
+	if (index < 0) {
 		pr_err("module:0x%x event:0x%x invalid\n", module_id, event);
-		return -EINVAL;
+		return index;
 	}
     if (if_clr) {
         if (module_id == 0) {
@@ -113,20 +123,10 @@ static int inject_val_set(uint16_t module_id, uint16_t event,
 
 static int inject_val_chk(uint16_t module_id, uint16_t event, uint32_t *out_val)
 {
-	uint32_t index;
+	int32_t index;
 
-    if (module_id > ModuleIdMax) {
-        pr_err("%s:%s, id: %d over the limit\n",
-                __FILE__, __func__, module_id);
-        return -EINVAL;
-    }
-
-	if ((module_id == 0) && (event == 0)) {
-		*out_val = inject_vals[DIAG_SW_MAX];
-		return 0;
-	}
-	index = DIAG_SW_INDEX_GET(module_id, event);
-	if (index > DIAG_SW_MAX) {
+	index = switch_index_get(module_id, event);
+	if (index < 0) {
 		pr_err("module:0x%x event:0x%x invalid\n", module_id, event);
 		return -EINVAL;
 	}
@@ -137,21 +137,12 @@ static int inject_val_chk(uint16_t module_id, uint16_t event, uint32_t *out_val)
 
 static int inject_en_chk(uint16_t module_id, uint16_t event, uint32_t *out_val)
 {
-	uint32_t index;
+	int32_t index;
 
-    if (module_id > ModuleIdMax) {
-        pr_err("%s:%s, id: %d over the limit\n",
-                __FILE__, __func__, module_id);
-        return -EINVAL;
-    }
-	if (module_id == 0) {
-		index = DIAG_SW_MAX;
-	} else {
-		index = DIAG_SW_INDEX_GET(module_id, event);
-		if (index > DIAG_SW_MAX) {
-			pr_err("module:0x%x event:0x%x invalid\n", module_id, event);
-			return -EINVAL;
-		}
+	index = switch_index_get(module_id, event);
+	if (index < 0) {
+		pr_err("module:0x%x event:0x%x invalid\n", module_id, event);
+		return -EINVAL;
 	}
     *out_val = module_sta[index];
     pr_debug("%s: module_id:0x%x, getting module_sta:0x%x\n", __func__, module_id, *out_val);
@@ -161,10 +152,10 @@ static int inject_en_chk(uint16_t module_id, uint16_t event, uint32_t *out_val)
 /* Diag process functions */
 static bool inject_registered(uint16_t module_id, uint16_t event)
 {
-	uint32_t index;
+	int32_t index;
 	struct diag_sw_range *range;
 
-    if (module_id > ModuleIdMax) {
+    if (module_id == 0 || module_id >= ModuleIdMax) {
         pr_err("%s:%s, id: %d over the limit\n", __FILE__, __func__, module_id);
         return false;
     }
@@ -176,8 +167,8 @@ static bool inject_registered(uint16_t module_id, uint16_t event)
 		}
 		return false;
 	} else {
-		index = DIAG_SW_INDEX_GET(module_id, event);
-		if (index > DIAG_SW_MAX) {
+		index = switch_index_get(module_id, event);
+		if (index < 0) {
 			pr_err("module:0x%x event:0x%x invalid\n", module_id, event);
 			return false;
 		}
@@ -188,10 +179,10 @@ static bool inject_registered(uint16_t module_id, uint16_t event)
 static int inject_value_get(uint16_t module_id, uint16_t event,
 				uint32_t *out_val)
 {
-	uint32_t index;
+	int32_t index;
 	struct diag_sw_range *range;
 
-    if (module_id > ModuleIdMax) {
+    if (module_id == 0 || module_id >= ModuleIdMax) {
         pr_err("%s:%s, id: %d over the limit\n",
                 __FILE__, __func__, module_id);
         return -EINVAL;
@@ -212,8 +203,8 @@ static int inject_value_get(uint16_t module_id, uint16_t event,
 			}
 		}
 	} else {
-		index = DIAG_SW_INDEX_GET(module_id, event);
-		if (index > DIAG_SW_MAX) {
+		index = switch_index_get(module_id, event);
+		if (index < 0) {
 			pr_err("module:0x%x event:0x%x invalid\n", module_id, event);
 			return -EINVAL;
 		}

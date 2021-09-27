@@ -122,7 +122,7 @@ static int32_t diag_dev_open(struct inode *inode, struct file *file)	/* PRQA S 3
 static DEFINE_MUTEX(diag_dev_ioctl_mutex); /* PRQA S ALL */
 static long diag_dev_ioctl(struct file *file, uint32_t cmd, unsigned long arg) /* PRQA S ALL */
 {
-	struct diag_event event;
+	struct diag_event event = {0};
 	struct diag_register_info register_info;
 	int32_t ret = 0;
 	uint8_t op;
