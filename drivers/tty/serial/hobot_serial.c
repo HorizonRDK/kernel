@@ -778,7 +778,7 @@ static unsigned int hobot_uart_calc_baud_divs(unsigned int clk,
 	if (br_int == NULL || br_frac == NULL)
 		return err;
 
-	if (clk <= 0 || baud < 0)
+    if (clk <= 0 || baud <= 0)
 		return err;
 
 #ifdef CONFIG_UART_LOW_SPEED_MODE
@@ -1601,7 +1601,7 @@ static void hobot_uart_console_write(struct console *co, const char *s,
  */
 static int __init hobot_uart_console_setup(struct console *co, char *options)
 {
-	struct uart_port *port = &hobot_uart_port[co->index];
+	struct uart_port *port = NULL;
 	int baud = early_console_baud;
 	int bits = 8;
 	int parity = 'n';
@@ -1609,6 +1609,8 @@ static int __init hobot_uart_console_setup(struct console *co, char *options)
 
 	if (co->index < 0 || co->index >= HOBOT_UART_NR_PORTS)
 		return -EINVAL;
+
+    port = &hobot_uart_port[co->index];
 
 	if (!port->membase) {
 		pr_debug("console on " HOBOT_UART_TTY_NAME "%i not present\n",
