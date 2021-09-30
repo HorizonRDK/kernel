@@ -633,6 +633,8 @@ static int hobot_reboot_probe(struct platform_device *pdev)
                 err);
         }
     }
+	/* satisfy the Coverity checker */
+	memset(&r, 0, sizeof(struct resource));
 
 	npm = of_parse_phandle(np, "memory-region", 0);
 	if (npm) {

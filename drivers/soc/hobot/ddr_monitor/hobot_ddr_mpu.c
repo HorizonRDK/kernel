@@ -334,10 +334,10 @@ static irqreturn_t mpu_protection_isr(int this_irq, void *data)
 			break;
 	}
 
-	if (i > RPU_VIOLATION_MAX) {
+	if (i > RPU_VIOLATION_MAX && i < FW_PORT_ID_NUM) {
 		check_mpu_violation(0, i);
 		check_mpu_violation(1, i);
-	} else {
+	} else if (i <= RPU_VIOLATION_MAX) {
 		check_rpu_violation(i);
 	}
 

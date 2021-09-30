@@ -420,7 +420,7 @@ struct file_operations ddr_monitor_fops = {
 int ddr_monitor_cdev_create(void)
 {
 	int ret = 0;
-	int error;
+	struct device *device = NULL;
 
 	pr_debug("\n");
 
@@ -428,25 +428,28 @@ int ddr_monitor_cdev_create(void)
 	if (IS_ERR(ddrmon->ddr_mon_cls))
 		return PTR_ERR(ddrmon->ddr_mon_cls);
 
-	error = alloc_chrdev_region(&ddrmon->dev_num, 0, 1, "ddr_monitor");
-
-	if (!error) {
-		ddrmon->major = MAJOR(ddrmon->dev_num);
-		ddrmon->minor = MINOR(ddrmon->dev_num);
-	}
-
-	if (ret < 0)
+	ret = alloc_chrdev_region(&ddrmon->dev_num, 0, 1, "ddr_monitor");
+	if (ret != 0) {
+		pr_err("alloc_chrdev_region failed,ret:%d\n", ret);
 		return ret;
+	}
+	ddrmon->major = MAJOR(ddrmon->dev_num);
+	ddrmon->minor = MINOR(ddrmon->dev_num);
 
 	cdev_init(&ddrmon->cdev, &ddr_monitor_fops);
 	ddrmon->cdev.owner	= THIS_MODULE;
 
-	cdev_add(&ddrmon->cdev, ddrmon->dev_num, 1);
-
-	device_create(ddrmon->ddr_mon_cls, NULL, ddrmon->dev_num, NULL, "ddrmonitor");
-	if (ret)
+	ret = cdev_add(&ddrmon->cdev, ddrmon->dev_num, 1);
+	if (ret != 0) {
+		pr_err("cdev_add failed,ret:%d\n", ret);
 		return ret;
-
+	}
+	device = device_create(ddrmon->ddr_mon_cls,
+			NULL, ddrmon->dev_num, NULL, "ddrmonitor");
+	if (IS_ERR(device)) {
+		pr_err("device_create failed\n");
+		return PTR_ERR(device);
+	}
 	return ret;
 }
 
@@ -590,7 +593,7 @@ static ssize_t cpu_read_ctl_store(struct device_driver *drv,
 
 	mutex_lock(&ddr_mo_mutex);
 	ret = sscanf(buf, "%du", &read_ctl_value);
-	if (read_ctl_value > 15 || read_ctl_value < 0) {
+	if (read_ctl_value > 15) {
 		pr_err("set value %d error,you should set 0~15\n", read_ctl_value);
 		mutex_unlock(&ddr_mo_mutex);
 		return count;
@@ -633,7 +636,7 @@ static ssize_t bifdma_read_ctl_store(struct device_driver *drv,
 
 	mutex_lock(&ddr_mo_mutex);
 	ret = sscanf(buf, "%du", &read_ctl_value);
-	if (read_ctl_value > 15 || read_ctl_value < 0) {
+	if (read_ctl_value > 15) {
 		pr_err("set value %d error,you should set 0~15\n", read_ctl_value);
 		mutex_unlock(&ddr_mo_mutex);
 		return count;
@@ -665,7 +668,7 @@ static ssize_t bpu0_read_ctl_store(struct device_driver *drv,
 
 	mutex_lock(&ddr_mo_mutex);
 	ret = sscanf(buf, "%du", &read_ctl_value);
-	if (read_ctl_value > 15 || read_ctl_value < 0) {
+	if (read_ctl_value > 15) {
 		pr_err("set value %d error,you should set 0~15\n", read_ctl_value);
 		mutex_unlock(&ddr_mo_mutex);
 		return count;
@@ -698,7 +701,7 @@ static ssize_t bpu1_read_ctl_store(struct device_driver *drv,
 
 	mutex_lock(&ddr_mo_mutex);
 	ret = sscanf(buf, "%du", &read_ctl_value);
-	if (read_ctl_value > 15 || read_ctl_value < 0) {
+	if (read_ctl_value > 15) {
 		pr_err("set value %d error,you should set 0~15\n", read_ctl_value);
 		mutex_unlock(&ddr_mo_mutex);
 		return count;
@@ -730,7 +733,7 @@ static ssize_t vio0_read_ctl_store(struct device_driver *drv,
 
 	mutex_lock(&ddr_mo_mutex);
 	ret = sscanf(buf, "%du", &read_ctl_value);
-	if (read_ctl_value > 15 || read_ctl_value < 0) {
+	if (read_ctl_value > 15) {
 		pr_err("set value %d error,you should set 0~15\n", read_ctl_value);
 		mutex_unlock(&ddr_mo_mutex);
 		return count;
@@ -764,7 +767,7 @@ static ssize_t vpu_read_ctl_store(struct device_driver *drv,
 
 	mutex_lock(&ddr_mo_mutex);
 	ret = sscanf(buf, "%du", &read_ctl_value);
-	if (read_ctl_value > 15 || read_ctl_value < 0) {
+	if (read_ctl_value > 15) {
 		pr_err("set value %d error,you should set 0~15\n", read_ctl_value);
 		mutex_unlock(&ddr_mo_mutex);
 		return count;
@@ -797,7 +800,7 @@ static ssize_t vio1_read_ctl_store(struct device_driver *drv,
 
 	mutex_lock(&ddr_mo_mutex);
 	ret = sscanf(buf, "%du", &read_ctl_value);
-	if (read_ctl_value > 15 || read_ctl_value < 0) {
+	if (read_ctl_value > 15) {
 		pr_err("set value %d error,you should set 0~15\n", read_ctl_value);
 		mutex_unlock(&ddr_mo_mutex);
 		return count;
@@ -835,7 +838,7 @@ static ssize_t periph_read_ctl_store(struct device_driver *drv,
 
 	mutex_lock(&ddr_mo_mutex);
 	ret = sscanf(buf, "%du", &read_ctl_value);
-	if (read_ctl_value > 15 || read_ctl_value < 0) {
+	if (read_ctl_value > 15) {
 		pr_err("set value %d error,you should set 0~15\n", read_ctl_value);
 		mutex_unlock(&ddr_mo_mutex);
 		return count;
@@ -946,7 +949,7 @@ static ssize_t cpu_write_ctl_store(struct device_driver *drv,
 
 	mutex_lock(&ddr_mo_mutex);
 	ret = sscanf(buf, "%du", &write_ctl_value);
-	if (write_ctl_value > 15 || write_ctl_value < 0) {
+	if (write_ctl_value > 15) {
 		pr_err("set value %d error,you should set 0~15\n", write_ctl_value);
 		mutex_unlock(&ddr_mo_mutex);
 		return count;
@@ -980,7 +983,7 @@ static ssize_t bifdma_write_ctl_store(struct device_driver *drv,
 
 	mutex_lock(&ddr_mo_mutex);
 	ret = sscanf(buf, "%du", &write_ctl_value);
-	if (write_ctl_value > 15 || write_ctl_value < 0) {
+	if (write_ctl_value > 15) {
 		pr_err("set value %d error,you should set 0~15\n", write_ctl_value);
 		mutex_unlock(&ddr_mo_mutex);
 		return count;
@@ -1011,7 +1014,7 @@ static ssize_t bpu0_write_ctl_store(struct device_driver *drv,
 
 	mutex_lock(&ddr_mo_mutex);
 	ret = sscanf(buf, "%du", &write_ctl_value);
-	if (write_ctl_value > 15 || write_ctl_value < 0) {
+	if (write_ctl_value > 15) {
 		pr_err("set value %d error,you should set 0~15\n", write_ctl_value);
 		mutex_unlock(&ddr_mo_mutex);
 		return count;
@@ -1042,7 +1045,7 @@ static ssize_t bpu1_write_ctl_store(struct device_driver *drv,
 
 	mutex_lock(&ddr_mo_mutex);
 	ret = sscanf(buf, "%du", &write_ctl_value);
-	if (write_ctl_value > 15 || write_ctl_value < 0) {
+	if (write_ctl_value > 15) {
 		pr_err("set value %d error,you should set 0~15\n", write_ctl_value);
 		mutex_unlock(&ddr_mo_mutex);
 		return count;
@@ -1072,7 +1075,7 @@ static ssize_t vio0_write_ctl_store(struct device_driver *drv,
 
 	mutex_lock(&ddr_mo_mutex);
 	ret = sscanf(buf, "%du", &write_ctl_value);
-	if (write_ctl_value > 15 || write_ctl_value < 0) {
+	if (write_ctl_value > 15) {
 		pr_err("set value %d error,you should set 0~15\n", write_ctl_value);
 		mutex_unlock(&ddr_mo_mutex);
 		return count;
@@ -1105,7 +1108,7 @@ static ssize_t vpu_write_ctl_store(struct device_driver *drv,
 
 	mutex_lock(&ddr_mo_mutex);
 	ret = sscanf(buf, "%du", &write_ctl_value);
-	if (write_ctl_value > 15 || write_ctl_value < 0) {
+	if (write_ctl_value > 15) {
 		pr_err("set value %d error,you should set 0~15\n", write_ctl_value);
 		mutex_unlock(&ddr_mo_mutex);
 		return count;
@@ -1137,7 +1140,7 @@ static ssize_t vio1_write_ctl_store(struct device_driver *drv,
 
 	mutex_lock(&ddr_mo_mutex);
 	ret = sscanf(buf, "%du", &write_ctl_value);
-	if (write_ctl_value > 15 || write_ctl_value < 0) {
+	if (write_ctl_value > 15) {
 		pr_err("set value %d error,you should set 0~15\n", write_ctl_value);
 		mutex_unlock(&ddr_mo_mutex);
 		return count;
@@ -1175,7 +1178,7 @@ static ssize_t periph_write_ctl_store(struct device_driver *drv,
 
 	mutex_lock(&ddr_mo_mutex);
 	ret = sscanf(buf, "%du", &write_ctl_value);
-	if (write_ctl_value > 15 || write_ctl_value < 0) {
+	if (write_ctl_value > 15) {
 		pr_err("set value %d error,you should set 0~15\n", write_ctl_value);
 		mutex_unlock(&ddr_mo_mutex);
 		return count;

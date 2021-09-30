@@ -523,9 +523,6 @@ static int pvt_probe(struct platform_device *pdev)
 	hobot_vm_probe(&pdev->dev, pvt_dev->reg_base, pvt_dev->efuse_base);
 
 	return PTR_ERR_OR_ZERO(hwmon_dev);
-
-
-	return ret;
 }
 
 static const struct of_device_id pvt_of_match[] = {

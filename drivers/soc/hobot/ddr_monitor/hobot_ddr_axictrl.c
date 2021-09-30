@@ -84,7 +84,7 @@ static ssize_t sifw_axibus_ctrl_store(struct device_driver *drv,
 	open_sif_mclk();
 
 	sscanf(buf, "%x", &val);
-	if (val > 1 || val < 0) {
+	if (val != 1 && val != 0) {
 		pr_err("set value %d error,you should set 0~1\n", val);
 		mutex_unlock(&axictrl.mlock);
 		return count;
@@ -131,7 +131,7 @@ static ssize_t isp0m0_axibus_ctrl_store(struct device_driver *drv,
 	mutex_lock(&axictrl.mlock);
 	open_sif_mclk();
 	sscanf(buf, "%x", &val);
-	if (val > 1 || val < 0) {
+	if (val != 1 && val != 0) {
 		pr_err("set value %d error,you should set 0~1\n", val);
 		mutex_unlock(&axictrl.mlock);
 		return count;
@@ -179,7 +179,7 @@ static ssize_t isp0m1_axibus_ctrl_store(struct device_driver *drv,
 	mutex_lock(&axictrl.mlock);
 	open_sif_mclk();
 	sscanf(buf, "%x", &val);
-	if (val > 1 || val < 0) {
+	if (val != 1 && val != 0) {
 		pr_err("set value %d error,you should set 0~1\n", val);
 		mutex_unlock(&axictrl.mlock);
 		return count;
@@ -227,7 +227,7 @@ static ssize_t isp0m2_axibus_ctrl_store(struct device_driver *drv,
 	mutex_lock(&axictrl.mlock);
 	open_sif_mclk();
 	sscanf(buf, "%x", &val);
-	if (val > 1 || val < 0) {
+	if (val != 1 && val != 0) {
 		pr_err("set value %d error,you should set 0~1\n", val);
 		mutex_unlock(&axictrl.mlock);
 		return count;
@@ -275,7 +275,7 @@ static ssize_t gdc0_axibus_ctrl_store(struct device_driver *drv,
 
 	open_sif_mclk();
 	sscanf(buf, "%x", &val);
-	if (val > 1 || val < 0) {
+	if (val != 1 && val != 0) {
 		pr_err("set value %d error,you should set 0~1\n", val);
 		mutex_unlock(&axictrl.mlock);
 		return count;
@@ -323,7 +323,7 @@ static ssize_t t21_axibus_ctrl_store(struct device_driver *drv,
 	mutex_lock(&axictrl.mlock);
 	open_sif_mclk();
 	sscanf(buf, "%x", &val);
-	if (val > 1 || val < 0) {
+	if (val != 1 && val != 0) {
 		pr_err("set value %d error,you should set 0~1\n", val);
 		mutex_unlock(&axictrl.mlock);
 		return count;
@@ -372,7 +372,7 @@ static ssize_t gdc1_axibus_ctrl_store(struct device_driver *drv,
 
 	open_sif_mclk();
 	sscanf(buf, "%x", &val);
-	if (val > 1 || val < 0) {
+	if (val != 1 && val != 0) {
 		pr_err("set value %d error,you should set 0~1\n", val);
 		mutex_unlock(&axictrl.mlock);
 		return count;
@@ -420,7 +420,7 @@ static ssize_t sifr_axibus_ctrl_store(struct device_driver *drv,
 	mutex_lock(&axictrl.mlock);
 	open_sif_mclk();
 	sscanf(buf, "%x", &val);
-	if (val > 1 || val < 0) {
+	if (val != 1 && val != 0) {
 		pr_err("set value %d error,you should set 0~1\n", val);
 		mutex_unlock(&axictrl.mlock);
 		return count;
@@ -468,7 +468,7 @@ static ssize_t ipu0_axibus_ctrl_store(struct device_driver *drv,
 	mutex_lock(&axictrl.mlock);
 	open_sif_mclk();
 	sscanf(buf, "%x", &val);
-	if (val > 1 || val < 0) {
+	if (val != 1 && val != 0) {
 		pr_err("set value %d error,you should set 0~1\n", val);
 		mutex_unlock(&axictrl.mlock);
 		return count;
@@ -516,7 +516,7 @@ static ssize_t pym_axibus_ctrl_store(struct device_driver *drv,
 	mutex_lock(&axictrl.mlock);
 	open_sif_mclk();
 	sscanf(buf, "%x", &val);
-	if (val > 1 || val < 0) {
+	if (val != 1 && val != 0) {
 		pr_err("set value %d error,you should set 0~1\n", val);
 		mutex_unlock(&axictrl.mlock);
 		return count;
@@ -565,7 +565,7 @@ static ssize_t iar_axibus_ctrl_store(struct device_driver *drv,
 
 	open_sif_mclk();
 	sscanf(buf, "%x", &val);
-	if (val > 1 || val < 0) {
+	if (val != 1 && val != 0) {
 		pr_err("set value %d error,you should set 0~1\n", val);
 		mutex_unlock(&axictrl.mlock);
 		return count;

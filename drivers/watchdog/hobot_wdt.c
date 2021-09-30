@@ -74,7 +74,7 @@ struct hobot_wdt {
 	u32 bark_time;
 	u32 bite_time;
 	u32 bite_interval;
-	u32 bark_irq;
+	s32 bark_irq;
 	u32 bite_irq;
 	u64 last_pet;
 
@@ -290,7 +290,7 @@ static int hobot_wdt_start(struct watchdog_device *wdd)
 	if (!kthread_disabled && !hrtimer_active(&hbwdt->pet_timer)) {
 		hobot_wdt_reload(&hbwdt->hobot_wdd);
 		hrtimer_start(&hbwdt->pet_timer,
-			ms_to_ktime(hbwdt->pet_time * 1000), HRTIMER_MODE_REL);
+			ms_to_ktime((u64)hbwdt->pet_time * 1000), HRTIMER_MODE_REL);
 	}
 
 	return 0;
@@ -545,7 +545,7 @@ static __ref int watchdog_kthread(void *arg)
 		if (hbwdt->enabled) {
 			pet_watchdog(hbwdt);
 			hrtimer_start(&hbwdt->pet_timer,
-				ms_to_ktime(hbwdt->pet_time * 1000), HRTIMER_MODE_REL);
+				ms_to_ktime((u64)hbwdt->pet_time * 1000), HRTIMER_MODE_REL);
 		}
 	}
 

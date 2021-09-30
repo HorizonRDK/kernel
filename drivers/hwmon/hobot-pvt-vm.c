@@ -106,15 +106,13 @@ static int hobot_vm_read_raw(struct iio_dev *indio_dev,
     switch (mask) {
     case IIO_CHAN_INFO_RAW:
         mutex_lock(&indio_dev->mlock);
-
-        if (hobot_vm_read_channel(info, chan->channel)) {
-            mutex_unlock(&indio_dev->mlock);
-            return -ETIMEDOUT;
-        }
-
         if (chan->channel >= 0 && chan->channel < PVT_VM_NUM) {
+            if (hobot_vm_read_channel(info, chan->channel)) {
+                mutex_unlock(&indio_dev->mlock);
+                return -ETIMEDOUT;
+            }
             if (info->vm_mode == 0) {
-                k = info->vm_k3 * 25;
+                k = (s64)info->vm_k3 * 25;
                 offset = info->vm_n0 * k;
                 volt = (k * (s64)(info->last_smpl[chan->channel]) - offset) \
                         >> 12;

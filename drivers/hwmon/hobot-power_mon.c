@@ -10,6 +10,8 @@
  * (at your option) any later version.
  */
 
+#define pr_fmt(fmt) "[hobot-power_mon]: " fmt
+
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/slab.h>
@@ -119,14 +121,15 @@ int i2c_write_byte(int dev, int reg, u8 value)
 
 int cfg_INA226(int devaddr, int resolution)
 {
+	int ret = 0;
 	u16 reg_value = 0;
 	reg_value = i2c_read_word_ex(devaddr, 0x00, &reg_value);
 	reg_value |= 0x1 << 15;
-	i2c_write_word_ex(devaddr, 0x00, reg_value);
+	ret |= i2c_write_word_ex(devaddr, 0x00, reg_value);
 	//i2c_write_word_ex(devaddr, 0x00, 0x4005);//0x4205);//test
-	i2c_write_word_ex(devaddr, 0x00, 0x4305);//1ms avg 1
-	i2c_write_word_ex(devaddr, 0x05, resolution);
-	return 0;
+	ret |= i2c_write_word_ex(devaddr, 0x00, 0x4305);//1ms avg 1
+	ret |= i2c_write_word_ex(devaddr, 0x05, resolution);
+	return ret;
 }
 
 int read_INA226_value(struct power_monitor_result_s* res_info)
@@ -374,32 +377,39 @@ struct file_operations power_mon_fops = {
 int power_cdev_create(void)
 {
 	int ret = 0;
-	int error;
+	struct device *device = NULL;
 
 	printk(KERN_INFO "power_cdev_create()\n");
 
 	hobot_power->classes = class_create(THIS_MODULE, "hobot_power_mon");
-	if (IS_ERR(hobot_power->classes))
+	if (IS_ERR(hobot_power->classes)) {
+		pr_err("class_create failed\n");
 		return PTR_ERR(hobot_power->classes);
-
-	error = alloc_chrdev_region(&hobot_power->dev_num, 0, 1, "hobot_power_mon");
-
-	if (!error) {
-		hobot_power->major = MAJOR(hobot_power->dev_num);
-		hobot_power->minor = MINOR(hobot_power->dev_num);
 	}
 
-	if (ret < 0)
+	ret = alloc_chrdev_region(&hobot_power->dev_num, 0, 1, "hobot_power_mon");
+	if (ret != 0) {
+		pr_err("alloc_chrdev_region failed, ret:%d\n", ret);
 		return ret;
+	}
+
+	hobot_power->major = MAJOR(hobot_power->dev_num);
+	hobot_power->minor = MINOR(hobot_power->dev_num);
 
 	cdev_init(&hobot_power->cdev, &power_mon_fops);
 	hobot_power->cdev.owner = THIS_MODULE;
-
-	cdev_add(&hobot_power->cdev, hobot_power->dev_num, 1);
-
-	device_create(hobot_power->classes, NULL, hobot_power->dev_num, NULL, "hobot_power_mon");
-	if (ret)
+	ret = cdev_add(&hobot_power->cdev, hobot_power->dev_num, 1);
+	if (ret != 0) {
+		pr_err("cdev_add failed,ret:%d\n", ret);
 		return ret;
+	}
+
+	device = device_create(hobot_power->classes,
+			NULL, hobot_power->dev_num, NULL, "hobot_power_mon");
+	if (IS_ERR(device)) {
+		pr_err("cdev_create failed\n");
+		return PTR_ERR(device);
+	}
 
 	return ret;
 }
@@ -416,6 +426,8 @@ void power_dev_remove(void)
 
 static int power_mon_probe(struct platform_device *pdev)
 {
+	int ret = 0;
+
 	hobot_power = kmalloc(sizeof(struct power_data), GFP_KERNEL);
 	if (!hobot_power) {
 		printk(KERN_ERR"Unable to alloc power_data\n");
@@ -426,16 +438,26 @@ static int power_mon_probe(struct platform_device *pdev)
 		printk(KERN_ERR"Unable to get i2c1 adapter\n");
 		return -EINVAL;
 	}
-	cfg_INA226(0x40, 0x2800);
-	cfg_INA226(0x41, 0x2800);
-	cfg_INA226(0x44, 0x2800);
-	cfg_INA226(0x45, 0x2800);
+	ret |= cfg_INA226(0x40, 0x2800);
+	ret |= cfg_INA226(0x41, 0x2800);
+	ret |= cfg_INA226(0x44, 0x2800);
+	ret |= cfg_INA226(0x45, 0x2800);
+	if (ret != 0) {
+		pr_err("cfg_INA226 failed, ret:%d\n", ret);
+		return ret;
+	}
 	power_result_buf = kmalloc(TOTAL_RESULT_SIZE, GFP_KERNEL);
+	if (power_result_buf == NULL) {
+		pr_err("kmalloc failed\n");
+		return -1;
+	}
 	hobot_power->task = NULL;
 	init_waitqueue_head(&hobot_power->wq_head);
 	spin_lock_init(&hobot_power->lock);
-	power_cdev_create();
-	return 0;
+	ret = power_cdev_create();
+	if (ret != 0)
+		pr_err("power_cdev_create failed, ret:%d\n", ret);
+	return ret;
 }
 
 static int power_mon_remove(struct platform_device *pdev)
