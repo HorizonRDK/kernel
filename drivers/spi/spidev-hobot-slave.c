@@ -1122,10 +1122,11 @@ static int spidev_release(struct inode *inode, struct file *filp)
 	spi_recv_rc = 0;
 	spi_send_rc = 0;
 
+	mutex_unlock(&spidev->buf_lock);
+
 	if (dofree)
 		kfree(spidev);
 
-	mutex_unlock(&spidev->buf_lock);
 	mutex_unlock(&device_list_lock);
 	spi_releasing_flag = 0;
 
@@ -1173,9 +1174,7 @@ static ssize_t debug_level_write(struct file *file,
 
     level = simple_strtoul(buffer, NULL, 10);
 
-	if (level < SPI_DEBUG_LEVEL_MIN)
-		spidev->level = SPI_DEBUG_LEVEL_MIN;
-	else if (level > SPI_DEBUG_LEVEL_MAX)
+	if (level > SPI_DEBUG_LEVEL_MAX)
 		spidev->level = SPI_DEBUG_LEVEL_MAX;
 	else
 		spidev->level = level;

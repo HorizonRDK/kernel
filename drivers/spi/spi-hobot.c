@@ -1243,7 +1243,10 @@ static int hb_spi_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "failed to alloc spi slave, try master\n");
 			return -ENOMEM;
 		}
-	}
+    } else {
+        dev_err(&pdev->dev, "failed to select mode\n");
+        return -ENOMEM;
+    }
 
 	hbspi = spi_controller_get_devdata(ctlr);
 	ctlr->dev.of_node = pdev->dev.of_node;

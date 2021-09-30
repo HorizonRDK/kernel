@@ -321,7 +321,7 @@ static int spi_slave_frag_index = 0;
 static int spi_slave_tp_frag(char *src_buf, char *frag_buf, int data_length)
 {
 	static spi_header_byte send_spi_header;
-	char copy_length = 0;
+	unsigned char copy_length = 0;
 	int tmp_data_length = data_length;
 	memset(&send_spi_header, 0, sizeof(send_spi_header));
 	if (src_buf == NULL || frag_buf == NULL || data_length <= 0) {
