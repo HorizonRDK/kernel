@@ -228,6 +228,10 @@ struct vio_frame_id {
 	u32 frame_id;
 	u64 timestamps;
 	struct timeval tv;
+	u32 base_frame_id;
+	u32 last_frame_id;
+	u32 frame_id_bits;
+	spinlock_t id_lock;
 };
 
 typedef int (*isp_callback)(int);
@@ -276,6 +280,10 @@ void vio_print_stack_by_name(char *name);
 void vio_clear_stat_info(u32 instance);
 void* vio_get_stat_info_ptr(u32 instance);
 void voi_set_stat_info_update(s32 update);
+
+extern int sif_get_frame_id(u32 instance, u32 *frame_id);
+extern int sif_set_frame_id(u32 instance, u32 frame_id);
+extern int sif_set_frame_id_nr(u32 instance, u32 nr);
 
 extern iar_get_type_callback iar_get_type;
 extern iar_set_addr_callback iar_set_addr;

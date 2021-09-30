@@ -1647,6 +1647,7 @@ void sif_get_frameid_timestamps(u32 __iomem *base_reg, u32 mux, u32 ipi_index,
 	u64 timestamp_l, timestamp_m;
 	sif_input_mipi_t *p_mipi = &input->mipi;
 	u32 ipi_mode = p_mipi->ipi_mode;
+	unsigned long flags;
 
 	if (dol_num >= 2 && ipi_mode == 0) {
 		value = vio_hw_get_reg(base_reg,
@@ -1680,12 +1681,20 @@ void sif_get_frameid_timestamps(u32 __iomem *base_reg, u32 mux, u32 ipi_index,
 						&sif_regs[SIF_TIMESTAMP0_MSB + mux * 2]);
 	info->timestamps = timestamp_l | timestamp_m << 32;
 	do_gettimeofday(&info->tv);
+
+	spin_lock_irqsave(&sif_frame_info[instance].id_lock, flags);
+	sif_frame_info[instance].last_frame_id = info->frame_id;
+	info->frame_id -= sif_frame_info[instance].base_frame_id;
+	info->frame_id |= sif_frame_info[instance].frame_id_bits;
+	sif_frame_info[instance].frame_id_bits = 0;
+
 	if(output->isp.func.enable_flyby == 1 ||
 	   output->ipu.enable_flyby == 1) {
 		sif_frame_info[instance].frame_id = info->frame_id;
 		sif_frame_info[instance].timestamps = info->timestamps;
 		sif_frame_info[instance].tv = info->tv;
 	}
+	spin_unlock_irqrestore(&sif_frame_info[instance].id_lock, flags);
 	vio_dbg("%s frame_id %d info->timestamps %llu\n",
 		__func__, info->frame_id, info->timestamps);
 }

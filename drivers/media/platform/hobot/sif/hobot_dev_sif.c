@@ -73,6 +73,11 @@ void sif_get_mismatch_status(void)
 }
 EXPORT_SYMBOL(sif_get_mismatch_status);
 
+/* Use the frame id lower 28 bit export to other module */
+#define BASE_SHIFT			28
+#define FRMAE_ID_NR    		(0xF << BASE_SHIFT)
+#define FRAME_ID_MASK  		(~FRMAE_ID_NR)
+
 static int x3_sif_suspend(struct device *dev)
 {
 	int ret = 0;
@@ -1146,6 +1151,7 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 		vio_info("[S%d][V%d]%s SIF last process close \n",
 				sif_ctx->group->instance, sif_ctx->id, __func__);
 	}
+	memset(&sif_frame_info[sif_ctx->group->instance], 0, sizeof(struct vio_frame_id));
 	mutex_unlock(&sif->shared_mutex);
 	sif_ctx->state = BIT(VIO_VIDEO_CLOSE);
 
@@ -1798,6 +1804,49 @@ p_err:
 	return ret;
 }
 
+int sif_get_frame_id(u32 instance, u32 *frame_id)
+{
+	if (instance > VIO_MAX_STREAM)
+		return -1;
+
+	*frame_id = sif_frame_info[instance].frame_id;
+	return 0;
+}
+EXPORT_SYMBOL(sif_get_frame_id);
+
+int sif_set_frame_id(u32 instance, u32 frame_id)
+{
+	if (instance > VIO_MAX_STREAM)
+		return -1;
+
+	unsigned long flags;
+	spin_lock_irqsave(&sif_frame_info[instance].id_lock, flags);
+	frame_id &= FRAME_ID_MASK;
+	sif_frame_info[instance].base_frame_id = \
+		sif_frame_info[instance].last_frame_id;
+	sif_frame_info[instance].base_frame_id -= frame_id;
+	/* Here minus 1 to decrease the increment of the next frame */
+	sif_frame_info[instance].base_frame_id += 1;
+	spin_unlock_irqrestore(&sif_frame_info[instance].id_lock, flags);
+
+	return 0;
+}
+EXPORT_SYMBOL(sif_set_frame_id);
+
+int sif_set_frame_id_nr(u32 instance, u32 nr)
+{
+	if (instance > VIO_MAX_STREAM || nr > 0xF)
+		return -1;
+
+	unsigned long flags;
+	spin_lock_irqsave(&sif_frame_info[instance].id_lock, flags);
+	sif_frame_info[instance].frame_id_bits = nr << BASE_SHIFT;
+	spin_unlock_irqrestore(&sif_frame_info[instance].id_lock, flags);
+
+	return 0;
+}
+EXPORT_SYMBOL(sif_set_frame_id_nr);
+
 /*
   * @brief
   * Configure common register
@@ -1871,6 +1920,7 @@ int sif_video_streamon(struct sif_video_ctx *sif_ctx)
 		sif_start_pattern_gen(sif_dev->base_reg, 0);
 	}
 
+	memset(&sif_frame_info[sif_ctx->group->instance], 0, sizeof(struct vio_frame_id));
 	if (atomic_read(&sif_dev->rsccount) > 0) {
 		goto p_inc;
 	}
@@ -3210,6 +3260,7 @@ int x3_sif_subdev_init(struct x3_sif_dev *sif)
 
 		subdev = &sif->sif_mux_subdev[i];
 		ret = sif_subdev_init(subdev);
+		spin_lock_init(&sif_frame_info[i].id_lock);
 	}
 
 	return ret;
