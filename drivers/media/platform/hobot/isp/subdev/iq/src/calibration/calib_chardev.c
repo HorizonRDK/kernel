@@ -61,6 +61,9 @@ static int calib_destory(uint8_t port)
 	LOG( LOG_INFO, "calibration deinit is runing.");
 	ACameraCalibrations *c = soc_iq_get_lut_data_ptr(port);
 	if (c != NULL) {
+		for(tmp = 0; tmp < CALIBRATION_TOTAL_SIZE; tmp++) {
+			c->calibrations[tmp] = NULL;
+		}
 		get_calibrations_dynamic_fs_lin_dummy(c);
 		get_calibrations_static_fs_lin_dummy(c);
 	}
@@ -271,7 +274,7 @@ int register_calib( ACameraCalibrations *c, uint8_t port )
 	}
 	struct calib_data_s *calib_data = calib_param_ctx.plist[port];
 	if(calib_data == NULL) {
-		LOG( LOG_ERR, "calib_data is null. port %d", port );
+		LOG( LOG_INFO, "calib_data is null. port %d", port );
 		return -CALIB_NULL_ERR;
 	}
 	LOG( LOG_INFO, "%s is runing.", __func__ );
@@ -295,15 +298,6 @@ int unregister_calib( ACameraCalibrations *c, uint8_t port )
 	int ret = 0;
 	uint32_t tmp = 0;
 
-	if (port >= FIRMWARE_CONTEXT_NUMBER) {
-		LOG( LOG_ERR, "port %d is not existance.", port );
-		return -CALIB_PORT_ERR;
-	}
-	struct calib_data_s *calib_data = calib_param_ctx.plist[port];
-	if(calib_data == NULL) {
-		LOG( LOG_ERR, "calib_data is null. port %d", port );
-		return -CALIB_NULL_ERR;
-	}
 	LOG( LOG_INFO, "%s is runing.", __func__ );
 	for(tmp = 0; tmp < CALIBRATION_TOTAL_SIZE; tmp++) {
 		c->calibrations[tmp] = NULL;
