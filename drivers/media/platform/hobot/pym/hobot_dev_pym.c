@@ -313,7 +313,6 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 		if (atomic_dec_return(&group->node_refcount) == 0) {
 			clear_bit(VIO_GROUP_INIT, &group->state);
 			pym->statistic.enable[instance] = 0;
-			pym->statistic.err_stat_enable[instance] = 0;
 		}
 		// this is the subdev's last process close, it's ok to free all ion buffer
 		x3_pym_release_subdev_all_ion(subdev);
@@ -517,7 +516,7 @@ static void pym_frame_work(struct vio_group *group)
 			frame->frameinfo.height = src_frame->frameinfo.height;
 			frame->frameinfo.width = src_frame->frameinfo.width;
 		}
-
+		group->frameid.frame_id = frame->frameinfo.frame_id;
 		pym_set_shd_rdy(pym->base_reg, shadow_index, 0);
 		/* 8 instances share 4 sest of shadow register */
 		if (test_bit(PYM_REUSE_SHADOW0, &pym->state) &&
@@ -1188,6 +1187,7 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 			memcpy(&frame->frameinfo, frameinfo, sizeof(struct frame_info));
 			trans_frame(framemgr, frame, FS_REQUEST);
 			framemgr_x_barrier_irqr(framemgr, 0, flags);
+			pym->statistic.q_normal[pym_ctx->group->instance][SUBDEV_ID_SRC]++;
 			/* offline pym, src dev start trigger */
 			if ( (group->leader) && (test_bit(PYM_DMA_INPUT, &pym->state)) ) {
 				vio_group_start_trigger_mp(group, frame);
@@ -1290,7 +1290,7 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 		vio_group_start_trigger_mp(group, frame);
 	}
 	if (pym_ctx->ctx_index == 0)
-		pym->statistic.q_normal[pym_ctx->group->instance]++;
+		pym->statistic.q_normal[pym_ctx->group->instance][SUBDEV_ID_OUT]++;
 	vio_dbg("[S%d] %s index %d\n", group->instance,
 		__func__, frameinfo->bufferindex);
 
@@ -2477,6 +2477,11 @@ static ssize_t pym_stat_show(struct device *dev,
 			stats->cnt[USER_STATS_SEL_ERR]);
 		offset += len;
 
+		len = snprintf(&buf[offset], PAGE_SIZE - offset,
+			"DRV(pym_s0): q_normal %d\n",
+				pym->statistic.q_normal[instance][SUBDEV_ID_SRC]);
+		offset += len;
+
 		len = snprintf(&buf[offset],  PAGE_SIZE - offset,
 			"DRV: fe_normal %d, fe_lack_buf %d, "
 			"pollin_comp %d, pollin_isr %d, pollerr %d, "
@@ -2491,7 +2496,7 @@ static ssize_t pym_stat_show(struct device *dev,
 			pym->statistic.pollerr[instance],
 			pym->statistic.dq_normal[instance],
 			pym->statistic.dq_err[instance],
-			pym->statistic.q_normal[instance],
+			pym->statistic.q_normal[instance][SUBDEV_ID_OUT],
 			pym->statistic.hard_frame_drop_us[instance],
 			pym->statistic.hard_frame_drop_ds[instance],
 			pym->statistic.soft_frame_drop_us[instance],
@@ -2508,7 +2513,7 @@ static ssize_t pym_stat_show(struct device *dev,
 
 	if (output == 1) {
 		len = snprintf(&buf[offset], PAGE_SIZE - offset,
-			"DRV: tatal_fs %d, tatal_frm_work %d\n",
+			"DRV: total_fs %d, total_frm_work %d\n",
 			pym->statistic.tal_fs,
 			pym->statistic.tal_frm_work);
 		offset += len;

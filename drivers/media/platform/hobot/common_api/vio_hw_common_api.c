@@ -4,11 +4,11 @@
  *                     All rights reserved.
  ***************************************************************************/
 
+#define pr_fmt(fmt) "vio_hw_common_api: " fmt
 #include <linux/io.h>
 #include "vio_hw_common_api.h"
 #include "vio_config.h"
 
-#define pr_fmt(fmt) "vio_hw_common_api: " fmt
 //#define DEBUG_HW_SFR
 u32 vio_hw_get_reg(void __iomem *base_addr, const struct vio_reg_def *reg)
 {
