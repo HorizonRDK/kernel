@@ -134,8 +134,8 @@
                 };
 
 		/*Reserved 4k memory for bl31*/
-        bl31_share_rsv: bl31_share_rsv{
-			reg = <0x0 0x3FFF000 0x0 0x1000>;
+        bl31_share_rsv: bl31_share_rsv {
+			reg = <0x0 0x3F0F000 0x0 0x1000>;
 			no-map;
 		};
 	};
