@@ -1037,6 +1037,10 @@ int pym_video_streamoff(struct pym_video_ctx *pym_ctx)
 	struct pym_subdev *subdev;
 	struct vio_group *group;
 
+	if (pym_ctx->id == SUBDEV_ID_SRC) {
+		return 0;
+	}
+
 	if (!(pym_ctx->state & BIT(VIO_VIDEO_START))) {
 		vio_err("[V%02d] invalid STREAMOFF is requested(%lX)",
 			pym_ctx->group->instance, pym_ctx->state);
