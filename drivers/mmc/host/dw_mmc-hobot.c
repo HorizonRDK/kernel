@@ -337,7 +337,7 @@ static int dw_mci_hb_sample_tuning(struct dw_mci_slot *slot, u32 opcode)
 		return -ENOMEM;
 
 	/* Try each phase and extract good ranges */
-	for (i = 0; i < NUM_PHASES;) {
+	for (i = 0; i < NUM_PHASES; i++) {
 		hb_mmc_set_sample_phase(host, TUNING_ITERATION_TO_PHASE(i));
 
 		v = !mmc_send_tuning(mmc, opcode, NULL);
@@ -352,26 +352,13 @@ static int dw_mci_hb_sample_tuning(struct dw_mci_slot *slot, u32 opcode)
 
 		if (v) {
 			ranges[range_count - 1].end = i;
-			i++;
-		} else {
+		} else if (i < NUM_PHASES - 2) {
 			/*
 			 * No need to check too close to an invalid
-			 * one since testing bad phases is slow.  Skip
-			 * 20 degrees. Always test the last one.
+			 * one since testing bad phases is slow. Skip
+			 * the adjacent phase but always test the last phase.
 			 */
-			if (i != 15 && (i += 2) >= NUM_PHASES) {
-				prev_v = v;
-				hb_mmc_set_sample_phase(host, TUNING_ITERATION_TO_PHASE(NUM_PHASES - 1));
-				v = !mmc_send_tuning(mmc, opcode, NULL);
-
-				if ((!prev_v) && v) {
-					range_count++;
-					ranges[range_count - 1].start = i;
-				}
-
-				if (v)
-					ranges[range_count - 1].end = i;
-			}
+			i++;
 		}
 
 		prev_v = v;
