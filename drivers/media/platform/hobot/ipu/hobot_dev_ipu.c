@@ -579,12 +579,9 @@ static int subdev_set_frame_skip_param(struct ipu_video_ctx *ipu_ctx,
 	subdev->frame_rate_change_strategy = frame_rate_change_strategy;
 	switch (frame_rate_change_strategy) {
 	case FIX_INTERVAL_SKIP_MODE:
-		atomic_set(&subdev->lost_next_frame, 0);
 		subdev->curr_frame_cnt = 0;
 		break;
 	case BALANCE_SKIP_MODE:
-		/*balance strategy, we lost first frame*/
-		atomic_set(&subdev->lost_next_frame, 1);
 		subdev->curr_frame_cnt = frame_skip_num;
 		break;
 	default :
@@ -708,6 +705,25 @@ static void ipu_set_all_lost_next_frame_flags(struct vio_group *group)
 	 */
 	if (lost_all_this_frame)
 		prev_fs_has_no_fe = 0;
+}
+
+void ipu_skip_frame_ndone(struct ipu_subdev *subdev)
+{
+	struct ipu_video_ctx *ipu_ctx = NULL;
+	int i = 0;
+	unsigned long flags;
+
+	spin_lock_irqsave(&subdev->slock, flags);
+	for (i = 0; i < VIO_MAX_SUB_PROCESS; i++) {
+		if (test_bit(i, &subdev->val_ctx_mask)) {
+			ipu_ctx = subdev->ctx[i];
+			if (ipu_ctx) {
+				ipu_ctx->event = VIO_FRAME_DONE;
+				wake_up(&ipu_ctx->done_wq);
+			}
+		}
+	}
+	spin_unlock_irqrestore(&subdev->slock, flags);
 }
 
 static int work_index = 0;
@@ -842,7 +858,7 @@ void ipu_frame_work(struct vio_group *group)
 			if (atomic_read(&subdev->lost_this_frame)) {
 				vio_dbg("[V%d] ndone\n", i);
 				subdev->frame_is_skipped = true;
-				ipu_frame_ndone(subdev);
+				ipu_skip_frame_ndone(subdev);
 			}
 		}
 
@@ -999,7 +1015,7 @@ end_req_to_pro:
 					continue;
 
 				subdev->frame_is_skipped = true;
-				ipu_frame_ndone(subdev);
+				ipu_skip_frame_ndone(subdev);
 			}
 		}
 
@@ -1031,7 +1047,7 @@ end_req_to_pro:
 					if (!subdev)
 						continue;
 					subdev->frame_is_skipped = true;
-					ipu_frame_ndone(subdev);
+					ipu_skip_frame_ndone(subdev);
 				}
 			}
 			// no ipu channel enable ddr output
