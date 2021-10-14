@@ -5,3 +5,5 @@
 obj-$(CONFIG_HOBOT_CORESIGHT) += hobot_coresight.o hobot_coresight_v8.o
 
 obj-$(CONFIG_HOBOT_FIQ_DEBUGGER) += hobot_fiq_debugger.o
+
+obj-$(CONFIG_HOBOT_SCHED_LOGGER) += hobot_sched_logger.o

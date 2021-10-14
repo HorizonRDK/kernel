@@ -12,3 +12,9 @@ config HOBOT_FIQ_DEBUGGER
     tristate "support fiq debugger after hardlock"
     help
         Support fiq debugger to get registers, backtrace
+config HOBOT_SCHED_LOGGER
+	tristate "HOBOT Sched Switch Logger Support"
+	depends on ARCH_HOBOT
+	default n
+	help
+	  support the sched switch debugging in release version.

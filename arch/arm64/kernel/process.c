@@ -59,6 +59,29 @@
 #include <asm/processor.h>
 #include <asm/stacktrace.h>
 
+#ifdef CONFIG_SCHED_LOGGER
+DEFINE_STATIC_KEY_FALSE(sched_log);
+static int (*log_cb)(struct task_struct *prev, struct task_struct *next);
+
+int register_sched_logger(void *cb)
+{
+	if (cb == NULL)
+		return -EINVAL;
+	log_cb = cb;
+	static_branch_enable(&sched_log);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(register_sched_logger);
+
+void unregister_sched_logger(void)
+{
+	static_branch_disable(&sched_log);
+	log_cb = NULL;
+}
+EXPORT_SYMBOL_GPL(unregister_sched_logger);
+#endif
+
 #ifdef CONFIG_CC_STACKPROTECTOR
 #include <linux/stackprotector.h>
 unsigned long __stack_chk_guard __read_mostly;
@@ -356,6 +379,13 @@ __notrace_funcgraph struct task_struct *__switch_to(struct task_struct *prev,
 				struct task_struct *next)
 {
 	struct task_struct *last;
+
+#ifdef CONFIG_SCHED_LOGGER
+	if (static_branch_unlikely(&sched_log)) {
+		if (likely(log_cb))
+			(*log_cb)(prev, next);
+	}
+#endif
 
 	fpsimd_thread_switch(next);
 	tls_thread_switch(next);

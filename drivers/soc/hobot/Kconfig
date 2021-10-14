@@ -200,12 +200,15 @@ menuconfig HOBOT_SOC_DEBUG
         bool "Kernel Debugging Support on Hobot Platform"
         depends on ARCH_HOBOT
         default y
+		select SCHED_LOGGER
         help
           Say yes to enable the kernle debugging drivers for Hobot platform
 
 if HOBOT_SOC_DEBUG
-
 source "drivers/soc/hobot/debug/Kconfig"
+
+config SCHED_LOGGER
+		tristate "kernel sched logger info"
 
 endif #HOBOT_SOC_DEBUG
 
