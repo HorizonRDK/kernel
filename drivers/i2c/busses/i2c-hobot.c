@@ -343,7 +343,7 @@ static irqreturn_t hobot_i2c_isr(int this_irq, void *data)
 
 	if (err) {
 		dev->msg_err = int_status.all;
-		dev_dbg(dev->dev, "i2c isr err:%x\n", dev->msg_err);
+		dev_err(dev->dev, "i2c isr err:%x\n", dev->msg_err);
 	} else {
 		if (int_status.bit.tr_done || int_status.bit.rrdy || int_status.bit.xrdy) {
 			if (dev->i2c_state == i2c_read) {
@@ -456,21 +456,20 @@ static int hobot_i2c_xfer_msg(struct hobot_i2c_dev *dev, struct i2c_msg *msg)
 	ctl_reg.bit.rfifo_clr = 1;
 	ctl_reg.bit.tfifo_clr = 1;
 	iowrite32(ctl_reg.all, &dev->i2c_regs->ctl);
-	iowrite32(0x0, &dev->i2c_regs->fifo_ctl);
 
 	if (!time_left) {
-		dev_dbg(dev->dev, "i2c transfer timed out\n");
+		dev_err(dev->dev, "i2c transfer timed out\n");
 		return -ETIMEDOUT;
 	}
 
 	if (dev->rx_remaining || dev->tx_remaining) {
-		dev_dbg(dev->dev, "i2c transfer not complete\n");
+		dev_err(dev->dev, "i2c transfer not complete\n");
 	}
 
 	if (likely(!dev->msg_err))
 		return 0;
 
-	dev_dbg(dev->dev, "i2c transfer failed: %x\n", dev->msg_err);
+	dev_err(dev->dev, "i2c transfer failed: %x\n", dev->msg_err);
 	return -EIO;
 }
 
@@ -489,7 +488,7 @@ static void recal_clk_div(struct hobot_i2c_dev *dev)
 	}
 	dev->clkdiv = DIV_ROUND_UP(temp_div, 8) - 1;
 	if (dev->clkdiv > I2C_MAX_DIV) {
-		dev_dbg(dev->dev, "clkdiv too large, set to 255");
+		dev_warn(dev->dev, "clkdiv too large, set to 255");
 		dev->clkdiv = I2C_MAX_DIV;
 	}
 }
@@ -608,19 +607,18 @@ static int hobot_i2c_doxfer_smbus(struct hobot_i2c_dev *dev, u16 addr, bool writ
 	ctl_reg.bit.rfifo_clr = 1;
 	ctl_reg.bit.tfifo_clr = 1;
 	iowrite32(ctl_reg.all, &dev->i2c_regs->ctl);
-	iowrite32(0x0, &dev->i2c_regs->fifo_ctl);
 
 	if (!time_left) {
-		dev_dbg(dev->dev, "i2c sbus transfer timed out\n");
+		dev_err(dev->dev, "i2c sbus transfer timed out\n");
 		return -ETIMEDOUT;
 	}
 	if (dev->rx_remaining || dev->tx_remaining) {
-		dev_dbg(dev->dev, "i2c sbus transfer not complete\n");
+		dev_err(dev->dev, "i2c sbus transfer not complete\n");
 	}
 	if (likely(!dev->msg_err))
 		return 0;
 
-	dev_dbg(dev->dev, "i2c sbus transfer failed: %x\n", dev->msg_err);
+	dev_err(dev->dev, "i2c sbus transfer failed: %x\n", dev->msg_err);
 	return -EIO;
 }
 
