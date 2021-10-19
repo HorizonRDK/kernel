@@ -1158,8 +1158,9 @@ static int ac108_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 static int ac108_hw_params(struct snd_pcm_substream *substream, struct snd_pcm_hw_params *params, struct snd_soc_dai *dai)
 {
 	u16 i, channels, channels_en, sample_resolution;
-	unsigned int mclk;
+	u8 reg_val;
 	unsigned int freq_out;
+	unsigned int bclk;
 
 	AC108_DEBUG("\n--->%s\n",__FUNCTION__);
 
@@ -1247,19 +1248,17 @@ static int ac108_hw_params(struct snd_pcm_substream *substream, struct snd_pcm_h
 		switch (params_rate(params)) {
 		case 44100:
 		case 22050:
-			mclk = 11289600;
 			freq_out = 22579200;
 			break;
-		case 8000:
-			mclk = 4096000;
-			freq_out = 24576000;
-			break;
 		default:
-			mclk = 12288000;
 			freq_out = 24576000;
 			break;
 		}
-		ac108_set_pll(dai, 0, 0, mclk, freq_out);
+		ac108_read(I2S_CTRL, &reg_val, i2c_driver_clt[0]);
+		if (!(reg_val & (0x3 << LRCK_IOEN))) {
+			bclk = params_rate(params) * AC108_LRCK_PERIOD;
+			ac108_set_pll(dai, PLLCLK_SRC_BCLK, 0, bclk, freq_out);
+		}
 	}
 
 	return 0;
