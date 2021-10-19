@@ -133,6 +133,12 @@ static int hobot_snd_probe(struct platform_device *pdev)
 			pr_debug("Data of link->dai_fmt: 0x%08X\n", link->dai_fmt);
 			link++;
 		}
+	} else {
+		if (data)
+			devm_kfree(dev, data);
+		if (card)
+			devm_kfree(dev, card);
+		return 0;
 	}
 	ret = snd_soc_register_card(card);
 	if (ret) {
