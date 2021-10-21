@@ -4116,6 +4116,7 @@ static int x3_sif_probe(struct platform_device *pdev)
 	ret = x3_sif_subdev_init(sif);
 
 	sif->hblank = 10;
+	ips_set_clk_ctrl(MD_CLOCK_GATE, true);
 	ips_set_clk_ctrl(MD_CLOCK_GATE, false);
 
 #if 1

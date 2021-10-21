@@ -322,9 +322,12 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	if (ipu_ctx->state & BIT(VIO_VIDEO_OPEN)) {
 		vio_info("[S%d][V%d] %s: only open.\n", ipu_ctx->belong_pipe,
 					ipu_ctx->id, __func__);
+		mutex_lock(&ipu_mutex);
 		if (atomic_dec_return(&ipu->open_cnt) == 0) {
+			ips_set_clk_ctrl(IPU0_CLOCK_GATE, false);
 			pm_qos_remove_request(&ipu_pm_qos_req);
 		}
+		mutex_unlock(&ipu_mutex);
 		subdev = &ipu->subdev[instance][ipu_ctx->id];
 		spin_lock_irqsave(&subdev->slock, flags);
 		wait_init_index = ipu_ctx->wait_init_index;

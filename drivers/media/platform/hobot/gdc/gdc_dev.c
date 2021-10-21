@@ -882,6 +882,7 @@ static int x3_gdc_probe(struct platform_device *pdev)
 
 	gdc_call_install(dwe0_reset_control);
 	/* gdc clock default is open, close it*/
+	ips_set_clk_ctrl(GDC0_CLOCK_GATE - gdc->hw_id, true);
 	ips_set_clk_ctrl(GDC0_CLOCK_GATE - gdc->hw_id, false);
 	vio_info("[FRT:D] %s(%d)\n", __func__, ret);
 

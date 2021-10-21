@@ -281,7 +281,15 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 	pym = pym_ctx->pym_dev;
 	if (pym_ctx->state & BIT(VIO_VIDEO_OPEN)) {
 		vio_info("[Sx][V%d] %s: only open.\n", pym_ctx->id, __func__);
-		atomic_dec(&pym->open_cnt);
+		mutex_lock(&pym_mutex);
+		if (atomic_dec_return(&pym->open_cnt) == 0) {
+			pym_hw_enable(pym, false);
+			vio_reset_module(GROUP_ID_PYM);
+			vio_clk_disable("pym_mclk");
+			vio_clk_disable("sif_mclk");
+			pm_qos_remove_request(&pym_pm_qos_req);
+		}
+		mutex_unlock(&pym_mutex);
 		kfree(pym_ctx);
 		return 0;
 	}
