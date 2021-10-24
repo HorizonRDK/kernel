@@ -3032,7 +3032,7 @@ static irqreturn_t sif_isr(int irq, void *data)
 			instance = atomic_read(&sif->instance);
 			sif->statistic.hard_overflow[instance]++;
 			temp_flow |= irq_src.sif_in_buf_overflow;
-			sif_statics_err_overflow_clr(sif->base_reg);
+			sif_statics_err_clr(sif->base_reg);
 			vio_err("input buffer overflow(0x%x) temp_flow 0x%x \n",
 				irq_src.sif_in_buf_overflow, temp_flow);
 #ifdef CONFIG_HOBOT_DIAG
@@ -3210,6 +3210,7 @@ static irqreturn_t sif_isr(int irq, void *data)
 			sif_mismatch_diag_report(sif, mux_index,
 				irq_src.sif_err_status, irq_src.sif_frm_int);
 		}
+		sif_statics_err_clr(sif->base_reg);
 	} else {
 		for (mux_index = 0; mux_index < SIF_MUX_MAX; mux_index++) {
 			sif_mismatch_diag_report(sif, mux_index,

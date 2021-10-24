@@ -62,7 +62,7 @@ void sif_enable_frame_intr(void __iomem *base_reg, u32 mux_index,
 void sif_start_pattern_gen(u32 __iomem *base_reg, u32 pat_index);
 void sif_hw_disable_ex(u32 __iomem *base_reg);
 void sif_disable_isp_out_config(u32 __iomem *base_reg);
-void sif_statics_err_overflow_clr(u32 __iomem *base_reg);
+void sif_statics_err_clr(u32 __iomem *base_reg);
 
 
 #endif

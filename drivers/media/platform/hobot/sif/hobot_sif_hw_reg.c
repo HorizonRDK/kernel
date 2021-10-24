@@ -1814,7 +1814,7 @@ int sif_get_irq_src(u32 __iomem *base_reg, struct sif_irq_src *src,
 	return 0;
 }
 
-void sif_statics_err_overflow_clr(u32 __iomem *base_reg)
+void sif_statics_err_clr(u32 __iomem *base_reg)
 {
 	vio_hw_set_field(base_reg, &sif_regs[SIF_SETTING],
 		&sif_fields[SW_STATICS_ERR_CLR], 1);
