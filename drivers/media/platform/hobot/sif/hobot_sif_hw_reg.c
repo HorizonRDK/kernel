@@ -602,6 +602,7 @@ void sif_enable_init_frameid(u32 __iomem *base_reg, u32 index, bool enable)
 void sif_config_rx_ipi(u32 __iomem *base_reg, u32 index, u32 vc_channel,
 	sif_input_mipi_t* p_mipi)
 {
+	u32 ipi_shu_up;
 	u32 enable_frame_id   = p_mipi->func.enable_frame_id;
 	u32 enable_pattern    = p_mipi->func.enable_pattern;
 	u32 init_frame_id     = p_mipi->func.set_init_frame_id;
@@ -769,7 +770,14 @@ void sif_config_rx_ipi(u32 __iomem *base_reg, u32 index, u32 vc_channel,
 			vio_err("wrong mipi rx index(%d)\n", index);
 			break;
 	}
-
+	/*
+	when initializing and setting the initial value of frameid,
+	it is necessary to set SIF_SHD_UP_RDY corresponding bit set to 1.
+	There is already a lock before calling. No lock is added here
+	*/
+	ipi_shu_up = vio_hw_get_reg(base_reg, &sif_regs[SIF_AXI_BUF_STATUS]);
+	ipi_shu_up |= (0x1 << (index * 4 + vc_channel));
+	vio_hw_set_reg(base_reg, &sif_regs[SIF_SHD_UP_RDY], ipi_shu_up);
 	if(enable_pattern)
 		sif_set_pattern_gen(base_reg, vc_channel + 1, &p_mipi->data, 0);
 }
@@ -1695,8 +1703,8 @@ void sif_get_frameid_timestamps(u32 __iomem *base_reg, u32 mux, u32 ipi_index,
 		sif_frame_info[instance].tv = info->tv;
 	}
 	spin_unlock_irqrestore(&sif_frame_info[instance].id_lock, flags);
-	vio_dbg("%s frame_id %d info->timestamps %llu\n",
-		__func__, info->frame_id, info->timestamps);
+	vio_dbg("%s frame_id %d info->timestamps %llu ipi_index %d instance %d\n",
+		__func__, info->frame_id, info->timestamps, ipi_index, instance);
 }
 
 
