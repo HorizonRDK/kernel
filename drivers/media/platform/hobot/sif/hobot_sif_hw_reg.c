@@ -1347,6 +1347,18 @@ void sif_hw_mipi_rx_out_select(u32 __iomem *base_reg, struct sif_subdev *subdev)
 			 }
 		}
 	}
+	if(p_out->ddr.stride) {
+		vio_hw_set_reg(base_reg,
+		&sif_regs[SIF_AXI_FRM0_W_STRIDE + mux_out_index], p_out->ddr.stride);
+	}
+	sif_set_wdma_enable(base_reg, mux_out_index, true);
+	if(yuv_format == HW_FORMAT_YUV422) {
+		vio_hw_set_reg(base_reg,
+		&sif_regs[SIF_AXI_FRM0_W_STRIDE + mux_out_index + 1], p_out->ddr.stride);
+		sif_set_wdma_enable(base_reg, mux_out_index + 1, true);
+	}
+	vio_info("format %d mipi_rx_index %d ddr.stride %d mux_index %d\n",
+		yuv_format, p_mipi->mipi_rx_index, p_out->ddr.stride, mux_out_index);
 }
 
 void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c)
