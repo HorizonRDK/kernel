@@ -3116,6 +3116,7 @@ int ipu_alloc_ion_bufffer(struct ipu_video_ctx *ipu_ctx,
 			   // set vio_frame addr the same as allocted ion phys
 			   frame->addr[j] = ion_buffer->one[k].paddr[j];
 			   frame->ion_alloc_type = Y_UV_NON_CONTINUOUS_ALIGN_4K;
+			   ion_buffer->one[k].share_id[j] = frame->ion_handle[j]->share_id;
 			}
 	  } else {
 			// one frame, Y and UV allocated continous one buffer
@@ -3145,6 +3146,12 @@ int ipu_alloc_ion_bufffer(struct ipu_video_ctx *ipu_ctx,
 										ion_buffer->one[k].planeSize[0];
 			frame->addr[1] = ion_buffer->one[k].paddr[1];
 			frame->ion_alloc_type = Y_UV_CONTINUOUS_ALIGN;
+			ion_buffer->one[k].share_id[VIO_BUF_PLANE_0] =
+										frame->ion_handle[0]->share_id;
+			ion_buffer->one[k].share_id[VIO_BUF_PLANE_1] =
+										frame->ion_handle[0]->share_id;
+			ion_buffer->one[k].share_id[VIO_BUF_PLANE_2] =
+										frame->ion_handle[0]->share_id;
 	  }
 	}
 

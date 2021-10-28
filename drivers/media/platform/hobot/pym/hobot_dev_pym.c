@@ -531,6 +531,10 @@ static void pym_frame_work(struct vio_group *group)
 			frame->frameinfo.tv = src_frame->frameinfo.tv;
 			frame->frameinfo.height = src_frame->frameinfo.height;
 			frame->frameinfo.width = src_frame->frameinfo.width;
+			frame->frameinfo.inbuf_ion_share_id[VIO_BUF_PLANE_0] =
+							src_frame->frameinfo.ion_share_id[VIO_BUF_PLANE_0];
+			frame->frameinfo.inbuf_ion_share_id[VIO_BUF_PLANE_1] =
+							src_frame->frameinfo.ion_share_id[VIO_BUF_PLANE_1];
 		}
 		group->frameid.frame_id = frame->frameinfo.frame_id;
 		pym_set_shd_rdy(pym->base_reg, shadow_index, 0);
@@ -1738,6 +1742,7 @@ int pym_alloc_ion_bufffer(struct pym_video_ctx *pym_ctx,
                            ion_free(pym->ion_client, frame->ion_handle[j]);
                    goto ion_cleanup;
            }
+			ion_buffer->one[k].share_id[j] = frame->ion_handle[j]->share_id;
 
            // set vio_frame addr the same as allocted ion phys
 		   frame->addr[j] = ion_buffer->one[k].paddr[j];

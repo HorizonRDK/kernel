@@ -13,7 +13,9 @@
 #define VIO_MAX_PLANES 32
 #define VIO_MP_MAX_FRAMES 128
 #define VIO_MAX_SUB_PROCESS	8
-
+#define VIO_BUF_PLANE_0		0
+#define VIO_BUF_PLANE_1		1
+#define VIO_BUF_PLANE_2		2
 
 #define framemgr_e_barrier_irqs(this, index, flag)		\
 	do {							\
@@ -130,7 +132,8 @@ struct frame_info {
 	int pixel_length;
 	u32 dynamic_flag;
 	struct special_buffer spec;
-	int ion_share_fd[3];
+	int ion_share_id[3];
+	int32_t inbuf_ion_share_id[3];
 	u32 addr_org[8];
 };
 
@@ -257,7 +260,7 @@ typedef struct kernel_ion_one {
 	int planecount;
 	size_t planeSize[HB_VIO_BUFFER_MAX_PLANES];
 	uint64_t paddr[HB_VIO_BUFFER_MAX_PLANES];
-	int ion_fd[HB_VIO_BUFFER_MAX_PLANES];
+	int share_id[HB_VIO_BUFFER_MAX_PLANES];
 }kernel_ion_one_t;
 
 typedef struct kernel_ion {
