@@ -1090,6 +1090,12 @@ static void hobot_uart_set_termios(struct uart_port *port,
 	else
 		lcr_reg &= (~UART_LCR_RTS_EN) & (~UART_LCR_CTS_EN);
 
+	lcr_reg &= UART_LCR_TOI_CLEAR;
+	if (baud > HB_BAUD_921600) {
+		lcr_reg |= UART_LCR_TOI_256_FRAME;
+	} else {
+		lcr_reg |= UART_LCR_TOI_32_FRAME;
+	}
 	writel(lcr_reg, port->membase + HOBOT_UART_LCR);
 
 	spin_unlock_irqrestore(&port->lock, flags);

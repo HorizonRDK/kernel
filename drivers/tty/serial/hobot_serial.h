@@ -64,6 +64,9 @@
 #define UART_LCR_TOI(x)     (((x) & UART_LCR_TOI_MASK) << 8U)
 #define UART_LCR_IREN       (1U << 12)
 #define UART_LCR_RXPOL      (1U << 13)
+#define UART_LCR_TOI_CLEAR  (~(UART_LCR_TOI_MASK << 8U))
+#define UART_LCR_TOI_32_FRAME   UART_LCR_TOI(5)
+#define UART_LCR_TOI_256_FRAME   UART_LCR_TOI(8)
 
 /* Uart enable register bits define */
 #define UART_ENR_EN         (1U << 0)    /* uart gloabl enabled bit */
@@ -80,6 +83,7 @@
 #define LOW_SPEED_MODE_DIV 	16
 #define MID_SPEED_MODE_DIV 	8
 #define HIGH_SPEED_MODE_DIV	4
+#define HB_BAUD_921600          921600
 
 /* Uart modem control register bits define */
 #define UART_MCR_DTRN			(1U << 0)
