@@ -42,6 +42,10 @@
 
 #include "hobot-i2s.h"
 
+#if IS_ENABLED(CONFIG_HOBOT_DMC_CLK)
+#include <soc/hobot/hobot_bus.h>
+#endif
+
 #define ST_RUNNING      (1<<0)
 #define ST_OPENED       (1<<1)
 
@@ -140,6 +144,9 @@ static struct idma_info_s {
 	int stream;
 	int id;
 	int dummy_node;
+	#if IS_ENABLED(CONFIG_HOBOT_DMC_CLK)
+	struct hobot_dpm dpm;
+	#endif
 } hobot_i2sidma[10];
 
 static int tstamp_mode=0;
@@ -231,6 +238,12 @@ static int copy_usr_noninterleaved(struct snd_pcm_substream *substream,
 
 	return 0;
 }
+
+
+#if IS_ENABLED(CONFIG_HOBOT_DMC_CLK)
+static int hobot_dma_dpm_callback(struct hobot_dpm *self,
+	unsigned long event, int state);
+#endif
 
 static int hobot_copy_usr(struct snd_pcm_substream *substream,
 		int channel, unsigned long hwoff,
@@ -918,8 +931,6 @@ err:
 /* get dam irq, set runtime hw limit */
 static int i2sidma_open(struct snd_pcm_substream *substream)
 {
-	struct snd_pcm_runtime *runtime = substream->runtime;
-
 	struct idma_ctrl_s *dma_ctrl;
 	struct snd_dmaengine_dai_dma_data *dma_data;
 	unsigned long flags;
@@ -927,6 +938,7 @@ static int i2sidma_open(struct snd_pcm_substream *substream)
 	uint8_t i;
 	uint8_t id_index;
 
+	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct snd_soc_pcm_runtime *soc_runtime = substream->private_data;
 	struct hobot_i2s *i2s = snd_soc_dai_get_drvdata(soc_runtime->cpu_dai);
 	struct idma_info_s *hobot_dma =
@@ -936,6 +948,7 @@ static int i2sidma_open(struct snd_pcm_substream *substream)
 	}
 
 	dma_data = hobot_dai_get_dma_data(substream);
+
 	dma_ctrl = kzalloc(sizeof(struct idma_ctrl_s), GFP_KERNEL);
 	if (dma_ctrl == NULL) {
 		return -ENOMEM;
@@ -1308,12 +1321,30 @@ static int asoc_i2sidma_platform_probe(struct platform_device *pdev)
 
 	dev_info(&pdev->dev, "success register platform %d, ret = %d\n", id, ret);
 
+#if IS_ENABLED(CONFIG_HOBOT_DMC_CLK)
+	hobot_i2sidma[id].dpm.dpm_call = hobot_dma_dpm_callback;
+	hobot_i2sidma[id].dpm.priority = DPM_PRI_MIN;
+	hobot_dfs_register(&hobot_i2sidma[id].dpm, &pdev->dev);
+#endif
+
+	pr_info("success register platform %d, ret = %d\n", id, ret);
 	return ret;
 
 }
 
 static int asoc_i2sidma_platform_remove(struct platform_device *pdev) {
+	int id;
+
 	snd_soc_unregister_platform(&pdev->dev);
+
+	id = of_alias_get_id(pdev->dev.of_node, "idma");
+	if (id < 0)
+		id = 0;
+
+#if IS_ENABLED(CONFIG_HOBOT_DMC_CLK)
+	hobot_dfs_unregister(&hobot_i2sidma[id].dpm);
+#endif
+
 	return 0;
 }
 
@@ -1364,7 +1395,6 @@ static int hobot_i2s_idma_suspend(struct device *dev) {
 }
 
 static int hobot_i2s_idma_resume(struct device *dev) {
-	dev_info(dev, "%s enter resume......\n", __func__);
 	return 0;
 }
 
@@ -1372,6 +1402,35 @@ static const struct dev_pm_ops hobot_i2s_idma_pm = {
 	SET_SYSTEM_SLEEP_PM_OPS(hobot_i2s_idma_suspend,
 		hobot_i2s_idma_resume)
 };
+#endif
+
+#if IS_ENABLED(CONFIG_HOBOT_DMC_CLK)
+static int hobot_dma_dpm_callback(struct hobot_dpm *self,
+	unsigned long event, int state) {
+	unsigned long value;
+        int ret = 0;
+	struct idma_info_s *dma = container_of(self, struct idma_info_s, dpm);
+	if (IS_ERR(dma))
+		return -ENODEV;
+
+	if (event == HB_BUS_SIGNAL_START) {
+		if (dma->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+			value = readl(dma->regaddr_tx + I2S_CTL);
+		} else {
+			value = readl(dma->regaddr_rx + I2S_CTL);
+		}
+
+		if (value == 0x3) {
+			ret = -EBUSY;
+		} else {
+			ret = hobot_i2s_idma_pm.suspend(dma->dev);
+		}
+	} else if (event == HB_BUS_SIGNAL_END) {
+		ret = hobot_i2s_idma_pm.resume(dma->dev);
+	}
+
+	return ret;
+}
 #endif
 
 static struct platform_driver i2s_idma_driver = {

@@ -44,6 +44,11 @@ MODULE_PARM_DESC(i2s_ms, "Hobot i2s master/slave mode");
 static inline int change_clk(struct device *dev,
         const char *clk_name, unsigned long rate);
 
+#if IS_ENABLED(CONFIG_HOBOT_DMC_CLK)
+static int hobot_dai_dpm_callback(struct hobot_dpm *self,
+	unsigned long event, int state);
+#endif
+
 static unsigned int hobot_i2s_read_base_reg(struct hobot_i2s *i2s, int offset)
 {
 	if (i2s->streamflag == 0)
@@ -837,6 +842,12 @@ static int hobot_i2s_probe(struct platform_device *pdev)
 
 	ret = device_create_file(&pdev->dev, &dev_attr_reg_dump);
 
+#if IS_ENABLED(CONFIG_HOBOT_DMC_CLK)
+	i2s->dpm.dpm_call = hobot_dai_dpm_callback;
+	i2s->dpm.priority = DPM_PRI_LEVEL1;
+	hobot_dfs_register(&i2s->dpm, &pdev->dev);
+#endif
+
 	pr_err("success register cpu dai%d driver\n", id);
 	return 0;
 
@@ -847,9 +858,16 @@ static int hobot_i2s_probe(struct platform_device *pdev)
 /* }; */
 static int hobot_i2s_remove(struct platform_device *pdev)
 {
+	struct hobot_i2s *i2s = dev_get_drvdata(&pdev->dev);
+
 	/* struct hobot_i2s *i2s = dev_get_drvdata (&pdev->dev); */
 	device_remove_file(&pdev->dev, &dev_attr_reg_dump);
 	snd_soc_unregister_component(&pdev->dev);
+
+#if IS_ENABLED(CONFIG_HOBOT_DMC_CLK)
+	hobot_dfs_unregister(&i2s->dpm);
+#endif
+
 	return 0;
 }
 
@@ -902,13 +920,6 @@ int hobot_i2s_resume(struct device *dev) {
 		return -EINVAL;
 
 	if (i2s->ms == 1) {
-		ret = change_clk(i2s->dev, "i2s-mclk",
-				i2s->mclk_set);
-		ret = change_clk(i2s->dev, "i2s-bclk",
-				i2s->clk);
-		if (ret < 0) {
-			dev_err(dev, "change clk error\n");
-		}
 		clk_enable(i2s->mclk);
 		clk_enable(i2s->bclk);
 	}
@@ -927,6 +938,34 @@ int hobot_i2s_resume(struct device *dev) {
 static const struct dev_pm_ops hobot_i2s_pm = {
 	SET_SYSTEM_SLEEP_PM_OPS(hobot_i2s_suspend, hobot_i2s_resume)
 };
+#endif
+
+#if IS_ENABLED(CONFIG_HOBOT_DMC_CLK)
+static int hobot_dai_dpm_callback(struct hobot_dpm *self,
+	unsigned long event, int state) {
+	int ret = 0;
+	unsigned long value;
+	struct hobot_i2s *i2s = container_of(self, struct hobot_i2s, dpm);
+	if(IS_ERR(i2s))
+		return -ENODEV;
+
+	if (event == HB_BUS_SIGNAL_START) {
+		if (i2s->streamflag == 0) {
+			value = readl(i2s->regaddr_rx + I2S_CTL);
+		} else {
+			value = readl(i2s->regaddr_tx + I2S_CTL);
+		}
+
+		if (value == 3) {
+			ret = -EBUSY;
+		} else {
+			ret = hobot_i2s_pm.suspend(i2s->dev);
+		}
+	} else if (event == HB_BUS_SIGNAL_END) {
+		ret = hobot_i2s_pm.resume(i2s->dev);
+	}
+	return ret;
+}
 #endif
 
 static struct platform_driver hobot_i2s_driver = {

@@ -14,6 +14,9 @@
 #define __SND_SOC_HOBOT_I2S_H__
 
 #include <asm-generic/io.h>
+#if IS_ENABLED(CONFIG_HOBOT_DMC_CLK)
+#include <soc/hobot/hobot_bus.h>
+#endif
 
 #if 0
 #define I2S0_RX_BASE 0xA5007000
@@ -204,6 +207,9 @@ struct hobot_i2s {
 	u32 suspend_i2sdivws;
 
 	u8 current_status;
+#if IS_ENABLED(CONFIG_HOBOT_DMC_CLK)
+	struct hobot_dpm dpm;
+#endif
 };
 
 #define INT_BUF1_DONE   (1 << 3)
