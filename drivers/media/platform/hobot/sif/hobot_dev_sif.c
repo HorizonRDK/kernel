@@ -2888,16 +2888,17 @@ static void subdev_set_frm_owner(struct sif_subdev *subdev,
 u32 sif_find_overflow_instance(uint32_t mux_index,
 	struct sif_subdev *subdev, u32 of_value)
 {
-	if(subdev->dol_num > 1) {
-		if ((BIT2CHN(of_value, mux_index)) ||
-				(BIT2CHN(of_value, subdev->mux_index1)))
-				subdev->overflow = ((0x1 << mux_index) | (0x1 << subdev->mux_index1));
-	} else if (subdev->dol_num > 2) {
+	/*DOL3 overflow prcoess*/
+	if (subdev->dol_num > 2) {
 		if ((BIT2CHN(of_value, mux_index)) ||
 			(BIT2CHN(of_value, subdev->mux_index1)) ||
 			(BIT2CHN(of_value, subdev->mux_index2)))
 			subdev->overflow = ((0x1 << mux_index) | (0x1 << subdev->mux_index1) |
 				(0x1 << subdev->mux_index2));
+	} else if (subdev->dol_num > 1) {  /*DOL2 overflow prcoess*/
+		if ((BIT2CHN(of_value, mux_index)) ||
+				(BIT2CHN(of_value, subdev->mux_index1)))
+				subdev->overflow = ((0x1 << mux_index) | (0x1 << subdev->mux_index1));
 	} else if (HW_FORMAT_YUV422 == subdev->format) {
 		if ((BIT2CHN(of_value, mux_index)) ||
 			(BIT2CHN(of_value, subdev->mux_index1)))
