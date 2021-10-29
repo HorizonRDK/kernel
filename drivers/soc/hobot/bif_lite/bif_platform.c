@@ -1,3 +1,9 @@
+/*
+ *			 COPYRIGHT NOTICE
+ *		 Copyright 2019 Horizon Robotics, Inc.
+ *			 All rights reserved.
+ */
+
 #include "bif_platform.h"
 
 void *bif_memset(void *s, int c, size_t n)
@@ -9,6 +15,7 @@ void *bif_memset(void *s, int c, size_t n)
 		ss[i] = c;
 	return s;
 }
+EXPORT_SYMBOL(bif_memset);
 
 void *bif_memcpy(void *dest, const void *src, size_t n)
 {
@@ -23,23 +30,30 @@ void *bif_memcpy(void *dest, const void *src, size_t n)
 		d[i] = s[i];
 	return dest;
 }
+EXPORT_SYMBOL(bif_memcpy);
+
 
 unsigned long bif_sleep(unsigned int msec)
 {
 	return msleep_interruptible(msec);
 }
+EXPORT_SYMBOL(bif_sleep);
 
 void bif_lock(void)
 {
 
 }
+EXPORT_SYMBOL(bif_lock);
 
 void bif_unlock(void)
 {
 
 }
+EXPORT_SYMBOL(bif_unlock);
 
-#define MEM_THRESHOLD (64 * 1024)
+
+
+#define MEM_THRESHOLD (0)
 #define MEM_ALLOC_TYPE_SIZE (4)
 #define MEM_ALLOC_TYPE_VM (0)
 #define MEM_ALLOC_TYPE_KM (1)
@@ -53,18 +67,23 @@ void *bif_malloc(size_t size)
 		if (p) {
 			alloc_type = p;
 			*alloc_type = MEM_ALLOC_TYPE_VM;
+		} else {
+			return NULL;
 		}
 	} else {
 		p = kmalloc(MEM_ALLOC_TYPE_SIZE + size, GFP_KERNEL);
 		if (p) {
 			alloc_type = p;
 			*alloc_type = MEM_ALLOC_TYPE_KM;
+		} else {
+			return NULL;
 		}
 	}
 
 	// return userdata position
 	return p + MEM_ALLOC_TYPE_SIZE;
 }
+EXPORT_SYMBOL(bif_malloc);
 
 void bif_free(void *p)
 {
@@ -80,3 +99,5 @@ void bif_free(void *p)
 	else
 		pr_err("error mem type\n");
 }
+EXPORT_SYMBOL(bif_free);
+

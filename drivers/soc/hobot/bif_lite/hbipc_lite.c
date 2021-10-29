@@ -9,11 +9,23 @@
 #include "hbipc_lite.h"
 #include "hbipc_errno.h"
 
+// [20201217]: add rx threshold
+#define DEFULT_RX_THRESHOLD (100)
+#define EXEMPT_SERVER_COUNT (2)
+
+static unsigned char exempt_server_id[EXEMPT_SERVER_COUNT][UUID_LEN] = {
+	{0x1, 0x10, 0x0, 0x3, 0x2, 0x0, 0x0, 0x6, 0xff, 0xff, 0xff, 0xff,
+	0xff, 0xff, 0xff, 0xff},
+	{0x1, 0x1, 0x0, 0x3, 0x2, 0x0, 0x0, 0x6, 0xff, 0xff, 0xff, 0xff,
+	0xff, 0xff, 0xff, 0xff},
+};
+
 static void resource_queue_init(struct resource_queue *queue)
 {
 	INIT_LIST_HEAD(&queue->list);
 	queue->frame_count = 0;
 	spin_lock_init(&queue->lock);
+	queue->frame_drop_count = 0;
 }
 
 static void resource_queue_deinit(struct comm_domain *domain,
@@ -33,9 +45,35 @@ struct resource_queue *queue)
 		list_entry(pos, struct bif_frame_cache, frame_cache_list);
 		bif_del_frame_from_session_list(&domain->channel, bif_frame);
 		--queue->frame_count;
+		++domain->domain_statistics.release_data_frame_count;
 	}
+	queue->frame_drop_count = 0;
 	spin_unlock(&queue->lock);
 }
+
+int resource_queue_count(struct resource_queue *queue)
+{
+	int frame_count = 0;
+
+	spin_lock(&queue->lock);
+	frame_count = queue->frame_count;
+	spin_unlock(&queue->lock);
+
+	return frame_count;
+}
+EXPORT_SYMBOL(resource_queue_count);
+
+int resource_queue_drop_count(struct resource_queue *queue)
+{
+	int frame_drop_count = 0;
+
+	spin_lock(&queue->lock);
+	frame_drop_count = queue->frame_drop_count;
+	spin_unlock(&queue->lock);
+
+	return frame_drop_count;
+}
+EXPORT_SYMBOL(resource_queue_drop_count);
 
 static void session_desc_init(struct session_desc *session_des)
 {
@@ -46,6 +84,11 @@ static void session_desc_init(struct session_desc *session_des)
 	session_des->client_id = -1;
 	resource_queue_init(&session_des->recv_list);
 	sema_init(&session_des->frame_count_sem, 0);
+	session_des->rx_threshold = DEFULT_RX_THRESHOLD;
+	session_des->flowcontrol_active_flag = 0;
+	session_des->flowcontrol_passive_flag = 0;
+	session_des->need_set_flowcontrol = 0;
+	session_des->need_clear_flowcontrol = 0;
 }
 
 static void session_desc_deinit(struct comm_domain *domain,
@@ -57,6 +100,11 @@ struct session_desc *session_des)
 	session_des->provider_id = -1;
 	session_des->client_id = -1;
 	resource_queue_deinit(domain, &session_des->recv_list);
+	session_des->rx_threshold = DEFULT_RX_THRESHOLD;
+	session_des->flowcontrol_active_flag = 0;
+	session_des->flowcontrol_passive_flag = 0;
+	session_des->need_set_flowcontrol = 0;
+	session_des->need_clear_flowcontrol = 0;
 }
 
 static void session_info_init(struct session_info *session_inf)
@@ -85,6 +133,7 @@ static void provider_desc_init(struct provider_desc *provider_des)
 	provider_des->valid = 0;
 	provider_des->provider_id = 0;
 	session_info_init(&provider_des->session);
+	provider_des->rx_threshold = DEFULT_RX_THRESHOLD;
 }
 
 static void provider_desc_deinit(struct comm_domain *domain,
@@ -93,6 +142,7 @@ struct provider_desc *provider_des)
 	provider_des->valid = 0;
 	provider_des->provider_id = 0;
 	session_info_deinit(domain, &provider_des->session);
+	provider_des->rx_threshold = DEFULT_RX_THRESHOLD;
 }
 
 static void provider_info_init(struct provider_info *provider_inf)
@@ -121,6 +171,7 @@ static void server_desc_init(struct server_desc *server_des)
 	server_des->valid = 0;
 	memset(server_des->server_id, 0, UUID_LEN);
 	provider_info_init(&server_des->provider);
+	server_des->rx_threshold = DEFULT_RX_THRESHOLD;
 }
 
 static void server_desc_deinit(struct comm_domain *domain,
@@ -129,6 +180,7 @@ struct server_desc *server_des)
 	server_des->valid = 0;
 	memset(server_des->server_id, 0, UUID_LEN);
 	provider_info_deinit(domain, &server_des->provider);
+	server_des->rx_threshold = DEFULT_RX_THRESHOLD;
 }
 
 static void server_info_init(struct server_info *server_inf)
@@ -220,6 +272,149 @@ static void provider_server_map_deinit(struct provider_server_map *map)
 	map->first_avail = 0;
 }
 
+// get a free slot in pid_providerid_map
+static int get_index(struct pid_providerid_map *map)
+{
+	int i = 0;
+
+	for (i = 0; i < SERVER_COUNT_MAX; ++i)
+		if (!(map->map[i].valid))
+			break;
+
+	if (i < SERVER_COUNT_MAX)
+		return i;
+	else
+		return -1;
+}
+
+// give back a slot in pid_providerid_map
+static int put_index(struct pid_providerid_map *map, int i)
+{
+	if ((i < 0) || (i >= SERVER_COUNT_MAX) || !(map->map[i].valid)) {
+		if ((i < 0) || (i >= SERVER_COUNT_MAX)) {
+			pr_err("put_index error: %d\n", i);
+		} else {
+			pr_err("put_index error: %d_%d\n", i, map->map[i].valid);
+		}
+		return -1;
+	} else {
+		map->map[i].valid = 0;
+		return 0;
+	}
+}
+
+// register info to a slot get from get_index interface
+static int set_index(struct pid_providerid_map *map, int i,
+int pid, unsigned char *server_id)
+{
+	if ((i < 0) || (i >= SERVER_COUNT_MAX) || (map->map[i].valid)) {
+		if ((i < 0) || (i >= SERVER_COUNT_MAX)) {
+			pr_err("set_index error: %d\n", i);
+		} else {
+			pr_err("set_index error: %d_%d\n", i, map->map[i].valid);
+		}
+		return -1;
+	} else {
+		map->map[i].valid = 1;
+		map->map[i].pid = pid;
+		memcpy(map->map[i].server_id, server_id, UUID_LEN);
+		return 0;
+	}
+}
+
+// find providerid according to pid & server_id
+static int find_index(struct pid_providerid_map *map,
+int pid, unsigned char *server_id)
+{
+	int i = 0;
+
+	for (i = 0; i < SERVER_COUNT_MAX; ++i)
+		if ((map->map[i].valid) && (map->map[i].pid == pid) &&
+			!memcmp(map->map[i].server_id, server_id, UUID_LEN))
+			break;
+
+	if (i < SERVER_COUNT_MAX)
+		return i;
+	else
+		return -1;
+}
+
+// find pid according to provider_id
+int find_pid(struct pid_providerid_map *map, int provider_id)
+{
+	if ((provider_id < 0) || (provider_id >= SERVER_COUNT_MAX))
+		return -1;
+	else
+		return map->map[provider_id].pid;
+}
+
+// [201130]: improve error handling mechanism
+int is_valid(struct pid_providerid_map *map, int i)
+{
+	if ((i >= 0) && (i < SERVER_COUNT_MAX) && (map->map[i].valid))
+		return 1;
+	else
+		return 0;
+}
+
+static void providerid_map_init(struct pid_providerid_map *providerid_map)
+{
+	int i = 0;
+
+	for (i = 0; i < SERVER_COUNT_MAX; ++i)
+		providerid_map->map[i].valid = 0;
+	providerid_map->get_index = get_index;
+	providerid_map->put_index = put_index;
+	providerid_map->set_index = set_index;
+	providerid_map->find_index = find_index;
+	providerid_map->find_pid = find_pid;
+	providerid_map->is_valid = is_valid;
+}
+
+static void providerid_map_deinit(struct pid_providerid_map *providerid_map)
+{
+	int i = 0;
+
+	for (i = 0; i < SERVER_COUNT_MAX; ++i)
+		providerid_map->map[i].valid = 0;
+	providerid_map->get_index = NULL;
+	providerid_map->put_index = NULL;
+	providerid_map->set_index = NULL;
+	providerid_map->find_index = NULL;
+	providerid_map->find_pid = NULL;
+	providerid_map->is_valid = NULL;
+}
+
+static void set_flowcontrol(struct comm_domain *domain,
+struct send_mang_data *data)
+{
+	struct session_desc *session = NULL;
+
+	session = is_valid_session(domain, data, NULL, NULL);
+	if (session) {
+		mutex_lock(&domain->connect_mutex);
+		if (session->valid) {
+			session->flowcontrol_passive_flag = 1;
+		}
+		mutex_unlock(&domain->connect_mutex);
+	}
+}
+
+static void clear_flowcontrol(struct comm_domain *domain,
+struct send_mang_data *data)
+{
+	struct session_desc *session = NULL;
+
+	session = is_valid_session(domain, data, NULL, NULL);
+	if (session) {
+		mutex_lock(&domain->connect_mutex);
+		if (session->valid) {
+			session->flowcontrol_passive_flag = 0;
+		}
+		mutex_unlock(&domain->connect_mutex);
+	}
+}
+
 #define TX_RETRY_TIME (5)
 #define TX_RETRY_MAX (2000)
 int mang_frame_send2opposite(struct comm_domain *domain,
@@ -256,7 +451,8 @@ int type, struct send_mang_data *data)
 		*p++ = data->domain_id;
 		memcpy(p, data->server_id, UUID_LEN);
 		p += 4;
-		*p = data->provider_id;
+		*p++ = data->provider_id;
+		*p = data->result; // pid
 		break;
 	case MANAGE_CMD_UNREGISTER_PROVIDER:
 		/*
@@ -318,7 +514,8 @@ int type, struct send_mang_data *data)
 		*p++ = data->domain_id;
 		memcpy(p, data->server_id, UUID_LEN);
 		p += 4;
-		*p = data->provider_id;
+		*p++ = data->provider_id;
+		*p = data->result; // pid
 		break;
 	default:
 		goto error;
@@ -465,7 +662,8 @@ int type, struct send_mang_data *data)
 		*p++ = data->domain_id;
 		memcpy(p, data->server_id, UUID_LEN);
 		p += 4;
-		*p = data->provider_id;
+		*p++ = data->provider_id;
+		*p = data->result; // pid
 		break;
 	case MANAGE_CMD_UNREGISTER_PROVIDER:
 		/*
@@ -527,7 +725,30 @@ int type, struct send_mang_data *data)
 		*p++ = data->domain_id;
 		memcpy(p, data->server_id, UUID_LEN);
 		p += 4;
-		*p = data->provider_id;
+		*p++ = data->provider_id;
+		*p = data->result; // pid
+		break;
+	case MANAGE_CMD_SET_FLOWCONTROL:
+		/*
+		 * pass information:
+		 * domain_id
+		 * provider_id
+		 * client_id
+		 */
+		*p++ = data->domain_id;
+		*p++ = data->provider_id;
+		*p = data->client_id;
+		break;
+	case MANAGE_CMD_CLEAR_FLOWCONTROL:
+		/*
+		 * pass information:
+		 * domain_id
+		 * provider_id
+		 * client_id
+		 */
+		*p++ = data->domain_id;
+		*p++ = data->provider_id;
+		*p = data->client_id;
 		break;
 	default:
 		goto error;
@@ -650,6 +871,7 @@ int domain_init(struct comm_domain *domain, struct domain_info *domain_inf)
 	domain->device_name = domain_inf->device_name;
 	server_info_init(&domain->server);
 	provider_server_map_init(&domain->map);
+	providerid_map_init(&domain->providerid_map);
 	INIT_LIST_HEAD(&domain->manage_frame_list);
 	domain->session_count = 0;
 	domain->unaccept_session_count = 0;
@@ -664,6 +886,7 @@ int domain_init(struct comm_domain *domain, struct domain_info *domain_inf)
 		MANAGE_MSG_LEN);
 	if (!domain->mang_frame_send_error_buf) {
 		pr_info("mang_frame_send_error_buf malloc fail\n");
+		providerid_map_deinit(&domain->providerid_map);
 		provider_server_map_deinit(&domain->map);
 		server_info_deinit(domain, &domain->server);
 		mutex_destroy(&domain->connect_mutex);
@@ -674,6 +897,7 @@ int domain_init(struct comm_domain *domain, struct domain_info *domain_inf)
 
 	if (channel_init(&domain->channel, &domain_inf->channel_cfg) < 0) {
 		pr_info("channel_init error\n");
+		providerid_map_deinit(&domain->providerid_map);
 		provider_server_map_deinit(&domain->map);
 		server_info_deinit(domain, &domain->server);
 		mutex_destroy(&domain->connect_mutex);
@@ -691,6 +915,7 @@ void domain_deinit(struct comm_domain *domain)
 	domain->domain_name = NULL;
 	domain->domain_id = -1;
 	domain->device_name = NULL;
+	providerid_map_deinit(&domain->providerid_map);
 	server_info_deinit(domain, &domain->server);
 	provider_server_map_deinit(&domain->map);
 	// had better free manage frame
@@ -766,7 +991,9 @@ static int get_server_first_avail_index(struct server_info *server_inf)
 		return 0;
 }
 
-static int get_server_index(struct server_info *server_inf,
+// [20201130]: we need get_server_index from server_id in dev layer
+//static int get_server_index(struct server_info *server_inf,
+int get_server_index(struct server_info *server_inf,
 unsigned char *server_id)
 {
 	int i = 0;
@@ -783,6 +1010,7 @@ unsigned char *server_id)
 	else
 		return -1;
 }
+EXPORT_SYMBOL(get_server_index);
 
 static int get_provider_index(struct provider_info *provider_inf,
 int provider_id)
@@ -953,11 +1181,13 @@ error:
 }
 EXPORT_SYMBOL(is_valid_session);
 
-static int regisger_server(struct comm_domain *domain,
+static int register_server(struct comm_domain *domain,
 struct send_mang_data *data)
 {
 	struct server_desc *server = NULL;
 	int ret = 0;
+	// [20201217]: add rx_threshold
+	int i = 0;
 
 	// register server_id just first time
 	if (get_server_index(&domain->server, data->server_id) < 0) {
@@ -973,6 +1203,13 @@ struct send_mang_data *data)
 			--domain->server.count;
 			domain->server.first_avail =
 			get_server_first_avail_index(&domain->server);
+			// [20201217]: add rx_threshold
+			for (i = 0; i < EXEMPT_SERVER_COUNT; ++i) {
+				if (!memcmp(server->server_id, exempt_server_id[i], UUID_LEN))
+					break;
+			}
+			if (i < EXEMPT_SERVER_COUNT)
+				server->rx_threshold = 0;
 		}
 	}
 
@@ -1035,6 +1272,9 @@ struct send_mang_data *data)
 #endif
 #ifdef CONFIG_HOBOT_BIF_AP
 	int provider_id_tmp = 0;
+	// [20201130]: improve erro handling mechanism
+	unsigned char server_id_tmp[UUID_LEN];
+	struct provider_server *relation = NULL;
 #endif
 
 	index = get_server_index(&domain->server, data->server_id);
@@ -1044,16 +1284,39 @@ struct send_mang_data *data)
 	if (get_provider_index(&server->provider, data->provider_id) < 0) {
 		if (server->provider.count <= 0) {
 #ifndef CONFIG_HOBOT_BIF_AP
-			ret = HBIPC_ERROR_RMT_RES_ALLOC_FAIL;
-			hbipc_error("provider resource insufficient\n");
+			// [20201130]: In HBIPC, every server just have only one provider
+			// so we change return value
+			//ret = HBIPC_ERROR_RMT_RES_ALLOC_FAIL;
+			//hbipc_error("provider resource insufficient\n");
+			ret = HBIPC_ERROR_REPEAT_REGISTER;
+			hbipc_error("provider duplicate register from another process\n");
 			goto error;
 #else
 			// register new provider
+			// [20201130]: re-register provider with a differrent provider_id
 			provider_id_tmp = data->provider_id;
 			data->provider_id = server->provider.provider_array[0].provider_id;
 			unregister_provider(domain, data);
 			unregister_map(domain, data);
+			domain->providerid_map.put_index(&domain->providerid_map,
+			data->provider_id);
 			data->provider_id = provider_id_tmp;
+			// [20201130]: we alse unregister server_id & provider_id map
+			// we want to register
+			// because the provider with this conflict provider_id must be
+			// invalid at present
+			// we alse have to unregister this invalid provider
+			index = get_map_index(&domain->map, data->provider_id);
+			if (index >= 0) {
+				relation = domain->map.map_array + index;
+				memcpy(server_id_tmp, data->server_id, UUID_LEN);
+				memcpy(data->server_id, relation->server_id, UUID_LEN);
+				unregister_provider(domain, data);
+				memcpy(data->server_id, server_id_tmp, UUID_LEN);
+				unregister_map(domain, data);
+				domain->providerid_map.put_index(&domain->providerid_map,
+				data->provider_id);
+			}
 			provider = server->provider.provider_array +
 			server->provider.first_avail;
 			provider->valid = 1;
@@ -1061,6 +1324,8 @@ struct send_mang_data *data)
 			--server->provider.count;
 			server->provider.first_avail =
 			get_provider_first_avail_index(&server->provider);
+			// [20201217]: add rx_threshold
+			provider->rx_threshold = server->rx_threshold;
 			hbipc_debug("switch new provider 1\n");
 #endif
 	} else {
@@ -1071,6 +1336,27 @@ struct send_mang_data *data)
 		--server->provider.count;
 		server->provider.first_avail =
 		get_provider_first_avail_index(&server->provider);
+		// [20201217]: add rx_threshold
+		provider->rx_threshold = server->rx_threshold;
+		// [20201210]: just AP side need this process
+		#ifdef CONFIG_HOBOT_BIF_AP
+		// [20201130]: put conflict pid & server_id map and this provider
+		if (domain->providerid_map.is_valid(&domain->providerid_map,
+		data->provider_id)) {
+			hbipc_debug("unregister confilict provider\n");
+			index = get_map_index(&domain->map, data->provider_id);
+			if (index >= 0) {
+				relation = domain->map.map_array + index;
+				memcpy(server_id_tmp, data->server_id, UUID_LEN);
+				memcpy(data->server_id, relation->server_id, UUID_LEN);
+				unregister_provider(domain, data);
+				memcpy(data->server_id, server_id_tmp, UUID_LEN);
+				unregister_map(domain, data);
+				domain->providerid_map.put_index(&domain->providerid_map,
+				data->provider_id);
+			}
+		}
+		#endif
 		}
 	} else {
 #ifndef CONFIG_HOBOT_BIF_AP
@@ -1079,10 +1365,13 @@ struct send_mang_data *data)
 		goto error;
 #else
 		// register new provider
+		// [20201130]: re-register provider with the same provider_id
 		provider_id_tmp = data->provider_id;
 		data->provider_id = server->provider.provider_array[0].provider_id;
 		unregister_provider(domain, data);
 		unregister_map(domain, data);
+		domain->providerid_map.put_index(&domain->providerid_map,
+		data->provider_id);
 		data->provider_id = provider_id_tmp;
 		provider = server->provider.provider_array +
 		server->provider.first_avail;
@@ -1091,6 +1380,8 @@ struct send_mang_data *data)
 		--server->provider.count;
 		server->provider.first_avail =
 		get_provider_first_avail_index(&server->provider);
+		// [20201217]: add rx_threshold
+		provider->rx_threshold = server->rx_threshold;
 		hbipc_debug("switch new provider 2\n");
 #endif
 	}
@@ -1130,6 +1421,8 @@ struct send_mang_data *data)
 			--server->provider.count;
 			server->provider.first_avail =
 			get_provider_first_avail_index(&server->provider);
+			// [20201217]: add rx_threshold
+			provider->rx_threshold = server->rx_threshold;
 		}
 	} else {
 		hbipc_error("provider duplicate register\n");
@@ -1362,9 +1655,31 @@ int register_server_provider(struct comm_domain *domain,
 struct send_mang_data *data)
 {
 	int ret = 0;
+#ifndef CONFIG_HOBOT_BIF_AP
+	int pid = 0;
+	int index = 0;
+	short int *provider_id_factor = (short int *)(data->server_id);
+#endif
 
 	mutex_lock(&domain->connect_mutex);
-	ret = regisger_server(domain, data);
+#ifndef CONFIG_HOBOT_BIF_AP
+	// legacy, do not modify lib
+	pid = data->provider_id - *provider_id_factor;
+	index = domain->providerid_map.get_index(&domain->providerid_map);
+	if (index < 0) {
+		pr_err("get_index error\n");
+		ret = HBIPC_ERROR_RMT_RES_ALLOC_FAIL;
+		// [20201130]: at this time, index is invalid, so we can't put this index
+		//goto register_server_error;
+		mutex_unlock(&domain->connect_mutex);
+		return ret;
+	}
+	domain->providerid_map.set_index(&domain->providerid_map,
+	index, pid, data->server_id);
+	data->provider_id = index;
+	data->result = pid;
+#endif
+	ret = register_server(domain, data);
 	if (ret < 0) {
 		hbipc_error("reisger_server error\n");
 		goto register_server_error;
@@ -1377,7 +1692,11 @@ struct send_mang_data *data)
 	}
 
 	register_map(domain, data);
-
+#ifdef CONFIG_HOBOT_BIF_AP
+	domain->providerid_map.set_index(&domain->providerid_map,
+	data->provider_id,
+	data->result, data->server_id);
+#endif
 	mutex_unlock(&domain->connect_mutex);
 #ifndef CONFIG_HOBOT_BIF_AP
 	// send register provider datagram
@@ -1400,6 +1719,9 @@ send_cmd_error:
 register_provider_error:
 	unregister_server(domain, data);
 register_server_error:
+#ifndef CONFIG_HOBOT_BIF_AP
+	domain->providerid_map.put_index(&domain->providerid_map, index);
+#endif
 	mutex_unlock(&domain->connect_mutex);
 	return ret;
 }
@@ -1411,7 +1733,7 @@ struct send_mang_data *data)
 	int ret = 0;
 
 	mutex_lock(&domain->connect_mutex);
-	ret = regisger_server(domain, data);
+	ret = register_server(domain, data);
 	if (ret < 0) {
 		hbipc_error("reisger_server error\n");
 		goto register_server_error;
@@ -1424,6 +1746,10 @@ struct send_mang_data *data)
 	}
 
 	register_map(domain, data);
+	domain->providerid_map.set_index(&domain->providerid_map,
+	data->provider_id,
+	data->result, data->server_id);
+
 
 	mutex_unlock(&domain->connect_mutex);
 
@@ -1460,6 +1786,10 @@ static int register_server_provider_query(struct comm_domain *domain)
 					server->server_id, UUID_LEN);
 					data.provider_id =
 					provider->provider_id;
+					data.result =
+					domain->providerid_map.find_pid(
+					&domain->providerid_map,
+						data.provider_id);
 					//mutex_unlock(&domain->connect_mutex);
 					ret = mang_frame_send2opposite_without_lock(domain,
 					MANAGE_CMD_QUERY_REGISTER, &data);
@@ -1483,14 +1813,34 @@ int unregister_server_provider(struct comm_domain *domain,
 struct send_mang_data *data)
 {
 	int ret = 0;
+#ifndef CONFIG_HOBOT_BIF_AP
+	int pid = 0;
+	int provider_id = 0;
+	short int *provider_id_factor = (short int *)(data->server_id);
+#endif
 
 	mutex_lock(&domain->connect_mutex);
+#ifndef CONFIG_HOBOT_BIF_AP
+	// legacy, do not modify lib
+	pid = data->provider_id - *provider_id_factor;
+	provider_id =
+	domain->providerid_map.find_index(&domain->providerid_map,
+	pid, data->server_id);
+	data->provider_id = provider_id;
+#endif
 	ret = unregister_provider(domain, data);
 	if (ret < 0) {
 		hbipc_error("unregister_provider error\n");
 		mutex_unlock(&domain->connect_mutex);
 		goto error;
 	}
+#ifndef CONFIG_HOBOT_BIF_AP
+	domain->providerid_map.put_index(&domain->providerid_map,
+	provider_id);
+#else
+	domain->providerid_map.put_index(&domain->providerid_map,
+	data->provider_id);
+#endif
 
 	unregister_server(domain, data);
 	unregister_map(domain, data);
@@ -1533,6 +1883,9 @@ void clear_server_cp_manager(struct comm_domain *domain)
 				provider = server->provider.provider_array + j;
 				if (provider->valid) {
 					// unregister valid provider
+					domain->providerid_map.put_index(
+					&domain->providerid_map,
+					provider->provider_id);
 					unregister_provider_cp_manager(domain,
 					server, provider);
 				}
@@ -1565,7 +1918,7 @@ struct send_mang_data *data)
 	int pid = data->provider_id;
 	int i = 0;
 	struct server_desc *server = NULL;
-	short int *provider_id_factor = NULL;
+	//short int *provider_id_factor = NULL;
 
 	// in case of deadlock
 	// acquire different lock with same sequence
@@ -1576,8 +1929,13 @@ struct send_mang_data *data)
 		server = domain->server.server_array + i;
 		if (!server->valid)
 			continue;
-		provider_id_factor = (short int *)(server->server_id);
-		data->provider_id = pid + *provider_id_factor;
+		//provider_id_factor = (short int *)(server->server_id);
+		//data->provider_id = pid + *provider_id_factor;
+		data->provider_id =
+		domain->providerid_map.find_index(&domain->providerid_map,
+		pid, server->server_id);
+		if (data->provider_id < 0)
+			continue;
 
 	ret = get_map_index(&domain->map, data->provider_id);
 	if (ret >= 0) {
@@ -1594,6 +1952,8 @@ struct send_mang_data *data)
 		hbipc_error("unregister_provider error\n");
 			continue;
 	}
+	domain->providerid_map.put_index(&domain->providerid_map,
+				data->provider_id);
 
 	unregister_server(domain, data);
 	unregister_map(domain, data);
@@ -1780,6 +2140,12 @@ struct send_mang_data *data)
 #ifndef CONFIG_HOBOT_BIF_AP
 	++domain->unaccept_session_count;
 #endif
+	// [20201217]: add rx_threshold
+	connect->rx_threshold = provider->rx_threshold;
+	connect->flowcontrol_active_flag = 0;
+	connect->flowcontrol_passive_flag = 0;
+	connect->need_set_flowcontrol = 0;
+	connect->need_clear_flowcontrol = 0;
 	mutex_unlock(&domain->connect_mutex);
 #ifdef CONFIG_HOBOT_BIF_AP
 	ret = mang_frame_send2opposite(domain,
@@ -1912,7 +2278,7 @@ struct bif_frame_cache *frame)
 	int *p = (int *)(message->msg_text);
 	struct send_mang_data data;
 
-	hbipc_debug("manage frame type: %d\r\n", message->type);
+	hbipc_error("manage frame type: %d\r\n", message->type);
 	switch (message->type) {
 	case MANAGE_CMD_CONNECT_REQ:
 		/*
@@ -1964,7 +2330,8 @@ struct bif_frame_cache *frame)
 		data.domain_id = *p++;
 		memcpy(data.server_id, p, UUID_LEN);
 		p += 4;
-		data.provider_id = *p;
+		data.provider_id = *p++;
+		data.result = *p; // pid
 
 		if (register_server_provider(domain, &data) < 0)
 			goto error;
@@ -1998,10 +2365,23 @@ struct bif_frame_cache *frame)
 		data.domain_id = *p++;
 		memcpy(data.server_id, p, UUID_LEN);
 		p += 4;
-		data.provider_id = *p;
+		data.provider_id = *p++;
+		data.result = *p; // pid
 
 		if (register_server_provider_no_dup(domain, &data) < 0)
 			goto error;
+		break;
+	case MANAGE_CMD_SET_FLOWCONTROL:
+		data.domain_id = *p++;
+		data.provider_id = *p++;
+		data.client_id = *p;
+		set_flowcontrol(domain, &data);
+		break;
+	case MANAGE_CMD_CLEAR_FLOWCONTROL:
+		data.domain_id = *p++;
+		data.provider_id = *p++;
+		data.client_id = *p;
+		clear_flowcontrol(domain, &data);
 		break;
 	default:
 		goto error;
@@ -2027,6 +2407,9 @@ int recv_handle_manage_frame(struct comm_domain *domain)
 	struct session_desc *session_des = NULL;
 	struct list_head *pos = NULL;
 	struct bif_frame_cache *frame_tmp = NULL;
+	// [20201217]: add rx_threshold
+	//struct list_head *pos_drop = NULL;
+	//struct bif_frame_cache *frame_drop = NULL;
 
 	mutex_lock(&domain->read_mutex);
 	++domain->domain_statistics.manage_recv_count;
@@ -2073,7 +2456,8 @@ int recv_handle_manage_frame(struct comm_domain *domain)
 			is_valid_session(domain, &data, NULL, NULL);
 			//mutex_lock(&domain->read_mutex);
 			if (!session_des) {
-				hbipc_debug("interrupt recv invalid session\n");
+				hbipc_debug("recv_handle_manage_frame recv invalid session\n");
+				++domain->domain_statistics.invalid_data_frame_count;
 				bif_del_frame_from_list(&domain->channel,
 				frame_tmp);
 			} else {
@@ -2081,14 +2465,41 @@ int recv_handle_manage_frame(struct comm_domain *domain)
 				// invalid at here, but do not make harm
 				// if register operation with init
 				list_del(&frame_tmp->frame_cache_list);
-				//bif_frame_decrease_count(&domain->channel);
+				// [20201217]: add rx_threshold
 				spin_lock(&(session_des->recv_list.lock));
 				list_add_tail(&frame_tmp->frame_cache_list,
 				&session_des->recv_list.list);
 				++session_des->recv_list.frame_count;
-				spin_unlock(&(session_des->recv_list.lock));
 				up(&session_des->frame_count_sem);
 				++domain->domain_statistics.up_sem_count;
+				spin_unlock(&(session_des->recv_list.lock));
+
+				mutex_lock(&domain->write_mutex);
+				mutex_lock(&domain->connect_mutex);
+
+				if ((session_des->rx_threshold > 0) &&
+				(session_des->recv_list.frame_count >= session_des->rx_threshold)) {
+					// just for multimode project
+					// send set flowcontrol manage frame
+					if (!session_des->flowcontrol_active_flag) {
+						session_des->flowcontrol_active_flag = 1;
+						session_des->need_set_flowcontrol = 1;
+				}
+
+					if (session_des->need_set_flowcontrol) {
+						ret = mang_frame_send2opposite_without_lock(domain,
+						MANAGE_CMD_SET_FLOWCONTROL, &data);
+						if (ret < 0) {
+							// prompt message
+							hbipc_error("send MANAGE_CMD_SET_FLOWCONTROL error\n");
+						} else {
+							session_des->need_set_flowcontrol = 0;
+						}
+					}
+				}
+
+				mutex_unlock(&domain->connect_mutex);
+				mutex_unlock(&domain->write_mutex);
 			}
 		}
 	}
@@ -2189,6 +2600,9 @@ int recv_handle_data_frame(struct comm_domain *domain)
 	struct session_desc *session_des = NULL;
 	struct list_head *pos = NULL;
 	struct bif_frame_cache *frame_tmp = NULL;
+	// [20201217]: add rx_threshold
+	//struct list_head *pos_drop = NULL;
+	//struct bif_frame_cache *frame_drop = NULL;
 
 	mutex_lock(&domain->read_mutex);
 	++domain->domain_statistics.data_recv_count;
@@ -2237,6 +2651,7 @@ int recv_handle_data_frame(struct comm_domain *domain)
 			//mutex_lock(&domain->read_mutex);
 			if (!session_des) {
 				printk_ratelimited(KERN_INFO "data recv invalid session\n");
+				++domain->domain_statistics.invalid_data_frame_count;
 				bif_del_frame_from_list(&domain->channel,
 				frame_tmp);
 			} else {
@@ -2246,13 +2661,40 @@ int recv_handle_data_frame(struct comm_domain *domain)
 				// if register operation with init
 				list_del(&frame_tmp->frame_cache_list);
 				//bif_frame_decrease_count(&domain->channel);
+				// [20201217]: add rx_threshold
 				spin_lock(&(session_des->recv_list.lock));
 				list_add_tail(&frame_tmp->frame_cache_list,
 				&session_des->recv_list.list);
 				++session_des->recv_list.frame_count;
-				spin_unlock(&(session_des->recv_list.lock));
 				up(&session_des->frame_count_sem);
 				++domain->domain_statistics.up_sem_count;
+				spin_unlock(&(session_des->recv_list.lock));
+				mutex_lock(&domain->write_mutex);
+				mutex_lock(&domain->connect_mutex);
+
+				if ((session_des->rx_threshold > 0) &&
+				(session_des->recv_list.frame_count >= session_des->rx_threshold)) {
+					// just for multimode project
+					// send set flowcontrol manage frame
+					if (!session_des->flowcontrol_active_flag) {
+						session_des->flowcontrol_active_flag = 1;
+						session_des->need_set_flowcontrol = 1;
+				}
+
+					if (session_des->need_set_flowcontrol) {
+						ret = mang_frame_send2opposite_without_lock(domain,
+						MANAGE_CMD_SET_FLOWCONTROL, &data);
+						if (ret < 0) {
+							// prompt message
+							hbipc_error("send MANAGE_CMD_SET_FLOWCONTROL error\n");
+						} else {
+							session_des->need_set_flowcontrol = 0;
+						}
+					}
+				}
+
+				mutex_unlock(&domain->connect_mutex);
+				mutex_unlock(&domain->write_mutex);
 			}
 		}
 	}
@@ -2374,6 +2816,9 @@ int recv_frame_interrupt(struct comm_domain *domain)
 	struct session_desc *session_des = NULL;
 	struct list_head *pos = NULL;
 	struct bif_frame_cache *frame_tmp = NULL;
+	// [20201217]: add rx_threshold
+	//struct list_head *pos_drop = NULL;
+	//struct bif_frame_cache *frame_drop = NULL;
 
 	// concede manage frame
 	if (domain->manage_send) {
@@ -2441,19 +2886,45 @@ int recv_frame_interrupt(struct comm_domain *domain)
 			//mutex_lock(&domain->read_mutex);
 			if (!session_des) {
 				printk_ratelimited(KERN_INFO "interrupt recv invalid session\n");
+				++domain->domain_statistics.invalid_data_frame_count;
 				bif_del_frame_from_list(&domain->channel, frame_tmp);
 			} else {
 				// at extreme condition, session_des maybe invalid at here
 				// but do not make harm if register operation with init
 				list_del(&frame_tmp->frame_cache_list);
 				//bif_frame_decrease_count(&domain->channel);
+				// [20201217]: add rx_threshold
 				spin_lock(&(session_des->recv_list.lock));
 				list_add_tail(&frame_tmp->frame_cache_list,
 				&session_des->recv_list.list);
 				++session_des->recv_list.frame_count;
-				spin_unlock(&(session_des->recv_list.lock));
 				up(&session_des->frame_count_sem);
 				++domain->domain_statistics.up_sem_count;
+				spin_unlock(&(session_des->recv_list.lock));
+				mutex_lock(&domain->write_mutex);
+				mutex_lock(&domain->connect_mutex);
+
+				if ((session_des->rx_threshold > 0) &&
+				(session_des->recv_list.frame_count >= session_des->rx_threshold)) {
+					// just for multimode project
+					// send set flowcontrol manage frame
+					if (!session_des->flowcontrol_active_flag) {
+						session_des->flowcontrol_active_flag = 1;
+						session_des->need_set_flowcontrol = 1;
+					}
+					if (session_des->need_set_flowcontrol) {
+						ret = mang_frame_send2opposite_without_lock(domain,
+						MANAGE_CMD_SET_FLOWCONTROL, &data);
+						if (ret < 0) {
+							// prompt message
+							hbipc_error("send MANAGE_CMD_SET_FLOWCONTROL error\n");
+						} else {
+							session_des->need_set_flowcontrol = 0;
+						}
+					}
+				}
+				mutex_unlock(&domain->connect_mutex);
+				mutex_unlock(&domain->write_mutex);
 			}
 		}
 	}
@@ -2528,6 +2999,9 @@ struct send_mang_data *data, struct session_desc **connect)
 	struct provider_desc *provider = NULL;
 	struct session_desc *connect_des = NULL;
 	int i = 0;
+	int pid = 0;
+	int provider_id = 0;
+	short int *provider_id_factor = (short int *)(data->server_id);
 
 	if (domain->unaccept_session_count > 0) {
 		mutex_lock(&domain->connect_mutex);
@@ -2542,6 +3016,18 @@ struct send_mang_data *data, struct session_desc **connect)
 			goto error;
 		}
 		server = domain->server.server_array + index;
+		// modify provider_id
+		pid = data->provider_id - *provider_id_factor;
+		provider_id =
+		domain->providerid_map.find_index(&domain->providerid_map,
+		pid, data->server_id);
+		data->provider_id = provider_id;
+		if (provider_id < 0) {
+			pr_err("accept find_index error\n");
+			ret = HBIPC_ERROR_INVALID_PROVIDERID;
+			mutex_unlock(&domain->connect_mutex);
+			goto error;
+		}
 
 		index = get_provider_index(&server->provider,
 		data->provider_id);
@@ -2588,6 +3074,18 @@ struct send_mang_data *data, struct session_desc **connect)
 			goto error;
 		}
 		server = domain->server.server_array + index;
+		// modify provider_id
+		pid = data->provider_id - *provider_id_factor;
+		provider_id =
+		domain->providerid_map.find_index(&domain->providerid_map,
+		pid, data->server_id);
+		data->provider_id = provider_id;
+		if (provider_id < 0) {
+			pr_err("accept find_index error\n");
+			ret = HBIPC_ERROR_INVALID_PROVIDERID;
+			mutex_unlock(&domain->connect_mutex);
+			goto error;
+		}
 
 		index = get_provider_index(&server->provider,
 		data->provider_id);
@@ -2635,6 +3133,16 @@ irq_handler_t irq_handler)
 }
 EXPORT_SYMBOL(bif_lite_irq_register_domain);
 
+int bif_lite_irq_unregister_domain(struct comm_domain *domain)
+{
+	int ret = 0;
+
+	ret = bif_lite_unregister_irq(&domain->channel);
+
+	return ret;
+}
+EXPORT_SYMBOL(bif_lite_irq_unregister_domain);
+
 void bif_del_frame_domain(struct comm_domain *domain,
 struct bif_frame_cache *frame)
 {
@@ -2650,9 +3158,28 @@ struct bif_frame_cache *frame)
 EXPORT_SYMBOL(bif_del_session_frame_domain);
 
 
-int bif_tx_put_frame_domain(struct comm_domain *domain, void *data, int len)
+int bif_tx_put_frame_domain(struct comm_domain *domain, void *data,
+int len, struct send_mang_data *mang_data)
 {
 	int ret = 0;
+	struct session_desc *session = NULL;
+	int set_flowcontrol = 0;
+
+	/* just for multimode project
+	 * check for flowcontrol
+	*/
+	session = is_valid_session(domain, mang_data, NULL, NULL);
+	if (session) {
+		mutex_lock(&domain->connect_mutex);
+		if (session->valid) {
+			if (session->flowcontrol_passive_flag)
+				set_flowcontrol = 1;
+		}
+		mutex_unlock(&domain->connect_mutex);
+
+		if (set_flowcontrol)
+			return BIF_TX_ERROR_NO_MEM;
+	}
 
 	ret = bif_tx_put_frame(&domain->channel, data, len);
 
@@ -2782,3 +3309,15 @@ void clear_invalid_connect_ap_abnormal(struct comm_domain *domain)
 
 	mutex_unlock(&domain->connect_mutex);
 }
+
+int bif_domain_send_irq(struct comm_domain *domain)
+{
+	int ret = 0;
+
+	ret = bif_channel_send_irq(&domain->channel);
+
+	return ret;
+}
+EXPORT_SYMBOL(bif_domain_send_irq);
+
+MODULE_LICENSE("GPL v2");

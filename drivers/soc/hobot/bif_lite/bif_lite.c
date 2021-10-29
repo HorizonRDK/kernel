@@ -196,6 +196,7 @@ struct comm_channel *channel, int *index, int *count, int expect_count)
 		printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
 #ifdef CONFIG_HOBOT_BIF_AP
 	channel->hw_trans_error = 1;
+	++channel->error_statistics.hw_trans_error_count;
 	if (channel->higher_level_clear)
 		channel->higher_level_clear();
 #endif
@@ -279,6 +280,18 @@ struct frag_info *fragment_info)
 	return 0;
 }
 
+static int bif_lite_trigger(struct comm_channel *channel)
+{
+	if (channel->notify.tri_val)
+		channel->notify.tri_val = 0;
+	else
+		channel->notify.tri_val = 1;
+	gpio_direction_output(channel->notify.tri_pin,
+		channel->notify.tri_val);
+
+	return 0;
+}
+
 static inline int bif_tx_update_to_cp_ddr(struct comm_channel *channel)
 {
 	int ret = 0;
@@ -292,6 +305,7 @@ static inline int bif_tx_update_to_cp_ddr(struct comm_channel *channel)
 		printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
 #ifdef CONFIG_HOBOT_BIF_AP
 	channel->hw_trans_error = 1;
+	++channel->error_statistics.hw_trans_error_count;
 	if (channel->higher_level_clear)
 		channel->higher_level_clear();
 #endif
@@ -311,7 +325,10 @@ static inline int bif_tx_update_to_cp_ddr(struct comm_channel *channel)
 #endif
 	if (channel->mode == INTERRUPT_MODE) {
 		while (1) {
+			if (channel->notify.tri_pin == -1)
 			ret = bif_send_irq(channel->buffer_id);
+			else
+				ret = bif_lite_trigger(channel);
 			++channel->channel_statistics.trig_count;
 			if (ret < 0) {
 				remainning_time = bif_sleep(200);
@@ -384,6 +401,7 @@ struct frag_info *fragment_info)
 			printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
 #ifdef CONFIG_HOBOT_BIF_AP
 			channel->hw_trans_error = 1;
+			++channel->error_statistics.hw_trans_error_count;
 			if (channel->higher_level_clear)
 				channel->higher_level_clear();
 #endif
@@ -400,6 +418,7 @@ struct frag_info *fragment_info)
 			printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
 #ifdef CONFIG_HOBOT_BIF_AP
 			channel->hw_trans_error = 1;
+			++channel->error_statistics.hw_trans_error_count;
 			if (channel->higher_level_clear)
 				channel->higher_level_clear();
 #endif
@@ -427,6 +446,7 @@ unsigned char *data, int len)
 	int ret = 0;
 	int count = 0;
 	struct frag_info fragment_info;
+	int send_tail_bak = 0;
 
 	// calculate fragment count & last copy byte
 	frag_count = len / channel->valid_frag_len_max;
@@ -464,6 +484,8 @@ unsigned char *data, int len)
 	bif_debug("count =  %d\n", count);
 	bif_debug("index =  %d\n", channel->tx_frag_index);
 
+	// backup tx_local_info before enter send loop
+	send_tail_bak = channel->tx_local_info->send_tail;
 	memset(&fragment_info, 0, sizeof(fragment_info));
 	for (i = 0; i < frag_count; ++i) {
 		if (i == 0)
@@ -497,6 +519,7 @@ unsigned char *data, int len)
 		if (ret < 0) {
 			ret = BIF_TX_ERROR_TRANS;
 			printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
+			channel->tx_local_info->send_tail = send_tail_bak;
 			goto err;
 		}
 		channel->tx_frag_index++;
@@ -570,6 +593,7 @@ RING_INFO_ALIGN)];
 		printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
 #ifdef CONFIG_HOBOT_BIF_AP
 		channel->hw_trans_error = 1;
+		++channel->error_statistics.hw_trans_error_count;
 		if (channel->higher_level_clear)
 			channel->higher_level_clear();
 #endif
@@ -585,6 +609,7 @@ RING_INFO_ALIGN)];
 	if (ret < 0) {
 		printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
 		channel->hw_trans_error = 1;
+		++channel->error_statistics.hw_trans_error_count;
 		if (channel->higher_level_clear)
 			channel->higher_level_clear();
 		goto err;
@@ -650,6 +675,7 @@ int count)
 		printk_ratelimited(KERN_INFO "bif_err: %s  %d\n", __func__, __LINE__);
 #ifdef CONFIG_HOBOT_BIF_AP
 		channel->hw_trans_error = 1;
+		++channel->error_statistics.hw_trans_error_count;
 		if (channel->higher_level_clear)
 			channel->higher_level_clear();
 #endif
@@ -809,6 +835,7 @@ struct comm_channel *channel)
 	struct frag_info *fragment_info = NULL;
 	unsigned short crc16_value_get = 0;
 	unsigned short crc16_value_want = 0;
+	unsigned int already_assemble_frag = 0;
 #if 0
 	if (channel->rx_frame_count > channel->frame_cache_max) {
 		//too much cache, cost too much mem, need to wait a moment
@@ -847,11 +874,14 @@ struct comm_channel *channel)
 			offset, channel->frag_len_max);
 		if (ret < 0) {
 			++channel->error_statistics.rx_error_read_frag;
-			// do not update any rx index if read fragment occurred
-			frame_used_frag_count = 0;
+			// do not update any rx index if read hardware error occurred
+			//frame_used_frag_count = 0;
+			// [modify] just update already assembled fragments
+			frame_used_frag_count = already_assemble_frag;
 			printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
 #ifdef CONFIG_HOBOT_BIF_AP
 			channel->hw_trans_error = 1;
+			++channel->error_statistics.hw_trans_error_count;
 			if (channel->higher_level_clear)
 				channel->higher_level_clear();
 #endif
@@ -875,6 +905,7 @@ struct comm_channel *channel)
 					if (frame_p) {
 						bif_free(frame_p);
 						frame_p = NULL;
+						++channel->channel_statistics.frame_free_count;
 					}
 					channel->frame_start = 0;
 				}
@@ -884,19 +915,33 @@ struct comm_channel *channel)
 
 		// at start fragment, malloc frame buffer
 		if (fragment_info->flag.start == 1) {
+			if (frame_p) {
+				bif_free(frame_p);
+				frame_p = NULL;
+				++channel->channel_statistics.frame_free_count;
+			}
 			malloc_len = fragment_info->id
 				* channel->valid_frag_len_max;
+			if (malloc_len > channel->frame_len_max + channel->frag_len_max) {
+				printk("malloc_len too long: %d\n", malloc_len);
+				++channel->error_statistics.rx_error_abnormal_malloc_count;
+				goto next_frag;
+			}
+
 			frame_p =
 			bif_malloc(sizeof(struct bif_frame_cache) + malloc_len);
 			if (!frame_p) {
 				++channel->error_statistics.rx_error_malloc_frame;
+				printk("malloc %dB fail\n", sizeof(struct bif_frame_cache) + malloc_len);
 				printk_ratelimited(KERN_INFO "bif_err: %s %d\n",
 					__func__, __LINE__);
 				printk_ratelimited(KERN_INFO "surplus frame: %d\n",
 				channel->rx_frame_count);
 				break;
-			} else
+			} else {
 				channel->frame_start = 1;
+				++channel->channel_statistics.frame_malloc_count;
+			}
 		} else {
 			// not start flag, if frame_start is false
 			// continue to next fragment
@@ -911,11 +956,12 @@ struct comm_channel *channel)
 			cache_tmp, fragment_info);
 		if (ret < 0) {
 			++channel->error_statistics.rx_error_assemble_frag;
-			printk_ratelimited(KERN_INFO "bif_err: %s %d\n", __func__, __LINE__);
+			printk_ratelimited(KERN_INFO "bif_err: %s %ld\n", __func__, __LINE__);
 			if (channel->frame_start) {
 				if (frame_p) {
 					bif_free(frame_p);
 					frame_p = NULL;
+					++channel->channel_statistics.frame_free_count;
 				}
 				channel->frame_start = 0;
 			}
@@ -924,6 +970,9 @@ struct comm_channel *channel)
 		// reassemble fragment function return 1,
 		// when received a whole frame
 		if (ret == 1) {
+			// if update rx local index error,
+			// don't re-read already assembled frame
+			already_assemble_frag = count_tmp + 1;
 			frame_p = NULL;
 			channel->frame_start = 0;
 		}
@@ -947,6 +996,7 @@ next_frag:
 			if (frame_p) {
 				bif_free(frame_p);
 				frame_p = NULL;
+				++channel->channel_statistics.frame_free_count;
 			}
 			channel->frame_start = 0;
 		}
@@ -986,6 +1036,7 @@ static inline int bif_clear_list(struct comm_channel *channel)
 		if (frame_cache_tmp) {
 			list_del(&frame_cache_tmp->frame_cache_list);
 			bif_free(frame_cache_tmp);
+			++channel->channel_statistics.frame_free_count;
 			bif_debug("clear! %p", frame_cache_tmp);
 		}
 	} while (!(list_empty(&(channel->rx_frame_cache_p->frame_cache_list))));
@@ -1037,6 +1088,7 @@ struct bif_frame_cache *frame)
 	if (frame) {
 		list_del(&frame->frame_cache_list);
 		bif_free(frame);
+		++channel->channel_statistics.frame_free_count;
 		spin_lock(&channel->rx_frame_count_lock);
 		--channel->rx_frame_count;
 		spin_unlock(&channel->rx_frame_count_lock);
@@ -1060,6 +1112,7 @@ struct bif_frame_cache *frame)
 	--channel->rx_frame_count;
 	spin_unlock(&channel->rx_frame_count_lock);
 	bif_free(frame);
+	++channel->channel_statistics.frame_free_count;
 }
 EXPORT_SYMBOL(bif_del_frame_from_session_list);
 
@@ -1121,6 +1174,7 @@ static inline int bif_sync_before_start(struct comm_channel *channel)
 		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
 #ifdef CONFIG_HOBOT_BIF_AP
 		channel->hw_trans_error = 1;
+		++channel->error_statistics.hw_trans_error_count;
 #endif
 		goto err;
 	}
@@ -1153,6 +1207,7 @@ static inline int bif_sync_before_start(struct comm_channel *channel)
 		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
 #ifdef CONFIG_HOBOT_BIF_AP
 		channel->hw_trans_error = 1;
+		++channel->error_statistics.hw_trans_error_count;
 #endif
 		goto err;
 	}
@@ -1185,6 +1240,7 @@ static inline int bif_sync_before_start(struct comm_channel *channel)
 		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
 #ifdef CONFIG_HOBOT_BIF_AP
 	channel->hw_trans_error = 1;
+	++channel->error_statistics.hw_trans_error_count;
 #endif
 		goto err;
 	}
@@ -1217,6 +1273,7 @@ static inline int bif_sync_before_start(struct comm_channel *channel)
 		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
 #ifdef CONFIG_HOBOT_BIF_AP
 	channel->hw_trans_error = 1;
+	++channel->error_statistics.hw_trans_error_count;
 #endif
 		goto err;
 	}
@@ -1307,6 +1364,7 @@ static inline int bif_init_cp_ddr(struct comm_channel *channel)
 		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
 #ifdef CONFIG_HOBOT_BIF_AP
 		channel->hw_trans_error = 1;
+	++channel->error_statistics.hw_trans_error_count;
 #endif
 		goto err;
 	}
@@ -1319,6 +1377,7 @@ static inline int bif_init_cp_ddr(struct comm_channel *channel)
 		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
 #ifdef CONFIG_HOBOT_BIF_AP
 	channel->hw_trans_error = 1;
+	++channel->error_statistics.hw_trans_error_count;
 #endif
 		goto err;
 	}
@@ -1341,6 +1400,7 @@ static inline int bif_init_cp_ddr(struct comm_channel *channel)
 		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
 #ifdef CONFIG_HOBOT_BIF_AP
 		channel->hw_trans_error = 1;
+		++channel->error_statistics.hw_trans_error_count;
 #endif
 		goto err;
 	}
@@ -1353,6 +1413,7 @@ static inline int bif_init_cp_ddr(struct comm_channel *channel)
 		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
 #ifdef CONFIG_HOBOT_BIF_AP
 	channel->hw_trans_error = 1;
+	++channel->error_statistics.hw_trans_error_count;
 #endif
 		goto err;
 	}
@@ -1376,6 +1437,7 @@ static inline int bif_init_cp_ddr(struct comm_channel *channel)
 		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
 #ifdef CONFIG_HOBOT_BIF_AP
 		channel->hw_trans_error = 1;
+	++channel->error_statistics.hw_trans_error_count;
 #endif
 		goto err;
 	}
@@ -1388,6 +1450,7 @@ static inline int bif_init_cp_ddr(struct comm_channel *channel)
 		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
 #ifdef CONFIG_HOBOT_BIF_AP
 	channel->hw_trans_error = 1;
+	++channel->error_statistics.hw_trans_error_count;
 #endif
 		goto err;
 	}
@@ -1410,6 +1473,7 @@ static inline int bif_init_cp_ddr(struct comm_channel *channel)
 		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
 #ifdef CONFIG_HOBOT_BIF_AP
 		channel->hw_trans_error = 1;
+		++channel->error_statistics.hw_trans_error_count;
 #endif
 		goto err;
 	}
@@ -1422,6 +1486,7 @@ static inline int bif_init_cp_ddr(struct comm_channel *channel)
 		bif_err("bif_err: %s  %d\n", __func__, __LINE__);
 #ifdef CONFIG_HOBOT_BIF_AP
 	channel->hw_trans_error = 1;
+	++channel->error_statistics.hw_trans_error_count;
 #endif
 		goto err;
 	}
@@ -1549,11 +1614,34 @@ irq_handler_t handler)
 {
 	int ret = 0;
 
+	if (channel->notify.irq_pin == -1)
 	ret = bif_register_irq(channel->buffer_id, handler);
-
+	else
+#ifdef UNSUPPORT_EDGE_BOTH
+		ret = request_threaded_irq(channel->notify.irq_num,
+			handler, NULL, IRQ_TYPE_EDGE_FALLING,
+			"bif-lite-driver", (void *)channel);
+#else
+		ret = request_threaded_irq(channel->notify.irq_num,
+			handler, NULL, IRQ_TYPE_EDGE_BOTH,
+			"bif-lite-driver", (void *)channel);
+#endif
 	return ret;
 }
 EXPORT_SYMBOL(bif_lite_register_irq);
+
+int bif_lite_unregister_irq(struct comm_channel *channel)
+{
+	int ret = 0;
+
+	if (channel->notify.irq_pin == -1)
+		ret = bif_unregister_irq(channel->buffer_id);
+	else
+		free_irq(channel->notify.irq_num, (void *)channel);
+
+	return ret;
+}
+EXPORT_SYMBOL(bif_lite_unregister_irq);
 
 static void dump_channel_info(struct comm_channel *channel)
 {
@@ -1779,3 +1867,16 @@ void channel_unregister_high_level_clear(struct comm_channel *channel)
 	channel->higher_level_clear = NULL;
 }
 EXPORT_SYMBOL(channel_unregister_high_level_clear);
+
+int bif_channel_send_irq(struct comm_channel *channel)
+{
+	int ret = 0;
+
+	ret = bif_send_irq(channel->buffer_id);
+	++channel->channel_statistics.trig_count;
+
+	return ret;
+}
+EXPORT_SYMBOL(bif_channel_send_irq);
+
+MODULE_LICENSE("GPL v2");

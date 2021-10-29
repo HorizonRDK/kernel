@@ -241,7 +241,7 @@ static int bif_dev_spi_server_info_proc_show(struct seq_file *m, void *v)
 	struct provider_server *relation = NULL;
 	int i = 0;
 	int j = 0;
-	short int *provider_id_factor = NULL;
+	//short int *provider_id_factor = NULL;
 	int pid = 0;
 
 	mutex_lock(&domain.connect_mutex);
@@ -255,8 +255,12 @@ static int bif_dev_spi_server_info_proc_show(struct seq_file *m, void *v)
 			seq_printf(m, "\n");
 			seq_printf(m, "provider_id:\n");
 			seq_printf(m, "%d\n", relation->provider_id);
-			provider_id_factor = (short int *)(relation->server_id);
-			pid = relation->provider_id - *provider_id_factor;
+			//provider_id_factor =
+			//(short int *)(relation->server_id);
+			//pid = relation->provider_id - *provider_id_factor;
+			pid =
+			domain.providerid_map.find_pid(&domain.providerid_map,
+			relation->provider_id);
 			seq_printf(m, "pid:\n");
 			seq_printf(m, "%d\n", pid);
 		}
@@ -732,8 +736,8 @@ retry_1:
 					goto err;
 				} else {
 					bif_lite_init_success = 1;
-					//bif_lite_irq_register_domain(
-					//&domain, hbipc_irq_handler);
+					bif_lite_irq_register_domain(
+					&domain, hbipc_irq_handler);
 				}
 			}
 		} else {
@@ -870,7 +874,7 @@ size_t count, loff_t *ppos)
 		if (!feature->usr_timeout) {
 			// block without timeout
 resend_without_timeout:
-			ret = bif_tx_put_frame_domain(&domain, bif_data.send_frame, data.len);
+			ret = bif_tx_put_frame_domain(&domain, bif_data.send_frame, data.len, &data);
 			if (ret < 0) {
 				if (ret == BIF_TX_ERROR_NO_MEM) {
 					++retry_count;
@@ -929,7 +933,7 @@ resend_without_timeout:
 		} else {
 			// block with timeout
 resend_with_timeout:
-		ret = bif_tx_put_frame_domain(&domain, bif_data.send_frame, data.len);
+		ret = bif_tx_put_frame_domain(&domain, bif_data.send_frame, data.len, &data);
 		if (ret < 0) {
 			if (ret == BIF_TX_ERROR_NO_MEM) {
 				++retry_count;
@@ -989,7 +993,7 @@ resend_with_timeout:
 		}
 	} else {
 		// nonblock
-		ret = bif_tx_put_frame_domain(&domain, bif_data.send_frame, data.len);
+		ret = bif_tx_put_frame_domain(&domain, bif_data.send_frame, data.len, &data);
 		if (ret < 0) {
 			if (ret == BIF_TX_ERROR_NO_MEM)
 				data.result = HBIPC_ERROR_SEND_NO_MEM;
@@ -1648,14 +1652,13 @@ static int bif_lite_probe(struct platform_device *pdev)
 		goto bif_lite_init_error;
 	}
 
+	if (domain.mode == INTERRUPT_MODE)
+		bif_lite_irq_register_domain(&domain, hbipc_irq_handler);
+
 	ret = bifspi_read_share_reg(SYS_STATUS_REG, &value);
 	if (ret == 0)
 		bifspi_write_share_reg(SYS_STATUS_REG, value | BIF_SPI_BIT);
 #endif
-
-	if (domain.mode == INTERRUPT_MODE)
-		bif_lite_irq_register_domain(&domain, hbipc_irq_handler);
-
 #ifdef CONFIG_HOBOT_BIF_AP
 	domain_register_high_level_clear(&domain, bif_dev_spi_clear);
 #endif
@@ -1823,11 +1826,10 @@ static int bif_lite_probe_param(void)
 		pr_info("bif_lite_init error\n");
 		goto bif_lite_init_error;
 	}
-#endif
 
 	if (domain.mode == INTERRUPT_MODE)
 		bif_lite_irq_register_domain(&domain, hbipc_irq_handler);
-
+#endif
 #ifdef CONFIG_HOBOT_BIF_AP
 	domain_register_high_level_clear(&domain, bif_dev_spi_clear);
 #endif

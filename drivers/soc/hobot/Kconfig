@@ -63,21 +63,21 @@ config HOBOT_MCU_IRQ
 
 
 menuconfig HOBOT_BIF_CP
-        bool "Enable Horizon CP side BIF driver"
-        default n
+        tristate "Enable Horizon CP side BIF driver"
+        default m
         help
           Enable when BIF driver built in CP side
 
 if HOBOT_BIF_CP
 config HOBOT_BIFSPI_DEV
-        bool "Bif SPI device driver support"
-        default n
+        tristate "Bif SPI device driver support"
+        default m
 	help
 	    Say Y here if you want to support read/write bif share register
 
 config HOBOT_BIFSD_DEV
-	bool "Bif SD device driver support"
-	default y
+	tristate "Bif SD device driver support"
+	default m
         help
           This supports Bif SD Card protocol drivers.
 
@@ -86,7 +86,7 @@ config HOBOT_BIFSD_DEV
 
 config HOBOT_BIF_BASE
         tristate "Enable HOBOT BIF Base Drivers"
-        default n
+        default m
         help
           Horizon Robotics chip support BIFSPI and BIFSD interface, this driver provide basic API
           to other driver like virtual ethernet and virtual serial port
@@ -102,28 +102,28 @@ config HOBOT_BIF_ETHERNET
 config HOBOT_BIF_SIO
         tristate "Enable HOBOT BIF SIO Drivers"
 	depends on HOBOT_BIF_BASE
-        default n
+        default m
         help
           Say yes to enable bif virtual sieral port driver
 
 config HOBOT_BIF_LITE_CORE
         tristate "Enable HOBOT BIF Lite Drivers"
 	depends on HOBOT_BIF_BASE
-        default n
+        default m
         help
           Say yes to enable bif_lite_core driver
 
 config HOBOT_BIF_LITE_SPI
         tristate "Enable HOBOT BIF Lite SPI Drivers"
 	depends on HOBOT_BIF_LITE_CORE
-        default n
+        default m
         help
           Say yes to enable bif_lite_spi driver
 
 config HOBOT_BIF_LITE_SD
         tristate "Enable HOBOT BIF Lite SD Drivers"
 	depends on HOBOT_BIF_LITE_CORE
-        default n
+        default m
         help
           Say yes to enable bif_lite_sd driver
 

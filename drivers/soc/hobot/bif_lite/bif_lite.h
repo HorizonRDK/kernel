@@ -13,6 +13,7 @@
 #include <linux/errno.h>
 #include <linux/wait.h>
 #include <linux/freezer.h>
+//#include <linux/interrupt.h>
 #include "../bif_base/bif_base.h"
 #include "../bif_base/bif_api.h"
 #include "bif_platform.h"
@@ -109,6 +110,8 @@ struct current_frame_info {
 struct comm_channel_statistics {
 	int trig_count;
 	int retrig_count;
+	int frame_malloc_count;
+	int frame_free_count;
 };
 
 struct comm_channel_error_statistics {
@@ -120,6 +123,15 @@ struct comm_channel_error_statistics {
 	int rx_error_assemble_frag;
 	int rx_error_update_index;
 	int rx_error_drop_frag_count;
+	int hw_trans_error_count;
+	int rx_error_abnormal_malloc_count;
+};
+
+struct comm_notify {
+	int tri_pin;
+	int tri_val;
+	int irq_pin;
+	int irq_num;
 };
 
 typedef void (*clear_func_t)(void);
@@ -130,6 +142,7 @@ struct comm_channel {
 	int transfer_align;
 	addr_t base_addr;
 	addr_t base_addr_phy;
+	struct comm_notify notify;
 	// memory limit concerned
 	int frame_len_max;
 	int frag_len_max;
@@ -193,6 +206,7 @@ int bif_lite_init(struct comm_channel *channel);
 void bif_lite_exit(struct comm_channel *channel);
 int bif_lite_register_irq(struct comm_channel *channel,
 irq_handler_t handler);
+int bif_lite_unregister_irq(struct comm_channel *channel);
 void bif_del_frame_from_list(struct comm_channel *channel,
 struct bif_frame_cache *frame);
 int bif_rx_get_frame(struct comm_channel *channel,
@@ -211,5 +225,6 @@ clear_func_t clear_func);
 void channel_unregister_high_level_clear(struct comm_channel *channel);
 int bif_rx_add_frame_to_list(
 struct comm_channel *channel, struct bif_frame_cache *frame_cache_tmp);
+int bif_channel_send_irq(struct comm_channel *channel);
 
 #endif

@@ -28,12 +28,14 @@
 #include <linux/timer.h>
 #include <soc/hobot/diag.h>
 
+#define BIFSD_CONFIG_X2
 #define VER			"HOBOT-bifsd_V20.200330"
 #define OUT_RANGE_ADDR		(0xFFFFFFFF)
 #define CAPACITY_DEFAULT	(0x80000000)	/* 2G */
 #define ZERO_ADDR_OFFSET	(512)		/* when addr 0 ,offset to*/
 #define WORK_MODE_DEFAULT	(WORK_MODE_ACC)
-#define	OPT_MODE_DEFAULT	(OPT_MODE_BYTE)
+//#define	OPT_MODE_DEFAULT	(OPT_MODE_BYTE)
+#define	OPT_MODE_DEFAULT	(OPT_MODE_SECTOR)
 /*****************************************************************************/
 /* static Global Variables                                                   */
 /*****************************************************************************/
@@ -71,9 +73,9 @@ static int bifsd_clk_on(const struct bif_sd *bif_info)
 	if (bif_info == NULL)
 		return ret;
 
-	if (bif_info->aclk != NULL && !__clk_is_enabled(bif_info->aclk))
+	if (bif_info->aclk != NULL && !__clk_is_enabled(bif_info->aclk)) {
 		ret = clk_prepare_enable(bif_info->aclk);
-
+	}
 	return ret;
 }
 
@@ -336,6 +338,7 @@ void mmc_csd_config(struct bif_sd *sd)
 	case mmc_card_4_4:
 	case mmc_card_4_5:
 	case mmc_card_5_0:
+#if 0
 		e = 7;
 		csd_mmc_card_tbl_val[47/32] &= ~(0x7 << (47%32));
 		csd_mmc_card_tbl_val[47/32] |= (e << (47%32));
@@ -345,6 +348,7 @@ void mmc_csd_config(struct bif_sd *sd)
 		csd_mmc_card_tbl_val[62/32] |= ((m & 3) << (62%32));
 		csd_mmc_card_tbl_val[64/32] &= ~(0x3ff << (64%32));
 		csd_mmc_card_tbl_val[64/32] |= (((m >> 2) & 0x3ff) << (64%32));
+#endif
 		csd_tbl_val = (u32 *) & csd_mmc_card_tbl_val;
 //		pr_err("capacity=0x%x e=0x%x m=0x%x\n", sd->capacity, e, m);
 		break;
@@ -481,12 +485,12 @@ void mmc_extended_csd_config(struct bif_sd *sd)
 		/*0x13C */ 0x8888eeee,	//[152]
 		/*0x140 */ 0x460f1e00,	//[156]
 		/*0x144 */ 0x0014780f,	//[160]
-//		/*0x148 */ 0x03a3e000,	//[164] SEC_COUNT [215:212]
-		/*0x148 */ 0x00400000,	// [164] SEC_COUNT [215:212] 0x00400000*512
+		/*0x148 */ 0x03a3e000,	//[164] SEC_COUNT [215:212]
+//		/*0x148 */ 0x00400000,	// [164] SEC_COUNT [215:212] 0x00400000*512
 		/*0x14C */ 0x0a0a1410,	//[168]
 		/*0x150 */ 0x09010108,	//[172] HC_WP_GRP_SIZE [221]
-//		/*0x154 */ 0x00200808,	//[176] BOOT_SIZE_MULT [226]
-		/*0x154 */ 0x00000008,	// [176] BOOT_SIZE_MULT [226] No boot
+		/*0x154 */ 0x00200808,	//[176] BOOT_SIZE_MULT [226]
+//		/*0x154 */ 0x00000008,	// [176] BOOT_SIZE_MULT [226] No boot
 		/*0x158 */ 0x55c8f400,	//[180] BOOT_INFO [228]
 		/*0x15C */ 0x0a640001,	//[184]
 		/*0x160 */ 0x99eeeeee,	//[188]
@@ -520,7 +524,7 @@ void mmc_extended_csd_config(struct bif_sd *sd)
 		    sizeof(ext_csd_mmc_4_5_tbl_val[0]);
 		break;
 	case mmc_card_5_0:
-		ext_csd_mmc_5_0_tbl_val[(0x148 - 0xA4)/4] = sd->capacity / 512;
+		//ext_csd_mmc_5_0_tbl_val[(0x148 - 0xA4)/4] = sd->capacity / 512;
 		csd_tbl_val = (u32 *) & ext_csd_mmc_5_0_tbl_val;
 		tbl_size =
 		    sizeof(ext_csd_mmc_5_0_tbl_val) /
@@ -609,7 +613,7 @@ void device_mode_select(struct bif_sd *sd)
 		break;
 	}
 
-//	reg_val |= BIT(4);
+	reg_val |= BIT(4);
 
 	sd_writel(sd, PROGRAM_REG, reg_val, 0);
 }
@@ -814,6 +818,10 @@ static irqreturn_t bifsd_interrupt(int irq, void *dev_id)
 					/* TBD */
 				} else {
 					reg_val = sd_readl(sd, ARGUMENT_REG, 0);
+#ifdef BIFSD_CONFIG_X2
+					if (reg_val)
+						sd->rd_buf = reg_val;
+#else
 					if (debug)
 						pr_err("MBR ARG 0x%x CNT %d\n",
 						reg_val, sd->block_cnt);
@@ -823,7 +831,7 @@ static irqreturn_t bifsd_interrupt(int irq, void *dev_id)
 						sd->rd_buf = reg_val;
 					else
 						sd->rd_buf = sd->addr_offset;
-
+#endif
 					sd_writel(sd, DMA_ADDR, sd->rd_buf, 0);
 					sd_writel(sd, MEM_MGMT, 0x01, 0);
 
@@ -838,6 +846,10 @@ static irqreturn_t bifsd_interrupt(int irq, void *dev_id)
 				}
 			} else {
 				reg_val = sd_readl(sd, ARGUMENT_REG, 0);
+#ifdef BIFSD_CONFIG_X2
+				if (reg_val)
+					sd->rd_buf = reg_val;
+#else
 				if (debug)
 					pr_err("BR ARG 0x%x\n", reg_val);
 				if (sd->opt_mode == OPT_MODE_SECTOR)
@@ -847,7 +859,7 @@ static irqreturn_t bifsd_interrupt(int irq, void *dev_id)
 					sd->rd_buf = reg_val;
 				else
 					sd->rd_buf = sd->addr_offset;
-
+#endif
 				sd_writel(sd, DMA_ADDR, sd->rd_buf, 0);
 				sd_writel(sd, MEM_MGMT, 0x01, 0);
 				sd_writel(sd, BLOCK_CNT, 0x01, 0);
@@ -876,6 +888,10 @@ static irqreturn_t bifsd_interrupt(int irq, void *dev_id)
 		if (pending & MMC_BLK_WRITE) {
 			if (pending & MMC_MULTI_BLOCK_READ_WRITE) {
 				reg_val = sd_readl(sd, ARGUMENT_REG, 0);
+#ifdef BIFSD_CONFIG_X2
+				if (reg_val)
+					sd->wr_buf = reg_val;
+#else
 				if (debug)
 					pr_err("MBW ARG 0x%x CNT %d\n",
 					reg_val, sd->block_cnt);
@@ -886,7 +902,7 @@ static irqreturn_t bifsd_interrupt(int irq, void *dev_id)
 					sd->wr_buf = reg_val;
 				else
 					sd->wr_buf = sd->addr_offset;
-
+#endif
 				sd_writel(sd, DMA_ADDR, sd->wr_buf, 0);
 				sd_writel(sd, MEM_MGMT, 0x01, 0);
 
@@ -898,6 +914,10 @@ static irqreturn_t bifsd_interrupt(int irq, void *dev_id)
 					  MMC_MULTI_BLOCK_READ_WRITE);
 			} else {
 				reg_val = sd_readl(sd, ARGUMENT_REG, 0);
+#ifdef BIFSD_CONFIG_X2
+				if (reg_val)
+					sd->wr_buf = reg_val;
+#else
 				if (debug)
 					pr_err("BW ARG 0x%x\n", reg_val);
 				if (sd->opt_mode == OPT_MODE_SECTOR)
@@ -907,7 +927,7 @@ static irqreturn_t bifsd_interrupt(int irq, void *dev_id)
 					sd->wr_buf = reg_val;
 				else
 					sd->wr_buf = sd->addr_offset;
-
+#endif
 				sd_writel(sd, DMA_ADDR, sd->wr_buf, 0);
 				sd_writel(sd, MEM_MGMT, 0x01, 0);
 				sd_writel(sd, BLOCK_CNT, 0x01, 0);
@@ -1160,6 +1180,7 @@ int bifsd_pltfm_register(struct platform_device *pdev,
 	sd->phy_regs = regs->start;
 	ret = of_property_read_u32(pdev->dev.of_node,
 				   "range_addr_max", &value32);
+#if 0
 	if (ret == 0)
 		sd->range_addr_max = value32;
 
@@ -1187,7 +1208,7 @@ int bifsd_pltfm_register(struct platform_device *pdev,
 		if (value32 > 512)
 			sd->capacity = value32;
 	}
-
+#endif
 	/* request memory address */
 	np = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
 	if (!np) {
@@ -1208,8 +1229,7 @@ int bifsd_pltfm_register(struct platform_device *pdev,
 			"Allocate reserved memory, vaddr: 0x%0llx, paddr: 0x%0llx\n",
 			(uint64_t) sd->paddr, (uint64_t) sd->vaddr);
 	}
-
-	sd->aclk = devm_clk_get(&pdev->dev, "sys_bifspi_aclk");
+	sd->aclk = devm_clk_get(&pdev->dev, "sys_bifsd_aclk");
 	if (IS_ERR(sd->aclk) || (sd->aclk == NULL)) {
 		sd->aclk = NULL;
 		dev_err(&pdev->dev, "get bif_sd aclk failed\n");
@@ -1217,8 +1237,8 @@ int bifsd_pltfm_register(struct platform_device *pdev,
 	}
 	bifsd_clk_on(sd);
 
-	if (!device_property_read_u32(sd->dev, "cd-gpio", &cd_gpio))
-		sd->cd_gpio = cd_gpio;
+	//if (!device_property_read_u32(sd->dev, "cd-gpio", &cd_gpio))
+	//	sd->cd_gpio = cd_gpio;
 	set_bifsd_info(sd);
 	platform_set_drvdata(pdev, sd);
 

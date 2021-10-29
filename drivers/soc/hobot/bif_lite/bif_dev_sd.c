@@ -50,12 +50,16 @@ static int frame_len_max_ap = 262144;
 static int frag_len_max_ap = 32768;
 static int frame_count_ap = 12;
 static int crc_enable;
+static int tri_pin = -1;
+static int irq_pin = -1;
 module_param(ap_type_str, charp, 0644);
 module_param(working_mode_str, charp, 0644);
 module_param(frame_len_max_ap, int, 0644);
 module_param(frag_len_max_ap, int, 0644);
 module_param(frame_count_ap, int, 0644);
 module_param(crc_enable, int, 0644);
+module_param(tri_pin, int, 0644);
+module_param(irq_pin, int, 0644);
 #endif
 
 /* ioctl cmd */
@@ -74,9 +78,7 @@ module_param(crc_enable, int, 0644);
 //#define WORK_COUNT (100)
 struct x2_bif_data {
 	int users;
-	int irq_pin;
-	int irq_num;
-	int tri_pin;
+	int self_gpio;
 	char *send_frame;
 	struct workqueue_struct *work_queue;
 	//struct work_struct work[WORK_COUNT];
@@ -114,31 +116,38 @@ static struct comm_domain domain;
 #define BIF_DEV_SD_SERVER_INFO "server_info"
 #define BIF_DEV_SD_ERROR "error_statistics"
 #define BIF_DEV_SD_CHANNEL_SLEEP "channel_sleep"
+#define BIF_DEV_SD_INT_DEBUG "interrupt_debug"
 static struct proc_dir_entry *bif_dev_sd_entry;
 static struct proc_dir_entry *bif_dev_sd_statistics_entry;
 static struct proc_dir_entry *bif_dev_sd_info_entry;
 static struct proc_dir_entry *bif_dev_sd_server_info_entry;
 static struct proc_dir_entry *bif_dev_sd_error_statistics_entry;
 static struct proc_dir_entry *bif_dev_sd_channel_sleep_entry;
+static struct proc_dir_entry *bif_dev_sd_int_debug_entry;
 
 static int bif_dev_sd_statistics_proc_show(struct seq_file *m, void *v)
 {
-	seq_printf(m, "bif_dev_sd dev layer statistics:\n\
-irq_handler_count = %d\nrx_work_func_count = %d\n\
-rx_flowcontrol_count = %d\naccept_count = %d\n\
-write_call_count = %d\nwrite_real_count = %d\n\
-read_call_count = %d\nread_real_count = %d\n\
-write_resend_count = %d\nwrite_resend_over_count = %d\n\
-bif_dev_sd hbipc layer statistics:\n\
-interrupt_recv_count = %d\nmanage_recv_count = %d\n\
-data_recv_count = %d\nmanage_frame_count = %d\n\
-data_frame_count = %d\nup_sem_count = %d\n\
-send_manage_count = %d\n\
-mang_resend_count = %d\nmang_resend_over_count = %d\n\
-concede_manage_send_count = %d\nconcede_data_send_count = %d\n\
-concede_data_recv_count = %d\n\
-bif_dev_sd transfer layer statistics:\n\
-trig_count = %d\nretrig_count = %d\n",
+	int stock_frame = domain_stock_frame_num(&domain);
+	seq_printf(m, "bif_dev_sd dev layer statistics:\n"
+"irq_handler_count = %d\nrx_work_func_count = %d\n"
+"rx_flowcontrol_count = %d\naccept_count = %d\n"
+"write_call_count = %d\nwrite_real_count = %d\n"
+"read_call_count = %d\nread_real_count = %d\n"
+"write_resend_count = %d\nwrite_resend_over_count = %d\n"
+"bif_dev_sd hbipc layer statistics:\n"
+"interrupt_recv_count = %d\nmanage_recv_count = %d\n"
+"data_recv_count = %d\nmanage_frame_count = %d\n"
+"data_frame_count = %d\nup_sem_count = %d\n"
+"send_manage_count = %d\n"
+"mang_resend_count = %d\nmang_resend_over_count = %d\n"
+"concede_manage_send_count = %d\nconcede_data_send_count = %d\n"
+"concede_data_recv_count = %d\n"
+"bif_dev_sd transfer layer statistics:\n"
+"trig_count = %d\nretrig_count = %d\n"
+"invalid_data_frame_count = %d\nstock_frame = %d\n"
+"rx_flowcontrol_flag = %d\nrelease_data_frame_count = %d\n"
+"nonblock_write_nomem_count = %d\nframe_drop_count = %d\n"
+"frame_malloc_count = %d\nframe_free_count = %d\n",
 	domain.domain_statistics.irq_handler_count,
 	domain.domain_statistics.rx_work_func_count,
 	domain.domain_statistics.rx_flowcontrol_count,
@@ -162,7 +171,15 @@ trig_count = %d\nretrig_count = %d\n",
 	domain.domain_statistics.concede_data_send_count,
 	domain.domain_statistics.concede_data_recv_count,
 	domain.channel.channel_statistics.trig_count,
-	domain.channel.channel_statistics.retrig_count);
+	domain.channel.channel_statistics.retrig_count,
+	domain.domain_statistics.invalid_data_frame_count,
+	stock_frame,
+	domain.domain_statistics.rx_flowcontrol_flag,
+	domain.domain_statistics.release_data_frame_count,
+	domain.domain_statistics.nonblock_write_nomem_count,
+	domain.domain_statistics.frame_drop_count,
+	domain.channel.channel_statistics.frame_malloc_count,
+	domain.channel.channel_statistics.frame_free_count);
 
 	return 0;
 }
@@ -238,8 +255,17 @@ static int bif_dev_sd_server_info_proc_show(struct seq_file *m, void *v)
 	struct provider_server *relation = NULL;
 	int i = 0;
 	int j = 0;
-	short int *provider_id_factor = NULL;
+	int k = 0;
+	//short int *provider_id_factor = NULL;
 	int pid = 0;
+	struct server_desc *server = NULL;
+	struct provider_desc *provider = NULL;
+	struct session_desc *connect = NULL;
+	int connect_frame_count = 0;
+	// [20201130]: get server index from server_id
+	int index = 0;
+	// [20201217]: add rx_threshold
+	int frame_drop_count = 0;
 
 	mutex_lock(&domain.connect_mutex);
 
@@ -252,10 +278,42 @@ static int bif_dev_sd_server_info_proc_show(struct seq_file *m, void *v)
 			seq_printf(m, "\n");
 			seq_printf(m, "provider_id:\n");
 			seq_printf(m, "%d\n", relation->provider_id);
-			provider_id_factor = (short int *)(relation->server_id);
-			pid = relation->provider_id - *provider_id_factor;
+			//provider_id_factor = (short int *)(relation->server_id);
+			//pid = relation->provider_id - *provider_id_factor;
+			pid = domain.providerid_map.find_pid(&domain.providerid_map,
+				relation->provider_id);
 			seq_printf(m, "pid:\n");
 			seq_printf(m, "%d\n", pid);
+
+			// [20201130]: get server index from server_id
+			index = get_server_index(&domain.server, relation->server_id);
+			if (index < 0)
+				continue;
+			else
+				//server = domain.server.server_array + relation->provider_id;
+				server = domain.server.server_array + index;
+			seq_printf(m, "server_valid: %d\n", server->valid);
+
+			//every server just have one provier
+			provider = server->provider.provider_array;
+			seq_printf(m, "provider_valid: %d\n", provider->valid);
+			for (k = 0; k < SESSION_COUNT_MAX; ++k) {
+				connect = provider->session.session_array + k;
+				seq_printf(m, "session[%d] valid: %d\t connected = %d\n",
+				k, connect->valid, connect->connected);
+				seq_printf(m, "session info: domain_id[%d]_provider_id[%d]_client_id[%d]\n",
+				connect->domain_id, connect->provider_id, connect->client_id);
+				connect_frame_count = resource_queue_count(&connect->recv_list);
+				seq_printf(m, "connect_frame_count: %d\n", connect_frame_count);
+				seq_printf(m, "rx_threshold = %d\n", connect->rx_threshold);
+				frame_drop_count = resource_queue_drop_count(&connect->recv_list);
+				seq_printf(m, "frame_drop_count: %d\n", frame_drop_count);
+				seq_printf(m, "flowcontrol_active_flag: %d\n",
+						connect->flowcontrol_active_flag);
+				seq_printf(m, "flowcontrol_passive_flag: %d\n",
+						connect->flowcontrol_passive_flag);
+				seq_printf(m, "\n");
+			}
 		}
 	}
 
@@ -266,11 +324,12 @@ static int bif_dev_sd_server_info_proc_show(struct seq_file *m, void *v)
 
 static int bif_dev_sd_error_statistics_proc_show(struct seq_file *m, void *v)
 {
-	seq_printf(m, "rx_error_assemble_frag = %d\n\
-rx_error_crc_check = %d\nrx_error_malloc_frame = %d\n\
-rx_error_no_frag = %d\nrx_error_read_frag = %d\n\
-rx_error_sync_index = %d\nrx_error_update_index = %d\n\
-rx_error_drop_frag_count = %d\n",
+	seq_printf(m, "rx_error_assemble_frag = %d\n"
+"rx_error_crc_check = %d\nrx_error_malloc_frame = %d\n"
+"rx_error_no_frag = %d\nrx_error_read_frag = %d\n"
+"rx_error_sync_index = %d\nrx_error_update_index = %d\n"
+"rx_error_drop_frag_count = %d\nhw_trans_error_count = %d\n"
+"rx_error_abnormal_malloc_count = %d\n",
 	domain.channel.error_statistics.rx_error_assemble_frag,
 	domain.channel.error_statistics.rx_error_crc_check,
 	domain.channel.error_statistics.rx_error_malloc_frame,
@@ -278,7 +337,9 @@ rx_error_drop_frag_count = %d\n",
 	domain.channel.error_statistics.rx_error_read_frag,
 	domain.channel.error_statistics.rx_error_sync_index,
 	domain.channel.error_statistics.rx_error_update_index,
-	domain.channel.error_statistics.rx_error_drop_frag_count
+	domain.channel.error_statistics.rx_error_drop_frag_count,
+	domain.channel.error_statistics.hw_trans_error_count,
+	domain.channel.error_statistics.rx_error_abnormal_malloc_count
 	);
 
 	return 0;
@@ -295,6 +356,11 @@ static int bif_dev_sd_channel_sleep_proc_show(struct seq_file *m, void *v)
 	seq_printf(m, "channel_sleep = %d\n", channel_sleep_local);
 
 	return 0;
+}
+
+static int bif_dev_sd_int_debug_proc_show(struct seq_file *m, void *v)
+{
+	return 0;//do nothing
 }
 
 static ssize_t bif_dev_sd_statistics_proc_write(struct file *file,
@@ -365,6 +431,32 @@ const char __user *buffer, size_t count, loff_t *ppos)
 	return count;
 }
 
+static ssize_t bif_dev_sd_int_debug_proc_write(struct file *file,
+const char __user *buffer, size_t count, loff_t *ppos)
+{
+	char buf[3] = "";
+	unsigned int var;
+
+	if(copy_from_user(buf, buffer, 3)) {
+		return -EFAULT;
+	}
+	buf[2] = '\0';
+
+	var = simple_strtoul(buf, NULL, 10);
+	if (var == 1) {
+		pr_info("trigger opposite interrupt\n");
+		bif_domain_send_irq(&domain);
+	} else if (var == 2) {
+		pr_info("release completion\n");
+		complete(&bif_data.ready_to_recv);
+		++domain.domain_statistics.irq_handler_count;
+	} else {
+		pr_err("invalid input value\n");
+	}
+
+	return count;
+}
+
 static int bif_dev_sd_statistics_proc_open(struct inode *inode,
 struct file *file)
 {
@@ -393,6 +485,12 @@ static int bif_dev_sd_channel_sleep_proc_open(struct inode *inode,
 struct file *file)
 {
 	return single_open(file, bif_dev_sd_channel_sleep_proc_show, NULL);
+}
+
+static int bif_dev_sd_int_debug_proc_open(struct inode *inode,
+struct file *file)
+{
+	return single_open(file, bif_dev_sd_int_debug_proc_show, NULL);
 }
 
 static const struct file_operations bif_dev_sd_statistics_proc_ops = {
@@ -436,6 +534,15 @@ static const struct file_operations bif_dev_sd_channel_sleep_proc_ops = {
 	.open     = bif_dev_sd_channel_sleep_proc_open,
 	.read     = seq_read,
 	.write    = bif_dev_sd_channel_sleep_proc_write,
+	.llseek   = seq_lseek,
+	.release  = single_release,
+};
+
+static const struct file_operations bif_dev_sd_int_debug_proc_ops = {
+	.owner    = THIS_MODULE,
+	.open     = bif_dev_sd_int_debug_proc_open,
+	.read     = seq_read,
+	.write    = bif_dev_sd_int_debug_proc_write,
 	.llseek   = seq_lseek,
 	.release  = single_release,
 };
@@ -488,9 +595,19 @@ static int init_bif_dev_sd_debug_port(void)
 		goto create_channel_sleep_file_error;
 	}
 
+	bif_dev_sd_int_debug_entry = proc_create(BIF_DEV_SD_INT_DEBUG,
+	0777, bif_dev_sd_entry, &bif_dev_sd_int_debug_proc_ops);
+	if (!bif_dev_sd_int_debug_entry) {
+		pr_info("create /proc/%s/%s fail\n", BIF_DEV_SD_DIR,
+			BIF_DEV_SD_INT_DEBUG);
+		goto create_int_debug_file_error;
+	}
+
 	return 0;
-create_channel_sleep_file_error:
+create_int_debug_file_error:
 	remove_proc_entry(BIF_DEV_SD_CHANNEL_SLEEP, bif_dev_sd_entry);
+create_channel_sleep_file_error:
+	remove_proc_entry(BIF_DEV_SD_ERROR, bif_dev_sd_entry);
 create_error_statistics_file_error:
 	remove_proc_entry(BIF_DEV_SD_SERVER_INFO, bif_dev_sd_entry);
 create_server_info_file_error:
@@ -505,6 +622,7 @@ create_top_dir_error:
 
 static void remove_bif_dev_sd_debug_port(void)
 {
+	remove_proc_entry(BIF_DEV_SD_INT_DEBUG, bif_dev_sd_entry);
 	remove_proc_entry(BIF_DEV_SD_CHANNEL_SLEEP, bif_dev_sd_entry);
 	remove_proc_entry(BIF_DEV_SD_ERROR, bif_dev_sd_entry);
 	remove_proc_entry(BIF_DEV_SD_SERVER_INFO, bif_dev_sd_entry);
@@ -541,13 +659,17 @@ rx_flow_control:
 
 			if (surplus_frame > domain.channel.frame_cache_max) {
 				++domain.domain_statistics.rx_flowcontrol_count;
+				domain.domain_statistics.rx_flowcontrol_flag = surplus_frame;
 				remaining_time = msleep_interruptible(20);
-				if (!remaining_time)
+				if (!remaining_time) {
 					goto rx_flow_control;
-				else {
+				} else {
 					pr_info("rx_flow_control interruptible\n");
-					break;
+					//break;
+					goto rx_flow_control;
 				}
+			} else {
+				domain.domain_statistics.rx_flowcontrol_flag = 0;
 			}
 		}
 	}
@@ -560,6 +682,21 @@ static irqreturn_t hbipc_irq_handler(int irq, void *data)
 	//if (queue_work(bif_data.work_queue, &(bif_data.work[bif_data.work_index++])) == false)
 	//	pr_info("queue_work fail\n");
 	//bif_data.work_index %= WORK_COUNT;
+
+	complete(&bif_data.ready_to_recv);
+	++domain.domain_statistics.irq_handler_count;
+
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t hbipc_self_irq_handler(int irq, void *data)
+{
+#ifdef UNSUPPORT_EDGE_BOTH
+	if (irq_get_trigger_type(irq) == IRQ_TYPE_EDGE_FALLING)
+		irq_set_irq_type(irq, IRQ_TYPE_EDGE_RISING);
+	else
+		irq_set_irq_type(irq, IRQ_TYPE_EDGE_FALLING);
+#endif
 
 	complete(&bif_data.ready_to_recv);
 	++domain.domain_statistics.irq_handler_count;
@@ -585,9 +722,6 @@ static void x2_mem_layout_set(struct domain_info *domain_inf)
 static int x2_bif_data_init(struct x2_bif_data *bif_data)
 {
 	bif_data->users = 0;
-	bif_data->irq_pin = -1;
-	bif_data->tri_pin = -1;
-	bif_data->irq_num = -1;
 
 	bif_data->send_frame = kmalloc(FRAME_LEN_MAX, GFP_KERNEL);
 	if (!(bif_data->send_frame)) {
@@ -626,9 +760,6 @@ malloc_send_frame_error:
 static void x2_bif_data_deinit(struct x2_bif_data *bif_data)
 {
 	bif_data->users = 0;
-	bif_data->irq_pin = -1;
-	bif_data->tri_pin = -1;
-	bif_data->irq_num = -1;
 	remove_bif_dev_sd_debug_port();
 	domain_deinit_stop = 1;
 	complete(&bif_data->ready_to_recv);
@@ -694,8 +825,13 @@ retry_1:
 					goto err;
 				} else {
 					bif_lite_init_success = 1;
-					//bif_lite_irq_register_domain(
-					//&domain, hbipc_irq_handler);
+					if (domain.channel.notify.irq_pin == -1)
+					bif_lite_irq_register_domain(
+					&domain, hbipc_irq_handler);
+					else
+						bif_lite_irq_register_domain(
+						&domain,
+						hbipc_self_irq_handler);
 				}
 			}
 		} else {
@@ -747,6 +883,7 @@ retry_3:
 	return 0;
 err:
 	mutex_unlock(&open_mutex);
+	kfree(feature);
 	return ret;
 }
 
@@ -830,7 +967,7 @@ size_t count, loff_t *ppos)
 		if (!feature->usr_timeout) {
 			// block without timeout
 resend_without_timeout:
-			ret = bif_tx_put_frame_domain(&domain, bif_data.send_frame, data.len);
+			ret = bif_tx_put_frame_domain(&domain, bif_data.send_frame, data.len, &data);
 			if (ret < 0) {
 				if (ret == BIF_TX_ERROR_NO_MEM) {
 					++retry_count;
@@ -889,7 +1026,7 @@ resend_without_timeout:
 		} else {
 			// block with timeout
 resend_with_timeout:
-		ret = bif_tx_put_frame_domain(&domain, bif_data.send_frame, data.len);
+			ret = bif_tx_put_frame_domain(&domain, bif_data.send_frame, data.len, &data);
 		if (ret < 0) {
 			if (ret == BIF_TX_ERROR_NO_MEM) {
 				++retry_count;
@@ -948,18 +1085,20 @@ resend_with_timeout:
 		}
 	} else {
 		// nonblock
-		ret = bif_tx_put_frame_domain(&domain, bif_data.send_frame, data.len);
+		ret = bif_tx_put_frame_domain(&domain, bif_data.send_frame, data.len, &data);
 		if (ret < 0) {
-			if (ret == BIF_TX_ERROR_NO_MEM)
+			if (ret == BIF_TX_ERROR_NO_MEM) {
 				data.result = HBIPC_ERROR_SEND_NO_MEM;
+				++domain.domain_statistics.nonblock_write_nomem_count;
+			}
 			else
 				data.result = HBIPC_ERROR_HW_TRANS_ERROR;
-		}
 		status = copy_to_user((void __user *)buf, &data, sizeof(data));
 		if (status)
 			ret = -EFAULT;
 		mutex_unlock(&domain.write_mutex);
 		goto error;
+	}
 	}
 
 	mutex_unlock(&domain.write_mutex);
@@ -1182,6 +1321,33 @@ loff_t *ppos)
 
 	//mutex_unlock(&read_mutex);
 	++domain.domain_statistics.read_real_count;
+	// just for multimode projec
+	// at hear, consume a frame successfully
+	// check for clear flowcontrol
+	mutex_lock(&domain.write_mutex);
+	mutex_lock(&domain.connect_mutex);
+
+	if (session_des->valid) {
+		if ((session_des->rx_threshold > 0) &&
+			(session_des->recv_list.frame_count < session_des->rx_threshold) &&
+			session_des->flowcontrol_active_flag) {
+			session_des->flowcontrol_active_flag = 0;
+			session_des->need_clear_flowcontrol = 1;
+		}
+
+		if (session_des->need_clear_flowcontrol) {
+			int ret_val = 0;
+			ret_val = mang_frame_send2opposite_without_lock(&domain,
+			MANAGE_CMD_CLEAR_FLOWCONTROL, &data);
+			if (ret_val < 0)
+				hbipc_error("send MANAGE_CMD_CLEAR_FLOWCONTROL error\n");
+			else
+				session_des->need_clear_flowcontrol = 0;
+		}
+	}
+
+	mutex_unlock(&domain.connect_mutex);
+	mutex_unlock(&domain.write_mutex);
 
 	return ret;
 error:
@@ -1446,8 +1612,10 @@ static struct cdev bif_cdev;
 #ifdef CONFIG_HOBOT_BIF_AP
 static void bif_dev_sd_clear(void)
 {
-	clear_server_cp_manager(&domain);
-	bif_lite_init_success = 0;
+	//clear_server_cp_manager(&domain);
+	//bif_lite_init_success = 0;
+	complete(&bif_data.ready_to_recv);
+	++domain.domain_statistics.irq_handler_count;
 }
 #endif
 
@@ -1463,9 +1631,7 @@ static int bif_lite_probe(struct platform_device *pdev)
 	int value;
 
 	pr_info("biflite_sd version: %s\n", VERSION);
-#if 0
-	unsigned long flags = IRQF_ONESHOT | IRQF_TRIGGER_FALLING;
-#endif
+
 	ret = of_property_read_u32(pdev->dev.of_node,
 	"frame_len_max", &frame_len_max);
 	if (ret) {
@@ -1534,46 +1700,54 @@ static int bif_lite_probe(struct platform_device *pdev)
 		bif_debug("x2_bif_data_init error\n");
 		goto bif_data_init_error;
 	}
-#if 0
-	ret = of_property_read_u32(pdev->dev.of_node,
-	"bif_lite_irq_pin", &bif_data.irq_pin);
-	if (ret) {
-		bif_err("get bif_lite_irq_pin error\n");
-		goto get_bif_lite_irq_pin_error;
-	}
-
-	ret = gpio_request(bif_data.irq_pin, "bif-lite-irq-pin");
-	if (ret) {
-		bif_err("requset irq pin error\n");
-		goto request_irq_pin_error;
-	}
-
-	bif_data.irq_num = gpio_to_irq(bif_data.irq_pin);
-	irq_set_irq_type(bif_data.irq_num, IRQ_TYPE_EDGE_FALLING);
-	ret = request_threaded_irq(bif_data.irq_num,
-	bif_lite_irq_handler, NULL, flags,
-	"bif-lite-driver", (void *)&bif_data);
-	if (ret) {
-		bif_err("request irq error\n");
-		goto request_irq_error;
-	} else
-		bif_debug("irq_pin = %d irq_num = %d\n",
-	bif_data.irq_pin, bif_data.irq_num);
 
 	ret = of_property_read_u32(pdev->dev.of_node,
-	"bif_lite_tri_pin", &bif_data.tri_pin);
+	"bif_lite_irq_pin", &(domain.channel.notify.irq_pin));
 	if (ret) {
-		bif_err("get bif_lite_tri_pin error\n");
-		goto get_bif_lite_tri_pin_error;
+		bif_err("without bif_lite_irq_pin\n");
+		domain.channel.notify.irq_pin = -1;
+	} else {
+		bif_data.self_gpio = 1;
 	}
-	ret = gpio_request(bif_data.tri_pin, "bif-lite-tri-pin");
+
+	if (bif_data.self_gpio) {
+		ret = gpio_request(domain.channel.notify.irq_pin,
+			"bif-lite-irq-pin");
+		if (ret < 0) {
+			bif_err("requset irq pin error\n");
+			goto request_irq_pin_error;
+		}
+		gpio_direction_input(domain.channel.notify.irq_pin);
+		ret = gpio_to_irq(domain.channel.notify.irq_pin);
+		if (ret < 0) {
+			bif_err("gpio_to_irq error\n");
+			gpio_free(domain.channel.notify.irq_pin);
+			goto request_irq_pin_error;
+		}
+		domain.channel.notify.irq_num = ret;
+	}
+
+	ret = of_property_read_u32(pdev->dev.of_node,
+	"bif_lite_tri_pin", &(domain.channel.notify.tri_pin));
 	if (ret) {
+		bif_err("without bif_lite_tri_pin\n");
+		domain.channel.notify.tri_pin = -1;
+	} else {
+		bif_data.self_gpio = 1;
+		domain.channel.notify.tri_val = 1;
+	}
+
+	if (bif_data.self_gpio) {
+		ret = gpio_request(domain.channel.notify.tri_pin,
+			"bif-lite-tri-pin");
+		if (ret < 0) {
 		bif_err("request tri pin error\n");
 		goto request_tri_error;
 	} else
-		bif_debug("tri_pin = %d\n", bif_data.tri_pin);
-	gpio_direction_output(bif_data.tri_pin, 1);
-#endif
+			gpio_direction_output(domain.channel.notify.tri_pin,
+				domain.channel.notify.tri_val);
+	}
+
 	ret = domain_init(&domain, &domain_config);
 	if (ret < 0) {
 		pr_info("domain_init error\n");
@@ -1589,33 +1763,39 @@ static int bif_lite_probe(struct platform_device *pdev)
 	}
 
 	//bif_lite_register_irq(hbipc_irq_handler); chencheng reconstitution
+	if (domain.channel.notify.irq_pin == -1)
+		ret = bif_lite_irq_register_domain(&domain,
+			hbipc_irq_handler);
+	else
+		ret = bif_lite_irq_register_domain(&domain,
+			hbipc_self_irq_handler);
+	if (ret < 0) {
+		bif_err("bif_lite_irq_register_domain error\n");
+		goto register_irq_error;
+	}
 
 	ret = bifspi_read_share_reg(SYS_STATUS_REG, &value);
 	if (ret == 0)
 		bifspi_write_share_reg(SYS_STATUS_REG, value | BIF_SD_BIT);
 #endif
-
-	bif_lite_irq_register_domain(&domain, hbipc_irq_handler);
-
 #ifdef CONFIG_HOBOT_BIF_AP
 	domain_register_high_level_clear(&domain, bif_dev_sd_clear);
 #endif
 	bif_debug("bif driver init exit\n");
 	return 0;
-#if 0
-request_tri_error:
-get_bif_lite_tri_pin_error:
-	free_irq(bif_data.irq_num, (void *)&bif_data);
-request_irq_error:
-	gpio_free(bif_data.irq_pin);
-request_irq_pin_error:
-get_bif_lite_irq_pin_error:
-#endif
 #ifndef CONFIG_HOBOT_BIF_AP
+register_irq_error:
+	bif_lite_exit_domain(&domain);
 bif_lite_init_error:
 	domain_deinit(&domain);
 #endif
 domain_init_error:
+	if (domain.channel.notify.tri_pin != -1)
+		gpio_free(domain.channel.notify.tri_pin);
+request_tri_error:
+	if (domain.channel.notify.irq_pin != -1)
+		gpio_free(domain.channel.notify.irq_pin);
+request_irq_pin_error:
 	x2_bif_data_deinit(&bif_data);
 bif_data_init_error:
 	device_destroy(g_bif_class, MKDEV(bif_major, 0));
@@ -1689,46 +1869,52 @@ static int bif_lite_probe_param(void)
 		bif_debug("x2_bif_data_init error\n");
 		goto bif_data_init_error;
 	}
-#if 0
-	ret = of_property_read_u32(pdev->dev.of_node,
-	"bif_lite_irq_pin", &bif_data.irq_pin);
-	if (ret) {
-		bif_err("get bif_lite_irq_pin error\n");
-		goto get_bif_lite_irq_pin_error;
+
+	if (irq_pin == -1) {
+		bif_err("without bif_lite_irq_pin\n");
+		domain.channel.notify.irq_pin = -1;
+	} else {
+		bif_data.self_gpio = 1;
+		domain.channel.notify.irq_pin = irq_pin;
 	}
 
-	ret = gpio_request(bif_data.irq_pin, "bif-lite-irq-pin");
-	if (ret) {
+	if (bif_data.self_gpio) {
+		ret = gpio_request(domain.channel.notify.irq_pin,
+			"bif-lite-irq-pin");
+		if (ret < 0) {
 		bif_err("requset irq pin error\n");
 		goto request_irq_pin_error;
 	}
-
-	bif_data.irq_num = gpio_to_irq(bif_data.irq_pin);
-	irq_set_irq_type(bif_data.irq_num, IRQ_TYPE_EDGE_FALLING);
-	ret = request_threaded_irq(bif_data.irq_num,
-	bif_lite_irq_handler, NULL, flags,
-	"bif-lite-driver", (void *)&bif_data);
-	if (ret) {
-		bif_err("request irq error\n");
-		goto request_irq_error;
-	} else
-		bif_debug("irq_pin = %d irq_num = %d\n",
-	bif_data.irq_pin, bif_data.irq_num);
-
-	ret = of_property_read_u32(pdev->dev.of_node,
-	"bif_lite_tri_pin", &bif_data.tri_pin);
-	if (ret) {
-		bif_err("get bif_lite_tri_pin error\n");
-		goto get_bif_lite_tri_pin_error;
+		gpio_direction_input(domain.channel.notify.irq_pin);
+		ret = gpio_to_irq(domain.channel.notify.irq_pin);
+		if (ret < 0) {
+			bif_err("gpio_to_irq error\n");
+			gpio_free(domain.channel.notify.irq_pin);
+			goto request_irq_pin_error;
+		}
+		domain.channel.notify.irq_num = ret;
 	}
-	ret = gpio_request(bif_data.tri_pin, "bif-lite-tri-pin");
-	if (ret) {
+
+	if (tri_pin == -1) {
+		bif_err("without bif_lite_tri_pin\n");
+		domain.channel.notify.tri_pin = -1;
+	} else {
+		bif_data.self_gpio = 1;
+		domain.channel.notify.tri_pin = tri_pin;
+		domain.channel.notify.tri_val = 1;
+	}
+
+	if (bif_data.self_gpio) {
+		ret = gpio_request(domain.channel.notify.tri_pin,
+			"bif-lite-tri-pin");
+		if (ret < 0) {
 		bif_err("request tri pin error\n");
 		goto request_tri_error;
 	} else
-		bif_debug("tri_pin = %d\n", bif_data.tri_pin);
-	gpio_direction_output(bif_data.tri_pin, 1);
-#endif
+			gpio_direction_output(domain.channel.notify.tri_pin,
+				domain.channel.notify.tri_val);
+	}
+
 	ret = domain_init(&domain, &domain_config);
 	if (ret < 0) {
 		pr_info("domain_init error\n");
@@ -1743,29 +1929,35 @@ static int bif_lite_probe_param(void)
 		goto bif_lite_init_error;
 	}
 	//bif_lite_register_irq(hbipc_irq_handler); chencheng reconstitution
+	if (domain.channel.notify.irq_pin == -1)
+		ret = bif_lite_irq_register_domain(&domain,
+			hbipc_irq_handler);
+	else
+		ret = bif_lite_irq_register_domain(&domain,
+			hbipc_self_irq_handler);
+	if (ret < 0) {
+		bif_err("bif_lite_irq_register_domain error\n");
+		goto register_irq_error;
+	}
 #endif
-
-	bif_lite_irq_register_domain(&domain, hbipc_irq_handler);
-
 #ifdef CONFIG_HOBOT_BIF_AP
 	domain_register_high_level_clear(&domain, bif_dev_sd_clear);
 #endif
 	bif_debug("bif driver init exit\n");
 	return 0;
-#if 0
-request_tri_error:
-get_bif_lite_tri_pin_error:
-	free_irq(bif_data.irq_num, (void *)&bif_data);
-request_irq_error:
-	gpio_free(bif_data.irq_pin);
-request_irq_pin_error:
-get_bif_lite_irq_pin_error:
-#endif
 #ifndef CONFIG_HOBOT_BIF_AP
+register_irq_error:
+	bif_lite_exit_domain(&domain);
 bif_lite_init_error:
 	domain_deinit(&domain);
 #endif
 domain_init_error:
+	if (domain.channel.notify.tri_pin != -1)
+		gpio_free(domain.channel.notify.tri_pin);
+request_tri_error:
+	if (domain.channel.notify.irq_pin != -1)
+		gpio_free(domain.channel.notify.irq_pin);
+request_irq_pin_error:
 	x2_bif_data_deinit(&bif_data);
 bif_data_init_error:
 	device_destroy(g_bif_class, MKDEV(bif_major, 0));
@@ -1783,6 +1975,7 @@ alloc_chrdev_error:
 #ifndef CONFIG_NO_DTS_AP
 static int bif_lite_remove(struct platform_device *pdev)
 {
+	bif_lite_irq_unregister_domain(&domain);
 #ifdef CONFIG_HOBOT_BIF_AP
 	domain_unregister_high_level_clear(&domain);
 #endif
@@ -1790,11 +1983,10 @@ static int bif_lite_remove(struct platform_device *pdev)
 	bif_lite_exit_domain(&domain);
 	domain_deinit(&domain);
 	x2_bif_data_deinit(&bif_data);
-#if 0
-	free_irq(bif_data.irq_num, (void *)&bif_data);
-	gpio_free(bif_data.irq_pin);
-	gpio_free(bif_data.tri_pin);
-#endif
+	if (domain.channel.notify.tri_pin != -1)
+		gpio_free(domain.channel.notify.tri_pin);
+	if (domain.channel.notify.irq_pin != -1)
+		gpio_free(domain.channel.notify.irq_pin);
 	device_destroy(g_bif_class, MKDEV(bif_major, 0));
 	class_destroy(g_bif_class);
 	cdev_del(&bif_cdev);
@@ -1807,6 +1999,7 @@ static int bif_lite_remove(struct platform_device *pdev)
 #ifdef CONFIG_NO_DTS_AP
 static int bif_lite_remove_param(void)
 {
+	bif_lite_irq_unregister_domain(&domain);
 #ifdef CONFIG_HOBOT_BIF_AP
 	domain_unregister_high_level_clear(&domain);
 #endif
@@ -1814,11 +2007,10 @@ static int bif_lite_remove_param(void)
 	bif_lite_exit_domain(&domain);
 	domain_deinit(&domain);
 	x2_bif_data_deinit(&bif_data);
-#if 0
-	free_irq(bif_data.irq_num, (void *)&bif_data);
-	gpio_free(bif_data.irq_pin);
-	gpio_free(bif_data.tri_pin);
-#endif
+	if (domain.channel.notify.tri_pin != -1)
+		gpio_free(domain.channel.notify.tri_pin);
+	if (domain.channel.notify.irq_pin != -1)
+		gpio_free(domain.channel.notify.irq_pin);
 	device_destroy(g_bif_class, MKDEV(bif_major, 0));
 	class_destroy(g_bif_class);
 	cdev_del(&bif_cdev);
