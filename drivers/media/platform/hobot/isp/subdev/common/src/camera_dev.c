@@ -93,10 +93,18 @@ static int camera_fop_release(struct inode *pinode, struct file *pfile)
 			sizeof(sensor_turning_data_t));
 		kzfree(camera_mod[port]->camera_state_register_info.\
 			deserial_register_info.register_table);
+		camera_mod[port]->camera_state_register_info.\
+			deserial_register_info.register_table = NULL;
 		kzfree(camera_mod[port]->camera_state_register_info.\
 			serial_register_info.register_table);
+		camera_mod[port]->camera_state_register_info.\
+			serial_register_info.register_table = NULL;
 		kzfree(camera_mod[port]->camera_state_register_info.\
 			sensor_register_info.register_table);
+		camera_mod[port]->camera_state_register_info.\
+			sensor_register_info.register_table = NULL;
+		memset(&camera_mod[camera_cdev->port]->camera_state_register_info, 0,
+			sizeof(camera_state_register_t));
 		camera_cdev->start_num = 0;
 		camera_cdev->init_num = 0;
 	}
@@ -289,7 +297,7 @@ static long camera_fop_ioctl(struct file *pfile, unsigned int cmd,
 				return -EINVAL;
 			}
 			if (mst_flg == 0) {
-				pr_info("this file is not master,cmd tunning!\n");
+				pr_debug("this file is not master,cmd camera_register_set!\n");
 				return 0;
 			}
 			if (copy_from_user((void *)&camera_register_data, (void __user *)arg,
