@@ -27,7 +27,9 @@
 
 #include "dmaengine.h"
 #include "hobot_dma.h"
-
+#ifdef CONFIG_HOBOT_DMC_CLK
+#include <soc/hobot/hobot_bus.h>
+#endif
 
 #define HOBOT_DMA_MAX_CHANS_PER_DEVICE    0x01
 #define HOBOT_DMA_ADDR_WIDTH              32
@@ -139,6 +141,9 @@ struct hobot_dma_device {
 	bool has_sg;
 	struct platform_device *pdev;
 	u32 nr_channels;
+#ifdef CONFIG_HOBOT_DMC_CLK
+	struct hobot_dpm hb_dpm;
+#endif
 };
 
 /* Macros */
@@ -395,6 +400,9 @@ static void hobot_dma_start_transfer(struct hobot_dma_chan *chan)
 	if (hobot_dma_chan_reset(chan) < 0)
 		return;
 
+	/*mark the idle flag before starting DMA transmission*/
+	chan->idle = false;
+
 	if (chan->has_sg) {
 		hobot_dma_wr(chan, HOBOT_DMA_LLI_ADDR, head_desc->async_tx.phys);
 
@@ -425,7 +433,6 @@ static void hobot_dma_start_transfer(struct hobot_dma_chan *chan)
 
 	list_splice_tail_init(&chan->pending_list, &chan->active_list);
 	chan->desc_pendingcount = 0;
-	chan->idle = false;
 }
 
 /**
@@ -817,6 +824,29 @@ static struct dma_chan *of_dma_hobot_xlate(struct of_phandle_args *dma_spec,
 	return dma_get_slave_channel(&xdev->chan[chan_id]->common);
 }
 
+#ifdef CONFIG_HOBOT_DMC_CLK
+static int hobot_dma_dfs_cb(struct hobot_dpm *dpm,
+		unsigned long val, int state)
+{
+	struct hobot_dma_device *xdev =
+		container_of(dpm, struct hobot_dma_device, hb_dpm);
+
+	if (val == HB_BUS_SIGNAL_START) {
+		int ch;
+		bool dma_idle = true;
+
+		for (ch = 0; ch < xdev->nr_channels; ch++) {
+			struct hobot_dma_chan *chan = xdev->chan[ch];
+			dma_idle &= chan->idle;
+		}
+
+		return dma_idle ? 0 : -EBUSY;
+	}
+
+	return 0;
+}
+#endif
+
 static const struct of_device_id hobot_dma_of_ids[] = {
 	{ .compatible = "hobot,hobot-dma", },
 	{}
@@ -886,6 +916,11 @@ static int hobot_dma_probe(struct platform_device *pdev)
 		goto error;
 	}
 
+#ifdef CONFIG_HOBOT_DMC_CLK
+	xdev->hb_dpm.dpm_call = &hobot_dma_dfs_cb;
+	hobot_dfs_register(&xdev->hb_dpm, xdev->dev);
+#endif
+
 	dev_info(&pdev->dev, "Hobot DMA Engine Driver Probed!!\n");
 
 	return 0;
@@ -918,6 +953,11 @@ static int hobot_dma_remove(struct platform_device *pdev)
 			hobot_dma_chan_remove(xdev->chan[i]);
 		}
 	}
+
+#ifdef CONFIG_HOBOT_DMC_CLK
+	hobot_dfs_unregister(&xdev->hb_dpm);
+#endif
+
 	return 0;
 }
 

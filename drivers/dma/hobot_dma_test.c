@@ -166,9 +166,9 @@ static int mem_dma_probe(struct platform_device *pdev) {
 	dma_cap_zero(mask);
 	dma_cap_set(DMA_MEMCPY, mask);
 	ch = dma_request_channel(mask, NULL, NULL);
-	if (IS_ERR(ch)) {
-		ret = PTR_ERR(ch);
-		dev_err(dev, "%s: dma_request_channel failed: %d\n", __func__, ret);
+	if (ch == NULL) {
+		ret = -EBUSY;
+		dev_err(dev, "%s: dma_request_channel failed\n", __func__);
 		goto err1;
 	}
 	mem_dma->ch = ch;
