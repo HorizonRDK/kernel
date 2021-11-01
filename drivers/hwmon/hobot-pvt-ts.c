@@ -34,6 +34,14 @@
 #define PVT_SAMPLE_INTERVAL_MS 20
 #define PVT_TS_MASK GENMASK(PVT_TS_NUM - 1, 0)
 
+/* error recording */
+static uint32_t tp_irq_sts_fault_cnt;
+static uint32_t ts_sdif_data_fault_cnt;
+static uint32_t error_threshold = 10000;
+module_param(tp_irq_sts_fault_cnt, uint, 0444);
+module_param(ts_sdif_data_fault_cnt, uint, 0444);
+module_param(error_threshold, uint, 0644);
+
 /* skip sample when calculated temp higher than 152C */
 static int smpl_threshold = 3900;
 module_param(smpl_threshold, int, 0644);
@@ -286,11 +294,17 @@ static irqreturn_t pvt_irq_handler(int irq, void *dev_id)
 		if (irq_status & TP_IRQ_STS_FAULT_BIT) {
 			pvt_n_reg_wr(pvt_dev, i, TS_n_IRQ_CLEAR_ADDR, TP_IRQ_STS_FAULT_BIT);
 			pr_debug("smp[%d] TP_IRQ_STS_FAULT_BIT fault\n", i);
+			tp_irq_sts_fault_cnt++;
+			if (tp_irq_sts_fault_cnt > error_threshold)
+				BUG();
 			continue;
 		}
 
 		if (sdif_data & TS_SDIF_DATA_FAULT_BIT) {
 			pr_debug("smp[%d] TS_SDIF_DATA_FAULT_BIT fault\n", i);
+			ts_sdif_data_fault_cnt++;
+			if (ts_sdif_data_fault_cnt > error_threshold)
+				BUG();
 			continue;
 		}
 
