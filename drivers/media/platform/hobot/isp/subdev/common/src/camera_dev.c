@@ -63,7 +63,6 @@ static int camera_fop_open(struct inode *pinode, struct file *pfile)
 	if (camera_cdev->user_num > 0) {
 		pr_info("more than one pthred use !\n");
 	} else {
-		camera_cdev->mst_file = pfile;
 		camera_cdev->start_num = 0;
 		camera_cdev->init_num = 0;
 		camera_cdev->pre_state = SENSOR_PRE_STATE_UNLOCK;
@@ -84,7 +83,6 @@ static int camera_fop_release(struct inode *pinode, struct file *pfile)
 
 	mutex_lock(&camera_cdev->slock);
 	camera_cdev->user_num--;
-	camera_cdev->mst_file = NULL;
 	if (camera_cdev->user_num <= 0) {
 		camera_cdev->pre_state = SENSOR_PRE_STATE_UNLOCK;
 		camera_sys_stream_off(camera_cdev->port);
@@ -122,28 +120,12 @@ static long camera_fop_ioctl(struct file *pfile, unsigned int cmd,
 	sensor_turning_data_t turning_data;
 	sensor_turning_data_ex_t turning_param_ex;
 	camera_state_register_t camera_register_data;
-	int mst_flg = 0;
-
-	mutex_lock(&camera_cdev->slock);
-	if (camera_cdev->mst_file == NULL) {
-		camera_cdev->mst_file = pfile;
-		mst_flg = 1;
-	} else if (camera_cdev->mst_file != pfile) {
-		mst_flg = 0;
-	} else {
-		mst_flg = 1;
-	}
-	mutex_unlock(&camera_cdev->slock);
 
 	switch(cmd) {
 		case SENSOR_TURNING_PARAM: {
 			if (arg == 0) {
 				pr_err("arg is null !\n");
 				return -EINVAL;
-			}
-			if (mst_flg == 0) {
-				pr_info("this file is not master,cmd tunning!\n");
-				return 0;
 			}
 			if (copy_from_user((void *)&turning_data, (void __user *)arg,
 				sizeof(sensor_turning_data_t))) {
@@ -295,10 +277,6 @@ static long camera_fop_ioctl(struct file *pfile, unsigned int cmd,
 			if (arg == 0) {
 				pr_err("arg is null !\n");
 				return -EINVAL;
-			}
-			if (mst_flg == 0) {
-				pr_debug("this file is not master,cmd camera_register_set!\n");
-				return 0;
 			}
 			if (copy_from_user((void *)&camera_register_data, (void __user *)arg,
 				sizeof(camera_register_data))) {
