@@ -21,6 +21,12 @@
 #include <sound/pcm.h>
 #include <sound/initval.h>
 
+#define DUMMY_CODEC_RATES    SNDRV_PCM_RATE_8000_192000
+#define DUMMY_CODEC_FMTS (SNDRV_PCM_FMTBIT_S8 | SNDRV_PCM_FMTBIT_S16_LE | \
+			SNDRV_PCM_FMTBIT_S24_LE | \
+			SNDRV_PCM_FMTBIT_S32_LE | \
+			0)
+
 struct snd_soc_dai_driver dummy_dai[] = {
 	{
 		.name = "hobot-codec0",
@@ -28,22 +34,16 @@ struct snd_soc_dai_driver dummy_dai[] = {
 			.stream_name = "Dummy Capture",
 			.channels_min = 1,
 			.channels_max = 8,
-			.rates = SNDRV_PCM_RATE_8000_192000,
-			.formats = (SNDRV_PCM_FMTBIT_S16_LE |
-					SNDRV_PCM_FMTBIT_S20_3LE |
-					SNDRV_PCM_FMTBIT_S24_LE |
-					SNDRV_PCM_FMTBIT_S32_LE),
+			.rates = DUMMY_CODEC_RATES,
+			.formats = DUMMY_CODEC_FMTS,
 		},
 		.playback = {
-                        .stream_name = "Dummy Playback",
-                        .channels_min = 1,
-                        .channels_max = 8,
-                        .rates = SNDRV_PCM_RATE_8000_192000,
-                        .formats = (SNDRV_PCM_FMTBIT_S16_LE |
-                                        SNDRV_PCM_FMTBIT_S20_3LE |
-                                        SNDRV_PCM_FMTBIT_S24_LE |
-                                        SNDRV_PCM_FMTBIT_S32_LE),
-                },
+			.stream_name = "Dummy Playback",
+			.channels_min = 1,
+			.channels_max = 8,
+			.rates = DUMMY_CODEC_RATES,
+			.formats = DUMMY_CODEC_FMTS,
+		},
 	},
 	{
 		.name = "hobot-codec1",
@@ -51,22 +51,16 @@ struct snd_soc_dai_driver dummy_dai[] = {
 			.stream_name = "Dummy Capture",
 			.channels_min = 1,
 			.channels_max = 8,
-			.rates = SNDRV_PCM_RATE_8000_192000,
-			.formats = (SNDRV_PCM_FMTBIT_S16_LE |
-					SNDRV_PCM_FMTBIT_S20_3LE |
-					SNDRV_PCM_FMTBIT_S24_LE |
-					SNDRV_PCM_FMTBIT_S32_LE),
+			.rates = DUMMY_CODEC_RATES,
+			.formats = DUMMY_CODEC_FMTS,
 		},
 		.playback = {
-                        .stream_name = "Dummy Playback",
-                        .channels_min = 1,
-                        .channels_max = 8,
-                        .rates = SNDRV_PCM_RATE_8000_192000,
-                        .formats = (SNDRV_PCM_FMTBIT_S16_LE |
-                                        SNDRV_PCM_FMTBIT_S20_3LE |
-                                        SNDRV_PCM_FMTBIT_S24_LE |
-                                        SNDRV_PCM_FMTBIT_S32_LE),
-                },
+			.stream_name = "Dummy Playback",
+			.channels_min = 1,
+			.channels_max = 8,
+			.rates = DUMMY_CODEC_RATES,
+			.formats = DUMMY_CODEC_FMTS,
+		},
 	},
 	{
 		.name = "hobot-codec2",
@@ -74,11 +68,8 @@ struct snd_soc_dai_driver dummy_dai[] = {
 			.stream_name = "Dummy Capture",
 			.channels_min = 1,
 			.channels_max = 8,
-			.rates = SNDRV_PCM_RATE_8000_192000,
-			.formats = (SNDRV_PCM_FMTBIT_S16_LE |
-					SNDRV_PCM_FMTBIT_S20_3LE |
-					SNDRV_PCM_FMTBIT_S24_LE |
-					SNDRV_PCM_FMTBIT_S32_LE),
+			.rates = DUMMY_CODEC_RATES,
+			.formats = DUMMY_CODEC_FMTS,
 		},
 	},
 	{
@@ -87,11 +78,8 @@ struct snd_soc_dai_driver dummy_dai[] = {
 			.stream_name = "Dummy Capture",
 			.channels_min = 1,
 			.channels_max = 8,
-			.rates = SNDRV_PCM_RATE_8000_192000,
-			.formats = (SNDRV_PCM_FMTBIT_S16_LE |
-					SNDRV_PCM_FMTBIT_S20_3LE |
-					SNDRV_PCM_FMTBIT_S24_LE |
-					SNDRV_PCM_FMTBIT_S32_LE),
+			.rates = DUMMY_CODEC_RATES,
+			.formats = DUMMY_CODEC_FMTS,
 		},
 	},
 	{
@@ -100,11 +88,8 @@ struct snd_soc_dai_driver dummy_dai[] = {
 			.stream_name = "Dummy Capture",
 			.channels_min = 1,
 			.channels_max = 8,
-			.rates = SNDRV_PCM_RATE_8000_192000,
-			.formats = (SNDRV_PCM_FMTBIT_S16_LE |
-					SNDRV_PCM_FMTBIT_S20_3LE |
-					SNDRV_PCM_FMTBIT_S24_LE |
-					SNDRV_PCM_FMTBIT_S32_LE),
+			.rates = DUMMY_CODEC_RATES,
+			.formats = DUMMY_CODEC_FMTS,
 		},
 	},
 	{
@@ -113,11 +98,8 @@ struct snd_soc_dai_driver dummy_dai[] = {
 			.stream_name = "Dummy Capture",
 			.channels_min = 1,
 			.channels_max = 8,
-			.rates = SNDRV_PCM_RATE_8000_192000,
-			.formats = (SNDRV_PCM_FMTBIT_S16_LE |
-					SNDRV_PCM_FMTBIT_S20_3LE |
-					SNDRV_PCM_FMTBIT_S24_LE |
-					SNDRV_PCM_FMTBIT_S32_LE),
+			.rates = DUMMY_CODEC_RATES,
+			.formats = DUMMY_CODEC_FMTS,
 		},
 	},
 	{
@@ -126,11 +108,8 @@ struct snd_soc_dai_driver dummy_dai[] = {
 			.stream_name = "Dummy Capture",
 			.channels_min = 1,
 			.channels_max = 8,
-			.rates = SNDRV_PCM_RATE_8000_192000,
-			.formats = (SNDRV_PCM_FMTBIT_S16_LE |
-					SNDRV_PCM_FMTBIT_S20_3LE |
-					SNDRV_PCM_FMTBIT_S24_LE |
-					SNDRV_PCM_FMTBIT_S32_LE),
+			.rates = DUMMY_CODEC_RATES,
+			.formats = DUMMY_CODEC_FMTS,
 		},
 	},
 	{
@@ -139,11 +118,8 @@ struct snd_soc_dai_driver dummy_dai[] = {
 			.stream_name = "Dummy Capture",
 			.channels_min = 1,
 			.channels_max = 8,
-			.rates = SNDRV_PCM_RATE_8000_192000,
-			.formats = (SNDRV_PCM_FMTBIT_S16_LE |
-					SNDRV_PCM_FMTBIT_S20_3LE |
-					SNDRV_PCM_FMTBIT_S24_LE |
-					SNDRV_PCM_FMTBIT_S32_LE),
+			.rates = DUMMY_CODEC_RATES,
+			.formats = DUMMY_CODEC_FMTS,
 		},
 	},
 };

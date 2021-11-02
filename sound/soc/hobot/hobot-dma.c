@@ -248,9 +248,6 @@ static int hobot_copy_usr(struct snd_pcm_substream *substream,
 		period_bytes = dma_ctrl->periodsz / dma_ctrl->ch_num;
 	}
 	period_count = bytes / period_bytes;
-	if (period_count > 1)
-		pr_err("------ addr(substream)=%p, period_count = %d\n",
-			substream, period_count);
 
 	for (i = 0; i < period_count; i++) {
 		if (runtime->access == SNDRV_PCM_ACCESS_RW_INTERLEAVED) {
@@ -272,14 +269,12 @@ static int hobot_copy_usr(struct snd_pcm_substream *substream,
 					break;
 			}
 		} else {
-			for (k = 0; k < period_count; k++) {
-				ret = copy_usr_noninterleaved(substream, channel,
-					hwoff * dma_ctrl->ch_num + channel * period_bytes +
-					k * dma_ctrl->periodsz,
-					buf, period_bytes);
-				if (ret < 0)
-					break;
-			}
+			ret = copy_usr_noninterleaved(substream, channel,
+				hwoff * dma_ctrl->ch_num + channel * period_bytes +
+				k * dma_ctrl->periodsz,
+				buf, period_bytes);
+			if (ret < 0)
+				break;
 		}
 	}
 
@@ -311,7 +306,8 @@ static int i2sidma_enqueue(struct snd_pcm_substream *substream)
 
 	spin_lock_irqsave(&dma_ctrl->lock, flags);
 	dma_ctrl->token = (void *)substream;
-	pr_info("addr(dma_ctrl->token)=%p\n", dma_ctrl->token);
+	dev_dbg(hobot_i2sidma[dma_ctrl->id].dev,
+		"addr(dma_ctrl->token)=%p\n", dma_ctrl->token);
 	spin_unlock_irqrestore(&dma_ctrl->lock, flags);
 
 	if (global_info[dma_ctrl->id].trigger_flag == 1 &&
@@ -366,7 +362,8 @@ static void i2sidma_control(int op, int stream, struct idma_ctrl_s *dma_ctrl)
 {
 	u32 val = 0;
 
-		pr_info("%s:%d  trigger_flag=%d\n", __func__, __LINE__,
+		dev_dbg(hobot_i2sidma[dma_ctrl->id].dev,
+			"%s:%d  trigger_flag=%d\n", __func__, __LINE__,
 			global_info[dma_ctrl->id].trigger_flag);
 		if (global_info[dma_ctrl->id].trigger_flag == 1 &&
 				stream == SNDRV_PCM_STREAM_CAPTURE)
@@ -446,16 +443,20 @@ static int i2sidma_hw_params(struct snd_pcm_substream *substream,
 		dma_ctrl->word_len  = 1;
 		break;
 	default:
-		pr_err("not supported data format %d\n",
+		dev_err(hobot_i2sidma[dma_ctrl->id].dev,
+			"not supported data format %d\n",
 			params_format(params));
 		return -EINVAL;
 	}
 
-	pr_debug("dma_ctrl->period is %llu, dma_ctrl->periodsz bytes is %llu,dma_ctrl->bytesnum is %lu\n", dma_ctrl->period,
+	dev_dbg(hobot_i2sidma[dma_ctrl->id].dev,
+		"dma_ctrl->period is %llu, dma_ctrl->periodsz bytes is %llu,dma_ctrl->bytesnum is %lu\n", dma_ctrl->period,
 		dma_ctrl->periodsz, dma_ctrl->bytesnum);
-	pr_debug("dma_ctrl->start is 0x%llx,dma_ctrl->end is 0x%llx\n",
+	dev_dbg(hobot_i2sidma[dma_ctrl->id].dev,
+		"dma_ctrl->start is 0x%llx,dma_ctrl->end is 0x%llx\n",
 		dma_ctrl->start, dma_ctrl->end);
-	pr_debug("dma_ctrl->buffer_num is %d\n", dma_ctrl->buffer_num);
+	dev_dbg(hobot_i2sidma[dma_ctrl->id].dev,
+		"dma_ctrl->buffer_num is %d\n", dma_ctrl->buffer_num);
 
 	/* set dma cb */
 	i2sidma_setcallbk(substream, i2sidma_done);
@@ -570,7 +571,7 @@ static int i2sidma_trigger(struct snd_pcm_substream *substream, int cmd)
 	}
 	spin_unlock_irqrestore(&dma_ctr->lock, flags);
 
-	pr_err("i2sidma_trigger\n");
+	dev_info(hobot_i2sidma[dma_ctr->id].dev, "i2sidma_trigger\n");
 	return ret;
 }
 
@@ -675,7 +676,8 @@ static irqreturn_t iis_irq0(int irqno, void *dev_id)
 	if (intstatus == 0x4) {
 
 		writel(0x4, hobot_i2sidma[dma_ctrl->id].regaddr_rx + I2S_SRCPND);
-		pr_debug("intstatus = 0x4,dma_ctrl->lastset is 0x%llx,buffer_int_index is %d,buffer_set_index is %d\n",
+		dev_dbg(hobot_i2sidma[dma_ctrl->id].dev,
+			"intstatus = 0x4,dma_ctrl->lastset is 0x%llx,buffer_int_index is %d,buffer_set_index is %d\n",
 			dma_ctrl->lastset, dma_ctrl->buffer_int_index,
 			dma_ctrl->buffer_set_index);
 
@@ -701,7 +703,8 @@ static irqreturn_t iis_irq0(int irqno, void *dev_id)
 	} else if (intstatus == 0x8) {
 
 		writel(0x8, hobot_i2sidma[dma_ctrl->id].regaddr_rx + I2S_SRCPND);
-		pr_debug("intstatus = 0x8,dma_ctrl->lastset is 0x%llx,buffer_int_index is %d,buffer_set_index is %d\n",
+		dev_dbg(hobot_i2sidma[dma_ctrl->id].dev,
+			"intstatus = 0x8,dma_ctrl->lastset is 0x%llx,buffer_int_index is %d,buffer_set_index is %d\n",
 			dma_ctrl->lastset, dma_ctrl->buffer_int_index,
 			dma_ctrl->buffer_set_index);
 
@@ -724,7 +727,8 @@ static irqreturn_t iis_irq0(int irqno, void *dev_id)
 		writel(0x1, hobot_i2sidma[dma_ctrl->id].regaddr_rx + I2S_BUF1_RDY);
 
 	} else {
-		pr_err("intstatus = 0x%x,INT status exception!\n", intstatus);
+		dev_err(hobot_i2sidma[dma_ctrl->id].dev,
+			"intstatus = 0x%x,INT status exception!\n", intstatus);
 		errsta = 1;
 		writel(intstatus,
 			hobot_i2sidma[dma_ctrl->id].regaddr_rx +I2S_SRCPND);
@@ -747,7 +751,8 @@ static irqreturn_t iis_irq0(int irqno, void *dev_id)
 	/* daemon callback */
 	if (dma_ctrl->cb)
 		dma_ctrl->cb(dma_ctrl->token, dma_ctrl->period);
-	pr_info("%d:     dma_ctrl->id=%d, addr(token)=%p\n", __LINE__,
+	dev_dbg(hobot_i2sidma[dma_ctrl->id].dev,
+		"%d:     dma_ctrl->id=%d, addr(token)=%p\n", __LINE__,
 		dma_ctrl->id,
 		dma_ctrl->token);
 	for (i = 1; i < I2S_PROCESS_NUM; i++) {
@@ -755,7 +760,8 @@ static irqreturn_t iis_irq0(int irqno, void *dev_id)
 			continue;
 		struct snd_pcm_substream *substream =
 			global_info[dma_ctrl->id].process_info[i].substream;
-		pr_info("[*****%s] substream[%d]=%p\n", __func__,
+		dev_dbg(hobot_i2sidma[dma_ctrl->id].dev,
+			"substream[%d]=%p\n", __func__,
 			i, substream);
 		struct idma_ctrl_s *dma_ctrl_seed = substream->runtime->private_data;
 		if (!dma_ctrl_seed || !dma_ctrl_seed->token) {
@@ -763,9 +769,6 @@ static irqreturn_t iis_irq0(int irqno, void *dev_id)
 		}
 		dma_ctrl_seed->start = dma_ctrl->start;
 		dma_ctrl_seed->lastset = dma_ctrl->lastset;
-		pr_info("%d:     addr(ftoken)=%p, start=0x%x, lastset=0x%x\n",
-			__LINE__, dma_ctrl_seed->token,
-			dma_ctrl->start, dma_ctrl->lastset);
 		dma_ctrl_seed->cb((void *)dma_ctrl_seed->token, dma_ctrl_seed->period);
 	}
 
@@ -805,7 +808,8 @@ static irqreturn_t iis_irq1(int irqno, void *dev_id)
 		writel(0x1, hobot_i2sidma[dma_ctrl->id].regaddr_tx +
 			I2S_BUF0_RDY);
 
-		pr_debug("intstatus = 0x%x, dma_ctrl->lastset is 0x%llx, \
+		dev_dbg(hobot_i2sidma[dma_ctrl->id].dev,
+			"intstatus = 0x%x, dma_ctrl->lastset is 0x%llx, \
 			buffer_int_index is %d, buffer_set_index is %d\n",
 			intstatus, dma_ctrl->lastset, dma_ctrl->buffer_int_index,
 			dma_ctrl->buffer_set_index);
@@ -829,13 +833,15 @@ static irqreturn_t iis_irq1(int irqno, void *dev_id)
 			I2S_BUF1_ADDR);
 		writel(0x1, hobot_i2sidma[dma_ctrl->id].regaddr_tx + I2S_BUF1_RDY);
 
-		pr_debug("intstatus = 0x%x, dma_ctrl->lastset is 0x%llx, \
+		dev_dbg(hobot_i2sidma[dma_ctrl->id].dev,
+			"intstatus = 0x%x, dma_ctrl->lastset is 0x%llx, \
 			buffer_int_index is %d, buffer_set_index is %d\n",
 			intstatus, dma_ctrl->lastset, dma_ctrl->buffer_int_index,
 			dma_ctrl->buffer_set_index);
 
 	} else {
-		pr_err("intstatus = 0x%x,INT status exception!\n", intstatus);
+		dev_err(hobot_i2sidma[dma_ctrl->id].dev,
+			"intstatus = 0x%x,INT status exception!\n", intstatus);
 		errsta = 1;
 
 		writel(intstatus, hobot_i2sidma[dma_ctrl->id].regaddr_tx +
@@ -884,6 +890,9 @@ static int i2sidma_open(struct snd_pcm_substream *substream)
 	struct hobot_i2s *i2s = snd_soc_dai_get_drvdata(soc_runtime->cpu_dai);
 	struct idma_info_s *hobot_dma =
 		snd_soc_platform_get_drvdata(soc_runtime->platform);
+	if (hobot_dma == NULL) {
+		return -ENOMEM;
+	}
 
 	dma_data = hobot_dai_get_dma_data(substream);
 	dma_ctrl = kzalloc(sizeof(struct idma_ctrl_s), GFP_KERNEL);
@@ -893,8 +902,8 @@ static int i2sidma_open(struct snd_pcm_substream *substream)
 
 	if (hobot_dma)
 		dma_ctrl->id = hobot_dma->id;
-	pr_info("%s:%d dev_name=%s, dma_ctrl->id = %d\n", __func__, __LINE__,
-		dev_name(hobot_dma->dev), dma_ctrl->id);
+	dev_dbg(hobot_dma->dev,
+		"%s:%d dma_ctrl->id = %d\n", __func__, __LINE__, dma_ctrl->id);
 
 	spin_lock_irqsave(&global_info[hobot_dma->id].lock, flags);
 	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
@@ -906,7 +915,8 @@ static int i2sidma_open(struct snd_pcm_substream *substream)
 			return -EPERM;
 
 		global_info[hobot_dma->id].process_info[i].substream = substream;
-		pr_info("[----->%s] substream[%d]=%p\n", __func__,
+		dev_dbg(hobot_dma->dev,
+			"%s substream[%d]=%p\n", __func__,
 			i, substream);
 		global_info[hobot_dma->id].capture_process_num++;
 	}
@@ -923,7 +933,8 @@ static int i2sidma_open(struct snd_pcm_substream *substream)
 			ret = request_irq(hobot_i2sidma[dma_ctrl->id].idma_irq, iis_irq0,
 				0, "idma0", dma_ctrl);
 			if (ret < 0) {
-				pr_err("fail to claim i2s irq , ret = %d\n", ret);
+				dev_err(hobot_dma->dev,
+					"fail to claim i2s irq , ret = %d\n", ret);
 				kfree(dma_ctrl);
 				spin_unlock_irqrestore(&global_info[hobot_dma->id].lock, flags);
 				return ret;
@@ -934,7 +945,8 @@ static int i2sidma_open(struct snd_pcm_substream *substream)
 		ret = request_irq(hobot_i2sidma[dma_ctrl->id].idma_irq, iis_irq1,
 			0, "idma1", dma_ctrl);
 		if (ret < 0) {
-			pr_err("fail to claim i2s irq , ret = %d\n", ret);
+			dev_err(hobot_dma->dev,
+				"fail to claim i2s irq , ret = %d\n", ret);
 			kfree(dma_ctrl);
 			spin_unlock_irqrestore(&global_info[hobot_dma->id].lock, flags);
 			return ret;
@@ -982,7 +994,8 @@ static int i2sidma_close(struct snd_pcm_substream *substream)
 		for (i = 1; i < I2S_PROCESS_NUM; i++) {
 			if (substream ==
 					global_info[dma_ctrl->id].process_info[i].substream) {
-				pr_info("[++++++%s] substream[%d]=%p\n",
+				dev_dbg(hobot_dma->dev,
+					"%s substream[%d]=%p\n",
 					__func__, i, substream);
 				global_info[dma_ctrl->id].process_info[i].substream = NULL;
 				break;
@@ -1218,7 +1231,7 @@ static int asoc_i2sidma_platform_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "error getting dummy_node info\n");
 		return ret;
 	}
-	pr_debug("dummy_node=%d\n", dummy_node);
+	dev_dbg(&pdev->dev, "dummy_node=%d\n", dummy_node);
 	if (dummy_node == 1) {
 		ret = of_property_read_string(pdev->dev.of_node, "i2s-bind", &bind_name);
 		if (ret) {
@@ -1230,10 +1243,10 @@ static int asoc_i2sidma_platform_probe(struct platform_device *pdev)
 		} else if (!strcmp(bind_name, "i2s1")) {
 			i2s_id = 1;
 		} else {
-			pr_err("invalid bind name %s\n", bind_name);
+			dev_err(&pdev->dev, "invalid bind name %s\n", bind_name);
 			return -EINVAL;
 		}
-		pr_debug("%s:%d i2s_id=%d\n", __func__, __LINE__, i2s_id);
+		dev_dbg(&pdev->dev, "%s:%d i2s_id=%d\n", __func__, __LINE__, i2s_id);
 		hobot_i2sidma[id].id = i2s_id;
 		spin_lock_init(&global_info[i2s_id].lock);
 	}
@@ -1250,7 +1263,7 @@ static int asoc_i2sidma_platform_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "i2s%d diag register fail\n", EventIdSoundI2s0Err + id);
 #endif
 
-	pr_info("success register platform %d, ret = %d\n", id, ret);
+	dev_info(&pdev->dev, "success register platform %d, ret = %d\n", id, ret);
 
 	return ret;
 
