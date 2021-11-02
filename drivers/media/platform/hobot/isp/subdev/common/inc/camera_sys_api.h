@@ -27,6 +27,7 @@ int camera_sys_priv_set(uint32_t port, sensor_priv_t *priv_param);
 int camera_sys_priv_awb_set(uint32_t port, sensor_priv_t *priv_param);
 int camera_sys_get_param(uint32_t port, sensor_data_t *sensor_data);
 int camera_sys_turining_set(uint32_t port, sensor_turning_data_t *turning_pram);
+void camera_sys_tuning_release(uint32_t port);
 int	camera_sys_alloc_again(uint32_t port, uint32_t *a_gain);
 int camera_sys_alloc_dgain(uint32_t port, uint32_t *a_gain);
 int camera_sys_alloc_intergration_time(uint32_t port,

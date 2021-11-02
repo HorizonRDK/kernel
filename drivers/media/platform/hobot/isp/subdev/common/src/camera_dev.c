@@ -86,6 +86,7 @@ static int camera_fop_release(struct inode *pinode, struct file *pfile)
 	if (camera_cdev->user_num <= 0) {
 		camera_cdev->pre_state = SENSOR_PRE_STATE_UNLOCK;
 		camera_sys_stream_off(camera_cdev->port);
+		camera_sys_tuning_release(camera_cdev->port);
 		camera_i2c_release(camera_cdev->port);
 		memset(&camera_mod[camera_cdev->port]->camera_param, 0,
 			sizeof(sensor_turning_data_t));

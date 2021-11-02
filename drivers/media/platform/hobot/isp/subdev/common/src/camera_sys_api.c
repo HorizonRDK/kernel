@@ -1176,51 +1176,7 @@ int camera_sys_turining_set(uint32_t port, sensor_turning_data_t *turning_pram)
 	}
 
 	if (turning_pram) {
-			//free malloc size
-			if (camera_mod[port]->camera_param.normal.again_lut) {
-				kfree(camera_mod[port]->camera_param.normal.again_lut);
-				camera_mod[port]->camera_param.normal.again_lut = NULL;
-			}
-			if (camera_mod[port]->camera_param.normal.dgain_lut) {
-				kfree(camera_mod[port]->camera_param.normal.dgain_lut);
-				camera_mod[port]->camera_param.normal.dgain_lut = NULL;
-			}
-			if (camera_mod[port]->camera_param.dol2.again_lut) {
-				kfree(camera_mod[port]->camera_param.dol2.again_lut);
-				camera_mod[port]->camera_param.dol2.again_lut = NULL;
-			}
-			if (camera_mod[port]->camera_param.dol2.dgain_lut) {
-				kfree(camera_mod[port]->camera_param.dol2.dgain_lut);
-				camera_mod[port]->camera_param.dol2.dgain_lut = NULL;
-			}
-			if (camera_mod[port]->camera_param.dol3.again_lut) {
-				kfree(camera_mod[port]->camera_param.dol3.again_lut);
-				camera_mod[port]->camera_param.dol3.again_lut = NULL;
-			}
-			if (camera_mod[port]->camera_param.dol3.dgain_lut) {
-				kfree(camera_mod[port]->camera_param.dol3.dgain_lut);
-				camera_mod[port]->camera_param.dol3.dgain_lut = NULL;
-			}
-			if (camera_mod[port]->camera_param.pwl.again_lut) {
-				kfree(camera_mod[port]->camera_param.pwl.again_lut);
-				camera_mod[port]->camera_param.pwl.again_lut = NULL;
-			}
-			if (camera_mod[port]->camera_param.pwl.dgain_lut) {
-				kfree(camera_mod[port]->camera_param.pwl.dgain_lut);
-				camera_mod[port]->camera_param.pwl.dgain_lut = NULL;
-			}
-
-			memcpy(&camera_mod[port]->camera_param, turning_pram,
-					sizeof(sensor_turning_data_t));
-
-			camera_mod[port]->camera_param.normal.again_lut = NULL;
-			camera_mod[port]->camera_param.normal.dgain_lut = NULL;
-			camera_mod[port]->camera_param.dol2.again_lut = NULL;
-			camera_mod[port]->camera_param.dol2.dgain_lut = NULL;
-			camera_mod[port]->camera_param.dol3.again_lut = NULL;
-			camera_mod[port]->camera_param.dol3.dgain_lut = NULL;
-			camera_mod[port]->camera_param.pwl.again_lut = NULL;
-			camera_mod[port]->camera_param.pwl.dgain_lut = NULL;
+			camera_sys_tuning_release(port);
 	} else {
 			return -1;
 	}
@@ -1348,6 +1304,51 @@ int camera_sys_turining_set(uint32_t port, sensor_turning_data_t *turning_pram)
 	camera_sys_printk_disturing(&camera_mod[port]->camera_param);
 malloc_failed:
 	return ret;
+}
+void camera_sys_tuning_release(uint32_t port)
+{
+	//free malloc size
+	if (camera_mod[port]->camera_param.normal.again_lut) {
+		kfree(camera_mod[port]->camera_param.normal.again_lut);
+		camera_mod[port]->camera_param.normal.again_lut = NULL;
+	}
+	if (camera_mod[port]->camera_param.normal.dgain_lut) {
+		kfree(camera_mod[port]->camera_param.normal.dgain_lut);
+		camera_mod[port]->camera_param.normal.dgain_lut = NULL;
+	}
+	if (camera_mod[port]->camera_param.dol2.again_lut) {
+		kfree(camera_mod[port]->camera_param.dol2.again_lut);
+		camera_mod[port]->camera_param.dol2.again_lut = NULL;
+	}
+	if (camera_mod[port]->camera_param.dol2.dgain_lut) {
+		kfree(camera_mod[port]->camera_param.dol2.dgain_lut);
+		camera_mod[port]->camera_param.dol2.dgain_lut = NULL;
+	}
+	if (camera_mod[port]->camera_param.dol3.again_lut) {
+		kfree(camera_mod[port]->camera_param.dol3.again_lut);
+		camera_mod[port]->camera_param.dol3.again_lut = NULL;
+	}
+	if (camera_mod[port]->camera_param.dol3.dgain_lut) {
+		kfree(camera_mod[port]->camera_param.dol3.dgain_lut);
+		camera_mod[port]->camera_param.dol3.dgain_lut = NULL;
+	}
+	if (camera_mod[port]->camera_param.pwl.again_lut) {
+		kfree(camera_mod[port]->camera_param.pwl.again_lut);
+		camera_mod[port]->camera_param.pwl.again_lut = NULL;
+	}
+	if (camera_mod[port]->camera_param.pwl.dgain_lut) {
+		kfree(camera_mod[port]->camera_param.pwl.dgain_lut);
+		camera_mod[port]->camera_param.pwl.dgain_lut = NULL;
+	}
+
+	camera_mod[port]->camera_param.normal.again_lut = NULL;
+	camera_mod[port]->camera_param.normal.dgain_lut = NULL;
+	camera_mod[port]->camera_param.dol2.again_lut = NULL;
+	camera_mod[port]->camera_param.dol2.dgain_lut = NULL;
+	camera_mod[port]->camera_param.dol3.again_lut = NULL;
+	camera_mod[port]->camera_param.dol3.dgain_lut = NULL;
+	camera_mod[port]->camera_param.pwl.again_lut = NULL;
+	camera_mod[port]->camera_param.pwl.dgain_lut = NULL;
 }
 
 int camera_sys_priv_set(uint32_t port, sensor_priv_t *priv_param)
