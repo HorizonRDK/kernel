@@ -668,19 +668,20 @@ void cmos_fsm_process_interrupt( cmos_fsm_const_ptr_t p_fsm, uint8_t irq_event )
 		//update awb info to sensor
 		if (_GET_COLS(ACAMERA_FSM2CTX_PTR(p_fsm), CALIBRATION_CMOS_CONTROL) >= SENSOR_AWB_MODE_NUM) {
 			fsm_param_awb_cfg_t awb_f;
-			if (param->global_sensor_awb_mode) {
+			if (param->global_sensor_awb_mode == 1) {
 				awb_f.rgain = ((cmos_fsm_ptr_t)p_fsm)->wb[0];
 				awb_f.grgain = ((cmos_fsm_ptr_t)p_fsm)->wb[1];
 				awb_f.gbgain = ((cmos_fsm_ptr_t)p_fsm)->wb[2];
 				awb_f.bgain = ((cmos_fsm_ptr_t)p_fsm)->wb[3];
 				pr_debug("r %d, gr %d, gb %d, b %d\n", awb_f.rgain, awb_f.grgain, awb_f.gbgain, awb_f.bgain);
-			} else {
+				acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_SENSOR_AWB_UPDATE, &awb_f, sizeof( awb_f ) );
+			} else if (param->global_sensor_awb_mode == 2) {
 				awb_f.rgain = 256;
 				awb_f.grgain = 256;
 				awb_f.gbgain = 256;
 				awb_f.bgain = 256;
+				acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_SENSOR_AWB_UPDATE, &awb_f, sizeof( awb_f ) );
 			}
-			acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_SENSOR_AWB_UPDATE, &awb_f, sizeof( awb_f ) );
 		}
 
                 // frame_id should not be 0, at the beginning, it's initialized to 0 and we should skip it.
