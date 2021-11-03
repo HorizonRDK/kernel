@@ -38,6 +38,8 @@
 #define I2C_SCL_DEFAULT_FREQ	400000 /*I2c SCL default frequency is 400KHZ*/
 #define I2C_CONTROL_CLK		24000000
 
+#define HOBOT_I2C_STAT_NACK BIT(1)
+
 enum {
 	i2c_idle,
 	i2c_write,
@@ -264,7 +266,7 @@ static void hobot_drain_rxfifo(struct hobot_i2c_dev *dev, int hold)
 	while (dev->rx_remaining && left) {
 		status.all = ioread32(&dev->i2c_regs->status);
 		if (status.bit.rx_empty) {
-			dev_dbg(dev->dev, "ex empty\n");
+			dev_dbg(dev->dev, "rx empty\n");
 			break;
 		}
 		*(dev->rx_buf) = ioread32(&dev->i2c_regs->rdata) & 0xff;
@@ -343,7 +345,11 @@ static irqreturn_t hobot_i2c_isr(int this_irq, void *data)
 
 	if (err) {
 		dev->msg_err = int_status.all;
-		dev_err(dev->dev, "i2c isr err:%x\n", dev->msg_err);
+		dev_dbg(dev->dev, "i2c isr err:%x\n", dev->msg_err);
+		if (dev->msg_err & HOBOT_I2C_STAT_NACK) {
+			dev->rx_remaining = 0;
+			dev->tx_remaining = 0;
+		}
 	} else {
 		if (int_status.bit.tr_done || int_status.bit.rrdy || int_status.bit.xrdy) {
 			if (dev->i2c_state == i2c_read) {
@@ -404,9 +410,6 @@ static int hobot_i2c_xfer_msg(struct hobot_i2c_dev *dev, struct i2c_msg *msg)
 	if (hobot_wait_idle(dev))
 		return -ETIMEDOUT;
 
-	hobot_mask_int(dev);
-	hobot_clear_int(dev);
-
 	ctl_reg.all = 0;
 	dcount_reg.all = 0;
 	if (msg->flags & 0x20) {
@@ -452,6 +455,8 @@ static int hobot_i2c_xfer_msg(struct hobot_i2c_dev *dev, struct i2c_msg *msg)
 	time_left = wait_for_completion_timeout(&dev->completion,
 						msecs_to_jiffies(XFER_TIMEOUT));
 
+	hobot_mask_int(dev);
+	hobot_clear_int(dev);
 	ctl_reg.all = 0;
 	ctl_reg.bit.rfifo_clr = 1;
 	ctl_reg.bit.tfifo_clr = 1;
@@ -468,6 +473,12 @@ static int hobot_i2c_xfer_msg(struct hobot_i2c_dev *dev, struct i2c_msg *msg)
 
 	if (likely(!dev->msg_err))
 		return 0;
+
+	if(dev->msg_err & HOBOT_I2C_STAT_NACK) {
+		if (msg->flags & I2C_M_IGNORE_NAK)
+			return 0;
+		return -EREMOTEIO;
+	}
 
 	dev_err(dev->dev, "i2c transfer failed: %x\n", dev->msg_err);
 	return -EIO;
@@ -525,6 +536,9 @@ static int hobot_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int n
 	}
 	enable_irq(dev->irq);
 
+	hobot_mask_int(dev);
+	hobot_clear_int(dev);
+
 	for (i = 0; i < num; i++) {
 		ret = hobot_i2c_xfer_msg(dev, &msgs[i]);
 		if (ret)
@@ -534,8 +548,6 @@ static int hobot_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int n
 	reset_client_freq(dev);
 
 	disable_irq(dev->irq);
-	hobot_mask_int(dev);
-	hobot_clear_int(dev);
 
 	clk_disable_unprepare(dev->clk);
 	mutex_unlock(&dev->lock);
@@ -567,29 +579,39 @@ static int hobot_i2c_doxfer_smbus(struct hobot_i2c_dev *dev, u16 addr, bool writ
 	dev->tx_remaining = 1;
 	ctl_reg.all = 0;
 	dcount_reg.all = 0;
-	if (write) {
-		dcount_reg.bit.w_dcount = size + 1;
-		iowrite32(dcount_reg.all, &dev->i2c_regs->dcount);
-		hobot_fill_txfifo(dev, 0);
-		if (data) {
-			dev->tx_remaining = size;
-			dev->tx_buf = data;
-			hobot_fill_txfifo(dev, 0);
-		}
-		dev->i2c_state = i2c_write;
-		ctl_reg.bit.wr = 1;
-	} else {
-		dev->rx_remaining = 1;
-		dcount_reg.bit.w_dcount = 1;
-		iowrite32(dcount_reg.all, &dev->i2c_regs->dcount);
-		hobot_fill_txfifo(dev, 0);
-
-		dcount_reg.bit.r_dcount = size;
+	if ((size == 0) & !write) {
+		dev->tx_remaining = 0;
+		dcount_reg.bit.r_dcount = size + 1;
 		iowrite32(dcount_reg.all, &dev->i2c_regs->dcount);
 		dev->i2c_state = i2c_read;
 		dev->rx_buf = data;
-		dev->rx_remaining = size;
+		dev->rx_remaining = size+1;
 		ctl_reg.bit.rd = 1;
+	} else {
+		if (write) {
+			dcount_reg.bit.w_dcount = size + 1;
+			iowrite32(dcount_reg.all, &dev->i2c_regs->dcount);
+			hobot_fill_txfifo(dev, 0);
+			if (data) {
+				dev->tx_remaining = size;
+				dev->tx_buf = data;
+				hobot_fill_txfifo(dev, 0);
+			}
+			dev->i2c_state = i2c_write;
+			ctl_reg.bit.wr = 1;
+		} else {
+			dev->rx_remaining = 1;
+			dcount_reg.bit.w_dcount = 1;
+			iowrite32(dcount_reg.all, &dev->i2c_regs->dcount);
+			hobot_fill_txfifo(dev, 0);
+
+			dcount_reg.bit.r_dcount = size;
+			iowrite32(dcount_reg.all, &dev->i2c_regs->dcount);
+			dev->i2c_state = i2c_read;
+			dev->rx_buf = data;
+			dev->rx_remaining = size;
+			ctl_reg.bit.rd = 1;
+		}
 	}
 
 	iowrite32(addr << 1, &dev->i2c_regs->addr);
@@ -642,7 +664,15 @@ static int hobot_i2c_xfer_smbus(struct i2c_adapter *adap, u16 addr,
 	}
 	hobot_i2c_reset(dev);
 	recal_clk_div(dev);
-	hobot_i2c_cfg(dev, 0, 1);
+	if ((size == I2C_SMBUS_BYTE) & read_write)) {
+		/* handle i2cdetect. protocol is:
+		 * S  slave_address  Rd  A  Data_byte  A  P
+		 * the return data is 00;
+		 */
+		hobot_i2c_cfg(dev, 1, 1);
+	} else {
+		hobot_i2c_cfg(dev, 0, 1);
+	}
 	enable_irq(dev->irq);
 
 	switch (size) {
