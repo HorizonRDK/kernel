@@ -116,6 +116,21 @@ void gdc_set_wdma2_line_offset(void __iomem *base_addr, u32 lineoffset)
 	vio_hw_set_reg(base_addr, &gdc_regs[GDC_WDMA2_LINE_OFFSET], lineoffset);
 }
 
+void gdc_set_default_ch1(void __iomem *base_addr, u32 default_ch)
+{
+	vio_hw_set_reg(base_addr, &gdc_regs[GDC_DEFAULT_CH1], default_ch);
+}
+
+void gdc_set_default_ch2(void __iomem *base_addr, u32 default_ch)
+{
+	vio_hw_set_reg(base_addr, &gdc_regs[GDC_DEFAULT_CH2], default_ch);
+}
+
+void gdc_set_default_ch3(void __iomem *base_addr, u32 default_ch)
+{
+	vio_hw_set_reg(base_addr, &gdc_regs[GDC_DEFAULT_CH3], default_ch);
+}
+
 u32 gdc_get_intr_status(void __iomem *base_addr)
 {
 	u32 status = 0;

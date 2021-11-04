@@ -36,6 +36,9 @@ static int g_gdc_fps[GDC_MAX_NUM][VIO_MAX_STREAM] = {0, };
 static int g_gdc_idx[GDC_MAX_NUM][VIO_MAX_STREAM] = {0, };
 static int g_gdc_fps_lasttime[GDC_MAX_NUM][VIO_MAX_STREAM] = {0, };
 
+static uint32_t gdc_default_color = 0x008080;
+module_param(gdc_default_color, uint, 0644);
+
 extern void write_gdc_mask(uint32_t model, uint32_t *enable);
 extern void write_gdc_status(uint32_t model, uint32_t *enable);
 
@@ -226,6 +229,9 @@ void gdc_init(struct x3_gdc_dev *gdc_dev, gdc_settings_t *gdc_settings)
 			       gdc_settings->gdc_config.output_width);
 	gdc_set_wdma_img_height(base_addr,
 				gdc_settings->gdc_config.output_height);
+	gdc_set_default_ch1(base_addr, (gdc_default_color >> 16) & 0xff);
+	gdc_set_default_ch2(base_addr, (gdc_default_color >> 8) & 0xff);
+	gdc_set_default_ch3(base_addr, gdc_default_color & 0xff);
 	vio_dbg("GDC config_addr:%x,config_size:%x\n",/*PRQA S ALL*/
 		gdc_settings->gdc_config.config_addr,
 		gdc_settings->gdc_config.config_size);

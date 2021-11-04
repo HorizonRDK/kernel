@@ -27,6 +27,9 @@ void gdc_set_wdma2_img_addr(void __iomem *base_addr, u32 addr);
 void gdc_set_wdma0_line_offset(void __iomem *base_addr, u32 lineoffset);
 void gdc_set_wdma1_line_offset(void __iomem *base_addr, u32 lineoffset);
 void gdc_set_wdma2_line_offset(void __iomem *base_addr, u32 lineoffset);
+void gdc_set_default_ch1(void __iomem *base_addr, u32 default_ch);
+void gdc_set_default_ch2(void __iomem *base_addr, u32 default_ch);
+void gdc_set_default_ch3(void __iomem *base_addr, u32 default_ch);
 u32 gdc_get_intr_status(void __iomem *base_addr);
 void gdc_hw_dump(u32 __iomem *base_reg);
 
