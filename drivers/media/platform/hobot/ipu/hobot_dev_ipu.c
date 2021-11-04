@@ -299,6 +299,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	u32 id, i;
 	unsigned long flags;
 	int wait_init_index;
+	uint32_t shadow_index = 0;
 
 	ipu_ctx = file->private_data;
 	ipu = ipu_ctx->ipu_dev;
@@ -367,8 +368,13 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 		if (group->gtask)
 			vio_group_task_stop(group->gtask);
 		group->output_flag = 0;
+
 		instance = group->instance;
-		ipu->reuse_shadow0_count &= ~instance;
+		if (instance < MAX_SHADOW_NUM)
+			shadow_index = group->instance;
+		if (ipu_ctx->id == GROUP_ID_SRC && shadow_index == 0)
+			atomic_dec(&ipu->reuse_shadow0_count);
+
 		if (atomic_dec_return(&group->node_refcount) == 0) {
 			clear_bit(VIO_GROUP_LEADER, &group->state);
 			clear_bit(VIO_GROUP_INIT, &group->state);
@@ -421,7 +427,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 		}
 		ips_set_clk_ctrl(IPU0_CLOCK_GATE, false);
 		ipu->frame_drop_count = 0;
-		ipu->reuse_shadow0_count = 0;
+		atomic_set(&ipu->reuse_shadow0_count, 0);
 		sema_init(&ipu->gtask.hw_resource, 0);
 		atomic_set(&ipu->gtask.refcount, 0);
 		prev_frame_disable_out = 0;
@@ -1735,6 +1741,9 @@ int ipu_channel_wdma_enable(struct ipu_subdev *subdev, bool enable)
 
 	info = &subdev->scale_cfg;
 
+	if (shadow_index == 0 && test_bit(IPU_REUSE_SHADOW0, &ipu->state))
+		return 0;
+
 	spin_lock(&ipu->slock);
 	rdy = ipu_get_shd_rdy(ipu->base_reg);
 	rdy = rdy & ~(1U << shadow_index);
@@ -1745,15 +1754,6 @@ int ipu_channel_wdma_enable(struct ipu_subdev *subdev, bool enable)
 		ipu_set_roi_enable(subdev, shadow_index, info->ds_roi_en);
 		ipu_set_sc_enable(subdev, shadow_index, info->ds_sc_en);
 	} else {
-		if (shadow_index == 0) {
-			if (((ipu->reuse_shadow0_count & 0x11) == 0x11) ||
-				((ipu->reuse_shadow0_count & 0x30) == 0x30) ||
-				((ipu->reuse_shadow0_count & 0x21) == 0x21)) {
-				vio_info("can't disable shadow0 by group%d,reuse(0x%x)\n",
-					group->instance, ipu->reuse_shadow0_count);
-				return ret;
-			}
-		}
 		ipu_set_roi_enable(subdev, shadow_index, enable);
 		ipu_set_sc_enable(subdev, shadow_index, enable);
 	}
@@ -2096,6 +2096,7 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 	struct x3_ipu_dev *ipu;
 	struct vio_group *group;
 	struct ipu_subdev *subdev;
+	uint32_t shadow_index = 0;
 
 	ipu = ipu_ctx->ipu_dev;
 	group = ipu_ctx->group;
@@ -2113,6 +2114,15 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 		return ret;
 	}
 
+	if (group->instance < MAX_SHADOW_NUM)
+		shadow_index = group->instance;
+
+	if (ipu_ctx->id == GROUP_ID_SRC && shadow_index == 0) {
+		if (atomic_inc_return(&ipu->reuse_shadow0_count) > 1)
+			set_bit(IPU_REUSE_SHADOW0, &ipu->state);
+		vio_info("reuse_shadow0_count = %d\n", ipu->reuse_shadow0_count);
+	}
+
 	ipu_set_line_delay(ipu->base_reg, ipu->line_delay);
 	if (ipu_ctx->id == GROUP_ID_SRC) {
 		ipu_cfg = &subdev->ipu_cfg;
@@ -2120,9 +2130,11 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 				   sizeof(ipu_cfg_t));
 		if (ret)
 			goto err;
-		ret = ipu_update_common_param(subdev, ipu_cfg);
-		if (ret)
-			goto err;
+		if (!(shadow_index == 0 && test_bit(IPU_REUSE_SHADOW0, &ipu->state))) {
+			ret = ipu_update_common_param(subdev, ipu_cfg);
+			if (ret)
+				goto err;
+		}
 		ret = ipu_set_path_attr(subdev, ipu_cfg);
 		if (ret)
 			goto err;
@@ -2132,10 +2144,11 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 				   sizeof(ipu_us_info_t));
 		if (ret)
 			goto err;
-
-		ret = ipu_update_us_param(subdev, (ipu_us_info_t*) scale_config);
-		if (ret)
-			goto err;
+		if (!(shadow_index == 0 && test_bit(IPU_REUSE_SHADOW0, &ipu->state))) {
+			ret = ipu_update_us_param(subdev, (ipu_us_info_t*) scale_config);
+			if (ret)
+				goto err;
+		}
 
 		if (scale_config->ds_roi_en || scale_config->ds_sc_en) {
 			group->output_flag++;
@@ -2148,18 +2161,11 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 				   sizeof(ipu_ds_info_t));
 		if (ret)
 			goto err;
-		ret = ipu_update_ds_param(subdev, scale_config);
-		if (ret)
-			goto err;
-	}
-
-	if(!test_bit(IPU_REUSE_SHADOW0, &ipu->state)
-		&& group->instance >= MAX_SHADOW_NUM)
-		set_bit(IPU_REUSE_SHADOW0, &ipu->state);
-
-	if (group->instance >= MAX_SHADOW_NUM || group->instance == 0) {
-		ipu->reuse_shadow0_count |= 1 << group->instance;
-		vio_info("reuse_shadow0_count = %d\n", ipu->reuse_shadow0_count);
+		if (!(shadow_index == 0 && test_bit(IPU_REUSE_SHADOW0, &ipu->state))) {
+			ret = ipu_update_ds_param(subdev, scale_config);
+			if (ret)
+				goto err;
+		}
 	}
 
 	ret = mutex_lock_interruptible(&ipu_mutex);
@@ -5028,6 +5034,7 @@ static int x3_ipu_probe(struct platform_device *pdev)
 	atomic_set(&ipu->gtask.refcount, 0);
 	atomic_set(&ipu->rsccount, 0);
 	atomic_set(&ipu->open_cnt, 0);
+	atomic_set(&ipu->reuse_shadow0_count, 0);
 	mutex_init(&ipu_mutex);
 	spin_lock_init(&ipu->slock);
 

@@ -276,6 +276,7 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 	u32 subdev_id, proc;
 	int instance = 0;
 	unsigned long flags;
+	uint32_t shadow_index = 0;
 
 	pym_ctx = file->private_data;
 	pym = pym_ctx->pym_dev;
@@ -322,6 +323,12 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 			clear_bit(VIO_GROUP_INIT, &group->state);
 			pym->statistic.enable[instance] = 0;
 		}
+
+		if (group->instance < MAX_SHADOW_NUM)
+			shadow_index = group->instance;
+		if (subdev_id == SUBDEV_ID_OUT && shadow_index == 0)
+			atomic_dec(&pym->reuse_shadow0_count);
+
 		// this is the subdev's last process close, it's ok to free all ion buffer
 		x3_pym_release_subdev_all_ion(subdev);
 		memset(&pym->subdev[instance][subdev_id].pym_cfg, 0, sizeof(pym_cfg_t));
@@ -351,6 +358,7 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 		vio_clk_disable("sif_mclk");
 		sema_init(&pym->gtask.hw_resource, 1);
 		atomic_set(&pym->gtask.refcount, 0);
+		atomic_set(&pym->reuse_shadow0_count, 0);
 		pm_qos_remove_request(&pym_pm_qos_req);
 
 		vio_info("%s close pym dev done\n", __func__);
@@ -602,8 +610,6 @@ void pym_update_param(struct pym_subdev *subdev)
 	pym_config = &subdev->pym_cfg;
 	if (group->instance < MAX_SHADOW_NUM)
 		shadow_index = group->instance;
-	else
-		set_bit(PYM_REUSE_SHADOW0, &pym->state);
 
 	//config src size
 	src_width = pym_config->img_width;
@@ -828,6 +834,7 @@ int pym_video_init(struct pym_video_ctx *pym_ctx, unsigned long arg)
 	struct vio_group *group;
 	struct x3_pym_dev *pym_dev;
 	struct pym_subdev *subdev;
+	uint32_t shadow_index = 0;
 
 	group = pym_ctx->group;
 	pym_dev = pym_ctx->pym_dev;
@@ -884,7 +891,18 @@ int pym_video_init(struct pym_video_ctx *pym_ctx, unsigned long arg)
 			}
 		}
 
-		pym_update_param(subdev);
+		if (group->instance < MAX_SHADOW_NUM)
+			shadow_index = group->instance;
+
+		if (shadow_index == 0) {
+			if (atomic_inc_return(&pym_dev->reuse_shadow0_count) > 1)
+				set_bit(PYM_REUSE_SHADOW0, &pym_dev->state);
+			vio_info("pym reuse_shadow0_count = %d\n", pym_dev->reuse_shadow0_count);
+		}
+
+		if (!(shadow_index == 0 && test_bit(PYM_REUSE_SHADOW0, &pym_dev->state))) {
+			pym_update_param(subdev);
+		}
 
 		set_bit(VIO_GROUP_DMA_OUTPUT, &group->state);
 	}
@@ -2846,6 +2864,7 @@ static int x3_pym_probe(struct platform_device *pdev)
 	atomic_set(&pym->gtask.refcount, 0);
 	atomic_set(&pym->rsccount, 0);
 	atomic_set(&pym->open_cnt, 0);
+	atomic_set(&pym->reuse_shadow0_count, 0);
 	mutex_init(&pym_mutex);
 
 	x3_pym_subdev_init(pym);
