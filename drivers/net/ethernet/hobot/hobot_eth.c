@@ -1715,9 +1715,9 @@ static int xj3_dma_reset(void __iomem *ioaddr) {
     writel(value, ioaddr + DMA_BUS_MODE);
     limit = 10;
     while (limit--) {
+	/*The DMA_BUS_MODE_SFT_RESET must be read at least 4 CSR clock cycles after it is written to 1.*/
+        udelay(2);
         if (!(readl(ioaddr + DMA_BUS_MODE) & DMA_BUS_MODE_SFT_RESET)) break;
-
-        mdelay(10);
     }
     if (limit < 0) return -EBUSY;
 
@@ -2705,7 +2705,7 @@ static int xj3_hw_setup(struct net_device *ndev, bool init_ptp) {
 
     ret = xj3_rx_ipc_enable(priv);
     if (!ret) {
-        dev_info(priv->device, "RX IPC checksum offload disabled\n");
+        dev_dbg(priv->device, "RX IPC checksum offload disabled\n");
         priv->plat->rx_coe = STMMAC_RX_COE_NONE;
         priv->rx_csum = 0;
     }
@@ -3987,7 +3987,9 @@ static netdev_tx_t xj3_tso_xmit(struct sk_buff *skb, struct net_device *ndev) {
             netif_tx_stop_queue(netdev_get_tx_queue(priv->dev, queue));
             dev_info(priv->device, "tx ring full when queue awake\n");
         }
-
+#ifdef CONFIG_HOBOT_DMC_CLK
+        clear_bit(HOBOT_IN_XMIT, &priv->state);
+#endif
         return NETDEV_TX_BUSY;
     }
 
@@ -4079,11 +4081,17 @@ static netdev_tx_t xj3_tso_xmit(struct sk_buff *skb, struct net_device *ndev) {
     xj3_set_tx_tail_ptr(priv->ioaddr, tx_q->tx_tail_addr, queue);
 
     hobot_tx_timer_arm(priv);
+#ifdef CONFIG_HOBOT_DMC_CLK
+    clear_bit(HOBOT_IN_XMIT, &priv->state);
+#endif
     return NETDEV_TX_OK;
 
 dma_map_err:
     dev_kfree_skb(skb);
     priv->dev->stats.tx_dropped++;
+#ifdef CONFIG_HOBOT_DMC_CLK
+    clear_bit(HOBOT_IN_XMIT, &priv->state);
+#endif
     return NETDEV_TX_OK;
 }
 
@@ -4099,7 +4107,9 @@ static netdev_tx_t xj3_xmit(struct sk_buff *skb, struct net_device *ndev) {
     unsigned int des, enh_desc;
     int i, csum_insert = 0, is_jumbo = 0;
     struct timespec64 now;
-
+#ifdef CONFIG_HOBOT_DMC_CLK
+    set_bit(HOBOT_IN_XMIT, &priv->state);
+#endif
     tx_q = &priv->tx_queue[queue];
     if (skb_is_gso(skb) && priv->tso) {
         if (skb_shinfo(skb)->gso_type & (SKB_GSO_TCPV4 | SKB_GSO_TCPV6)) {
@@ -4117,6 +4127,9 @@ static netdev_tx_t xj3_xmit(struct sk_buff *skb, struct net_device *ndev) {
             netif_tx_stop_queue(netdev_get_tx_queue(priv->dev, queue));
             dev_info(priv->device, "%s and tx stop queue\n", __func__);
         }
+#ifdef CONFIG_HOBOT_DMC_CLK
+        clear_bit(HOBOT_IN_XMIT, &priv->state);
+#endif
         return NETDEV_TX_BUSY;
     }
 
@@ -4233,7 +4246,9 @@ static netdev_tx_t xj3_xmit(struct sk_buff *skb, struct net_device *ndev) {
 
     hobot_tx_timer_arm(priv);
     netif_trans_update(ndev);
-
+#ifdef CONFIG_HOBOT_DMC_CLK
+    clear_bit(HOBOT_IN_XMIT, &priv->state);
+#endif
     return NETDEV_TX_OK;
 
 dma_map_err:
@@ -5035,6 +5050,183 @@ static struct attribute_group phy_reg_group = {
 
 };
 
+static void hobot_reset_queues_param(struct xj3_priv *priv) {
+    u32 rx_cnt = priv->plat->rx_queues_to_use;
+    u32 tx_cnt = priv->plat->tx_queues_to_use;
+    u32 queue;
+
+    for (queue = 0; queue < rx_cnt; queue++) {
+        struct xj3_rx_queue *rx_q = &priv->rx_queue[queue];
+
+        rx_q->cur_rx = 0;
+        rx_q->dirty_rx = 0;
+    }
+
+    for (queue = 0; queue < tx_cnt; queue++) {
+        struct xj3_tx_queue *tx_q = &priv->tx_queue[queue];
+
+        tx_q->cur_tx = 0;
+        tx_q->dirty_tx = 0;
+    }
+}
+
+#ifdef CONFIG_HOBOT_DMC_CLK
+
+static inline bool is_hobot_eth_dma_stop(struct xj3_priv *priv) {
+    u32 value;
+    value = readl((void __iomem *)priv->dev->base_addr + DMA_DEBUG_STATUS);
+    value = (value >> 12) & 0xf;
+    return !!(value == DMA_DEBUG_STATUS_STOP);
+}
+
+static int dfs_eth_suspend(struct device *dev);
+static int dfs_eth_resume(struct device *dev);
+
+static void xj3_dfs_clear_rx_descriptors(struct xj3_priv *priv, u32 queue) {
+    struct xj3_rx_queue *rx_q = &priv->rx_queue[queue];
+    struct dma_desc *p;
+    int dirty = xj3_rx_dirty(priv, queue);
+    unsigned int entry = rx_q->dirty_rx;
+    while (dirty-- > 0) {
+        p = rx_q->dma_rx + entry;
+        p->des3 = cpu_to_le32(RDES3_OWN | RDES3_BUFFER1_VALID_ADDR);
+        p->des3 |= cpu_to_le32(RDES3_INT_ON_COMPLETION_EN);
+    }
+}
+
+static int xj3_dfs_hw_setup(struct net_device *ndev) {
+    struct xj3_priv *priv = netdev_priv(ndev);
+    int ret;
+    ret = xj3_init_dma_engine(priv);
+    if (ret < 0) {
+        dev_info(priv->device, "%s, DMA engine initilization failed\n",
+                 __func__);
+        return ret;
+    }
+    xj3_set_umac_addr(priv->ioaddr, ndev->dev_addr, 0);
+    xj3_core_init(priv, ndev->mtu);
+    xj3_mtl_config(priv);
+    ret = xj3_rx_ipc_enable(priv);
+    if (!ret) {
+        dev_dbg(priv->device, "RX IPC checksum offload disabled\n");
+        priv->plat->rx_coe = STMMAC_RX_COE_NONE;
+        priv->rx_csum = 0;
+    }
+    xj3_set_mac(priv->ioaddr, true);
+    xj3_dma_operation_mode(priv);
+    xj3_mmc_setup(priv);
+    if (priv->use_riwt) {
+        priv->rx_riwt = MAX_DMA_RIWT;
+        hobot_dma_rx_watchdog(priv, MAX_DMA_RIWT, 1);
+    }
+    xj3_set_rings_length(priv);
+    xj3_start_all_dma(priv);
+    if (priv->tso) {
+        u32 value;
+        value = readl(priv->ioaddr + DMA_CHAN_TX_CONTROL(0));
+        writel(value | DMA_CONTROL_TSE,
+                priv->ioaddr + DMA_CHAN_TX_CONTROL(0));
+    }
+    return 0;
+}
+
+
+static int dfs_eth_suspend(struct device *dev) {
+    struct net_device *ndev = dev_get_drvdata(dev);
+    struct xj3_priv *priv = netdev_priv(ndev);
+    struct xj3_rx_queue *rx_q = &priv->rx_queue[0];
+    /*DFS_READ_STATE_TIMES : 读取dma stop位的次数 共20us */
+#define DFS_READ_STATE_TIMES 20
+    u32 times = DFS_READ_STATE_TIMES;
+    int ret;
+    if (!ndev) {
+        dev_info(priv->device, "%s, and ndev is NULL\n", __func__);
+        return 0;
+    }
+    if (!netif_running(ndev)) {
+        return 0;
+    }
+    /*when in xmit return -EBUSY*/
+    if (test_bit(HOBOT_IN_XMIT, &priv->state)) {
+        return -EBUSY;
+    }
+    ret = test_bit(NAPI_STATE_SCHED, &rx_q->napi.state);
+    if (ret) {
+        return -EBUSY;
+    }
+    napi_synchronize(&rx_q->napi);
+    if (try_to_del_timer_sync(&priv->txtimer) < 0) {
+        return -EBUSY;
+    }
+    xj3_stop_all_dma(priv);
+    priv->link = 0;
+    priv->speed = 0;
+    priv->duplex = DUPLEX_UNKNOWN;
+    /*
+     *在xj3_stop_all_dma后补充一次dma状态的判断，因为根据databook，
+     *关闭dma rx 和tx后，其并不会立刻停止传输，而是等待当前已经开启的传输完成才停止。
+     *此处可循环查询dma状态是否处于stop状态，如果没有，则等待一会继续查询，建议使用
+     *us为单位进行查询，因为最大包不超过2k Bytes，fifo与ddr之间的传输最大不超过20us。
+     *如果仍然因为未知原因失败，则建议调用dfs恢复接口，并返回-EBASY。
+     */
+    while (times > 0) {
+        udelay(1);
+        if (is_hobot_eth_dma_stop(priv)) {
+            break;
+        }
+        times--;
+    }
+    if (times == 0) {
+        dfs_eth_resume(dev);
+        return -EBUSY;
+    }
+    dev_dbg(priv->device, "%s, successed\n", __func__);
+    return 0;
+}
+
+static int dfs_eth_resume(struct device *dev) {
+    struct net_device *ndev = dev_get_drvdata(dev);
+    struct xj3_priv *priv = netdev_priv(ndev);
+    if (!netif_running(ndev)) {
+        return 0;
+    }
+    hobot_reset_queues_param(priv);
+    priv->mss = 0;
+    xj3_dfs_clear_rx_descriptors(priv, 0);
+    xj3_dfs_hw_setup(ndev);
+    hobot_init_intr_coalesce(priv);
+    xj3_set_rx_mode(ndev);
+    netdev_tx_reset_queue(netdev_get_tx_queue(priv->dev, 0));
+    xj3_set_speed(priv);
+    dev_dbg(priv->device, "%s, successed\n", __func__);
+    return 0;
+}
+
+int eth_dfs_call(struct hobot_dpm *dpm, unsigned long val, int state) {
+    struct net_device *ndev = dev_get_drvdata(dpm->dev);
+    struct xj3_priv *priv = netdev_priv(ndev);
+    struct xj3_tx_queue *tx_q = &priv->tx_queue[0];
+    int res = 0;
+    u32 value, dma_dbg_sta_tx, dma_dbg_sta_rx;
+    value = readl((void __iomem *)priv->dev->base_addr + DMA_DEBUG_STATUS);
+    dma_dbg_sta_rx = (value >> 8) & 0xf;
+    dma_dbg_sta_tx = (value >> 12) & 0xf;
+    if (val == HB_BUS_SIGNAL_START) {
+        if ((dma_dbg_sta_rx == DMA_DEBUG_STATUS_RUN_WRP)
+            && (dma_dbg_sta_tx == DMA_DEBUG_STATUS_SUSPEND
+            || dma_dbg_sta_tx == DMA_DEBUG_STATUS_STOP)
+            && (tx_q->dirty_tx == tx_q->cur_tx)) {
+            res = dfs_eth_suspend(dpm->dev);
+        } else {
+	        res = -EBUSY;
+	    }
+    } else if (val == HB_BUS_SIGNAL_END) {
+        res = dfs_eth_resume(dpm->dev);
+    }
+    return res;
+}
+#endif
+
 static int xj3_dvr_probe(struct device *device,
                          struct plat_config_data *plat_dat,
                          struct xj3_resource *xj3_res) {
@@ -5194,6 +5386,11 @@ static int xj3_dvr_probe(struct device *device,
         dev_info(priv->device, "error register network device\n");
         goto err_netdev_reg;
     }
+#ifdef CONFIG_HOBOT_DMC_CLK
+    priv->eth_dfs.dpm_call = eth_dfs_call;
+    priv->eth_dfs.priority = DPM_PRI_LEVEL2;
+    hobot_dfs_register(&priv->eth_dfs, priv->device);
+#endif
     return 0;
 
 irq_error:
@@ -5358,6 +5555,9 @@ static int hgb_remove(struct platform_device *pdev) {
     of_node_put(priv->plat->phy_node);
     of_node_put(priv->plat->mdio_node);
     dev_info(priv->device, "%s, successufully exit\n", __func__);
+#ifdef CONFIG_HOBOT_DMC_CLK
+    hobot_dfs_unregister(&priv->eth_dfs);
+#endif
     return 0;
 }
 
@@ -5416,26 +5616,6 @@ static int hobot_eth_suspend(struct device *dev) {
     priv->duplex = DUPLEX_UNKNOWN;
 
     return 0;
-}
-
-static void hobot_reset_queues_param(struct xj3_priv *priv) {
-    u32 rx_cnt = priv->plat->rx_queues_to_use;
-    u32 tx_cnt = priv->plat->tx_queues_to_use;
-    u32 queue;
-
-    for (queue = 0; queue < rx_cnt; queue++) {
-        struct xj3_rx_queue *rx_q = &priv->rx_queue[queue];
-
-        rx_q->cur_rx = 0;
-        rx_q->dirty_rx = 0;
-    }
-
-    for (queue = 0; queue < tx_cnt; queue++) {
-        struct xj3_tx_queue *tx_q = &priv->tx_queue[queue];
-
-        tx_q->cur_tx = 0;
-        tx_q->dirty_tx = 0;
-    }
 }
 
 static int hobot_eth_resume(struct device *dev) {

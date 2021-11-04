@@ -21,6 +21,11 @@
 #include <linux/ptp_clock_kernel.h>
 
 #include <linux/pinctrl/consumer.h>
+
+#ifdef CONFIG_HOBOT_DMC_CLK
+#include <soc/hobot/hobot_bus.h>
+#endif
+
 #include "hobot_mmc.h"
 
 #define XJ3_MAX_RX_QUEUES 8
@@ -582,6 +587,12 @@ struct xj3_priv {
 	int rx_irq;
 
 	u32 dma_ch_int_en[XJ3_MAX_DMA_CH];
+#ifdef CONFIG_HOBOT_DMC_CLK
+	struct hobot_dpm eth_dfs;
+	u32 dfs_gmac_hash0_31;
+	u32 dfs_gmac_hash32_63;
+	u32 dfs_gmac_packet_filter;
+#endif
 };
 
 
@@ -912,6 +923,7 @@ static const struct stmmac_stats hobot_mmc[] = {
 
 enum hobot_state {
     HOBOT_DOWN,
+	HOBOT_IN_XMIT,
 };
 
 void hobot_set_ethtool_ops(struct xj3_priv *priv);
