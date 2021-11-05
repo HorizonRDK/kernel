@@ -1241,7 +1241,7 @@ static void xj3_link_down(struct xj3_priv *priv) {
     regval &= ~DWCEQOS_MAC_LPI_CTRL_STATUS_PLS;
     xj3_reg_write(priv, REG_DWCEQOS_MAC_LPI_CTRL_STATUS, regval);
 }
-
+static void xj3_set_mac(void __iomem *ioaddr, bool enable);
 static void xj3_adjust_link(struct net_device *ndev) {
     struct xj3_priv *priv = netdev_priv(ndev);
     struct phy_device *phydev = ndev->phydev;
@@ -1294,9 +1294,11 @@ static void xj3_adjust_link(struct net_device *ndev) {
             netif_carrier_on(priv->dev);
             netif_trans_update(priv->dev);
             xj3_link_up(priv);
+            xj3_set_mac(priv->ioaddr, true);
         } else {
             netif_carrier_off(priv->dev);
             xj3_link_down(priv);
+            xj3_set_mac(priv->ioaddr, false);
         }
         dev_dbg(priv->device, "%s, speed:%s, duplex:%s\n", __func__,
                 phy_speed_to_str(phydev->speed),
@@ -2733,7 +2735,8 @@ static int xj3_hw_setup(struct net_device *ndev, bool init_ptp) {
     xj3_est_configuration(priv);
     xj3_set_rings_length(priv);
     xj3_start_all_dma(priv);
-
+    /* disable mac rx&tx and enable these after link up. */
+    xj3_set_mac(priv->ioaddr, false);
     if (priv->tso) {
         u32 value;
         for (chan = 0; chan < tx_cnt; chan++) {
@@ -2842,12 +2845,14 @@ static int xj3_dma_interrupt(struct xj3_priv *priv, struct xj3_extra_stats *x,
         if (intr_status & DMA_CHAN_STATUS_TPS) {
             x->tx_process_stopped_irq++;
             ret = tx_hard_error;
+            dev_err(priv->device, "tx_process_stopped\n");
             err = 1;
         }
 
         if (intr_status & DMA_CHAN_STATUS_FBE) {
             x->fatal_bus_error_irq++;
             ret = tx_hard_error;
+            dev_err(priv->device, "tx_fatal_bus_error\n");
             err = 1;
         }
     }
@@ -3627,6 +3632,8 @@ static void xj3_tx_clean(struct xj3_priv *priv, u32 queue) {
         if (!(status & tx_not_ls)) {
             if (status & tx_err) {
                 priv->dev->stats.tx_errors++;
+                dev_err(priv->device, "%s: entry %d, des:0x%x 0x%x 0x%x 0x%x\n",
+                        __func__, entry, p->des0, p->des1, p->des2, p->des3);
             } else {
                 priv->dev->stats.tx_packets++;
                 priv->xstats.tx_pkt_n++;
@@ -5378,8 +5385,11 @@ static int hobot_eth_suspend(struct device *dev) {
         return 0;
     }
 
-    if (ndev->phydev) phy_stop(ndev->phydev);
-
+    if (ndev->phydev) {
+        phy_stop(ndev->phydev);
+        /* stop phy state machine sync, so no xj3_adjust_link happen after this. */
+        phy_stop_machine(ndev->phydev);
+    }
     netif_device_detach(ndev);
     netif_carrier_off(ndev);
 

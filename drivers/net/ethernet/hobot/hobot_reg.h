@@ -382,8 +382,8 @@ enum packets_types {
 
 /* Common MAC defines */
 #define MAC_CTRL_REG		0x00000000	/* MAC Control */
-#define MAC_ENABLE_TX		0x00000008	/* Transmitter Enable */
-#define MAC_ENABLE_RX		0x00000004	/* Receiver Enable */
+#define MAC_ENABLE_TX		0x00000002	/* Transmitter Enable */
+#define MAC_ENABLE_RX		0x00000001	/* Receiver Enable */
 
 
 /* MAC config */
