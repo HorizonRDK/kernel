@@ -146,17 +146,6 @@
 			clk-flags = <CLK_IGNORE_UNUSED>;
 		};
 
-
-		cpu_cntclk: cpu_cntclk {
-			#clock-cells = <0>;
-			compatible = "hobot,endiv-clk";
-			clocks = <&cpu_mux_clk>;
-			offset = <0x200 0x100 0x104 0x108 0x208 0x0>;
-			bits = <4 11 11 11 1 32>;
-			field = <3 1 1 1 1>;
-			clk-flags = <CLK_IGNORE_UNUSED>;
-		};
-
 		sys_pllmux_clk: sys_pllmux_clk {
 			#clock-cells = <0>;
 			compatible = "hobot,mux-clk";
