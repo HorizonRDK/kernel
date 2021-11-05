@@ -1355,6 +1355,7 @@ long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		struct ion_allocation_data allocation;
 		struct ion_handle_data handle;
 		struct ion_custom_data custom;
+		struct ion_share_handle_data share_hd;
 	} data;
 
 	dir = ion_ioctl_dir(cmd);

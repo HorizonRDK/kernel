@@ -21,6 +21,7 @@
 #include <linux/types.h>
 
 typedef int64_t ion_user_handle_t;
+typedef int32_t ion_share_handle_t;
 
 /**
  * enum ion_heap_types - list of all possible types of heaps
@@ -68,6 +69,10 @@ enum ion_heap_type {
 					   at mmap time, if this is set
 					   caches must be managed manually */
 
+#define ION_FLAG_INITIALIZED 256 // buffer allocated will be initialized
+
+#define ION_FLAG_UNINITIALIZED 512 // buffer allocated will be uninitialized
+
 /**
  * DOC: Ion Userspace API
  *
@@ -93,6 +98,7 @@ struct ion_allocation_data {
 	unsigned int heap_id_mask;
 	unsigned int flags;
 	ion_user_handle_t handle;
+	ion_share_handle_t sh_handle;
 };
 
 
@@ -148,6 +154,16 @@ struct ion_fd_data {
  */
 struct ion_handle_data {
 	ion_user_handle_t handle;
+};
+
+/**
+ * struct ion_share_handle_data - a handle passed to/from the kernel
+ * @handle:	a handle
+ */
+struct ion_share_handle_data {
+	ion_user_handle_t handle;
+	int64_t flags;
+	ion_share_handle_t sh_handle;
 };
 
 /**
@@ -237,5 +253,7 @@ struct ion_custom_data {
  */
 #define ION_IOC_HEAP_QUERY     _IOWR(ION_IOC_MAGIC, 8, \
 					struct ion_heap_query)
+
+#define ION_IOC_IMPORT_SHARE_ID  _IOWR(ION_IOC_MAGIC, 9, struct ion_share_handle_data)
 
 #endif /* _UAPI_LINUX_ION_H */
