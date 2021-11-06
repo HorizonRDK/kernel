@@ -178,6 +178,41 @@ static int ion_heap_sglist_zero(struct scatterlist *sgl, unsigned int nents,
 	return ret;
 }
 
+int ion_heap_buffer_zero_ex(struct sg_table * table, unsigned long flags)
+{
+	pgprot_t pgprot;
+	int p = 0;
+	struct sg_page_iter piter;
+	struct page *pages[32];
+	void *addr;
+
+	if (flags & ION_FLAG_CACHED)
+		pgprot = PAGE_KERNEL;
+	else
+		pgprot = pgprot_writecombine(PAGE_KERNEL);
+
+	for_each_sg_page(table->sgl, &piter, table->nents, 0) {
+		pages[p++] = sg_page_iter_page(&piter);
+		if (p == ARRAY_SIZE(pages)) {
+			addr = vm_map_ram(pages, p, -1, pgprot);
+			if (!addr)
+				return -ENOMEM;
+			memset(addr, 0, PAGE_SIZE * p);
+			vm_unmap_ram(addr, p);
+			p = 0;
+		}
+	}
+	if (p) {
+		addr = vm_map_ram(pages, p, -1, pgprot);
+		if (!addr)
+			return -ENOMEM;
+		memset(addr, 0, PAGE_SIZE * p);
+		vm_unmap_ram(addr, p);
+	}
+
+	return 0;
+}
+
 int ion_heap_buffer_zero(struct ion_buffer *buffer)
 {
 	struct sg_table *table = buffer->sg_table;

@@ -63,6 +63,22 @@ static struct ion_cma_info ion_cma = {"ion_cma", 0, 0};
 static struct ion_cma_info ion_pool = {"ion-pool", 0, 0};
 static struct ion_cma_info reserved_cma = {"reserved", 0, 0};
 
+struct ion_share_handle {
+	struct kref ref;
+	struct ion_device *dev;
+	struct ion_buffer * buffer;
+	int id;
+	struct rb_node node;
+};
+
+/**
+ * Purpose: unique head id
+ * Value: NA
+ * Range: NA
+ * Attention: NA
+ */
+static int32_t heap_id;
+
 /* static struct ion_device *internal_dev; */
 static int heap_id;
 static char *_vio_data_type[27] = {
@@ -299,6 +315,56 @@ static void ion_buffer_remove_from_handle(struct ion_buffer *buffer)
 	mutex_unlock(&buffer->lock);
 }
 
+static struct ion_share_handle *ion_share_handle_create(struct ion_device *dev,
+									struct ion_buffer *buffer)
+{
+	struct ion_share_handle *share_hd;
+
+	share_hd = kzalloc(sizeof(struct ion_share_handle), GFP_KERNEL);
+	if (!share_hd)
+		return ERR_PTR(-ENOMEM);
+
+	memset(share_hd, 0x00, sizeof(*share_hd));
+	kref_init(&share_hd->ref);
+	share_hd->dev = dev;
+	ion_buffer_get(buffer);
+	share_hd->buffer = buffer;
+
+	return share_hd;
+}
+
+static void ion_share_handle_destroy(struct kref *kref)
+{
+	struct ion_share_handle *share_hd = container_of(kref, struct ion_share_handle, ref);
+	struct ion_device *dev = share_hd->dev;
+	struct ion_buffer *buffer = share_hd->buffer;
+
+	idr_remove(&dev->idr, share_hd->id);
+	if (!RB_EMPTY_NODE(&share_hd->node))
+		rb_erase(&share_hd->node, &dev->share_buffers);
+
+	ion_buffer_put(buffer);
+
+	kfree(share_hd);
+}
+
+static void ion_share_handle_get(struct ion_share_handle *share_hd)
+{
+	kref_get(&share_hd->ref);
+}
+
+static int ion_share_handle_put(struct ion_share_handle *share_hd)
+{
+	struct ion_device *dev = share_hd->dev;
+	int ret;
+
+	mutex_lock(&dev->share_lock);
+	ret = kref_put(&share_hd->ref, ion_share_handle_destroy);
+	mutex_unlock(&dev->share_lock);
+
+	return ret;
+}
+
 static struct ion_handle *ion_handle_create(struct ion_client *client,
 				     struct ion_buffer *buffer)
 {
@@ -357,6 +423,20 @@ static void ion_handle_destroy(struct kref *kref)
 	struct ion_handle *handle = container_of(kref, struct ion_handle, ref);
 	struct ion_client *client = handle->client;
 	struct ion_buffer *buffer = handle->buffer;
+	struct ion_share_handle *share_hd;
+	struct ion_device *dev = client->dev;
+
+	if (handle->share_id != 0) {
+		mutex_lock(&dev->share_lock);
+		share_hd = idr_find(&dev->idr, handle->share_id);
+		mutex_unlock(&dev->share_lock);
+		if (IS_ERR_OR_NULL(share_hd)) {
+			pr_err("%s: find ion share handle failed [%ld].\n",
+					__func__, PTR_ERR(share_hd));
+		} else {
+			ion_share_handle_put(share_hd);
+		}
+	}
 
 	mutex_lock(&buffer->lock);
 	while (handle->kmap_cnt)
@@ -465,6 +545,96 @@ static int ion_handle_add(struct ion_client *client, struct ion_handle *handle)
 	return 0;
 }
 
+static int ion_share_handle_add(struct ion_device *dev, struct ion_share_handle * share_hd,
+				struct ion_handle *handle)
+{
+	struct rb_node *parent = NULL;
+	struct rb_node **p;
+	struct ion_share_handle *entry;
+	int id;
+
+	id = idr_alloc(&dev->idr, share_hd, 1, 0, GFP_KERNEL);
+	if (id < 0) {
+		pr_err("%s: failed alloc idr [%d]\n", __func__, id);
+		return id;
+	}
+	share_hd->id = id;
+	handle->share_id = id;
+
+	p = &dev->share_buffers.rb_node;
+	while (*p) {
+		parent = *p;
+		entry = rb_entry(parent, struct ion_share_handle, node);
+
+		if (share_hd < entry)
+			p = &(*p)->rb_left;
+		else if (share_hd > entry)
+			p = &(*p)->rb_right;
+	}
+	rb_link_node(&share_hd->node, parent, p);
+	rb_insert_color(&share_hd->node, &dev->share_buffers);
+
+	return 0;
+}
+
+struct ion_handle *ion_share_handle_import_dma_buf(struct ion_client *client,
+					struct ion_share_handle_data *data)
+{
+	struct ion_buffer *buffer;
+	struct ion_handle *handle;
+	struct ion_device *dev = client->dev;
+	struct ion_share_handle *share_hd;
+	int share_id = data->sh_handle;
+	int ret;
+
+	mutex_lock(&dev->share_lock);
+	share_hd = idr_find(&dev->idr, share_id);
+	if (IS_ERR_OR_NULL(share_hd)) {
+		mutex_unlock(&dev->share_lock);
+		pr_err("%s: find ion share handle failed [%ld].\n",
+				__func__, PTR_ERR(share_hd));
+		return share_hd ? ERR_CAST(share_hd): ERR_PTR(-EINVAL);
+	}
+	buffer = share_hd->buffer;
+	data->flags = buffer->flags;
+	ion_buffer_get(buffer);
+	ion_share_handle_get(share_hd);
+	mutex_unlock(&dev->share_lock);
+
+	mutex_lock(&client->lock);
+	/* if a handle exists for this buffer just take a reference to it */
+	handle = ion_handle_lookup(client, buffer);
+	if (!IS_ERR(handle)) {
+		ion_handle_get(handle);
+		mutex_unlock(&client->lock);
+		ion_share_handle_put(share_hd);
+		ion_buffer_put(buffer);
+		return handle;
+	}
+
+	handle = ion_handle_create(client, buffer);
+	if (IS_ERR(handle)) {
+		mutex_unlock(&client->lock);
+		ion_share_handle_put(share_hd);
+		ion_buffer_put(buffer);
+		return handle;
+	}
+
+	ret = ion_handle_add(client, handle);
+	mutex_unlock(&client->lock);
+	if (ret) {
+		ion_handle_put(handle);
+		handle = ERR_PTR(ret);
+		ion_share_handle_put(share_hd);
+		ion_buffer_put(buffer);
+		return handle;
+	}
+
+	handle->share_id = share_id;
+	ion_buffer_put(buffer);
+	return handle;
+}
+
 struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 			     size_t align, unsigned int heap_id_mask,
 			     unsigned int flags)
@@ -474,9 +644,17 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 	struct ion_buffer *buffer = NULL;
 	struct ion_heap *heap;
 	uint32_t last_heap_id_mask = 0;
-	int ret;
-	int heap_march = 0;
-	int type = 0;
+	int32_t ret;
+	int32_t heap_march = 0;
+	int32_t type = 0;
+	struct ion_share_handle * share_hd;
+
+	if (!client) {
+		pr_err("%s: client cannot be null\n", __func__);
+		return ERR_PTR(-EINVAL);
+	}
+
+	dev = client->dev;
 
 	/*
 	 * traverse the list of heaps available in this system in priority
@@ -605,6 +783,25 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 	if (IS_ERR(handle)) {
 		pr_err("%s: handle create error[%ld]\n",
 				__func__, PTR_ERR(handle));
+		return handle;
+	}
+
+	share_hd = ion_share_handle_create(dev, buffer);
+	if (IS_ERR(share_hd)) {
+		ion_handle_put(handle);
+		pr_err("%s: handle create error[%ld]\n",
+				__func__, PTR_ERR(share_hd));
+		return ERR_CAST(share_hd);
+	}
+
+	mutex_lock(&dev->share_lock);
+	ret = ion_share_handle_add(dev, share_hd, handle);
+	mutex_unlock(&dev->share_lock);
+	if (ret) {
+		pr_err("%s: share handle add failed[%d]\n", __func__, ret);
+		ion_share_handle_put(share_hd);
+		ion_handle_put(handle);
+		handle = ERR_PTR(ret);
 		return handle;
 	}
 
@@ -1380,6 +1577,7 @@ long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			return PTR_ERR(handle);
 
 		data.allocation.handle = handle->id;
+		data.allocation.sh_handle = handle->share_id;
 
 		if (copy_to_user((void __user *)arg, &data, _IOC_SIZE(cmd)))
 			pr_err("copy to user error\n");
@@ -1436,6 +1634,17 @@ long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			return -ENOTTY;
 		ret = dev->custom_ioctl(client, data.custom.cmd,
 						data.custom.arg);
+		break;
+	}
+	case ION_IOC_IMPORT_SHARE_ID:
+	{
+		struct ion_handle *handle;
+
+		handle = ion_share_handle_import_dma_buf(client, &data.share_hd);
+		if (IS_ERR(handle))
+			ret = PTR_ERR(handle);
+		else
+			data.share_hd.handle = handle->id;
 		break;
 	}
 	default:
@@ -1958,11 +2167,15 @@ debugfs_done:
 	init_rwsem(&idev->lock);
 	plist_head_init(&idev->heaps);
 	idev->clients = RB_ROOT;
+	idev->share_buffers = RB_ROOT;
+	idr_init(&idev->idr);
+	mutex_init(&idev->share_lock);
 	return idev;
 }
 
 void ion_device_destroy(struct ion_device *dev)
 {
+	idr_destroy(&dev->idr);
 	misc_deregister(&dev->dev);
 	debugfs_remove_recursive(dev->debug_root);
 	/* XXX need to free the heaps and clients ? */

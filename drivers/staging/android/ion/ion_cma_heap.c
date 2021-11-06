@@ -64,20 +64,22 @@ static int ion_cma_allocate(struct ion_heap *heap, struct ion_buffer *buffer,
 	flush_icache_range((unsigned long)page_address(pages),
 			(unsigned long)(page_address(pages) + size));
 	__inval_dcache_area(page_address(pages), size);
-	if (PageHighMem(pages)) {
-		unsigned long nr_clear_pages = nr_pages;
-		struct page *page = pages;
+	if (!(buffer->flags & ION_FLAG_UNINITIALIZED)) {
+		if (PageHighMem(pages)) {
+			unsigned long nr_clear_pages = nr_pages;
+			struct page *page = pages;
 
-		while (nr_clear_pages > 0) {
-			void *vaddr = kmap_atomic(page);
+			while (nr_clear_pages > 0) {
+				void *vaddr = kmap_atomic(page);
 
-			memset(vaddr, 0, PAGE_SIZE);
-			kunmap_atomic(vaddr);
-			page++;
-			nr_clear_pages--;
+				memset(vaddr, 0, PAGE_SIZE);
+				kunmap_atomic(vaddr);
+				page++;
+				nr_clear_pages--;
+			}
+		} else {
+			memset(page_address(pages), 0, size);
 		}
-	} else {
-		memset(page_address(pages), 0, size);
 	}
 	__flush_dcache_area(page_address(pages), size);
 

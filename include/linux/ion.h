@@ -88,6 +88,9 @@ struct ion_device {
 	struct dentry *debug_root;
 	struct dentry *heaps_debug_root;
 	struct dentry *clients_debug_root;
+	struct rb_root share_buffers;
+	struct mutex share_lock;
+	struct idr idr;
 };
 
 /**
@@ -336,6 +339,16 @@ void *ion_heap_map_kernel(struct ion_heap *heap, struct ion_buffer *buffer);
 void ion_heap_unmap_kernel(struct ion_heap *heap, struct ion_buffer *buffer);
 int ion_heap_map_user(struct ion_heap *heap, struct ion_buffer *buffer,
 		      struct vm_area_struct *vma);
+/**
+ * ion_heap_buffer_zero_ex - make heap buffer zero
+ * @buffer:	  the buffer to do zero
+ */
+int ion_heap_buffer_zero_ex(struct sg_table * table, unsigned long flags);
+
+/**
+ * ion_heap_buffer_zero - make heap buffer zero
+ * @buffer:		the buffer to do zero
+ */
 int ion_heap_buffer_zero(struct ion_buffer *buffer);
 int ion_heap_pages_zero(struct page *page, size_t size, pgprot_t pgprot);
 
