@@ -210,3 +210,8 @@
 	temperature = <120000>;
 };
 
+&camera_check {
+	status = "disabled";
+//	camera_check_irq_pin = <117>; // camera lock check pin
+};
+

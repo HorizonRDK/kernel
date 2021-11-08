@@ -515,6 +515,12 @@ config PCI_ENDPOINT_TEST
            Enable this configuration option to enable the host side test driver
            for PCI Endpoint.
 
+config CAMERA_CHECK
+	tristate "Dallas DS1682 Total Elapsed Time Recorder with Alarm"
+	default n
+	---help---
+	  If you need use this module, must be enabled by dts .
+
 config HOBOT_EFUSE
 	tristate "HOBOT efuse driver"
 	---help---

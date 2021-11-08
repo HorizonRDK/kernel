@@ -152,6 +152,10 @@
 			no-map;
 		};
 	};
+	camera_check: camera_check {
+		compatible = "hobot,camera_check";
+		status = "disabled";
+	};
 };
 
 &cr5_service {

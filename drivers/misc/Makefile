@@ -61,6 +61,7 @@ obj-$(CONFIG_HOBOT_HDMI)                += bt2hdmi-lt/
 obj-$(CONFIG_HOBOT_MIPI)		+= bt2mipi/
 obj-$(CONFIG_HOBOT_TIMESYNC)		+= timesync/
 obj-$(CONFIG_HOBOT_EFUSE)		+= hobot_efuse.o
+obj-$(CONFIG_HOBOT_CAMERA_CHECK)	+= camera_check.o
 
 lkdtm-$(CONFIG_LKDTM)		+= lkdtm_core.o
 lkdtm-$(CONFIG_LKDTM)		+= lkdtm_bugs.o
