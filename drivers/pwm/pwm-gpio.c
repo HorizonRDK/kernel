@@ -16,6 +16,8 @@
  * GPIO toggle speed and system load.
  */
 
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+
 #include <linux/mod_devicetable.h>
 #include <linux/module.h>
 #include <linux/gpio/consumer.h>
@@ -28,8 +30,10 @@
 #include <linux/device.h>
 #include <linux/hrtimer.h>
 #include <linux/ktime.h>
+#include <linux/jiffies.h>
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
+#include <linux/sched/clock.h>
 
 #define DRV_NAME "pwm-gpio"
 
@@ -41,20 +45,51 @@ struct gpio_pwm_data {
 	int on_time;
 	int off_time;
 	bool run;
+	int period;
+	unsigned long prev_jiffies;
+	atomic_t pwm_loss_cnt;
+	atomic_t pwm_total_cnt;
 };
 
 struct gpio_pwm_chip {
 	struct pwm_chip chip;
 };
 
+static unsigned int flag_pwm_on = 1;
+static unsigned int flag_pwm_off = 1;
+
 static void gpio_pwm_off(struct gpio_pwm_data *gpio_data)
 {
-	gpiod_set_value_cansleep(gpio_data->gpiod, gpio_data->polarity ? 0 : 1);
+    gpiod_set_value_cansleep(gpio_data->gpiod, gpio_data->polarity ? 0 : 1);
+    if (flag_pwm_off)
+    {
+        pr_warn("It's the first time that PWM is pulled down\n");
+        flag_pwm_off = 0;
+    }
 }
 
 static void gpio_pwm_on(struct gpio_pwm_data *gpio_data)
 {
-	gpiod_set_value_cansleep(gpio_data->gpiod, gpio_data->polarity ? 1 : 0);
+    static u64 ts;
+    u64 now_ns;
+    u64 diff_ns;
+
+    gpiod_set_value_cansleep(gpio_data->gpiod, gpio_data->polarity ? 1 : 0);
+    if (flag_pwm_on)
+    {
+        pr_warn("It's the first time that PWM is pulled up\n");
+        flag_pwm_on = 0;
+    }
+    now_ns = local_clock();
+    diff_ns = now_ns - ts;
+    ts = now_ns;
+    if (((diff_ns >> 20) > 25))
+        pr_err("PWM>25ms: %lldms\n", diff_ns >> 20);
+
+    if (((diff_ns >> 20) < 15))
+        pr_err("PWM<15ms: %lldms\n", diff_ns >> 20);
+
+	atomic_inc(&gpio_data->pwm_total_cnt);
 }
 
 enum hrtimer_restart gpio_pwm_timer(struct hrtimer *timer)
@@ -62,7 +97,7 @@ enum hrtimer_restart gpio_pwm_timer(struct hrtimer *timer)
 	struct gpio_pwm_data *gpio_data = container_of(timer,
 						      struct gpio_pwm_data,
 						      timer);
-	if (!gpio_data->run) {
+    if (!gpio_data->run) {
 		gpio_pwm_off(gpio_data);
 		gpio_data->pin_on = false;
 		return HRTIMER_NORESTART;
@@ -80,6 +115,12 @@ enum hrtimer_restart gpio_pwm_timer(struct hrtimer *timer)
 		gpio_data->pin_on = false;
 	}
 
+	if (time_is_before_eq_jiffies(
+		gpio_data->prev_jiffies + nsecs_to_jiffies(gpio_data->period))) {
+		atomic_inc(&gpio_data->pwm_loss_cnt);
+	}
+	gpio_data->prev_jiffies = jiffies;
+
 	return HRTIMER_RESTART;
 }
 
@@ -88,6 +129,7 @@ static int gpio_pwm_config(struct pwm_chip *chip, struct pwm_device *pwm,
 {
 	struct gpio_pwm_data *gpio_data = pwm_get_chip_data(pwm);
 
+	gpio_data->period = period_ns;
 	gpio_data->on_time = duty_ns;
 	gpio_data->off_time = period_ns - duty_ns;
 
@@ -112,15 +154,18 @@ static int gpio_pwm_enable(struct pwm_chip *chip, struct pwm_device *pwm)
 		return -EBUSY;
 
 	gpio_data->run = true;
+	gpio_data->prev_jiffies = jiffies;
 	if (gpio_data->off_time) {
 		hrtimer_start(&gpio_data->timer, ktime_set(0, 0),
-			      HRTIMER_MODE_REL);
+			      HRTIMER_MODE_REL_PINNED);
 	} else {
 		if (gpio_data->on_time)
 			gpio_pwm_on(gpio_data);
 		else
 			gpio_pwm_off(gpio_data);
 	}
+
+	atomic_set(&gpio_data->pwm_total_cnt, 0);
 
 	return 0;
 }
@@ -130,9 +175,45 @@ static void gpio_pwm_disable(struct pwm_chip *chip, struct pwm_device *pwm)
 	struct gpio_pwm_data *gpio_data = pwm_get_chip_data(pwm);
 
 	gpio_data->run = false;
+	atomic_set(&gpio_data->pwm_loss_cnt, 0);
+
 	if (!gpio_data->off_time)
 		gpio_pwm_off(gpio_data);
 }
+
+static ssize_t loss_cnt_show(struct device *dev,
+		               struct device_attribute *attr, char *buf)
+{
+	struct gpio_pwm_chip *gpio_chip = dev_get_drvdata(dev);
+	struct gpio_pwm_data *gpio_data;
+	int loss_cnt;
+
+	/* default only use index 0 */
+	gpio_data = pwm_get_chip_data(&gpio_chip->chip.pwms[0]);
+	loss_cnt = atomic_read(&gpio_data->pwm_loss_cnt);
+
+	/* read clear */
+	atomic_set(&gpio_data->pwm_loss_cnt, 0);
+
+	return sprintf(buf, "%d\n", loss_cnt);//NOLINT
+}
+
+static ssize_t total_cnt_show(struct device *dev,
+		               struct device_attribute *attr, char *buf)
+{
+	struct gpio_pwm_chip *gpio_chip = dev_get_drvdata(dev);
+	struct gpio_pwm_data *gpio_data;
+	int total_cnt;
+
+	/* default only use index 0 */
+	gpio_data = pwm_get_chip_data(&gpio_chip->chip.pwms[0]);
+	total_cnt = atomic_read(&gpio_data->pwm_total_cnt);
+
+	return sprintf(buf, "%d\n", total_cnt);
+}
+
+static DEVICE_ATTR(pwm_loss_cnt, 0444, loss_cnt_show, NULL);
+static DEVICE_ATTR(pwm_total_cnt, 0444, total_cnt_show, NULL);
 
 static const struct pwm_ops gpio_pwm_ops = {
 	.config = gpio_pwm_config,
@@ -192,11 +273,13 @@ static int gpio_pwm_probe(struct platform_device *pdev)
 					 GFP_KERNEL);
 
 		hrtimer_init(&gpio_data->timer,
-			     CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+			     CLOCK_MONOTONIC, HRTIMER_MODE_PINNED);
 		gpio_data->timer.function = &gpio_pwm_timer;
 		gpio_data->gpiod = gpiod;
 		gpio_data->pin_on = false;
 		gpio_data->run = false;
+		atomic_set(&gpio_data->pwm_loss_cnt, 0);
+		atomic_set(&gpio_data->pwm_total_cnt, 0);
 
 		if (hrtimer_is_hres_active(&gpio_data->timer))
 			hrtimer++;
@@ -206,6 +289,16 @@ static int gpio_pwm_probe(struct platform_device *pdev)
 	if (!hrtimer) {
 		dev_warn(&pdev->dev, "unable to use High-Resolution timer,");
 		dev_warn(&pdev->dev, "%s is restricted to low resolution.", DRV_NAME);
+	}
+
+	ret = sysfs_create_file(&pdev->dev.kobj, &dev_attr_pwm_loss_cnt.attr);
+	if (ret) {
+		dev_warn(&pdev->dev, "pwm_lost_cnt sysfs create file error\n");
+	}
+
+	ret = sysfs_create_file(&pdev->dev.kobj, &dev_attr_pwm_total_cnt.attr);
+	if (ret) {
+		dev_warn(&pdev->dev, "pwm_total_cnt sysfs create file error\n");
 	}
 
 	platform_set_drvdata(pdev, gpio_chip);
