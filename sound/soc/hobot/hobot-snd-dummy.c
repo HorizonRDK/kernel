@@ -29,6 +29,28 @@ struct dummy_data {
 	struct snd_soc_dai_link dai_link[3];
 };
 
+static int hobot_snd_hw_params(struct snd_pcm_substream *substream,
+			     struct snd_pcm_hw_params *params)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	unsigned long sample_rate = params_rate(params);
+	int ret = 0;
+
+	if (rtd->dai_link) {
+		if (rtd->dai_link->dai_fmt) {
+			ret = snd_soc_runtime_set_dai_fmt(rtd, rtd->dai_link->dai_fmt);
+			if (0 > ret)
+				return ret;
+		}
+	}
+
+	return ret;
+}
+
+static struct snd_soc_ops hobot_snd_ops = {
+	.hw_params = hobot_snd_hw_params,
+};
+
 static int hobot_snd_probe(struct platform_device *pdev)
 {
 	int ret = 0, id = 0, num = 0, idx = 0;
@@ -81,6 +103,7 @@ static int hobot_snd_probe(struct platform_device *pdev)
 	}
 	if (id == snd_card) {
 		for_each_child_of_node(node, np) {
+			link->ops = &hobot_snd_ops;
 			cpu = of_get_child_by_name(np, "cpu");
 			codec = of_get_child_by_name(np, "codec");
 			if (!cpu || !codec) {

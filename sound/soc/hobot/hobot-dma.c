@@ -57,12 +57,19 @@ static unsigned char *dma_vm;
 struct process_info {
 	struct snd_pcm_substream *substream;
 };
+struct hobot_pcm_param {
+	uint32_t samplefmt;
+	uint32_t samplerate;
+	uint32_t channels;
+	uint32_t buffer_size;
+};
 struct global_info {
 	spinlock_t lock;
 	struct snd_dma_buffer *g_dma_buf;
 
 	uint8_t capture_process_num;
 	struct process_info process_info[I2S_PROCESS_NUM];
+	struct hobot_pcm_param pcm_param;
 
 	uint8_t trigger_flag;
 } global_info[2];
@@ -416,6 +423,13 @@ static int i2sidma_hw_params(struct snd_pcm_substream *substream,
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct idma_ctrl_s *dma_ctrl = substream->runtime->private_data;
 
+	struct snd_soc_pcm_runtime *soc_runtime = substream->private_data;
+	struct idma_info_s *hobot_dma =
+		snd_soc_platform_get_drvdata(soc_runtime->platform);
+	if (hobot_dma == NULL) {
+		return -ENOMEM;
+	}
+
 	/* update runtime dma info from substream dma info */
 	/* substream dma info if getted at idma_open */
 	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE)
@@ -424,6 +438,24 @@ static int i2sidma_hw_params(struct snd_pcm_substream *substream,
 		snd_pcm_set_runtime_buffer(substream, &substream->dma_buffer);
 
 	runtime->dma_bytes = params_buffer_bytes(params);
+
+	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
+		if (global_info[dma_ctrl->id].trigger_flag == 0) {
+			global_info[dma_ctrl->id].pcm_param.samplefmt = params_format(params);
+			global_info[dma_ctrl->id].pcm_param.samplerate = params_rate(params);
+			global_info[dma_ctrl->id].pcm_param.channels = params_channels(params);
+			global_info[dma_ctrl->id].pcm_param.buffer_size = params_buffer_bytes(params);
+		} else {
+			if (global_info[dma_ctrl->id].pcm_param.samplefmt != params_format(params) ||
+				global_info[dma_ctrl->id].pcm_param.samplerate != params_rate(params) ||
+				global_info[dma_ctrl->id].pcm_param.channels != params_channels(params) ||
+				global_info[dma_ctrl->id].pcm_param.buffer_size != params_buffer_bytes(params)) {
+				dev_err(hobot_dma->dev,
+					"pcm format is not match with different process\n");
+				return -EINVAL;
+			}
+		}
+	}
 
 	/* init dma buffer addr */
 	dma_ctrl->start = dma_ctrl->pos = runtime->dma_addr;
@@ -443,19 +475,19 @@ static int i2sidma_hw_params(struct snd_pcm_substream *substream,
 		dma_ctrl->word_len  = 1;
 		break;
 	default:
-		dev_err(hobot_i2sidma[dma_ctrl->id].dev,
+		dev_err(hobot_dma->dev,
 			"not supported data format %d\n",
 			params_format(params));
 		return -EINVAL;
 	}
 
-	dev_dbg(hobot_i2sidma[dma_ctrl->id].dev,
+	dev_dbg(hobot_dma->dev,
 		"dma_ctrl->period is %llu, dma_ctrl->periodsz bytes is %llu,dma_ctrl->bytesnum is %lu\n", dma_ctrl->period,
 		dma_ctrl->periodsz, dma_ctrl->bytesnum);
-	dev_dbg(hobot_i2sidma[dma_ctrl->id].dev,
+	dev_dbg(hobot_dma->dev,
 		"dma_ctrl->start is 0x%llx,dma_ctrl->end is 0x%llx\n",
 		dma_ctrl->start, dma_ctrl->end);
-	dev_dbg(hobot_i2sidma[dma_ctrl->id].dev,
+	dev_dbg(hobot_dma->dev,
 		"dma_ctrl->buffer_num is %d\n", dma_ctrl->buffer_num);
 
 	/* set dma cb */
@@ -541,6 +573,13 @@ static int i2sidma_trigger(struct snd_pcm_substream *substream, int cmd)
 	int ret = 0;
 	unsigned long flags;
 
+	struct snd_soc_pcm_runtime *soc_runtime = substream->private_data;
+	struct idma_info_s *hobot_dma =
+		snd_soc_platform_get_drvdata(soc_runtime->platform);
+	if (hobot_dma == NULL) {
+		return -ENOMEM;
+	}
+
 	spin_lock_irqsave(&dma_ctr->lock, flags);
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_RESUME:
@@ -571,7 +610,7 @@ static int i2sidma_trigger(struct snd_pcm_substream *substream, int cmd)
 	}
 	spin_unlock_irqrestore(&dma_ctr->lock, flags);
 
-	dev_info(hobot_i2sidma[dma_ctr->id].dev, "i2sidma_trigger\n");
+	dev_info(hobot_dma->dev, "i2sidma_trigger\n");
 	return ret;
 }
 
@@ -751,18 +790,11 @@ static irqreturn_t iis_irq0(int irqno, void *dev_id)
 	/* daemon callback */
 	if (dma_ctrl->cb)
 		dma_ctrl->cb(dma_ctrl->token, dma_ctrl->period);
-	dev_dbg(hobot_i2sidma[dma_ctrl->id].dev,
-		"%d:     dma_ctrl->id=%d, addr(token)=%p\n", __LINE__,
-		dma_ctrl->id,
-		dma_ctrl->token);
 	for (i = 1; i < I2S_PROCESS_NUM; i++) {
 		if (!global_info[dma_ctrl->id].process_info[i].substream)
 			continue;
 		struct snd_pcm_substream *substream =
 			global_info[dma_ctrl->id].process_info[i].substream;
-		dev_dbg(hobot_i2sidma[dma_ctrl->id].dev,
-			"substream[%d]=%p\n", __func__,
-			i, substream);
 		struct idma_ctrl_s *dma_ctrl_seed = substream->runtime->private_data;
 		if (!dma_ctrl_seed || !dma_ctrl_seed->token) {
 			continue;
@@ -1007,6 +1039,7 @@ static int i2sidma_close(struct snd_pcm_substream *substream)
 			for (i = 0; i < I2S_PROCESS_NUM; i++) {
 				global_info[dma_ctrl->id].process_info[i].substream = NULL;
 			}
+			memset(&global_info[dma_ctrl->id].pcm_param, 0, sizeof(struct hobot_pcm_param));
 		}
 	}
 
