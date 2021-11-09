@@ -5405,6 +5405,7 @@ static int hobot_eth_suspend(struct device *dev) {
     xj3_link_down(priv);
 
     xj3_set_mac(priv->ioaddr, false);
+    del_timer_sync(&priv->txtimer);
 
     clk_disable_unprepare(priv->plat->xj3_mac_div_clk);
     clk_disable_unprepare(priv->plat->xj3_mac_pre_div_clk);
