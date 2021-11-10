@@ -500,6 +500,7 @@ static int i2s_trigger(struct snd_pcm_substream *substream,
 			writel(0x1, i2s->regaddr_tx + I2S_BUF1_RDY);
 		}
 		i2s_transfer_ctl(i2s, 1);
+		i2s->current_status = 1;
 		spin_unlock_irqrestore(&i2s->lock, flags);
 		break;
 	case SNDRV_PCM_TRIGGER_STOP:
@@ -514,6 +515,7 @@ static int i2s_trigger(struct snd_pcm_substream *substream,
 			writel(0x0, i2s->regaddr_tx + I2S_BUF0_RDY);
 			writel(0x0, i2s->regaddr_tx + I2S_BUF1_RDY);
 		}
+		i2s->current_status = 0;
 		spin_unlock_irqrestore(&i2s->lock, flags);
 		break;
 	}
@@ -880,7 +882,7 @@ int hobot_i2s_suspend(struct device *dev) {
 		i2s->suspend_i2schen = readl(i2s->regaddr_tx + I2S_CH_EN);
 		i2s->suspend_i2sdivws = readl(i2s->regaddr_tx + I2S_DIV_WS);
 	}
-	if (value == 0x3) {
+	if (i2s->current_status == 1) {
 		dev_err(dev, "i2s busy...\n");
 		return -EBUSY;
 	}

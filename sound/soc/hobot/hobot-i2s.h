@@ -202,6 +202,8 @@ struct hobot_i2s {
 	u32 suspend_i2smod;
 	u32 suspend_i2schen;
 	u32 suspend_i2sdivws;
+
+	u8 current_status;
 };
 
 #define INT_BUF1_DONE   (1 << 3)
