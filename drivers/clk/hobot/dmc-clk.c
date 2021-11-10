@@ -32,6 +32,8 @@
 #include <linux/smp.h>
 #include <asm-generic/delay.h>
 #include <linux/delay.h>
+#include <linux/device.h>
+#include <soc/hobot/hobot_bus.h>
 
 #include "common.h"
 
@@ -92,6 +94,75 @@ void dmc_unlock(void)
 	mutex_unlock(&g_ddrclk->mlock);
 }
 EXPORT_SYMBOL(dmc_unlock);
+
+static LIST_HEAD(dfs_list);
+static LIST_HEAD(dfs_lock_list);
+static DEFINE_MUTEX(dfs_list_mtx);
+
+static inline struct hobot_dpm *to_hobot_dpm(struct list_head *node)
+{
+	return container_of(node, struct hobot_dpm, entry);
+}
+
+static int hobot_dfs_notifier(struct list_head *from_list,
+		struct list_head *to_list, unsigned long val, int state)
+{
+	dpm_fn_t callback = NULL;
+	struct hobot_dpm *dpm = NULL;
+	int error = 0;
+
+	while (!list_empty(from_list)) {
+		dpm = to_hobot_dpm(from_list->next);
+
+		get_device(dpm->dev);
+
+		callback = dpm->dpm_call;
+		if (callback) {
+			error = callback(dpm, val, state);
+			if (error) {
+				pr_debug("Device %s return failed\n", dev_name(dpm->dev));
+				break;
+			}
+		}
+
+		if (!list_empty(&dpm->entry))
+			list_move(&dpm->entry, to_list);
+
+		put_device(dpm->dev);
+	}
+
+	return error;
+}
+
+void hobot_dfs_register(struct hobot_dpm *n, struct device *dev)
+{
+	struct hobot_dpm *dpm;
+
+	mutex_lock(&dfs_list_mtx);
+
+	list_for_each_entry(dpm, &dfs_list, entry) {
+		if (n->priority <= dpm->priority) {
+			list_add_tail(&n->entry, &dpm->entry);
+			break;
+		}
+	}
+
+	if (&dpm->entry == &dfs_list)
+		list_add_tail(&n->entry, &dfs_list);
+
+	n->dev = dev;
+
+	mutex_unlock(&dfs_list_mtx);
+}
+EXPORT_SYMBOL(hobot_dfs_register);
+
+void hobot_dfs_unregister(struct hobot_dpm *n)
+{
+        mutex_lock(&dfs_list_mtx);
+        list_del(&n->entry);
+        mutex_unlock(&dfs_list_mtx);
+}
+EXPORT_SYMBOL(hobot_dfs_unregister);
 
 /**
  * hobot_smccc_smc() - Method to call firmware via SMC.
@@ -384,6 +455,7 @@ static int dmc_set_rate(struct clk_hw *hw,
 	struct arm_smccc_res res;
 	unsigned long flags;
 	int timeout = 2000;
+	int ret = 0;
 
 	raw_spin_lock_irqsave(&dclk->raw_lock, flags);
 
@@ -391,8 +463,8 @@ static int dmc_set_rate(struct clk_hw *hw,
 	park_other_cpus();
 
 	if(!mutex_trylock(&dclk->mlock)) {
-		raw_spin_unlock_irqrestore(&dclk->raw_lock, flags);
-		return -EBUSY;
+		ret = -EBUSY;
+		goto err2;
 	}
 
 	while(atomic_read(&dclk->vote_cnt) > 0 && timeout > 0) {
@@ -402,31 +474,37 @@ static int dmc_set_rate(struct clk_hw *hw,
 
 	if (timeout <= 0) {
 		pr_err("timeout waiting for ipi voting\n");
-		mutex_unlock(&dclk->mlock);
-		raw_spin_unlock_irqrestore(&dclk->raw_lock, flags);
-		return -EBUSY;
+		ret = -EBUSY;
+		goto err1;
 	}
 
+	ret = hobot_dfs_notifier(&dfs_list,
+			&dfs_lock_list, HB_BUS_SIGNAL_START, 0);
+	if (0 == ret) {
 #ifndef CONFIG_HOBOT_XJ3
-	dclk->invoke_fn(dclk->fid, dclk->set_cmd, dclk->channel, rate, 0, 0, 0, 0, &res);
+		dclk->invoke_fn(dclk->fid, dclk->set_cmd,
+				dclk->channel, rate, 0, 0, 0, 0, &res);
 #else
-	dclk->invoke_fn(DMC_FID, DRAM_SET_RATE, 0, rate, 0, 0, 0, 0, &res);
+		dclk->invoke_fn(DMC_FID, DRAM_SET_RATE, 0, rate, 0, 0, 0, 0, &res);
 #endif
-	if (res.a0 != 0) {
-		pr_err("%s: ddr channel:%u set rate to %lu failed with status :%ld\n",
-			__func__, dclk->channel, rate, res.a0);
-		mutex_unlock(&dclk->mlock);
-		raw_spin_unlock_irqrestore(&dclk->raw_lock, flags);
-		return -EINVAL;
+		if (res.a0 != 0) {
+			pr_err("%s: ddr channel:%u set rate to %lu failed with status :%ld\n",
+				__func__, dclk->channel, rate, res.a0);
+			ret = -EINVAL;
+			goto err0;
+		}
+
+		dclk->rate = rate;
+		cur_ddr_rate = rate;
 	}
-	dclk->rate = rate;
-	cur_ddr_rate = rate;
-
+err0:
+	hobot_dfs_notifier(&dfs_lock_list, &dfs_list, HB_BUS_SIGNAL_END, 0);
+err1:
 	mutex_unlock(&dclk->mlock);
+err2:
+	spin_unlock_irqrestore(&dclk->lock, flags);
 
-	raw_spin_unlock_irqrestore(&dclk->raw_lock, flags);
-
-	return 0;
+	return ret;
 }
 
 unsigned long hobot_dmc_cur_rate(void)

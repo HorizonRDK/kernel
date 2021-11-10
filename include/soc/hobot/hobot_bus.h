@@ -21,6 +21,13 @@
 #define POWERSAVE_STATE 1
 #define OTHER_STATE     2
 
+enum dpm_priority {
+	DPM_PRI_MIN	= 0,
+	DPM_PRI_LEVEL1	= 1,
+	DPM_PRI_LEVEL2	= 2,
+	DPM_PRI_MAX	= 3,
+};
+
 struct hobot_dpm;
 typedef int (*dpm_fn_t)(struct hobot_dpm *dpm,
 		unsigned long val, int state);
@@ -29,10 +36,12 @@ struct hobot_dpm {
         struct list_head entry;
         struct device *dev;
         dpm_fn_t dpm_call;
-        int priority;
+        enum dpm_priority priority;
 };
 
 void hobot_dpm_register(struct hobot_dpm *n, struct device *dev);
 void hobot_dpm_unregister(struct hobot_dpm *n);
 
+void hobot_dfs_register(struct hobot_dpm *n, struct device *dev);
+void hobot_dfs_unregister(struct hobot_dpm *n);
 #endif
