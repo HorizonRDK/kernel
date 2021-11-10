@@ -508,6 +508,7 @@
 			interrupts = <0 38 4>;
 			clocks = <&i2c0_mclk>;
 			clock-names = "i2c_mclk";
+			bus-speed = <400000>;
 			resets = <&rst 0x50 10>;
 			reset-names = "i2c0";
 			status = "disabled";
@@ -522,6 +523,7 @@
 			interrupts = <0 39 4>;
 			clocks = <&i2c1_mclk>;
 			clock-names = "i2c_mclk";
+			bus-speed = <400000>;
 			resets = <&rst 0x50 11>;
 			reset-names = "i2c1";
 			status = "disabled";
@@ -536,6 +538,7 @@
 			interrupts = <0 40 4>;
 			clocks = <&i2c2_mclk>;
 			clock-names = "i2c_mclk";
+			bus-speed = <400000>;
 			resets = <&rst 0x50 12>;
 			reset-names = "i2c2";
 			status = "disabled";
@@ -550,6 +553,7 @@
 			interrupts = <0 41 4>;
 			clocks = <&i2c3_mclk>;
 			clock-names = "i2c_mclk";
+			bus-speed = <400000>;
 			resets = <&rst 0x50 13>;
 			reset-names = "i2c3";
 			status = "disabled";
@@ -564,6 +568,7 @@
 			interrupts = <0 42 4>;
 			clocks = <&i2c4_mclk>;
 			clock-names = "i2c_mclk";
+			bus-speed = <400000>;
 			resets = <&rst 0x50 14>;
 			reset-names = "i2c4";
 			status = "disabled";
@@ -578,6 +583,7 @@
 			interrupts = <0 43 4>;
 			clocks = <&i2c5_mclk>;
 			clock-names = "i2c_mclk";
+			bus-speed = <400000>;
 			resets = <&rst 0x50 15>;
 			reset-names = "i2c5";
 			status = "disabled";

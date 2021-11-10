@@ -746,6 +746,7 @@ static int hobot_i2c_probe(struct platform_device *pdev)
 	u64 round_rate = 0;
 	char i2c_name[20] = {0};
 	struct i2c_adapter *adap;
+	int bus_speed, i;
 
 	dev_info(&pdev->dev, "hobot i2c probe start\n");
 	dev = devm_kzalloc(&pdev->dev, sizeof(struct hobot_i2c_dev), GFP_KERNEL);
@@ -800,7 +801,23 @@ static int hobot_i2c_probe(struct platform_device *pdev)
 		goto err_clk;
 	}
 
-	dev->default_trans_freq = I2C_SCL_DEFAULT_FREQ;
+	ret = of_property_read_u32(pdev->dev.of_node, "bus-speed", &bus_speed);
+	if (ret) {
+		dev_dbg(&pdev->dev, "No I2C bus speed selected, using 400kHz\n");
+		bus_speed = I2C_SCL_DEFAULT_FREQ;
+	} else {
+		for (i = 0; i < ARRAY_SIZE(supported_speed); ++i) {
+			if (supported_speed[i] == bus_speed)
+				break;
+		}
+		if (i == ARRAY_SIZE(supported_speed)) {
+			dev_warn(&pdev->dev, "invalid speed\n");
+			bus_speed = I2C_SCL_DEFAULT_FREQ;
+		}
+	}
+	dev_info(&pdev->dev, "I2C bus speed is %d\n", bus_speed);
+
+	dev->default_trans_freq = bus_speed;
 
 	temp_div = DIV_ROUND_UP(round_rate, dev->default_trans_freq) - 1;
 	dev->clkdiv = DIV_ROUND_UP(temp_div, 8) - 1;
