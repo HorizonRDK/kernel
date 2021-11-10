@@ -664,7 +664,7 @@ static int hobot_i2c_xfer_smbus(struct i2c_adapter *adap, u16 addr,
 	}
 	hobot_i2c_reset(dev);
 	recal_clk_div(dev);
-	if ((size == I2C_SMBUS_BYTE) & read_write)) {
+	if ((size == I2C_SMBUS_BYTE) & read_write) {
 		/* handle i2cdetect. protocol is:
 		 * S  slave_address  Rd  A  Data_byte  A  P
 		 * the return data is 00;
