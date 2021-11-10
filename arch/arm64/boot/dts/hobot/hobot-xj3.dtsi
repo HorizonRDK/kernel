@@ -283,8 +283,10 @@
 			  <0 0xA1000000 0 0x1000>;
 			resets = <&rst 0x0 12>;
 			reset-names = "usb";
-			clocks = <&usb_aclk>;
-			clock-names = "usb_aclk";
+			clocks = <&usb_aclk>, <&utmi_lst_div_clk>,
+				<&utmi_mclk>, <&pipe_mclk>;
+			clock-names = "usb_aclk", "utmi_lst_div_clk",
+				"utmi_mclk", "pipe_mclk";
 
 			status = "disabled";
 			usbdrd_dwc3_0: dwc3 {
