@@ -60,71 +60,43 @@ static int power_management_call(struct hobot_dpm *self,
 	if (!usb_wrap_device)
 		return NOTIFY_BAD;
 
-	/* handle event (HB_BUS_SIGNAL_START, HB_BUS_SIGNAL_END) */
-	switch (event) {
-	case HB_BUS_SIGNAL_START:
-		/*
-		 * Between START & END, there is sleep function, so couldn't use
-		 * below spin_lock.
-		 */
-		dev_dbg(dev, "%s: bus signal start.\n", __func__);
-		break;
-
-	case HB_BUS_SIGNAL_END:
-		/* enter powersave state, suspend dwc3 & shutdown the power */
-		dev_dbg(dev, "%s: bus signal end.\n", __func__);
-		break;
-
-	default:
-		dev_err(dev, "%s: Not defined event(%lu)\n",
-				__func__, event);
-		break;
-	}
-
-	/* handle state (POWERSAVE_STATE, OTHER_STATE) */
-	switch (state) {
-	case POWERSAVE_STATE:
+	if (event == HB_BUS_SIGNAL_START && state == POWERSAVE_STATE) {
+		/* release driver when start enter to powersave state */
 		mutex_lock(&dwc_pwr->notifier_lock);
 		dwc_pwr->last_powersave_status = 1;
 		if (dwc_pwr->current_powersave_status) {
 			dev_info(dev, "%s: dwc3 already in powersave status\n", __func__);
 			mutex_unlock(&dwc_pwr->notifier_lock);
-			break;
+		} else {
+			/* before enter powersave state, release dwc3 driver */
+			dev_dbg(dev, "%s: powersave state.\n", __func__);
+			dev_dbg(dev, "%s: manually detach dwc3 driver.\n", __func__);
+			device_release_driver(usb_wrap_device);
+
+			dwc_pwr->current_powersave_status = 1;
+			mutex_unlock(&dwc_pwr->notifier_lock);
 		}
-
-		/* before enter powersave state, release dwc3 driver */
-		dev_dbg(dev, "%s: powersave state.\n", __func__);
-		dev_dbg(dev, "%s: manually detach dwc3 driver.\n", __func__);
-		device_release_driver(usb_wrap_device);
-
-		dwc_pwr->current_powersave_status = 1;
-		mutex_unlock(&dwc_pwr->notifier_lock);
-
-		break;
-	case OTHER_STATE:
+	} else if (event == HB_BUS_SIGNAL_END && state == OTHER_STATE) {
+		/* attach driver after end of exit from powersave */
 		mutex_lock(&dwc_pwr->notifier_lock);
 		dwc_pwr->last_powersave_status = 0;
 		if (!dwc_pwr->current_powersave_status) {
 			dev_info(dev, "%s: dwc3 already in normal status\n",
 					__func__);
 			mutex_unlock(&dwc_pwr->notifier_lock);
-			break;
+		} else {
+			/* before leave powersave state, attach device to dwc3 driver */
+			dev_dbg(dev, "%s: otherstate state.\n", __func__);
+			dev_dbg(dev, "%s: manually attach dwc3 driver.\n", __func__);
+			if (device_attach(usb_wrap_device) < 0)
+				dev_err(usb_wrap_device, "%s: attach device to driver failed\n", __func__);
+
+			dwc_pwr->current_powersave_status = 0;
+			mutex_unlock(&dwc_pwr->notifier_lock);
 		}
-
-		/* before leave powersave state, attach device to dwc3 driver */
-		dev_dbg(dev, "%s: otherstate state.\n", __func__);
-		dev_dbg(dev, "%s: manually attach dwc3 driver.\n", __func__);
-		if (device_attach(usb_wrap_device) < 0)
-			dev_err(usb_wrap_device, "%s: attach device to driver failed\n", __func__);
-
-		dwc_pwr->current_powersave_status = 0;
-		mutex_unlock(&dwc_pwr->notifier_lock);
-
-		break;
-	default:
-		dev_err(usb_wrap_device, "%s: Not defined state(%d)\n",
-				__func__, state);
-		break;
+	} else {
+		dev_dbg(usb_wrap_device, "%s: No need to handle for event(%lu), state(%d)\n",
+				__func__, event, state);
 	}
 
 	return 0;
