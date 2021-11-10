@@ -1514,7 +1514,7 @@ static void sif_disable_input_and_output(u32 __iomem *base_reg)
 
 		if (t++ < 1000) {
 			mdelay(1);
-			vio_info("wait for SIF idle");
+			vio_dbg("wait for SIF idle");
 			continue;
 		} else {
 			break;

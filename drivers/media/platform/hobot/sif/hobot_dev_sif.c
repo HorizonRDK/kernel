@@ -1114,7 +1114,9 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 			temp_flow = 0;
 			subdev->overflow = 0;
 			subdev->cnt_shift = 0;
-			atomic_set(&subdev->diag_state, 0);
+#ifdef CONFIG_HOBOT_DIAG
+			subdev->diag_state = 0;
+#endif
 			if (YUV422_MULTIPLEXING_PROC_A == multiplexing_proc && \
 				HW_FORMAT_YUV422 == subdev->format) {
 				sif_clear_yuv422_proc_a_mux_mask(sif, subdev);
@@ -2916,6 +2918,7 @@ u32 sif_find_overflow_instance(uint32_t mux_index,
 	return subdev->overflow;
 }
 
+#ifdef CONFIG_HOBOT_DIAG
 void sif_overflow_diag_report(struct x3_sif_dev *sif, uint32_t mux_index,
 	u32 of_value, u32 sif_frm_int)
 {
@@ -2930,12 +2933,12 @@ void sif_overflow_diag_report(struct x3_sif_dev *sif, uint32_t mux_index,
 		return;
 	subdev->overflow = sif_find_overflow_instance(mux_index, subdev, of_value);
 	if(subdev->overflow != 0) {
-		atomic_set(&subdev->diag_state, 1);
+		subdev->diag_state_overflow = 1;
 		sif_diag_report(1, INTR_SIF_IN_OVERFLOW,
 			sif_frm_int, subdev->group->instance);
 	} else {
-		if (atomic_read(&subdev->diag_state) == 1) {
-			atomic_set(&subdev->diag_state, 0);
+		if (1 == subdev->diag_state_overflow) {
+			subdev->diag_state_overflow = 0;
 			sif_diag_report(0, INTR_SIF_IN_OVERFLOW,
 				sif_frm_int, subdev->group->instance);
 		}
@@ -2957,18 +2960,19 @@ void sif_mismatch_diag_report(struct x3_sif_dev *sif, uint32_t mux_index,
 		return;
 	if ((err_status & 1 << subdev->ipi_index) ||
 		(err_status & 1 << (subdev->ipi_index + 16))) {
-		atomic_set(&subdev->diag_state, 1);
+		subdev->diag_state_mismatch = 1;
 		sif_diag_report(1, INTR_SIF_IN_SIZE_MISMATCH,
 			sif_frm_int, subdev->group->instance);
 	} else {
-		if (atomic_read(&subdev->diag_state) == 1) {
-			atomic_set(&subdev->diag_state, 0);
+		if (1 == subdev->diag_state_mismatch) {
+			subdev->diag_state_mismatch = 0;
 			sif_diag_report(0, INTR_SIF_IN_SIZE_MISMATCH,
 				sif_frm_int, subdev->group->instance);
 		}
 	}
 	return;
 }
+#endif
 
 static void sif_hw_resource_process(struct x3_sif_dev *sif,
 			struct vio_group *group)
@@ -3206,12 +3210,13 @@ static irqreturn_t sif_isr(int irq, void *data)
 		err_occured = 1;
 		instance = atomic_read(&sif->instance);
 		sif->statistic.hard_mismatch[instance]++;
+		/* mainly want to clear mismatch error bits */
+		sif_statics_err_clr(sif->base_reg);
 #ifdef CONFIG_HOBOT_DIAG
 		for (mux_index = 0; mux_index < SIF_MUX_MAX; mux_index++) {
 			sif_mismatch_diag_report(sif, mux_index,
 				irq_src.sif_err_status, irq_src.sif_frm_int);
 		}
-		sif_statics_err_clr(sif->base_reg);
 	} else {
 		for (mux_index = 0; mux_index < SIF_MUX_MAX; mux_index++) {
 			sif_mismatch_diag_report(sif, mux_index,

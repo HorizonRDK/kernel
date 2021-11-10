@@ -271,7 +271,14 @@ struct sif_subdev {
 	fps_ctrl_t fps_ctrl;
 	u32 ipi_enable;
 #ifdef CONFIG_HOBOT_DIAG
-	atomic_t diag_state;
+	union {
+		u32 diag_state;
+		struct {
+			u32 diag_state_mismatch: 1;
+			u32 diag_state_overflow: 1;
+			u32 diag_state_outbuf_error: 1;
+		};
+	};
 #endif
 	u32 cnt_shift;
 };
