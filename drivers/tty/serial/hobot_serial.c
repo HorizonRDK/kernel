@@ -34,6 +34,8 @@
 #include <linux/device.h>
 #include <linux/preempt.h>
 #include <linux/delay.h>
+#endif
+#if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3) || IS_ENABLED(CONFIG_HOBOT_DMC_CLK)
 #include <soc/hobot/hobot_bus.h>
 #endif
 #ifdef CONFIG_HOBOT_DIAG
@@ -126,6 +128,11 @@ struct hobot_uart {
 	atomic_t dmatx_flag;
 	atomic_t uart_start;
 #endif
+#if IS_ENABLED(CONFIG_HOBOT_DMC_CLK)
+		struct hobot_dpm uart_dfs;
+		atomic_t dfs_dmatx_flag;
+		atomic_t dfs_uart_start;
+#endif
 	int uart_id;
 	u32 rx_bytes;
 	u32 uartoutcnt;
@@ -168,6 +175,93 @@ static int serial_dpm_callback(struct hobot_dpm *self,
 	} else if (event == HB_BUS_SIGNAL_END) {
 			enable_irq(uart->port->irq);
 			mutex_unlock(&tty->atomic_write_lock);
+	}
+	return 0;
+}
+#endif
+
+#if IS_ENABLED(CONFIG_HOBOT_DMC_CLK)
+static void hobot_uart_rxdma_start(struct uart_port *port)
+{
+	unsigned int val;
+	struct hobot_uart *hobot_port = NULL;
+
+	if (port == NULL) {
+		pr_err("%s:%d input parameter is null\n", __func__, __LINE__);
+	}
+	hobot_port = port->private_data;
+
+	/* Enable receiver */
+	val = readl(port->membase + HOBOT_UART_ENR);
+	val |=  UART_ENR_RX_EN;
+	writel(val, port->membase + HOBOT_UART_ENR);
+
+	/*
+	 * restart dma,rx_off should be cleared as rx dma
+	 * size register HOBOT_UART_RXSIZE is cleared
+	 */
+	hobot_port->rx_enabled = 1;
+	hobot_port->rx_off = 0;
+
+	val = readl(port->membase + HOBOT_UART_RXDMA);
+	val &= 0xFFFFFF00;
+	val |= UART_RXSTA;
+	writel(val, port->membase + HOBOT_UART_RXDMA);
+
+	return;
+}
+
+static void hobot_uart_rxdma_stop(struct uart_port *port)
+{
+	unsigned int regval;
+	struct hobot_uart *hobot_port = NULL;
+
+	if (port == NULL) {
+		pr_err("%s:%d input parameter is null\n", __func__, __LINE__);
+	}
+	hobot_port = port->private_data;
+
+	/*stop RXDMA*/
+	regval = readl(port->membase + HOBOT_UART_RXDMA);
+	regval |= UART_RXSTP;
+	writel(regval, port->membase + HOBOT_UART_RXDMA);
+	hobot_port->rx_enabled = 0;
+
+	/* Disable receiver */
+	regval = readl(port->membase + HOBOT_UART_ENR);
+	regval &= ~UART_ENR_RX_EN;
+	writel(regval, port->membase + HOBOT_UART_ENR);
+
+	/*
+	 * UART_RXSTP will be auto cleared once you write a data to
+	 * this bit;
+     * polling UART_RXSTP, RXDMA stop success when this bit is 0
+	 */
+    while (readl(port->membase + HOBOT_UART_RXDMA) & UART_RXSTP) {
+        dev_err_once(port->dev, "RXDMA is busy, wait for it to become idle\n");
+    }
+
+	return;
+}
+
+static int serial_dfs_callback(struct hobot_dpm *self,
+				 unsigned long event, int state)
+{
+	struct hobot_uart *uart = container_of(self, struct hobot_uart, uart_dfs);
+	if (!atomic_read(&uart->dfs_uart_start))
+		return 0;
+	if (event == HB_BUS_SIGNAL_START) {
+		/*
+		 * check tx done, if tx done, stop rx dma
+		 */
+		if (atomic_read(&uart->dfs_dmatx_flag)) {
+			return -EBUSY;
+		} else {
+			hobot_uart_rxdma_stop(uart->port);
+		}
+	} else if (event == HB_BUS_SIGNAL_END) {
+		/* restart rx dma and unlock tx*/
+		hobot_uart_rxdma_start(uart->port);
 	}
 	return 0;
 }
@@ -258,11 +352,19 @@ static void hobot_uart_dma_tx_start(struct uart_port *port)
 		/*dma tx done*/
 		atomic_set(&hobot_port->dmatx_flag, 0);
 #endif
+#if IS_ENABLED(CONFIG_HOBOT_DMC_CLK)
+		/*dma tx done*/
+		atomic_set(&hobot_port->dfs_dmatx_flag, 0);
+#endif
 		return;
 	}
 #if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
 	atomic_set(&hobot_port->dmatx_flag, 1);
 #endif
+#if IS_ENABLED(CONFIG_HOBOT_DMC_CLK)
+	atomic_set(&hobot_port->dfs_dmatx_flag, 1);
+#endif
+
 #ifdef CONFIG_HOBOT_SERIAL_DEBUGFS
 		dgb_tx_count = port->icount.tx;
 		dgb_tx_head = port->state->xmit.head;
@@ -1167,6 +1269,9 @@ static int hobot_uart_startup(struct uart_port *port)
 #if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
 	atomic_set(&hobot_uart->uart_start, 1);
 #endif
+#if IS_ENABLED(CONFIG_HOBOT_DMC_CLK)
+		atomic_set(&hobot_uart->dfs_uart_start, 1);
+#endif
 #ifdef CONFIG_HOBOT_SERIAL_DEBUGFS
 	dgb_membase = port->membase;
 #endif /* CONFIG_HOBOT_SERIAL_DEBUGFS */
@@ -1270,6 +1375,10 @@ static void hobot_uart_shutdown(struct uart_port *port)
 #if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
 	atomic_set(&hobot_uart->uart_start, 0);
 #endif
+#if IS_ENABLED(CONFIG_HOBOT_DMC_CLK)
+		atomic_set(&hobot_uart->dfs_uart_start, 0);
+#endif
+
 	spin_lock_irqsave(&port->lock, flags);
 
 	/* Disable interrupts */
@@ -1984,6 +2093,12 @@ static int hobot_uart_probe(struct platform_device *pdev)
 				4, DIAG_MSG_INTERVAL_MIN, DIAG_MSG_INTERVAL_MAX, NULL) < 0)
 		dev_err(&pdev->dev, "uart%d diag register fail\n", id);
 #endif
+#if IS_ENABLED(CONFIG_HOBOT_DMC_CLK)
+	hobot_uart_data->uart_dfs.dpm_call = serial_dfs_callback;
+	hobot_dfs_register(&hobot_uart_data->uart_dfs, &pdev->dev);
+	atomic_set(&hobot_uart_data->dfs_uart_start, 0);
+	atomic_set(&hobot_uart_data->dfs_dmatx_flag, 0);
+#endif
 
 	return 0;
 
@@ -2010,6 +2125,10 @@ static int hobot_uart_remove(struct platform_device *pdev)
 	clk_disable_unprepare(hobot_uart_data->uartclk);
 #if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
 	hobot_dpm_unregister(&hobot_uart_data->uart_dpm);
+#endif
+#if IS_ENABLED(CONFIG_HOBOT_DMC_CLK)
+	hobot_dfs_unregister(&hobot_uart_data->uart_dfs);
+	hobot_uart_data->uart_dfs.dpm_call = NULL;
 #endif
 	return rc;
 }
