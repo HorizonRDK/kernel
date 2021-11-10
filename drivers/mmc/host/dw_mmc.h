@@ -19,7 +19,7 @@
 #include <linux/dmaengine.h>
 #include <linux/reset.h>
 #include <linux/interrupt.h>
-#if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
+#if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3) || IS_ENABLED(CONFIG_HOBOT_DMC_CLK)
 #include <soc/hobot/hobot_bus.h>
 #endif
 enum dw_mci_state {
@@ -169,6 +169,10 @@ struct dw_mci {
 #if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
 	/* The dwmmc dpm struct */
 	struct hobot_dpm dw_hb_dpm;
+#endif
+
+#if IS_ENABLED(CONFIG_HOBOT_DMC_CLK)
+	struct hobot_dpm dw_hb_dfs;
 #endif
 	struct scatterlist	*sg;
 	struct sg_mapping_iter	sg_miter;

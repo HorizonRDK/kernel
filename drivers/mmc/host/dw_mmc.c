@@ -2739,6 +2739,19 @@ static int mmc_dpm_callback(struct hobot_dpm *self,
 }
 #endif
 
+#if IS_ENABLED(CONFIG_HOBOT_DMC_CLK)
+static int mmc_dfs_callback(struct hobot_dpm *self,
+				 unsigned long event, int state)
+{
+	struct dw_mci *host = container_of(self, struct dw_mci, dw_hb_dfs);
+
+	if (event == HB_BUS_SIGNAL_START && host->state != STATE_IDLE)
+		return -EBUSY;
+
+	return 0;
+}
+#endif
+
 #ifdef CONFIG_HOBOT_DIAG
 static void hb_emmc_diag_process(u32 errsta, u32 int_reg)
 {
@@ -3432,6 +3445,12 @@ int dw_mci_probe(struct dw_mci *host)
 		dev_err(host->dev, "Unable to register fb_notifier: %d\n",
 			ret);
 #endif
+
+#if IS_ENABLED(CONFIG_HOBOT_DMC_CLK)
+	host->dw_hb_dfs.dpm_call = &mmc_dfs_callback;
+	host->dw_hb_dfs.priority = DPM_PRI_MIN;
+	hobot_dfs_register(&host->dw_hb_dfs, host->dev);
+#endif
 	/*
 	 * Get the host data width - this assumes that HCON has been set with
 	 * the correct values.
@@ -3593,6 +3612,10 @@ void dw_mci_remove(struct dw_mci *host)
 
 #if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
 	hobot_dpm_unregister(&host->dw_hb_dpm);
+#endif
+
+#if IS_ENABLED(CONFIG_HOBOT_DMC_CLK)
+	hobot_dfs_unregister(&host->dw_hb_dfs);
 #endif
 }
 EXPORT_SYMBOL(dw_mci_remove);
