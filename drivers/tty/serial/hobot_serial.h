@@ -138,7 +138,11 @@
 
 /*Uart receive DMA register bits define */
 #define UART_RXTHD_MASK (0xF)
+#define UART_RXTHD_CNT_BASE (64)
 #define UART_DMA_RXTHD(x) (((x) & UART_RXTHD_MASK) << 12u)
+#define UART_DMA_RXTHD_CLEAR (~(UART_RXTHD_MASK << 12U))
+#define UART_RXTHD_1K     UART_DMA_RXTHD(5)
+#define UART_RXTHD_2K     UART_DMA_RXTHD(6)
 #define UART_RXMOS_MASK (0xF)
 #define UART_RXMOS(x) (((x) & UART_RXMOS_MASK) << 8U)
 #define UART_RXLEN_MASK (0xF)

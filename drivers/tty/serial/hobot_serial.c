@@ -127,6 +127,7 @@ struct hobot_uart {
 	atomic_t uart_start;
 #endif
 	int uart_id;
+	u32 rx_bytes;
 	u32 uartoutcnt;
 };
 
@@ -146,7 +147,7 @@ static unsigned int dbg_tx_index = 0;
 
 #ifdef CONFIG_HOBOT_TTY_DMA_MODE
 
-#define HOBOT_UART_DMA_SIZE	UART_XMIT_SIZE
+#define HOBOT_UART_DMA_SIZE	(UART_XMIT_SIZE * 2)
 #if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
 static int serial_dpm_callback(struct hobot_dpm *self,
 				 unsigned long event, int state)
@@ -311,7 +312,9 @@ static void hobot_uart_dma_rx_start(struct uart_port *port)
 	writel(HOBOT_UART_DMA_SIZE, port->membase + HOBOT_UART_RXSIZE);
 	val = readl(port->membase + HOBOT_UART_RXDMA);
 	val &= 0xFFFFFF00;
-	val |= UART_RXSTA;
+	val |= UART_RXSTA | UART_RXWRAP;
+	val &= UART_DMA_RXTHD_CLEAR;
+	val |= UART_RXTHD_1K;
 	writel(val, port->membase + HOBOT_UART_RXDMA);
 
 	hobot_port->rx_enabled = 1;
@@ -364,7 +367,7 @@ static void hobot_uart_dma_rxdone(void *dev_id, unsigned int irqstatus)
 	static int output = 0;
 #endif
 
-	while (irqstatus & (UART_RXDON | UART_RXTO | UART_BI)) {
+	while (irqstatus & (UART_RXTHD | UART_RXTO | UART_BI | UART_RXDON)) {
 		if (irqstatus & UART_BI) {
 			irqstatus &= ~UART_BI;
 			port->icount.brk++;
@@ -372,10 +375,25 @@ static void hobot_uart_dma_rxdone(void *dev_id, unsigned int irqstatus)
 				continue;
 		}
 		rx_bytes = readl(port->membase + HOBOT_UART_RXSIZE);
-		if ((irqstatus & UART_RXTO) && (rx_bytes == HOBOT_UART_DMA_SIZE)) {
-			irqstatus &= ~UART_RXTO;
-			continue;
+		/*
+		 * there are three interrupts, timeout, threshold, and done
+		 * if dma size is not changed, we need to clear current state
+		 */
+		if (hobot_port->rx_bytes == rx_bytes) {
+			if (irqstatus & UART_RXTO) {
+				irqstatus &= ~UART_RXTO;
+				continue;
+			}
+			if (irqstatus & UART_RXTHD) {
+				irqstatus &= ~UART_RXTHD;
+				continue;
+			}
+			if (irqstatus & UART_RXDON) {
+				irqstatus &= ~UART_RXDON;
+				continue;
+			}
 		}
+		hobot_port->rx_bytes = rx_bytes;
 		dma_sync_single_for_cpu(port->dev, hobot_port->rx_dma_buf,
 					HOBOT_UART_DMA_SIZE, DMA_FROM_DEVICE);
 		data = *(char *)(hobot_port->rx_buf + hobot_port->rx_off);
@@ -728,8 +746,7 @@ static irqreturn_t hobot_uart_isr(int irq, void *dev_id)
 	writel(status, port->membase + HOBOT_UART_INT_SETMASK);
 	/* Clear irq's status */
 	writel(status, port->membase + HOBOT_UART_SRC_PND);
-
-	if (status & (UART_RXTO | UART_RXDON | UART_BI)) {
+	if (status & (UART_RXTO | UART_RXTHD | UART_BI | UART_RXDON)) {
 		hobot_uart_dma_rxdone(dev_id, status);
 	}
 
@@ -1192,7 +1209,7 @@ static int hobot_uart_startup(struct uart_port *port)
 	mask = UART_TXEPT | UART_TXTHD | UART_TXDON;
 	writel(mask, port->membase + HOBOT_UART_INT_SETMASK);
 
-	mask = UART_RXTO | UART_RXOE | UART_BI |
+	mask = UART_RXTO | UART_RXOE | UART_BI | UART_RXTHD |
 		UART_FE | UART_PE | UART_CTSC | UART_RXDON | UART_RXFUL;
 	writel(mask, port->membase + HOBOT_UART_INT_UNMASK);
 #else
@@ -1884,6 +1901,7 @@ static int hobot_uart_probe(struct platform_device *pdev)
 	}
 	/*Initialize the uartoutcnt */
 	hobot_uart_data->uartoutcnt = 0;
+	hobot_uart_data->rx_bytes = 0;
 	hobot_uart_data->uartclk = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(hobot_uart_data->uartclk)) {
 		dev_err(&pdev->dev, "uart_clk clock not found.\n");
