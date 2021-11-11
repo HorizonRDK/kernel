@@ -345,7 +345,6 @@ static irqreturn_t hobot_i2c_isr(int this_irq, void *data)
 
 	if (err) {
 		dev->msg_err = int_status.all;
-		dev_dbg(dev->dev, "i2c isr err:%x\n", dev->msg_err);
 		if (dev->msg_err & HOBOT_I2C_STAT_NACK) {
 			dev->rx_remaining = 0;
 			dev->tx_remaining = 0;
@@ -477,6 +476,7 @@ static int hobot_i2c_xfer_msg(struct hobot_i2c_dev *dev, struct i2c_msg *msg)
 	if(dev->msg_err & HOBOT_I2C_STAT_NACK) {
 		if (msg->flags & I2C_M_IGNORE_NAK)
 			return 0;
+		dev_warn(dev->dev, "i2c transfer failed: %x\n", dev->msg_err);
 		return -EREMOTEIO;
 	}
 
@@ -639,6 +639,11 @@ static int hobot_i2c_doxfer_smbus(struct hobot_i2c_dev *dev, u16 addr, bool writ
 	}
 	if (likely(!dev->msg_err))
 		return 0;
+
+	if(dev->msg_err & HOBOT_I2C_STAT_NACK) {
+		dev_warn(dev->dev, "i2c transfer failed: %x\n", dev->msg_err);
+		return -EREMOTEIO;
+	}
 
 	dev_err(dev->dev, "i2c sbus transfer failed: %x\n", dev->msg_err);
 	return -EIO;
