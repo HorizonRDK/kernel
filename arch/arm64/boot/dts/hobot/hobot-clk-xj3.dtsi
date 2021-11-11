@@ -127,25 +127,6 @@
 			clk-flags = <CLK_SET_RATE_PARENT>;
 		};
 
-		ace_div_aclk: ace_div_aclk {
-			#clock-cells = <0>;
-			compatible = "hobot,div-clk";
-			clocks = <&cpu_mux_clk>;
-			offset = <0x204>;
-			bits = <4>;
-			field = <3>;
-		};
-
-		acp_aclk: acp_aclk {
-			#clock-cells = <0>;
-			compatible = "hobot,endiv-clk";
-			clocks = <&cpu_mux_clk>;
-			offset = <0x200 0x100 0x104 0x108 0x208 0x0>;
-			bits = <0 0 0 0 0 32>;
-			field = <3 1 1 1 1>;
-			clk-flags = <CLK_IGNORE_UNUSED>;
-		};
-
 		sys_pllmux_clk: sys_pllmux_clk {
 			#clock-cells = <0>;
 			compatible = "hobot,mux-clk";
@@ -311,54 +292,6 @@
 			offset = <0x380>;
 			bits = <20>;
 			field = <3>;
-		};
-
-		cx_div_dbgclk: cx_div_dbgclk {
-			#clock-cells = <0>;
-			compatible = "hobot,div-clk";
-			clocks = <&cpu_mux_clk>;
-			offset = <0x210>;
-			bits = <0>;
-			field = <3>;
-		};
-
-		dbg_pclk: dbg_pclk {
-			#clock-cells = <0>;
-			compatible = "hobot,gate-clk";
-			clocks = <&cx_div_dbgclk>;
-			offset = <0x110 0x114 0x118 0x0>;
-			bits = <0 0 0 32>;
-			field = <1 1 1>;
-			clk-flags = <CLK_IGNORE_UNUSED>;
-		};
-
-		atb_atclk: atb_atclk {
-			#clock-cells = <0>;
-			compatible = "hobot,gate-clk";
-			clocks = <&cx_div_dbgclk>;
-			offset = <0x110 0x114 0x118 0x0>;
-			bits = <1 1 1 32>;
-			field = <1 1 1>;
-			clk-flags = <CLK_IGNORE_UNUSED>;
-		};
-
-		armv8pil_clk: armv8pil_clk {
-			#clock-cells = <0>;
-			compatible = "hobot,gate-clk";
-			clocks = <&cx_div_dbgclk>;
-			offset = <0x110 0x114 0x118 0x0>;
-			bits = <3 3 3 32>;
-			field = <1 1 1>;
-			clk-flags = <CLK_IGNORE_UNUSED>;
-		};
-
-		cx_tpiu_clk: cx_tpiu_clk {
-			#clock-cells = <0>;
-			compatible = "hobot,endiv-clk";
-			clocks = <&cpu_mux_clk>;
-			offset = <0x210 0x110 0x114 0x118 0x218 0x0>;
-			bits = <4 4 4 4 0 32>;
-			field = <3 1 1 1 1>;
 		};
 
 		cnnpll_clk: cnnpll_clk {
