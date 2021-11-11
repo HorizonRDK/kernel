@@ -96,28 +96,13 @@ void sensor_ctrl_wakeup(uint32_t port)
 
 static int camera_ctrl_fop_open(struct inode *pinode, struct file *pfile)
 {
-	pr_info("camera_fop_open begin %d \n", __LINE__);
-	mutex_lock(&camera_ctrl->m_mutex);
-	camera_ctrl->user_num++;
-	if (camera_ctrl->user_num == 1) {
-		pfile->private_data = camera_ctrl;
-	}
-	mutex_unlock(&camera_ctrl->m_mutex);
-	pr_info("camera_fop_open success %d\n", __LINE__);
+	pr_debug("camera_fop_open success %d\n", __LINE__);
 	return 0;
 }
 
 static int camera_ctrl_fop_release(struct inode *pinode, struct file *pfile)
 {
-	camera_ctrlmod_s *camera_cdev = pfile->private_data;
-
-	mutex_lock(&camera_cdev->m_mutex);
-	camera_cdev->user_num--;
-	if (camera_cdev->user_num == 0) {
-		pfile->private_data = NULL;
-	}
-	mutex_unlock(&camera_cdev->m_mutex);
-	pr_info("camera_fop_release success %d\n", __LINE__);
+	pr_debug("camera_fop_release success %d\n", __LINE__);
 	return 0;
 }
 static long camera_ctrl_fop_ioctl(struct file *pfile, unsigned int cmd,
