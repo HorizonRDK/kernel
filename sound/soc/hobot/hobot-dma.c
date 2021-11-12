@@ -420,6 +420,7 @@ static void i2sidma_done(void *id, int bytes_xfer)
 static int i2sidma_hw_params(struct snd_pcm_substream *substream,
 			      struct snd_pcm_hw_params *params)
 {
+	unsigned long flags;
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct idma_ctrl_s *dma_ctrl = substream->runtime->private_data;
 
@@ -439,6 +440,7 @@ static int i2sidma_hw_params(struct snd_pcm_substream *substream,
 
 	runtime->dma_bytes = params_buffer_bytes(params);
 
+	spin_lock_irqsave(&global_info[hobot_dma->id].lock, flags);
 	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
 		if (global_info[dma_ctrl->id].trigger_flag == 0) {
 			global_info[dma_ctrl->id].pcm_param.samplefmt = params_format(params);
@@ -452,10 +454,12 @@ static int i2sidma_hw_params(struct snd_pcm_substream *substream,
 				global_info[dma_ctrl->id].pcm_param.buffer_size != params_buffer_bytes(params)) {
 				dev_err(hobot_dma->dev,
 					"pcm format is not match with different process\n");
+				spin_unlock_irqrestore(&global_info[hobot_dma->id].lock, flags);
 				return -EINVAL;
 			}
 		}
 	}
+	spin_unlock_irqrestore(&global_info[hobot_dma->id].lock, flags);
 
 	/* init dma buffer addr */
 	dma_ctrl->start = dma_ctrl->pos = runtime->dma_addr;
