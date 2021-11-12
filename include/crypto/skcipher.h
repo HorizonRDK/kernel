@@ -17,6 +17,14 @@
 #include <linux/kernel.h>
 #include <linux/slab.h>
 
+#if defined(CONFIG_AES_SOFT_HASH_BIND_KEY) || \
+	defined(CONFIG_AES_HW_HASH_BIND_KEY)
+#define IN_KEY_SIZE 32
+#define SOCUID_SIZE 32
+#define SOFT_SHA256 "sha256-arm64-neon"
+#define HW_SHA256 "spacc-sha256"
+#endif
+
 /**
  *	struct skcipher_request - Symmetric key cipher request
  *	@cryptlen: Number of bytes to encrypt or decrypt
@@ -380,6 +388,17 @@ static inline void crypto_skcipher_clear_flags(struct crypto_skcipher *tfm,
 }
 
 /**
+ * aes_key_bind_socuid() - bind aes key and socuid
+ * @in_key: aes key
+ * @key_len: aes key size
+ * caculate key and socuid shash256 into crypto_skcipher_setkey()
+ * support soft hash and hw hash, if bind faild, use source key.
+ */
+#if defined(CONFIG_AES_SOFT_HASH_BIND_KEY) || \
+	defined(CONFIG_AES_HW_HASH_BIND_KEY)
+void aes_key_bind_socuid(u8 *in_key, unsigned int key_len);
+#endif
+/**
  * crypto_skcipher_setkey() - set key for cipher
  * @tfm: cipher handle
  * @key: buffer holding the key
@@ -398,6 +417,11 @@ static inline void crypto_skcipher_clear_flags(struct crypto_skcipher *tfm,
 static inline int crypto_skcipher_setkey(struct crypto_skcipher *tfm,
 					 const u8 *key, unsigned int keylen)
 {
+#if defined(CONFIG_AES_SOFT_HASH_BIND_KEY) || \
+	defined(CONFIG_AES_HW_HASH_BIND_KEY)
+	aes_key_bind_socuid((u8 *)key, keylen);
+#endif
+
 	return tfm->setkey(tfm, key, keylen);
 }
 

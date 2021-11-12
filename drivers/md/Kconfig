@@ -613,3 +613,4 @@ config DM_ANDROID_VERITY_AT_MOST_ONCE_DEFAULT_ENABLED
 
 	  If unsure, say N.
 endif # MD
+source "drivers/md/hobot/Kconfig"

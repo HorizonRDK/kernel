@@ -79,3 +79,7 @@ endif
 ifeq ($(CONFIG_DM_VERITY_AVB),y)
 dm-verity-objs			+= dm-verity-avb.o
 endif
+
+ifneq ($(filter y,$(CONFIG_AES_SOFT_HASH_BIND_KEY) $(CONFIG_AES_HW_HASH_BIND_KEY)),)
+obj-y += hobot/
+endif

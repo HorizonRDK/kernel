@@ -1,0 +1,34 @@
+
+choice
+	prompt "Default unbind key"
+	default AES_HASH_BIND_KEY_NULL
+	help
+	  Default unbind source aes key
+
+config AES_HASH_BIND_KEY_NULL
+	bool "Unbind"
+	help
+	  Disable bind source aes key and socuid by hobot soft hash
+
+config AES_HW_HASH_BIND_KEY
+	bool "Hw_bind"
+	depends on CRYPTO_DEV_HOBOT_DEV
+	depends on CRYPTO_DEV_HOBOT_EXAMPLE
+	depends on CRYPTO_DEV_HOBOT_CRYPTO
+	depends on CRYPTO_DEV_HOBOT_RSA
+	depends on CRYPTO_DEV_HOBOT_TRNG
+	help
+	  Enables bind source aes key and socuid by hobot hardware hash
+
+config AES_SOFT_HASH_BIND_KEY
+	bool "Soft_bind"
+	help
+	  Enables bind source aes key and socuid by hobot soft hash
+endchoice
+
+config USE_AES_CONFIG_KEY
+	string "User_key"
+	# depends on AES_SOFT_HASH_BIND_KEY || AES_HW_HASH_BIND_KEY
+	default ""
+	help
+	  Bind aes defconfig key and socuid by hash
