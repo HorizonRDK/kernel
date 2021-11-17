@@ -139,6 +139,7 @@ static struct idma_info_s {
 	struct device *dev;
 	int stream;
 	int id;
+	int dummy_node;
 } hobot_i2sidma[10];
 
 static int tstamp_mode=0;
@@ -442,7 +443,7 @@ static int i2sidma_hw_params(struct snd_pcm_substream *substream,
 
 	spin_lock_irqsave(&global_info[hobot_dma->id].lock, flags);
 	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
-		if (global_info[dma_ctrl->id].trigger_flag == 0) {
+		if (hobot_dma->dummy_node == 0) {
 			global_info[dma_ctrl->id].pcm_param.samplefmt = params_format(params);
 			global_info[dma_ctrl->id].pcm_param.samplerate = params_rate(params);
 			global_info[dma_ctrl->id].pcm_param.channels = params_channels(params);
@@ -1294,6 +1295,7 @@ static int asoc_i2sidma_platform_probe(struct platform_device *pdev)
 
 	spin_lock_init(&(hobot_i2sidma[id].lock));
 	hobot_i2sidma[id].dev = &pdev->dev;
+	hobot_i2sidma[id].dummy_node = dummy_node;
 	dev_set_drvdata(&pdev->dev, &hobot_i2sidma[id]);
 
 	ret =  devm_snd_soc_register_platform(&pdev->dev,
