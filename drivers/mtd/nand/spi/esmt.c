@@ -16,6 +16,7 @@
 #define ESMT_STATUS_ECC_1TO3_BITFLIPS	(1 << 4)
 #define ESMT_STATUS_ECC_4TO6_BITFLIPS	(3 << 4)
 #define ESMT_STATUS_ECC_7TO8_BITFLIPS   (5 << 4)
+#define ESMT_STATUS_ECC_MASK			GENMASK(6, 4)
 
 static SPINAND_OP_VARIANTS(read_cache_variants,
 		SPINAND_PAGE_READ_FROM_CACHE_QUADIO_OP(0, 2, NULL, 0),
@@ -61,7 +62,7 @@ static int f50d4g41xb_ooblayout_free(struct mtd_info *mtd, int section,
 static int f50d4g41xb_ecc_get_status(struct spinand_device *spinand,
 									u8 status)
 {
-	switch (status & STATUS_ECC_MASK) {
+	switch (status & ESMT_STATUS_ECC_MASK) {
 	case STATUS_ECC_NO_BITFLIPS:
 		return 0;
 
