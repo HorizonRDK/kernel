@@ -1960,6 +1960,26 @@ int ipu_set_path_attr(struct ipu_subdev *subdev, ipu_cfg_t *ipu_cfg)
 	return 0;
 }
 
+static int32_t ipu_set_dma_input(struct ipu_video_ctx *ipu_ctx,
+									int32_t instance)
+{
+	struct x3_ipu_dev *ipu;
+
+	ipu = ipu_ctx->ipu_dev;
+	if (!(ipu_ctx->state & BIT(VIO_VIDEO_OPEN))) {
+		vio_err("S%d ipu_set_dma_input state is invalid %lx\n",
+					instance, ipu_ctx->state);
+		return -EINVAL;
+	}
+	if (test_bit(IPU_OTF_INPUT, &ipu->state)) {
+		vio_err("S%d IPU otf input already,can't set dma input\n", instance);
+		return -EINVAL;
+	}
+	set_bit(IPU_DMA_INPUT, &ipu->state);
+	vio_info("S%d set ipu dma input done\n", instance);
+	return 0;
+}
+
 int ipu_update_common_param(struct ipu_subdev *subdev,
 			ipu_cfg_t *ipu_cfg)
 {
@@ -3556,6 +3576,12 @@ static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 	case IPU_STOP_WAKE_UP:
 		ret = ipu_wake_up_poll(ipu_ctx);
 		break;
+	case IPU_IOC_S_DMA_INPUT:
+		ret = get_user(instance, (u32 __user *) arg);
+		if (ret)
+			return -EFAULT;
+		ret = ipu_set_dma_input(ipu_ctx, instance);
+		break;
 	default:
 		vio_err("wrong ioctl command\n");
 		ret = -EFAULT;
@@ -3973,6 +3999,11 @@ static irqreturn_t ipu_isr(int irq, void *data)
 			diag_info = err_status;
 		}
 #endif
+	}
+
+	if (group == NULL) {
+		vio_err("%s instance %d group is NULL\n", __func__, instance);
+		return IRQ_HANDLED;
 	}
 	/*
 	 * in some abnormal scene, FS & FE maybe occurs at same time
