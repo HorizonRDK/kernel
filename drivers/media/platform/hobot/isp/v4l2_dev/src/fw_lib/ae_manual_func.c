@@ -221,8 +221,10 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
                 vio_get_sif_frame_info(fw_id, &frmid);
                 cn->ctx.frame_id = frmid.frame_id;
                 cn->ctx.timestamps = frmid.timestamps;
-                memcpy(cn->base, p_fsm->fullhist, sizeof(p_sbuf_ae->stats_data));
-                cn->ctx.crc16 = crc16(~0, cn->base, sizeof(p_sbuf_ae->stats_data));
+				if(!IS_ERR_OR_NULL(cn->base)) {
+					memcpy(cn->base, p_fsm->fullhist, sizeof(p_sbuf_ae->stats_data));
+					cn->ctx.crc16 = crc16(~0, cn->base, sizeof(p_sbuf_ae->stats_data));
+				}
                 isp_ctx_put_node(fw_id, cn, ISP_AE, DONEQ);
 
                 pr_debug("ae stats frame id %d\n", cn->ctx.frame_id);
@@ -281,8 +283,10 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
                 vio_get_sif_frame_info(fw_id, &frmid);
                 cn->ctx.frame_id = frmid.frame_id;
                 cn->ctx.timestamps = frmid.timestamps;
-                memcpy(cn->base, p_sbuf_ae->hist4, sizeof(p_sbuf_ae->hist4));
-                cn->ctx.crc16 = crc16(~0, cn->base, sizeof(p_sbuf_ae->hist4));
+				if(!IS_ERR_OR_NULL(cn->base)) {
+					memcpy(cn->base, p_sbuf_ae->hist4, sizeof(p_sbuf_ae->hist4));
+					cn->ctx.crc16 = crc16(~0, cn->base, sizeof(p_sbuf_ae->hist4));
+				}
                 isp_ctx_put_node(fw_id, cn, ISP_AE_5BIN, DONEQ);
 
                 pr_debug("ae_5bin stats frame id %d\n", cn->ctx.frame_id);
@@ -309,8 +313,10 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
                 vio_get_sif_frame_info(fw_id, &frmid);
                 cn->ctx.frame_id = frmid.frame_id;
                 cn->ctx.timestamps = frmid.timestamps;
-                memcpy(cn->base, lumvar, sizeof(lumvar));
-                cn->ctx.crc16 = crc16(~0, cn->base, sizeof(lumvar));
+				if(!IS_ERR_OR_NULL(cn->base)) {
+					memcpy(cn->base, lumvar, sizeof(lumvar));
+					cn->ctx.crc16 = crc16(~0, cn->base, sizeof(lumvar));
+				}
                 isp_ctx_put_node(fw_id, cn, ISP_LUMVAR, DONEQ);
 
                 pr_debug("lumvar stats frame id %d\n", cn->ctx.frame_id);

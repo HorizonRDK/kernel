@@ -307,8 +307,10 @@ void awb_read_statistics( AWB_fsm_t *p_fsm )
                 vio_get_sif_frame_info(fw_id, &frmid);
                 cn->ctx.frame_id = frmid.frame_id;
                 cn->ctx.timestamps = frmid.timestamps;
-                memcpy(cn->base, p_fsm->awb_stats, sizeof(p_sbuf_awb_stats->stats_data));
-                cn->ctx.crc16 = crc16(~0, cn->base, sizeof(p_sbuf_awb_stats->stats_data));
+				if(!IS_ERR_OR_NULL(cn->base)) {
+					memcpy(cn->base, p_fsm->awb_stats, sizeof(p_sbuf_awb_stats->stats_data));
+					cn->ctx.crc16 = crc16(~0, cn->base, sizeof(p_sbuf_awb_stats->stats_data));
+				}
                 isp_ctx_put_node(fw_id, cn, ISP_AWB, DONEQ);
 
                 pr_debug("awb stats frame id %d\n", cn->ctx.frame_id);

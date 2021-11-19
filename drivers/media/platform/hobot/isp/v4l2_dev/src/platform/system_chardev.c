@@ -225,7 +225,7 @@ lock_failure:
 
 static int isp_fops_release( struct inode *inode, struct file *f )
 {
-    int i, rc;
+    int i;
     struct isp_dev_context *p_ctx = (struct isp_dev_context *)f->private_data;
 	acamera_context_t *ptr;
 
@@ -234,11 +234,7 @@ static int isp_fops_release( struct inode *inode, struct file *f )
         return -EINVAL;
     }
 
-    rc = rt_mutex_lock_interruptible( &p_ctx->fops_lock );
-    if ( rc ) {
-        LOG( LOG_ERR, "Error: lock failed of dev: %s.", p_ctx->dev_name );
-        return rc;
-    }
+    rt_mutex_lock(&p_ctx->fops_lock);
 
 	//free memory later, disable all contexts isp info dump
 	for (i = 0; i < FIRMWARE_CONTEXT_NUMBER; i++) {

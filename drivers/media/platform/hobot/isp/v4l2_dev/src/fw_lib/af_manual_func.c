@@ -204,8 +204,10 @@ void af_read_stats_data( AF_fsm_ptr_t p_fsm )
                 vio_get_sif_frame_info(fw_id, &frmid);
                 cn->ctx.frame_id = frmid.frame_id;
                 cn->ctx.timestamps = frmid.timestamps;
-                memcpy(cn->base, p_sbuf_af->stats_data, sizeof(p_sbuf_af->stats_data));
-                cn->ctx.crc16 = crc16(~0, cn->base, sizeof(p_sbuf_af->stats_data));
+				if(!IS_ERR_OR_NULL(cn->base)) {
+					memcpy(cn->base, p_sbuf_af->stats_data, sizeof(p_sbuf_af->stats_data));
+					cn->ctx.crc16 = crc16(~0, cn->base, sizeof(p_sbuf_af->stats_data));
+				}
                 isp_ctx_put_node(fw_id, cn, ISP_AF, DONEQ);
 
                 pr_debug("af stats frame id %d\n", cn->ctx.frame_id);
