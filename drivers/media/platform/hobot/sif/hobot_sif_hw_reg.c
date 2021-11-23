@@ -948,21 +948,17 @@ static void sif_set_mipi_rx(u32 __iomem *base_reg, sif_input_t* p_input,
 					mux_out_index,
 					input_index_start + ipi_index);
 			} else {
-				if (!p_input->mux_multiplexing.yuv_mux_multiplexing) {
-					sif_enable_mux_out(base_reg,
-						mux_out_index,
-						input_index_start + ipi_index,
-						lines);
-				}
+				sif_enable_mux_out(base_reg,
+					mux_out_index,
+					input_index_start + ipi_index,
+					lines);
 			}
 
 			if(ddr_mux_out_index != mux_out_index) {
-				if (!p_input->mux_multiplexing.yuv_mux_multiplexing) {
-					vio_hw_set_field(base_reg, &sif_regs[SIF_MUX_OUT_SEL],
-						&sif_fields[SW_SIF_MUX0_OUT_SELECT - ddr_mux_out_index],
-						input_index_start + ipi_index);
-					*online_ddr_enable = true;
-				}
+				vio_hw_set_field(base_reg, &sif_regs[SIF_MUX_OUT_SEL],
+					&sif_fields[SW_SIF_MUX0_OUT_SELECT - ddr_mux_out_index],
+					input_index_start + ipi_index);
+				*online_ddr_enable = true;
 			}
 
 			if (yuv_format == HW_FORMAT_YUV422) {
