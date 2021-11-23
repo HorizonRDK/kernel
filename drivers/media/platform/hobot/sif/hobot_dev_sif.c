@@ -1154,6 +1154,8 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 				sif_ctx->group->instance, sif_ctx->id, __func__);
 	}
 	memset(&sif_frame_info[sif_ctx->group->instance], 0, sizeof(struct vio_frame_id));
+	/* clear the ipi enable flag */
+	subdev->ipi_enable = false;
 	mutex_unlock(&sif->shared_mutex);
 	sif_ctx->state = BIT(VIO_VIDEO_CLOSE);
 
@@ -2387,7 +2389,7 @@ static int sif_wake_up_poll(struct sif_video_ctx *sif_ctx)
  * Set the flag of disabling the ipi of each channel.
  * @sif_ctx: Each channel corresponds to the context of video image processing.
 */
-void sif_set_ipi_disable(struct sif_video_ctx *sif_ctx)
+static void sif_set_ipi_disable(struct sif_video_ctx *sif_ctx)
 {
 	struct x3_sif_dev *sif;
 	struct sif_subdev *subdev;
@@ -2395,9 +2397,8 @@ void sif_set_ipi_disable(struct sif_video_ctx *sif_ctx)
 	sif = sif_ctx->sif_dev;
 	subdev = sif_ctx->subdev;
 	if(subdev)
-		subdev->ipi_enable = 1;
+		subdev->ipi_enable = true;
 	vio_info("%s ipi disable %d\n", __func__, subdev->ipi_enable);
-	return;
 }
 
 /*
@@ -2407,7 +2408,7 @@ void sif_set_ipi_disable(struct sif_video_ctx *sif_ctx)
  * the multiplexing function, and this interface is called when switching.
  * @sif_ctx: Each channel corresponds to the context of video image processing.
 */
-int sif_reset_mipi_hw_config(struct sif_video_ctx *sif_ctx)
+static int sif_reset_mipi_hw_config(struct sif_video_ctx *sif_ctx)
 {
 	struct x3_sif_dev *sif;
 	struct sif_subdev *subdev;
@@ -3059,12 +3060,12 @@ static irqreturn_t sif_isr(int irq, void *data)
 			if (status & 1 << (mux_index + INTR_SIF_MUX0_FRAME_DONE)) {
 				group = sif->sif_mux[mux_index];
 				subdev = group->sub_ctx[0];
-				if(subdev->ipi_enable == 1) {
+				if(subdev->ipi_enable == true) {
 					vio_info("%s : rx_index = %d vc_index %d ipi_index %d instance %d \n",
 							__func__, subdev->rx_index, subdev->vc_index,
 							subdev->ipi_index, group->instance);
 					mipi_host_reset_ipi(subdev->rx_index, subdev->vc_index, 0);
-					subdev->ipi_enable = 0;
+					subdev->ipi_enable = false;
 				}
 				subdev->overflow = sif_find_overflow_instance(mux_index,
 					subdev, temp_flow);

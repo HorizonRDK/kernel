@@ -1316,7 +1316,7 @@ void sif_hw_mipi_rx_out_select(u32 __iomem *base_reg, struct sif_subdev *subdev)
 	u32 yuv_format = p_mipi->data.format;
 	static const u32 map_mux_input[] = {0, 4, 8, 10};
 	u32 input_index_start = map_mux_input[p_mipi->mipi_rx_index % 4];
-	u32 i_step, mux_out_index, lines, ddr_mux_out_index;
+	u32 i_step = 0, mux_out_index = 0, lines = 0, ddr_mux_out_index = 0;
 	u8 *vc_index;
 	u8 ipi_index = 0;
 	u32 ch_index[3] = {0, 1, 2};
@@ -1347,18 +1347,20 @@ void sif_hw_mipi_rx_out_select(u32 __iomem *base_reg, struct sif_subdev *subdev)
 			 }
 		}
 	}
-	if(p_out->ddr.stride) {
+
+	if(p_out->ddr.stride && yuv_format == HW_FORMAT_YUV422 && 2 == i_step) {
 		vio_hw_set_reg(base_reg,
-		&sif_regs[SIF_AXI_FRM0_W_STRIDE + mux_out_index], p_out->ddr.stride);
-	}
-	sif_set_wdma_enable(base_reg, mux_out_index, true);
-	if(yuv_format == HW_FORMAT_YUV422) {
+			&sif_regs[SIF_AXI_FRM0_W_STRIDE + mux_out_index], p_out->ddr.stride);
+		sif_set_wdma_enable(base_reg, mux_out_index, true);
 		vio_hw_set_reg(base_reg,
-		&sif_regs[SIF_AXI_FRM0_W_STRIDE + mux_out_index + 1], p_out->ddr.stride);
+			&sif_regs[SIF_AXI_FRM0_W_STRIDE + mux_out_index + 1], p_out->ddr.stride);
 		sif_set_wdma_enable(base_reg, mux_out_index + 1, true);
-	}
-	vio_info("format %d mipi_rx_index %d ddr.stride %d mux_index %d\n",
-		yuv_format, p_mipi->mipi_rx_index, p_out->ddr.stride, mux_out_index);
+
+		vio_info("format %d mipi_rx_index %d ddr.stride %d mux_index %d\n",
+			yuv_format, p_mipi->mipi_rx_index, p_out->ddr.stride, mux_out_index);
+	} else
+		vio_err("invalid config mipi_rx_index %d stride: %d format %d, must be yuv422\n",
+			p_mipi->mipi_rx_index, p_out->ddr.stride, yuv_format);
 }
 
 void sif_hw_config(u32 __iomem *base_reg, sif_cfg_t* c)

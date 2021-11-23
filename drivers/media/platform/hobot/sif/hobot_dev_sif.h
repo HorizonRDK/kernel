@@ -256,20 +256,20 @@ struct sif_subdev {
 	u32 ddr_mux_index;
 	u32 dol_num;
 	u32 rx_index;
-	u8	vc_index;
+	u8  vc_index;
 	u32 ipi_index;
 	u32 ipi_channels;
 	u32 mux_nums;
 	u32 overflow;
 	sif_data_desc_t ddrin_fmt;
 	sif_data_desc_t fmt;
-	struct frame_id 		info;
+	struct frame_id info;
 	bool initial_frameid;
+	volatile bool ipi_enable;
 	u32 md_refresh_count;
 	u32 id;
 	struct splice_info  splice_info;
 	fps_ctrl_t fps_ctrl;
-	u32 ipi_enable;
 #ifdef CONFIG_HOBOT_DIAG
 	union {
 		u32 diag_state;

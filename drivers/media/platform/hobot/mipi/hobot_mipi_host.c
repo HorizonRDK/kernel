@@ -128,6 +128,7 @@ module_param(hw_mode, uint, 0644);
 #define MIPI_HOST_IPI2_SOFTRSTN	   (0x01 << 4)
 #define MIPI_HOST_IPI3_SOFTRSTN	   (0x01 << 8)
 #define MIPI_HOST_IPI4_SOFTRSTN	   (0x01 << 12)
+#define MIPI_HOST_ALLE_SOFTRSTN    ((uint32_t)(0x1111UL))
 #define MIPI_HOST_VC_EXT_LEGACY    (0x01)
 #define MIPI_HOST_VC_EXT_ENABLE    (0x00)
 
@@ -1096,6 +1097,9 @@ static int32_t mipi_host_configure_ipi(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 		}
 		break;
 	}
+
+	/* default enable all ipis of mipi host */
+	mipi_putreg(iomem + REG_MIPI_HOST_IPI_SOFTRSTN, MIPI_HOST_ALLE_SOFTRSTN);
 
 	mipiinfo("config %d/%d ipi done", ipi_num, cfg->channel_num);
 	return 0;
