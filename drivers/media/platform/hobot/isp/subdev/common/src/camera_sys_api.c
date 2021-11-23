@@ -1166,6 +1166,21 @@ int camera_turning_param_config(uint32_t port,
 	return ret;
 }
 
+void camera_sys_tuning_data_init(uint32_t port,
+		sensor_turning_data_t *turning_pram)
+{
+	memcpy(&camera_mod[port]->camera_param, turning_pram,
+					sizeof(sensor_turning_data_t));
+	camera_mod[port]->camera_param.normal.again_lut = NULL;
+	camera_mod[port]->camera_param.normal.dgain_lut = NULL;
+	camera_mod[port]->camera_param.dol2.again_lut = NULL;
+	camera_mod[port]->camera_param.dol2.dgain_lut = NULL;
+	camera_mod[port]->camera_param.dol3.again_lut = NULL;
+	camera_mod[port]->camera_param.dol3.dgain_lut = NULL;
+	camera_mod[port]->camera_param.pwl.again_lut = NULL;
+	camera_mod[port]->camera_param.pwl.dgain_lut = NULL;
+}
+
 int camera_sys_turining_set(uint32_t port, sensor_turning_data_t *turning_pram)
 {
 	int ret = 0;
@@ -1177,6 +1192,7 @@ int camera_sys_turining_set(uint32_t port, sensor_turning_data_t *turning_pram)
 
 	if (turning_pram) {
 			camera_sys_tuning_release(port);
+			camera_sys_tuning_data_init(port, turning_pram);
 	} else {
 			return -1;
 	}
@@ -1305,6 +1321,7 @@ int camera_sys_turining_set(uint32_t port, sensor_turning_data_t *turning_pram)
 malloc_failed:
 	return ret;
 }
+
 void camera_sys_tuning_release(uint32_t port)
 {
 	//free malloc size
@@ -1340,15 +1357,6 @@ void camera_sys_tuning_release(uint32_t port)
 		kfree(camera_mod[port]->camera_param.pwl.dgain_lut);
 		camera_mod[port]->camera_param.pwl.dgain_lut = NULL;
 	}
-
-	camera_mod[port]->camera_param.normal.again_lut = NULL;
-	camera_mod[port]->camera_param.normal.dgain_lut = NULL;
-	camera_mod[port]->camera_param.dol2.again_lut = NULL;
-	camera_mod[port]->camera_param.dol2.dgain_lut = NULL;
-	camera_mod[port]->camera_param.dol3.again_lut = NULL;
-	camera_mod[port]->camera_param.dol3.dgain_lut = NULL;
-	camera_mod[port]->camera_param.pwl.again_lut = NULL;
-	camera_mod[port]->camera_param.pwl.dgain_lut = NULL;
 }
 
 int camera_sys_priv_set(uint32_t port, sensor_priv_t *priv_param)
