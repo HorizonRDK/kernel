@@ -765,7 +765,6 @@ config PARAVIRT_TIME_ACCOUNTING
 	  If in doubt, say N here.
 
 config KEXEC
-	depends on PM_SLEEP_SMP
 	select KEXEC_CORE
 	bool "kexec system call"
 	---help---
