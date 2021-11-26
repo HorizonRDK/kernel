@@ -494,6 +494,10 @@ static uint16_t _calibration_fs_mc_off[] = {
     8 * 256, // gain_log2 threshold. if gain is higher than the current gain_log2. mc off mode will be enabed.
 };
 
+static uint16_t _calibration_af_zone_wght_hor[] = {0, 0, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 0, 0};
+
+static uint16_t _calibration_af_zone_wght_ver[] = {0, 0, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 0, 0};
+
 
 static int16_t _AWB_colour_preference[] = {7500, 6000, 4700, 2800};
 
@@ -677,6 +681,8 @@ static LookupTable calibration_temper_strength = {.ptr = _calibration_temper_str
 static LookupTable calibration_custom_settings_context = {.ptr = _calibration_custom_settings_context, .rows = sizeof( _calibration_custom_settings_context ) / sizeof( _calibration_custom_settings_context[0] ), .cols = 4, .width = sizeof( _calibration_custom_settings_context[0][0] )};
 static LookupTable calibration_zoom_lms = {.ptr = _calibration_zoom_lms, .rows = 1, .cols = sizeof(_calibration_zoom_lms)/sizeof(_calibration_zoom_lms[0]), .width = sizeof( _calibration_zoom_lms[0])};
 static LookupTable calibration_zoom_af_lms = {.ptr = _calibration_zoom_af_lms, .rows = sizeof( _calibration_zoom_af_lms ) / sizeof( _calibration_zoom_af_lms[0] ), .cols = 21, .width = sizeof( _calibration_zoom_af_lms[0][0] )};
+static LookupTable calibration_af_zone_wght_ver = { .ptr = _calibration_af_zone_wght_ver, .rows = 1, .cols = sizeof(_calibration_af_zone_wght_ver) / sizeof(_calibration_af_zone_wght_ver[0]), .width = sizeof(_calibration_af_zone_wght_ver[0] ) };
+static LookupTable calibration_af_zone_wght_hor = { .ptr = _calibration_af_zone_wght_hor, .rows = 1, .cols = sizeof(_calibration_af_zone_wght_hor) / sizeof(_calibration_af_zone_wght_hor[0]), .width = sizeof(_calibration_af_zone_wght_hor[0] ) };
 
 static LookupTable calibration_gamma_ev1 = {.ptr = _calibration_gamma_ev1, .rows = 1, .cols = sizeof( _calibration_gamma_ev1 ) / sizeof( _calibration_gamma_ev1[0] ), .width = sizeof( _calibration_gamma_ev1[0] )};
 static LookupTable calibration_gamma_ev2 = {.ptr = _calibration_gamma_ev2, .rows = 1, .cols = sizeof( _calibration_gamma_ev2 ) / sizeof( _calibration_gamma_ev2[0] ), .width = sizeof( _calibration_gamma_ev2[0] )};
@@ -754,6 +760,8 @@ uint32_t get_calibrations_dynamic_fs_lin_dummy( ACameraCalibrations *c )
         c->calibrations[CALIBRATION_RGB2YUV_CONVERSION] = &calibration_rgb2yuv_conversion;
         c->calibrations[CALIBRATION_AE_ZONE_WGHT_HOR] = &calibration_calibration_ae_zone_wght_hor;
         c->calibrations[CALIBRATION_AE_ZONE_WGHT_VER] = &calibration_calibration_ae_zone_wght_ver;
+		c->calibrations[CALIBRATION_AF_ZONE_WGHT_VER] = &calibration_af_zone_wght_ver;
+        c->calibrations[CALIBRATION_AF_ZONE_WGHT_HOR] = &calibration_af_zone_wght_hor;
         c->calibrations[CALIBRATION_AWB_ZONE_WGHT_HOR] = &calibration_calibration_awb_zone_wght_hor;
         c->calibrations[CALIBRATION_AWB_ZONE_WGHT_VER] = &calibration_calibration_awb_zone_wght_ver;
         c->calibrations[CALIBRATION_CNR_UV_DELTA12_SLOPE] = &calibration_cnr_uv_delta12_slope;
