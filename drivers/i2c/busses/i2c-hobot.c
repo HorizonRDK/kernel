@@ -462,6 +462,7 @@ static int hobot_i2c_xfer_msg(struct hobot_i2c_dev *dev, struct i2c_msg *msg)
 	iowrite32(ctl_reg.all, &dev->i2c_regs->ctl);
 
 	if (!time_left) {
+		hobot_i2c_reset(dev);
 		dev_err(dev->dev, "i2c transfer timed out\n");
 		return -ETIMEDOUT;
 	}
@@ -480,6 +481,7 @@ static int hobot_i2c_xfer_msg(struct hobot_i2c_dev *dev, struct i2c_msg *msg)
 		return -EREMOTEIO;
 	}
 
+	hobot_i2c_reset(dev);
 	dev_err(dev->dev, "i2c transfer failed: %x\n", dev->msg_err);
 	return -EIO;
 }
@@ -527,7 +529,6 @@ static int hobot_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[], int n
 		return -ENODEV;
 	}
 
-	hobot_i2c_reset(dev);
 	recal_clk_div(dev);
 	if (msgs[0].flags & 0x20) {
 		hobot_i2c_cfg(dev, 0, 0);
@@ -571,8 +572,6 @@ static int hobot_i2c_doxfer_smbus(struct hobot_i2c_dev *dev, u16 addr, bool writ
 	if (hobot_wait_idle(dev))
 		return -ETIMEDOUT;
 
-	hobot_mask_int(dev);
-	hobot_clear_int(dev);
 
 	dev->msg_err = 0;
 	dev->tx_buf = &command;
@@ -625,12 +624,15 @@ static int hobot_i2c_doxfer_smbus(struct hobot_i2c_dev *dev, u16 addr, bool writ
 	time_left = wait_for_completion_timeout(&dev->completion,
 						msecs_to_jiffies(XFER_TIMEOUT));
 
+	hobot_mask_int(dev);
+	hobot_clear_int(dev);
 	ctl_reg.all = 0;
 	ctl_reg.bit.rfifo_clr = 1;
 	ctl_reg.bit.tfifo_clr = 1;
 	iowrite32(ctl_reg.all, &dev->i2c_regs->ctl);
 
 	if (!time_left) {
+		hobot_i2c_reset(dev);
 		dev_err(dev->dev, "i2c sbus transfer timed out\n");
 		return -ETIMEDOUT;
 	}
@@ -645,6 +647,7 @@ static int hobot_i2c_doxfer_smbus(struct hobot_i2c_dev *dev, u16 addr, bool writ
 		return -EREMOTEIO;
 	}
 
+	hobot_i2c_reset(dev);
 	dev_err(dev->dev, "i2c sbus transfer failed: %x\n", dev->msg_err);
 	return -EIO;
 }
@@ -667,7 +670,6 @@ static int hobot_i2c_xfer_smbus(struct i2c_adapter *adap, u16 addr,
 		mutex_unlock(&dev->lock);
 		return -ENODEV;
 	}
-	hobot_i2c_reset(dev);
 	recal_clk_div(dev);
 	if ((size == I2C_SMBUS_BYTE) & read_write) {
 		/* handle i2cdetect. protocol is:
@@ -679,6 +681,8 @@ static int hobot_i2c_xfer_smbus(struct i2c_adapter *adap, u16 addr,
 		hobot_i2c_cfg(dev, 0, 1);
 	}
 	enable_irq(dev->irq);
+	hobot_mask_int(dev);
+	hobot_clear_int(dev);
 
 	switch (size) {
 	case I2C_SMBUS_BYTE:
@@ -714,8 +718,6 @@ static int hobot_i2c_xfer_smbus(struct i2c_adapter *adap, u16 addr,
 	reset_client_freq(dev);
 
 	disable_irq(dev->irq);
-	hobot_mask_int(dev);
-	hobot_clear_int(dev);
 
 	clk_disable_unprepare(dev->clk);
 	mutex_unlock(&dev->lock);
@@ -901,6 +903,8 @@ static int hobot_i2c_probe(struct platform_device *pdev)
 #endif
 	if (!i2c_clk_keep_on)
 		clk_disable_unprepare(dev->clk);
+
+	hobot_i2c_reset(dev);
 	dev_info(&pdev->dev, "hobot_i2c_%d probe done\n", i2c_id);
 	return 0;
 
