@@ -66,14 +66,16 @@ struct hobot_i2c_dev {
 	size_t rx_remaining;
 	uint8_t i2c_id;
 	bool is_suspended;
+#ifdef CONFIG_HOBOT_DIAG
+	/*log the error status of the previous interrupt on the I2C IP*/
+	int pre_errsta;
+#endif
 #ifdef CONFIG_HOBOT_BUS_CLK_X3
     struct hobot_dpm dpm;
 #endif
 };
 
 static int timeout_enable = 0;
-/*log the error status of the previous interrupt on the I2C IP*/
-static int pre_errsta = 0;
 module_param(timeout_enable, int, S_IRUGO|S_IWUSR);
 MODULE_PARM_DESC(timeout_enable, "i2c:i2c hardware timeout 0:off 1:on");
 /*control whether the i2C clock is always on*/
@@ -314,7 +316,7 @@ static void hobot_i2c_diag_process(u32 errsta, struct hobot_i2c_dev *i2c_contro)
 		diag_send_event_stat_and_env_data(DiagMsgPrioHigh,
 						ModuleDiag_i2c, i2c_event, sta,
 						envgen_timing, envdata, sizeof(uint8_t) * 10);
-	} else if (pre_errsta == 1 && errsta == 0) {
+	} else if (i2c_contro->pre_errsta != 0 && errsta == 0) {
 		envdata[3] = sizeof(u16);
 		sta = DiagEventStaSuccess;
 		memcpy(envdata + 4, (uint8_t *)&slave_addr, sizeof(u16));
@@ -322,7 +324,7 @@ static void hobot_i2c_diag_process(u32 errsta, struct hobot_i2c_dev *i2c_contro)
 						ModuleDiag_i2c, i2c_event, sta,
 						DiagGenEnvdataWhenSuccess, envdata, sizeof(uint8_t) * 6);
 	}
-	pre_errsta = errsta;
+	i2c_contro->pre_errsta = errsta;
 }
 #endif
 
@@ -838,6 +840,7 @@ static int hobot_i2c_probe(struct platform_device *pdev)
 	dev->i2c_id = i2c_id;
 #ifdef CONFIG_HOBOT_DIAG
 	dev_err(&pdev->dev, "i2c%d diag register....\n", i2c_id);
+	dev->pre_errsta = 0;
 	if (diag_register(ModuleDiag_i2c, EventIdI2cController0Err + i2c_id,
 			5, DIAG_MSG_INTERVAL_MIN, DIAG_MSG_INTERVAL_MAX, NULL) < 0) {
 		dev_err(&pdev->dev, "i2c%d diag register fail\n",
