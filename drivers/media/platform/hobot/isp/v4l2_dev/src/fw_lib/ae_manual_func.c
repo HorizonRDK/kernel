@@ -221,7 +221,7 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
                 vio_get_sif_frame_info(fw_id, &frmid);
                 cn->ctx.frame_id = frmid.frame_id;
                 cn->ctx.timestamps = frmid.timestamps;
-				if(!IS_ERR_OR_NULL(cn->base)) {
+				if(p_ctx->isp_ae_stats_on != 0) {
 					memcpy(cn->base, p_fsm->fullhist, sizeof(p_sbuf_ae->stats_data));
 					cn->ctx.crc16 = crc16(~0, cn->base, sizeof(p_sbuf_ae->stats_data));
 				}
@@ -283,7 +283,7 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
                 vio_get_sif_frame_info(fw_id, &frmid);
                 cn->ctx.frame_id = frmid.frame_id;
                 cn->ctx.timestamps = frmid.timestamps;
-				if(!IS_ERR_OR_NULL(cn->base)) {
+				if(p_ctx->isp_ae_5bin_stats_on != 0) {
 					memcpy(cn->base, p_sbuf_ae->hist4, sizeof(p_sbuf_ae->hist4));
 					cn->ctx.crc16 = crc16(~0, cn->base, sizeof(p_sbuf_ae->hist4));
 				}
@@ -313,7 +313,7 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
                 vio_get_sif_frame_info(fw_id, &frmid);
                 cn->ctx.frame_id = frmid.frame_id;
                 cn->ctx.timestamps = frmid.timestamps;
-				if(!IS_ERR_OR_NULL(cn->base)) {
+				if(p_ctx->isp_lumvar_stats_on != 0) {
 					memcpy(cn->base, lumvar, sizeof(lumvar));
 					cn->ctx.crc16 = crc16(~0, cn->base, sizeof(lumvar));
 				}

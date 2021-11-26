@@ -714,8 +714,10 @@ void acamera_isp_ctxsv(uint8_t ctx_id)
                 cn->ctx.frame_id = frmid.frame_id;
                 cn->ctx.timestamps = frmid.timestamps;
                 offset = p_ctx->sw_reg_map.isp_sw_config_map + ACAMERA_DECOMPANDER0_MEM_BASE_ADDR;
-                memcpy_fromio(cn->base, offset, CTX_SIZE);
-                cn->ctx.crc16 = crc16(0xffff, cn->base, CTX_SIZE);
+				if(p_ctx->isp_ctxsv_on != 0) {
+					memcpy_fromio(cn->base, offset, CTX_SIZE);
+					cn->ctx.crc16 = crc16(0xffff, cn->base, CTX_SIZE);
+				}
                 isp_ctx_put_node(ctx_id, cn, ISP_CTX, DONEQ);
 
                 pr_debug("ctx dump frame id %d\n", cn->ctx.frame_id); /* PRQA S ALL */

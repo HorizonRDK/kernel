@@ -260,8 +260,13 @@ static int isp_fops_release( struct inode *inode, struct file *f )
 			if (IS_ERR(isp_dev_ctx.handle) == 0) {
 				ion_unmap_kernel(isp_dev_ctx.client, isp_dev_ctx.handle);
 				ion_free(isp_dev_ctx.client, isp_dev_ctx.handle);
+				isp_dev_ctx.handle = NULL;
+				p_ctx->phy_addr = 0;
+				p_ctx->mem_size = 0;
+				p_ctx->vir_addr = 0;
 			}
 			ion_client_destroy(isp_dev_ctx.client);
+			isp_dev_ctx.client = NULL;
 		}
     } else {
         pr_info("device name is %s, dev_opened reference count: %d.\n", p_ctx->dev_name, p_ctx->dev_opened);

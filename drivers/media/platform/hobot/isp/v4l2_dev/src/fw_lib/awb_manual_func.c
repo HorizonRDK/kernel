@@ -307,7 +307,7 @@ void awb_read_statistics( AWB_fsm_t *p_fsm )
                 vio_get_sif_frame_info(fw_id, &frmid);
                 cn->ctx.frame_id = frmid.frame_id;
                 cn->ctx.timestamps = frmid.timestamps;
-				if(!IS_ERR_OR_NULL(cn->base)) {
+				if(p_ctx->isp_awb_stats_on != 0) {
 					memcpy(cn->base, p_fsm->awb_stats, sizeof(p_sbuf_awb_stats->stats_data));
 					cn->ctx.crc16 = crc16(~0, cn->base, sizeof(p_sbuf_awb_stats->stats_data));
 				}
