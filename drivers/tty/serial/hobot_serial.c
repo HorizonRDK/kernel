@@ -1701,8 +1701,10 @@ static int hobot_uart_suspend(struct device *device)
 
 	pr_info("%s:%s, enter suspend...\n", __FILE__, __func__);
 
+#if IS_ENABLED(CONFIG_SUSPEND)
 	if (pm_suspend_target_state == PM_SUSPEND_TO_IDLE)
 		return 0;
+#endif
 
 	uart_suspend_port(&hobot_uart_driver, port);
 
@@ -1720,8 +1722,10 @@ static int hobot_uart_resume(struct device *device)
 	/* Nothing to do, no implement */
 	struct uart_port *port = dev_get_drvdata(device);
 
+#if IS_ENABLED(CONFIG_SUSPEND)
 	if (pm_suspend_target_state == PM_SUSPEND_TO_IDLE)
 		return 0;
+#endif
 
 	uart_resume_port(&hobot_uart_driver, port);
 
