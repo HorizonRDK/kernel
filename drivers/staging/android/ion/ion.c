@@ -1251,10 +1251,13 @@ static int ion_vm_fault(struct vm_fault *vmf)
 	pfn = page_to_pfn(ion_buffer_page(buffer->pages[vmf->pgoff]));
 	ret = vm_insert_pfn(vmf->vma, (unsigned long)vmf->address, pfn);
 	mutex_unlock(&buffer->lock);
-	if (ret)
-		return VM_FAULT_ERROR;
 
-	return VM_FAULT_NOPAGE;
+	if (ret == 0 || ret == -EBUSY)
+		return VM_FAULT_NOPAGE;
+	if (ret == -ENOMEM)
+		return VM_FAULT_OOM;
+
+	return VM_FAULT_SIGBUS;
 }
 
 static void ion_vm_open(struct vm_area_struct *vma)
