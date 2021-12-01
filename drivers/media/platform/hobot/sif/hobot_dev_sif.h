@@ -265,7 +265,7 @@ struct sif_subdev {
 	sif_data_desc_t fmt;
 	struct frame_id info;
 	bool initial_frameid;
-	volatile bool ipi_enable;
+	volatile bool ipi_disable;
 	u32 md_refresh_count;
 	u32 id;
 	struct splice_info  splice_info;

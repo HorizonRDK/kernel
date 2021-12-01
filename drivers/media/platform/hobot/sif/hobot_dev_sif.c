@@ -41,7 +41,7 @@
 #define MODULE_NAME "X3 SIF"
 extern struct vio_frame_id  sif_frame_info[VIO_MAX_STREAM];
 
-char sif_node_name[MAX_DEVICE][8] = {"capture", "ddrin"};
+static char sif_node_name[MAX_DEVICE][8] = {"capture", "ddrin"};
 static int mismatch_limit = 10;
 module_param(mismatch_limit, int, 0644);
 int testpattern_fps = 30;
@@ -64,6 +64,7 @@ enum {
 
 static void sif_fps_ctrl_init(struct sif_subdev *subdev, sif_cfg_t *sif_config);
 static void sif_fps_ctrl_deinit(struct sif_subdev *subdev);
+static void sif_transfer_frame_to_request(struct sif_subdev *subdev);
 
 void sif_get_mismatch_status(void)
 {
@@ -1155,7 +1156,7 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 	}
 	memset(&sif_frame_info[sif_ctx->group->instance], 0, sizeof(struct vio_frame_id));
 	/* clear the ipi enable flag */
-	subdev->ipi_enable = false;
+	subdev->ipi_disable = false;
 	mutex_unlock(&sif->shared_mutex);
 	sif_ctx->state = BIT(VIO_VIDEO_CLOSE);
 
@@ -2397,8 +2398,50 @@ static void sif_set_ipi_disable(struct sif_video_ctx *sif_ctx)
 	sif = sif_ctx->sif_dev;
 	subdev = sif_ctx->subdev;
 	if(subdev)
-		subdev->ipi_enable = true;
-	vio_info("%s ipi disable %d\n", __func__, subdev->ipi_enable);
+		subdev->ipi_disable = true;
+	vio_info("%s ipi disable %d\n", __func__, subdev->ipi_disable);
+}
+
+/*
+ * @brief
+ * transfer all valid frames to FS_REQUEST, and config one FS_PROCESS frame to HW.
+ * In YUV422 multi-processse in multi-channels, the multiplexing process starts
+ * the multiplexing function, and this interface is called when switching.
+ * @subdev: Each channel corresponds to the subdev.
+*/
+static inline void sif_config_current_buffer(struct sif_subdev *subdev)
+{
+	u32 buf_index = 0;
+	u32 mux_index = 0;
+	unsigned long flags;
+	struct x3_sif_dev *sif;
+	struct vio_framemgr *framemgr;
+	struct vio_frame *frame;
+
+	sif = subdev->sif_dev;
+	mux_index = subdev->ddr_mux_index % SIF_MUX_MAX;
+	framemgr = &subdev->framemgr;
+
+	sif_transfer_frame_to_request(subdev);
+
+	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	frame = peek_frame(framemgr, FS_REQUEST);
+	if (frame) {
+		buf_index = sif_get_current_bufindex(sif->base_reg, mux_index);
+		sif_set_wdma_buf_addr(sif->base_reg, mux_index, buf_index,
+				frame->frameinfo.addr[0]);
+		sif_transfer_ddr_owner(sif->base_reg, mux_index, buf_index);
+		sif_set_wdma_buf_addr(sif->base_reg, mux_index + 1,
+				buf_index, frame->frameinfo.addr[1]);
+		sif_transfer_ddr_owner(sif->base_reg, mux_index + 1, buf_index);
+		trans_frame(framemgr, frame, FS_PROCESS);
+		sif_print_buffer_status(sif->base_reg);
+		/* config the buff_count HW buffer index plus one for
+		 * sif_write_frame_work() to continue config the next frame
+		 */
+		sif->buff_count[mux_index] = buf_index + 1;
+	}
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
 }
 
 /*
@@ -2436,6 +2479,7 @@ static int sif_reset_mipi_hw_config(struct sif_video_ctx *sif_ctx)
 			sif->sif_mux[mux_index] = sif->sif_mux_multiplex[mux_index];
 		}
 		sif_hw_mipi_rx_out_select(sif->base_reg, subdev);
+		sif_config_current_buffer(subdev);
 	}
 	mutex_unlock(&sif->shared_mutex);
 	return 0;
@@ -2975,6 +3019,38 @@ void sif_mismatch_diag_report(struct x3_sif_dev *sif, uint32_t mux_index,
 }
 #endif
 
+/*
+ * @brief
+ * transfer all valid frames to FS_REQUEST.
+ * In YUV422 multi-processse in multi-channels, the multiplexing process starts
+ * the multiplexing function, and this interface is called when switching.
+ * @subdev: Each channel corresponds to the subdev.
+*/
+static void sif_transfer_frame_to_request(struct sif_subdev *subdev)
+{
+	struct vio_framemgr *framemgr;
+	struct vio_frame *frame, *temp;
+	struct vio_group *group;
+	unsigned long flags;
+	enum vio_frame_state state;
+
+	group = subdev->group;
+	framemgr = &subdev->framemgr;
+
+	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	/* Release all valid frames to FS_REQUEST if available */
+	for (state = FS_PROCESS; state < FS_USED; ++state) {
+		list_for_each_entry_safe(frame, temp,
+			&framemgr->queued_list[state], list) {
+			if (frame) {
+				trans_frame(framemgr, frame, FS_REQUEST);
+				vio_group_start_trigger_mp(group, frame);
+			}
+		}
+	}
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
+}
+
 static void sif_hw_resource_process(struct x3_sif_dev *sif,
 			struct vio_group *group)
 {
@@ -3060,12 +3136,13 @@ static irqreturn_t sif_isr(int irq, void *data)
 			if (status & 1 << (mux_index + INTR_SIF_MUX0_FRAME_DONE)) {
 				group = sif->sif_mux[mux_index];
 				subdev = group->sub_ctx[0];
-				if(subdev->ipi_enable == true) {
+				if(!group || !subdev)
+					return IRQ_HANDLED;
+				if(subdev->ipi_disable == true) {
 					vio_info("%s : rx_index = %d vc_index %d ipi_index %d instance %d \n",
 							__func__, subdev->rx_index, subdev->vc_index,
 							subdev->ipi_index, group->instance);
 					mipi_host_reset_ipi(subdev->rx_index, subdev->vc_index, 0);
-					subdev->ipi_enable = false;
 				}
 				subdev->overflow = sif_find_overflow_instance(mux_index,
 					subdev, temp_flow);
@@ -3077,10 +3154,22 @@ static irqreturn_t sif_isr(int irq, void *data)
 						subdev->splice_info.frame_done = 1;
 					}
 				}
+				multiplexing_proc = \
+					subdev->sif_cfg.input.mux_multiplexing.yuv_multiplexing_proc;
 				if (subdev->overflow != 0) {
 					vio_err("FE overflow %d mux_index %d temp_flow 0x%x\n",
 							subdev->overflow, mux_index, temp_flow);
-					sif_frame_ndone(subdev);
+					if(subdev->ipi_disable == true && \
+						(YUV422_MULTIPLEXING_PROC_A == multiplexing_proc || \
+						YUV422_MULTIPLEXING_PROC_B == multiplexing_proc) && \
+						HW_FORMAT_YUV422 == subdev->format) {
+						/* when ipi disable in multiplex scene, we just transfer
+						 * frame to FS_REQUEST queue without noticing userspace
+						 */
+						sif_transfer_frame_to_request(subdev);
+					} else {
+						sif_frame_ndone(subdev);
+					}
 					if (subdev->splice_info.splice_enable) {
 						if (subdev->splice_info.splice_done && subdev->splice_info.frame_done) {
 							subdev->splice_info.splice_done = 0;
@@ -3091,8 +3180,20 @@ static irqreturn_t sif_isr(int irq, void *data)
 						subdev->overflow = 0;
 					}
 				} else {
-					sif_frame_done(subdev);
+					if(subdev->ipi_disable == true && \
+						(YUV422_MULTIPLEXING_PROC_A == multiplexing_proc || \
+						YUV422_MULTIPLEXING_PROC_B == multiplexing_proc) && \
+						HW_FORMAT_YUV422 == subdev->format) {
+						sif_transfer_frame_to_request(subdev);
+					} else {
+						sif_frame_done(subdev);
+					}
 				}
+
+				/* clear the flag whatever if it is set */
+				if(subdev->ipi_disable == true)
+					subdev->ipi_disable = false;
+
 				/* fps_ctrl:FDone:if not lost next frame,transfer owner to HW */
 				if ((subdev->fps_ctrl.skip_frame)&&
 						(!atomic_read(&subdev->fps_ctrl.lost_this_frame))) {
