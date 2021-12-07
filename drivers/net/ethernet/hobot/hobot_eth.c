@@ -5212,7 +5212,8 @@ int eth_dfs_call(struct hobot_dpm *dpm, unsigned long val, int state) {
     dma_dbg_sta_rx = (value >> 8) & 0xf;
     dma_dbg_sta_tx = (value >> 12) & 0xf;
     if (val == HB_BUS_SIGNAL_START) {
-        if ((dma_dbg_sta_rx == DMA_DEBUG_STATUS_RUN_WRP)
+        if ((dma_dbg_sta_rx == DMA_DEBUG_STATUS_RUN_WRP
+            || dma_dbg_sta_rx == DMA_DEBUG_STATUS_STOP)
             && (dma_dbg_sta_tx == DMA_DEBUG_STATUS_SUSPEND
             || dma_dbg_sta_tx == DMA_DEBUG_STATUS_STOP)
             && (tx_q->dirty_tx == tx_q->cur_tx)) {
