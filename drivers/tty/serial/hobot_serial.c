@@ -57,6 +57,7 @@ unsigned int early_console_baud;
 /*log the error status of the previous interrupt on the UART IP*/
 static int pre_errflag = 0;
 
+static unsigned int hobot_uart_tx_empty(struct uart_port *port);
 /* Rx Trigger level */
 static int rx_trigger_level = 4;
 module_param(rx_trigger_level, uint, S_IRUGO);
@@ -254,7 +255,8 @@ static int serial_dfs_callback(struct hobot_dpm *self,
 		/*
 		 * check tx done, if tx done, stop rx dma
 		 */
-		if (atomic_read(&uart->dfs_dmatx_flag)) {
+		if (atomic_read(&uart->dfs_dmatx_flag) ||
+		    hobot_uart_tx_empty(uart->port) == 0) {
 			return -EBUSY;
 		} else {
 			hobot_uart_rxdma_stop(uart->port);
