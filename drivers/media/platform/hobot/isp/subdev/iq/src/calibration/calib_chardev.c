@@ -362,7 +362,7 @@ lock_failure:
 
 static int calib_fops_release( struct inode *inode, struct file *f )
 {
-    int rc;
+	int rc = 0;
     struct calib_dev_s *p_ctx = (struct calib_dev_s *)f->private_data;
 
     if ( p_ctx != &calib_dev_ctx ) {
@@ -370,11 +370,7 @@ static int calib_fops_release( struct inode *inode, struct file *f )
         return -EINVAL;
     }
 
-    rc = mutex_lock_interruptible( &p_ctx->fops_lock );
-    if ( rc ) {
-        LOG( LOG_ERR, "Error: lock failed of dev: %s.", p_ctx->dev_name );
-        return rc;
-    }
+    mutex_lock( &p_ctx->fops_lock );
 
     if ( p_ctx->dev_opened ) {
         p_ctx->dev_opened--;
@@ -386,7 +382,7 @@ static int calib_fops_release( struct inode *inode, struct file *f )
 
     mutex_unlock( &p_ctx->fops_lock );
 
-    return 0;
+    return rc;
 }
 
 static ssize_t calib_fops_write( struct file *file, const char __user *buf, size_t count, loff_t *ppos )

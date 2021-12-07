@@ -148,7 +148,7 @@ isp_ctx_node_t *isp_ctx_get_node_timeout(int ctx_id, isp_info_type_e it,
 		system_chardev_unlock();
 		ret = down_timeout(&ctx_queue[ctx_id][it].sem,
 						msecs_to_jiffies(timeout));
-		ret = system_chardev_lock();
+		ret |= system_chardev_lock();
 	} else {
 		if(latest_flag == 1) {
 			spin_lock(&lock);
@@ -157,7 +157,7 @@ isp_ctx_node_t *isp_ctx_get_node_timeout(int ctx_id, isp_info_type_e it,
 			system_chardev_unlock();
 			ret = down_timeout(&ctx_queue[ctx_id][it].sem,
 							msecs_to_jiffies(timeout));
-			ret = system_chardev_lock();
+			ret |= system_chardev_lock();
 		} else {
 			ret1 = down_trylock(&ctx_queue[ctx_id][it].sem);
 		}
@@ -194,7 +194,7 @@ isp_ctx_node_t *isp_ctx_get_node_timeout_conditional(int ctx_id, isp_info_type_e
 		system_chardev_unlock();
 		ret = down_timeout(&ctx_queue[ctx_id][it].sem,
 						msecs_to_jiffies(timeout));
-		ret = system_chardev_lock();
+		ret |= system_chardev_lock();
 	} else {
 		ret1 = down_trylock(&ctx_queue[ctx_id][it].sem);
 	}

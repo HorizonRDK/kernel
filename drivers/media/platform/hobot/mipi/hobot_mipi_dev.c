@@ -1647,10 +1647,7 @@ static int hobot_mipi_dev_close(struct inode *inode, struct file *file)
 	mipi_dev_param_t *param = &mdev->param;
 	struct device *dev = ddev->dev;
 
-	if (mutex_lock_interruptible(&user->open_mutex)) {
-		mipierr("open_mutex lock error");
-		return -EACCES;
-	}
+	mutex_lock(&user->open_mutex);
 	if (user->open_cnt > 0)
 		user->open_cnt--;
 	mipidbg("close as %d", user->open_cnt);

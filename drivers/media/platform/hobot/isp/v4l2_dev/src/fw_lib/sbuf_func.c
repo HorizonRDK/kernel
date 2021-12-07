@@ -1694,11 +1694,7 @@ static int sbuf_fops_release( struct inode *inode, struct file *f )
 
     LOG( LOG_INFO, "p_ctx: %p, name: %s, fw_id: %d, minor_id: %d.", p_ctx, p_ctx->dev_name, p_ctx->fw_id, p_ctx->dev_minor_id );
 
-    rc = mutex_lock_interruptible( &p_ctx->fops_lock );
-    if ( rc ) {
-        LOG( LOG_ERR, "Error: lock failed." );
-        return rc;
-    }
+    mutex_lock( &p_ctx->fops_lock );
 
     if ( p_ctx->dev_opened ) {
         p_ctx->dev_opened = 0;
@@ -1711,7 +1707,7 @@ static int sbuf_fops_release( struct inode *inode, struct file *f )
 
     mutex_unlock( &p_ctx->fops_lock );
 
-    return 0;
+    return rc;
 }
 
 static ssize_t sbuf_fops_write( struct file *file, const char __user *buf, size_t count, loff_t *ppos )
@@ -2033,7 +2029,6 @@ static int sbuf_clear(uint32_t fw_id)
 
 void sbuf_deinit( sbuf_fsm_ptr_t p_fsm )
 {
-    int rc;
     uint32_t fw_id = p_fsm->cmn.ctx_id;
     struct sbuf_context *p_ctx = NULL;
     struct miscdevice *p_dev = NULL;
@@ -2051,11 +2046,7 @@ void sbuf_deinit( sbuf_fsm_ptr_t p_fsm )
 
     // sbuf_clear(fw_id);
 
-    rc = mutex_lock_interruptible( &p_ctx->fops_lock );
-    if ( rc ) {
-        LOG( LOG_ERR, "Error: lock failed." );
-        return;
-    }
+    mutex_lock( &p_ctx->fops_lock );
 
     p_ctx->dev_minor_id = -1;
 
@@ -2071,6 +2062,7 @@ void sbuf_deinit( sbuf_fsm_ptr_t p_fsm )
 #if ( LINUX_VERSION_CODE >= KERNEL_VERSION( 4, 3, 0 ) )
     misc_deregister( p_dev );
 #else
+    int rc;
     rc = misc_deregister( p_dev );
     if ( rc ) {
         LOG( LOG_ERR, "deregister sbuf dev '%s' failed, ret: %d.", p_dev->name, rc );

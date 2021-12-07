@@ -229,8 +229,10 @@ static int isp_v4l2_fop_open( struct file *file )
     }
 
     /* init fh_ptr */
-    if ( mutex_lock_interruptible( &dev->notify_lock ) )
+    if ( mutex_lock_interruptible( &dev->notify_lock ) ) {
         LOG( LOG_ERR, "mutex_lock_interruptible failed.\n" );
+        goto vb2_q_deinit;
+    }
     dev->fh_ptr[sp->stream_id] = &( sp->fh );
     mutex_unlock( &dev->notify_lock );
 
@@ -238,6 +240,9 @@ static int isp_v4l2_fop_open( struct file *file )
     mutex_unlock(&init_lock);
 
     return rc;
+
+vb2_q_deinit:
+    isp_vb2_queue_release(&sp->vb2_q);
 
 vb2_q_fail:
     isp_v4l2_stream_deinit( dev->pstreams[sp->stream_id] );
@@ -291,8 +296,7 @@ static int isp_v4l2_fop_close( struct file *file )
     acamera_isp_deinit_context(dev->ctx_id);
 
     /* deinit fh_ptr */
-    if ( mutex_lock_interruptible( &dev->notify_lock ) )
-        LOG( LOG_ERR, "mutex_lock_interruptible failed.\n" );
+    mutex_lock( &dev->notify_lock );
     dev->fh_ptr[sp->stream_id] = NULL;
     mutex_unlock( &dev->notify_lock );
 
