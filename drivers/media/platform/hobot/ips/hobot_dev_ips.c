@@ -487,7 +487,7 @@ static int x3_ips_suspend(struct device *dev)
 
 	ips = dev_get_drvdata(dev);
 	vio_info("%s\n", __func__);
-	vio_irq_affinity_set(ips->irq, MOD_IPS, 1);
+	vio_irq_affinity_set(ips->irq, MOD_IPS, 1, 0);
 
 	return ret;
 }
@@ -499,7 +499,7 @@ static int x3_ips_resume(struct device *dev)
 
 	ips = dev_get_drvdata(dev);
 	vio_info("%s\n", __func__);
-	vio_irq_affinity_set(ips->irq, MOD_IPS, 0);
+	vio_irq_affinity_set(ips->irq, MOD_IPS, 0, 0);
 
 	return ret;
 }
@@ -601,7 +601,7 @@ static int x3_ips_probe(struct platform_device *pdev)
 		goto err_get_irq;
 	}
 
-	vio_irq_affinity_set(ips->irq, MOD_IPS, 0);
+	vio_irq_affinity_set(ips->irq, MOD_IPS, 0, 0);
 
 	dev = &pdev->dev;
 	ret = device_create_file(dev, &dev_attr_regdump);

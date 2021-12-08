@@ -116,7 +116,8 @@ void iar_register_set_callback(iar_set_addr_callback func)
 }
 EXPORT_SYMBOL(iar_register_set_callback);
 
-void vio_irq_affinity_set(int irq, enum MOD_ID id, int suspend)
+void vio_irq_affinity_set(int irq, enum MOD_ID id, int suspend,
+		int input_online)
 {
 	if (suspend) {
 		irq_set_affinity_hint(irq, NULL);
@@ -129,7 +130,7 @@ void vio_irq_affinity_set(int irq, enum MOD_ID id, int suspend)
 				irq_set_affinity_hint(irq, get_cpu_mask(3));
 			break;
 		case MOD_ISP:
-			if (nr_cpu_ids == 2)
+			if (nr_cpu_ids == 2 || input_online)
 				irq_set_affinity_hint(irq, get_cpu_mask(1));
 			else
 				irq_set_affinity_hint(irq, get_cpu_mask(2));

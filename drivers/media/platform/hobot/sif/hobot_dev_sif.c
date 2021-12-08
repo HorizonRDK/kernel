@@ -86,7 +86,7 @@ static int x3_sif_suspend(struct device *dev)
 
 	vio_info("%s\n", __func__);
 	sif = dev_get_drvdata(dev);
-	vio_irq_affinity_set(sif->irq, MOD_SIF, 1);
+	vio_irq_affinity_set(sif->irq, MOD_SIF, 1, 0);
 
 	return ret;
 }
@@ -98,7 +98,7 @@ static int x3_sif_resume(struct device *dev)
 
 	vio_info("%s\n", __func__);
 	sif = dev_get_drvdata(dev);
-	vio_irq_affinity_set(sif->irq, MOD_SIF, 0);
+	vio_irq_affinity_set(sif->irq, MOD_SIF, 0, 0);
 
 	return ret;
 }
@@ -4166,7 +4166,7 @@ static int x3_sif_probe(struct platform_device *pdev)
 		goto err_get_irq;
 	}
 
-	vio_irq_affinity_set(sif->irq, MOD_SIF, 0);
+	vio_irq_affinity_set(sif->irq, MOD_SIF, 0, 0);
 
 	spin_lock_init(&sif->seq_task.slock);
 	atomic_set(&sif->seq_task.refcount, 0);

@@ -52,7 +52,7 @@
 /* isp_v4l2_dev_t to destroy video device */
 static isp_v4l2_dev_t *g_isp_v4l2_devs[FIRMWARE_CONTEXT_NUMBER];
 struct mutex init_lock;
-
+extern int interrupt_line_ACAMERA_JUNO_IRQ;
 extern int acamera_fw_isp_start(int ctx_id);
 extern int acamera_fw_isp_stop(int ctx_id);
 extern void acamera_fw_mem_free(void);
@@ -528,7 +528,12 @@ static int isp_v4l2_streamon( struct file *file, void *priv, enum v4l2_buf_type 
         return rc;
     }
 
-    atomic_add( 1, &dev->stream_on_cnt );
+	acamera_context_ptr_t p_ctx = acamera_get_ctx_ptr(pstream->ctx_id);
+	if (atomic_inc_return(&dev->stream_on_cnt) == 1) {
+		//irq bind cpu-1 when sif-online-isp
+		if(p_ctx->p_gfw->sif_isp_offline == 0)
+			vio_irq_affinity_set(interrupt_line_ACAMERA_JUNO_IRQ, MOD_ISP, 0, 1);
+	}
     pr_info("ctx_id %d-\n", dev->ctx_id);
 
     return rc;

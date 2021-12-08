@@ -374,7 +374,7 @@ void hobot_dma_init(hobot_dma_t *hobot_dma)
     if(ret)
         printk(KERN_ERR "ERROR: %s request_irq() failed: %d\n", __FUNCTION__, ret);
 
-    vio_irq_affinity_set(hobot_dma->irq_in_dts, MOD_IDMA, 0);
+    vio_irq_affinity_set(hobot_dma->irq_in_dts, MOD_IDMA, 0, 0);
 
     dma_isp_reg_mask_int_write(DMA_INT_DISABLE);  //mask dma irq
 

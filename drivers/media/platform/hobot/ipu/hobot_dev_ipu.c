@@ -4367,7 +4367,7 @@ static int x3_ipu_suspend(struct device *dev)
 
 	vio_info("%s\n", __func__);
 	ipu = dev_get_drvdata(dev);
-	vio_irq_affinity_set(ipu->irq, MOD_IPU, 1);
+	vio_irq_affinity_set(ipu->irq, MOD_IPU, 1, 0);
 
 	return ret;
 }
@@ -4379,7 +4379,7 @@ static int x3_ipu_resume(struct device *dev)
 
 	vio_info("%s\n", __func__);
 	ipu = dev_get_drvdata(dev);
-	vio_irq_affinity_set(ipu->irq, MOD_IPU, 0);
+	vio_irq_affinity_set(ipu->irq, MOD_IPU, 0, 0);
 
 	return ret;
 }
@@ -4999,7 +4999,7 @@ static int x3_ipu_probe(struct platform_device *pdev)
 		goto err_get_irq;
 	}
 
-	vio_irq_affinity_set(ipu->irq, MOD_IPU, 0);
+	vio_irq_affinity_set(ipu->irq, MOD_IPU, 0, 0);
 
 	ipu->ion_client = ion_client_create(hb_ion_dev, "ipu_driver_ion");
 	if (IS_ERR(ipu->ion_client)) {

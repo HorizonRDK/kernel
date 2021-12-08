@@ -207,7 +207,7 @@ void system_dma_desc_flush(void)
 
 void system_dma_irq_affinity_set(int suspend)
 {
-    vio_irq_affinity_set(g_hobot_dma.irq_in_dts, MOD_IDMA, suspend);
+    vio_irq_affinity_set(g_hobot_dma.irq_in_dts, MOD_IDMA, suspend, 0);
 }
 #endif
 

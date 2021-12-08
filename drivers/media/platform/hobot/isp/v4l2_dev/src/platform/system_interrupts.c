@@ -65,7 +65,7 @@ typedef enum {
 
 static system_interrupt_handler_t app_handler = NULL;
 static void *app_param = NULL;
-static int interrupt_line_ACAMERA_JUNO_IRQ = -1;
+int interrupt_line_ACAMERA_JUNO_IRQ = -1;
 static int interrupt_line_ACAMERA_JUNO_IRQ_FLAGS = -1;
 static irq_status interrupt_request_status = ISP_IRQ_STATUS_DEINIT;
 
@@ -141,7 +141,7 @@ void system_interrupts_set_irq( int irq_num, int flags )
 
 void system_interrupts_irq_affinity_set(int suspend)
 {
-   vio_irq_affinity_set(interrupt_line_ACAMERA_JUNO_IRQ, MOD_ISP, suspend);
+	vio_irq_affinity_set(interrupt_line_ACAMERA_JUNO_IRQ, MOD_ISP, suspend, 0);
 }
 
 void system_interrupts_init( void )
@@ -173,7 +173,7 @@ void system_interrupts_init( void )
                               &system_interrupt_handler, interrupt_line_ACAMERA_JUNO_IRQ_FLAGS, "isp", NULL ) ) ) {
         LOG( LOG_ERR, "Could not get interrupt %d (ret=%d)\n", interrupt_line_ACAMERA_JUNO_IRQ, ret );
     } else {
-        vio_irq_affinity_set(interrupt_line_ACAMERA_JUNO_IRQ, MOD_ISP, 0);
+        vio_irq_affinity_set(interrupt_line_ACAMERA_JUNO_IRQ, MOD_ISP, 0, 0);
         system_interrupts_disable();
         LOG( LOG_INFO, "Interrupt %d requested (flags = 0x%x, ret = %d)\n",
              interrupt_line_ACAMERA_JUNO_IRQ, interrupt_line_ACAMERA_JUNO_IRQ_FLAGS, ret );

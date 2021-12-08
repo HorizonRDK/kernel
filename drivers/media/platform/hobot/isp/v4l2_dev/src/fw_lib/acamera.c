@@ -1602,6 +1602,12 @@ int32_t acamera_interrupt_handler()
                             p_ctx->isp_frame_counter, 0, NULL);
                 }
                 if ( p_ctx->p_gfw->sif_isp_offline == 0 && irq_bit == ISP_INTERRUPT_EVENT_ISP_START_FRAME_START ) {
+					vio_get_sif_frame_info(cur_ctx_id, &frmid);
+					p_ctx->isp_frame_counter = frmid.frame_id;
+					p_ctx->timestamps = frmid.timestamps;
+					p_ctx->tv = frmid.tv;
+					pr_debug("[s%d] frame id %d \n", cur_ctx_id, frmid.frame_id); /* PRQA S ALL */
+
                     if ( g_firmware.dma_flag_isp_metering_completed == 0 || g_firmware.dma_flag_isp_config_completed == 0 ) {
                         p_ctx->sts.ispctx_dma_error++;
 
@@ -1689,14 +1695,6 @@ int32_t acamera_interrupt_handler()
                     pr_debug("frame done, ctx id %d isp_frame_counter %d\n",
 							cur_ctx_id, p_ctx->isp_frame_counter); /* PRQA S ALL */
 
-					if (p_ctx->p_gfw->sif_isp_offline == 0) {
-						vio_get_sif_frame_info(cur_ctx_id, &frmid);
-						p_ctx->isp_frame_counter = frmid.frame_id;
-						p_ctx->timestamps = frmid.timestamps;
-						p_ctx->tv = frmid.tv;
-						pr_debug("[s%d] frame id %d\n", cur_ctx_id, frmid.frame_id); /* PRQA S ALL */
-					}
-
                     acamera_dma_alarms_error_occur();
 
                     p_fsm = (general_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_GENERAL]->p_fsm);
@@ -1723,9 +1721,6 @@ int32_t acamera_interrupt_handler()
 
                     // isp m2m ipu
                     if (p_ctx->fsm_mgr.reserved) {
-                        //update frame id to metadata for vb2 buffer that will transfer to ipu
-                        frame_buffer_fr_finished((dma_writer_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_DMA_WRITER]->p_fsm));
-
                         // in case of register space lock, disable again here
                         if (y_done)
                             dma_writer_fr_dma_disable(&dh->pipe[dma_fr], PLANE_Y, 0);
@@ -1755,13 +1750,7 @@ int32_t acamera_interrupt_handler()
                         atomic_set(&g_firmware.y_dma_done, 1); /* PRQA S ALL */
                         wake_up(&wq_dma_done);
                     }
-		    if (p_ctx->p_gfw->sif_isp_offline == 0) {
-			    vio_get_sif_frame_info(cur_ctx_id, &frmid);
-			    p_ctx->isp_frame_counter = frmid.frame_id;
-			    p_ctx->timestamps = frmid.timestamps;
-			    p_ctx->tv = frmid.tv;
-			    pr_debug("[s%d] Y write done frame id %d\n", cur_ctx_id, frmid.frame_id);
-		    }
+
                     //update frame id to metadata for vb2 buffer that will transfer to ipu
                     frame_buffer_fr_finished((dma_writer_fsm_ptr_t)(p_ctx->fsm_mgr.fsm_arr[FSM_ID_DMA_WRITER]->p_fsm));
 

@@ -493,7 +493,7 @@ int dwe_hw_init(void)
 			goto irqldc_err;
 		}
 
-		vio_irq_affinity_set(irq, MOD_LDC, 0);
+		vio_irq_affinity_set(irq, MOD_LDC, 0, 0);
 
 		irq = dwe_ctx->dev_ctx->dis_dev->irq_num;
 		ret = request_irq(irq, x3_dis_irq, IRQF_TRIGGER_HIGH, "dis", NULL);
@@ -502,7 +502,7 @@ int dwe_hw_init(void)
 			goto irqdis_err;
 		}
 
-		vio_irq_affinity_set(irq, MOD_DIS, 0);
+		vio_irq_affinity_set(irq, MOD_DIS, 0, 0);
 	}
 
 	/* init workqueue */
@@ -696,8 +696,8 @@ static int dwe_suspend(struct device *dev)
 		pr_err("dwe_ctx->dev_ctx is error! \n");
 		return 0;
 	} else {
-		vio_irq_affinity_set(dwe_ctx->dev_ctx->ldc_dev->irq_num, MOD_LDC, 1);
-		vio_irq_affinity_set(dwe_ctx->dev_ctx->dis_dev->irq_num, MOD_DIS, 1);
+		vio_irq_affinity_set(dwe_ctx->dev_ctx->ldc_dev->irq_num, MOD_LDC, 1, 0);
+		vio_irq_affinity_set(dwe_ctx->dev_ctx->dis_dev->irq_num, MOD_DIS, 1, 0);
 	}
 
 	return ret;
@@ -713,8 +713,8 @@ static int dwe_resume(struct device *dev)
 		pr_err("dwe_ctx->dev_ctx is error! \n");
 		return 0;
 	} else {
-		vio_irq_affinity_set(dwe_ctx->dev_ctx->ldc_dev->irq_num, MOD_LDC, 0);
-		vio_irq_affinity_set(dwe_ctx->dev_ctx->dis_dev->irq_num, MOD_DIS, 0);
+		vio_irq_affinity_set(dwe_ctx->dev_ctx->ldc_dev->irq_num, MOD_LDC, 0, 0);
+		vio_irq_affinity_set(dwe_ctx->dev_ctx->dis_dev->irq_num, MOD_DIS, 0, 0);
 	}
 
 	return ret;
