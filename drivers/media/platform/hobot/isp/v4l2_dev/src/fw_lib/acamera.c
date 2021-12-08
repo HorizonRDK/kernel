@@ -1442,9 +1442,21 @@ int32_t acamera_interrupt_handler()
 	 }
     // read the irq vector from isp
     irq_mask = acamera_isp_isp_global_interrupt_status_vector_read( 0 );
+	/*When fs/fe come together, first process fe without clearing fS,
+	and then process FS again when the interrupt comes*/
+	if ((irq_mask & 1 << ISP_INTERRUPT_EVENT_ISP_START_FRAME_START) &&
+		(irq_mask & (1 << (ISP_INTERRUPT_EVENT_ISP_END_FRAME_END |
+					ISP_INTERRUPT_EVENT_FR_Y_WRITE_DONE |
+					ISP_INTERRUPT_EVENT_FR_UV_WRITE_DONE)))) {
+		pr_debug("[s%d] FS and FE occur IRQ MASK is 0x%x\n",
+				cur_ctx_id, irq_mask); /* PRQA S ALL */
+		irq_mask &= ~(1 << ISP_INTERRUPT_EVENT_ISP_START_FRAME_START);
+		acamera_isp_isp_global_interrupt_clear_vector_write(0, irq_mask);
+	} else {
+		acamera_isp_isp_global_interrupt_clear_vector_write(0, irq_mask);
+	}
 	pr_debug("[s%d] IRQ MASK is 0x%x\n", cur_ctx_id, irq_mask); /* PRQA S ALL */
     // clear irq vector
-    acamera_isp_isp_global_interrupt_clear_vector_write(0, irq_mask);
     acamera_isp_isp_global_interrupt_clear_write( 0, 0 );
     acamera_isp_isp_global_interrupt_clear_write( 0, 1 );
 
