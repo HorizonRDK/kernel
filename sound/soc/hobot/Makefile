@@ -10,7 +10,7 @@ obj-y += hobot-dma.o
 obj-y += hobot-snd-s202.o
 else
 obj-$(CONFIG_HOBOT_AUDIO) += hobot-cpudai.o
-obj-$(CONFIG_HOBOT_AUDIO) += hobot-dma.o
+obj-$(CONFIG_HOBOT_AUDIO) += hobot-i2s-dma.o
 obj-$(CONFIG_HOBOT_AUDIO) += hobot_codec.o
 
 obj-$(CONFIG_HOBOT_DUMMY) += dummy-cpudai.o
