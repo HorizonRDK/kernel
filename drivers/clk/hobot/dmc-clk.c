@@ -33,6 +33,7 @@
 #include <asm-generic/delay.h>
 #include <linux/delay.h>
 #include <linux/device.h>
+#include <linux/devfreq.h>
 #include <soc/hobot/hobot_bus.h>
 
 #include "common.h"
@@ -274,6 +275,7 @@ static void hobot_smccc_cr5(unsigned long a0, unsigned long a1,
 	volatile char *p_status = NULL;
 	volatile char *p_err = NULL;
 	volatile char *p_serive_started = NULL;
+	volatile char *p_reduce_bus_clk = NULL;
 
 	pr_debug("%s rate:%ld\n", __func__, rate);
 
@@ -298,6 +300,7 @@ static void hobot_smccc_cr5(unsigned long a0, unsigned long a1,
 	p_index = sram_vaddr + 2;
 	p_err = sram_vaddr + 1;
 	p_serive_started = sram_vaddr + 3;
+	p_reduce_bus_clk = sram_vaddr + 4;
 	if (a1 == DRAM_SET_RATE) {
 		if (rate == DDR_FREQ_333) {
 			index = 2;
@@ -322,6 +325,7 @@ static void hobot_smccc_cr5(unsigned long a0, unsigned long a1,
 	*p_index = index;
 	*p_status = 0;
 	*p_serive_started = (unsigned char)a1;
+	*p_reduce_bus_clk = (unsigned char)a4;
 #if 0
 	udelay(10);
 	send_ipi_cr5();
@@ -331,6 +335,7 @@ static void hobot_smccc_cr5(unsigned long a0, unsigned long a1,
 	}
 	cr5_stop();
 	res->a0 = *p_err;
+	res->a1 = (unsigned char)*p_index;
 }
 
 
@@ -449,12 +454,16 @@ static void park_other_cpus(void)
 	put_cpu();
 }
 
+#define POWERSAVE	"powersave"
+extern ssize_t hobot_dmc_governor(char *buf);
 
 static int dmc_set_rate(struct clk_hw *hw,
 			unsigned long rate, unsigned long parent_rate)
 {
 	struct dmc_clk *dclk = container_of(hw, struct dmc_clk, hw);
 	struct arm_smccc_res res;
+	char buf[DEVFREQ_NAME_LEN] = {0};
+	uint32_t is_powersave = 0;
 	unsigned long flags;
 	int timeout = 2000;
 	int ret = 0;
@@ -480,6 +489,15 @@ static int dmc_set_rate(struct clk_hw *hw,
 		goto err1;
 	}
 
+	if (hobot_dmc_governor(buf) >= 0)
+		if (!strncmp(buf, POWERSAVE, strlen(POWERSAVE)))
+			is_powersave = 1;
+
+	if (rate == 100)
+		rate = 333000000;
+
+	printk("%s,%d: is_powersave:%d\n", __func__, __LINE__, is_powersave);
+
 	ret = hobot_dfs_notifier(&dfs_list,
 			&dfs_lock_list, HB_BUS_SIGNAL_START, 0);
 	if (0 == ret) {
@@ -487,7 +505,7 @@ static int dmc_set_rate(struct clk_hw *hw,
 		dclk->invoke_fn(dclk->fid, dclk->set_cmd,
 				dclk->channel, rate, 0, 0, 0, 0, &res);
 #else
-		dclk->invoke_fn(DMC_FID, DRAM_SET_RATE, 0, rate, 0, 0, 0, 0, &res);
+		dclk->invoke_fn(DMC_FID, DRAM_SET_RATE, 0, rate, is_powersave, 0, 0, 0, &res);
 #endif
 		if (res.a0 != 0) {
 			pr_err("%s: ddr channel:%u set rate to %lu failed with status :%ld\n",
@@ -497,7 +515,7 @@ static int dmc_set_rate(struct clk_hw *hw,
 		}
 
 		dclk->rate = rate;
-		cur_ddr_rate = rate;
+		//cur_ddr_rate = rate;
 	}
 err0:
 	hobot_dfs_notifier(&dfs_lock_list, &dfs_list, HB_BUS_SIGNAL_END, 0);
@@ -533,14 +551,14 @@ static unsigned long dmc_recalc_rate(struct clk_hw *hw,
 	}
 
 	if (DDR_INDEX_P0 == res.a1)
-		dclk->rate = DDR_FREQ_3200;
-	else if (DDR_INDEX_P1 == res.a1)
 		dclk->rate = DDR_FREQ_2666;
+	else if (DDR_INDEX_P1 == res.a1)
+		dclk->rate = DDR_FREQ_1333;
 	else if (DDR_INDEX_P2 == res.a1)
-		dclk->rate = DDR_FREQ_667;
+		dclk->rate = DDR_FREQ_333;
 
-	pr_debug("parent_rate: %ld,  dclk->rate:%ld, cur_ddr_rate:%ld\n",
-		parent_rate, dclk->rate, cur_ddr_rate);
+	printk("parent_rate: %ld,  dclk->rate:%ld, pre_ddr_rate:%ld, res.a0:%d\n",
+		parent_rate, dclk->rate, cur_ddr_rate, res.a1);
 
 	cur_ddr_rate = dclk->rate;
 	return dclk->rate;
@@ -636,7 +654,7 @@ static struct clk *dmc_clk_register(struct device *dev, struct device_node *node
 	init.flags = flags;
 
 	ddrclk->hw.init = &init;
-
+	ddrclk->rate = DDR_FREQ_2666;
 	spin_lock_init(&ddrclk->lock);
 	raw_spin_lock_init(&ddrclk->raw_lock);
 	mutex_init(&ddrclk->mlock);

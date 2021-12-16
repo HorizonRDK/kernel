@@ -37,7 +37,19 @@ struct hobot_dmcfreq {
 
 	unsigned long rate, target_rate;
 	int suspend_event;
+	int pre_state;
 };
+#ifdef CONFIG_HOBOT_XJ3
+struct hobot_dmcfreq *g_hobot_dmcfreq;
+
+ssize_t hobot_dmc_governor(char *buf)
+{
+	if (!g_hobot_dmcfreq || !g_hobot_dmcfreq->devfreq->governor)
+		return -EINVAL;
+
+	return sprintf(buf, "%s\n", g_hobot_dmcfreq->devfreq->governor->name);
+}
+#endif
 
 /*
  * Disable dfi event when simple_ondemand is not running to save power
@@ -67,12 +79,16 @@ int devfreq_simple_ondemand_event_enable_disable(
 
 EXPORT_SYMBOL(devfreq_simple_ondemand_event_enable_disable);
 
+#define PS_GOVERNOR	"powersave"
+#define PS_RATE		333000000
+
 static int hobot_dmcfreq_target(struct device *dev, unsigned long *freq,
 				 u32 flags)
 {
 	struct hobot_dmcfreq *dmcfreq = dev_get_drvdata(dev);
 	struct dev_pm_opp *opp;
-	unsigned long target_rate;
+	char buf[DEVFREQ_NAME_LEN] = {0};
+	unsigned long target_rate, powersave_rate = 0;
 	int err;
 
 	target_rate = *freq;
@@ -83,12 +99,28 @@ static int hobot_dmcfreq_target(struct device *dev, unsigned long *freq,
 	target_rate = *freq;
 	dev_pm_opp_put(opp);
 
-	if (dmcfreq->rate == target_rate)
-		return 0;
+	printk("hobot_dmcfreq_target: dmcfreq->rate:%lu, target_rate:%lu\n",
+					dmcfreq->rate, target_rate);
 
+	hobot_dmc_governor(buf);
+
+	powersave_rate = target_rate;
+
+	if (!strncmp(PS_GOVERNOR, buf, strlen(PS_GOVERNOR))) {
+		powersave_rate = 100;
+		dmcfreq->pre_state = 1;
+	} else if (PS_RATE == target_rate) {
+		if (dmcfreq->pre_state == 1) {
+			powersave_rate = 100;
+			dmcfreq->pre_state = 0;
+		}
+	}
+
+	printk("buf:%s, powersave_rate:%lu, dmcfreq->pre_state:%d\n",
+				buf, powersave_rate, dmcfreq->pre_state);
 	mutex_lock(&dmcfreq->lock);
 
-	err = clk_set_rate(dmcfreq->dmc_clk, target_rate);
+	err = clk_set_rate(dmcfreq->dmc_clk, powersave_rate);
 	if (err) {
 		dev_err(dev, "Cannot to set frequency %lu (%d)\n",
 			target_rate, err);
@@ -107,6 +139,7 @@ static int hobot_dmcfreq_target(struct device *dev, unsigned long *freq,
 	if (dmcfreq->rate != target_rate) {
 		/* dev_err(dev, "Get wrong ddr frequency, Request frequency %lu,\ */
 		/*	Current frequency %lu\n", target_rate, dmcfreq->rate); 	  */
+		err = -EBUSY;
 		goto out;
 	}
 
@@ -329,6 +362,10 @@ static int hobot_dmcfreq_probe(struct platform_device *pdev)
 		pr_err("failed to create method sysfs file\n");
 		return ret;
 	}
+
+#ifdef CONFIG_HOBOT_XJ3
+	g_hobot_dmcfreq = ctx;
+#endif
 
 	return 0;
 }
