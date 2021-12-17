@@ -32,6 +32,7 @@
 #define PLL_PD_CTRL_DSMPD_BIT 4
 #define PLL_PD_CTRL_FOUTPOSTDIVPD_BIT 8
 #define PLL_PD_CTRL_FOUTVCOPD_BIT 12
+#define PLL_PD_CTRL_FOUT4PHASEPD_BIT 13
 #define PLL_PD_CTRL_BYPASS_BIT 16
 
 #define PLL_STATUS_LOCK_BIT 0
@@ -55,6 +56,8 @@ struct clk_laintpll_reg {
 	void __iomem *freq_reg;
 	void __iomem *pd_reg;
 	void __iomem *status;
+	void __iomem *pllclk_sel;
+	unsigned int sel_bit;
 };
 
 struct laintpll_bestdiv {
@@ -117,6 +120,8 @@ static int clk_lainpll_wait_lock(struct clk_laintpll *pll)
 	} while (--count > 0);
 
 	val = readl_relaxed(pll->reg.status) & BIT(PLL_STATUS_LOCK_BIT);
+
+	udelay(50);
 
 	return  val ? 0 : -ETIMEDOUT;
 }
@@ -345,15 +350,34 @@ int laintpll_clk_enable(struct clk_hw *hw)
 
 	spin_lock_irqsave(&clk->lock, flags);
 
+	pr_debug("clk->reg.sel_bit enable:%d\n", clk->reg.sel_bit);
+	if (clk->reg.sel_bit != 0) {
+		val = readl(clk->reg.pllclk_sel);
+		pr_debug("%d,val:0x%x\n", __LINE__, val);
+		val &= ~BIT(clk->reg.sel_bit);
+		pr_debug("%d,val:0x%x\n", __LINE__, val);
+		writel(val, clk->reg.pllclk_sel);
+	}
+
 	val = readl(clk->reg.pd_reg);
 	pd = (val & (1 << PLL_PD_CTRL_PD_BIT)) >> PLL_PD_CTRL_PD_BIT;
 	if (pd) {
 		val &= (~(1 << PLL_PD_CTRL_PD_BIT)) &
 				(~(1 << PLL_PD_CTRL_FOUTPOSTDIVPD_BIT));
+		val |= BIT(PLL_PD_CTRL_FOUT4PHASEPD_BIT);
+		pr_debug("%d,val:0x%x\n", __LINE__, val);
 		writel(val, clk->reg.pd_reg);
 		clk_lainpll_wait_lock(clk);
 	}
 
+	if (clk->reg.sel_bit != 0) {
+		val = readl(clk->reg.pllclk_sel);
+		val |= BIT(clk->reg.sel_bit);
+		pr_debug("%d,val:0x%x\n", __LINE__, val);
+		writel(val, clk->reg.pllclk_sel);
+	}
+
+	pr_debug("clk->reg.sel_bit enable:%d after\n", clk->reg.sel_bit);
 	spin_unlock_irqrestore(&clk->lock, flags);
 
 	return 0;
@@ -368,13 +392,33 @@ static void laintpll_clk_disable(struct clk_hw *hw)
 
 	clk = to_clk_laintpll(hw);
 	spin_lock_irqsave(&clk->lock, flags);
+
+	pr_debug("clk->reg.sel_bit disable:%d\n", clk->reg.sel_bit);
+	if (clk->reg.sel_bit != 0) {
+		val = readl(clk->reg.pllclk_sel);
+		pr_debug("%d,val:0x%x\n", __LINE__, val);
+		val &= ~BIT(clk->reg.sel_bit);
+		pr_debug("%d,val:0x%x\n", __LINE__, val);
+		writel(val, clk->reg.pllclk_sel);
+	}
+
 	val = readl(clk->reg.pd_reg);
 	pd = (val & (1 << PLL_PD_CTRL_PD_BIT)) >> PLL_PD_CTRL_PD_BIT;
 	if (!pd) {
 		val |= 1 << PLL_PD_CTRL_PD_BIT;
 		val |= 1 << PLL_PD_CTRL_FOUTPOSTDIVPD_BIT;
+		pr_debug("%d,val:0x%x\n", __LINE__, val);
 		writel(val, clk->reg.pd_reg);
 	}
+
+	if (clk->reg.sel_bit != 0) {
+		val = readl(clk->reg.pllclk_sel);
+		val |= BIT(clk->reg.sel_bit);
+		pr_debug("%d,val:0x%x\n", __LINE__, val);
+		writel(val, clk->reg.pllclk_sel);
+	}
+
+	pr_debug("clk->reg.sel_bit disable:%d after\n", clk->reg.sel_bit);
 	spin_unlock_irqrestore(&clk->lock, flags);
 
 	return;
@@ -440,8 +484,9 @@ static void __init _of_hobot_laintpll_clk_setup(struct device_node *node,
 	struct clk_laintpll_reg reg;
 	const char *parent_name;
 	unsigned int flags = 0;
+	unsigned int val;
 	unsigned int clk_laintpll_flags = 0;
-	unsigned int data[3];
+	unsigned int data[5];
 	void __iomem *reg_base;
 	int ret;
 
@@ -458,7 +503,7 @@ static void __init _of_hobot_laintpll_clk_setup(struct device_node *node,
 		return;
 	}
 
-	ret = of_property_read_u32_array(node, "offset", data, 3);
+	ret = of_property_read_u32_array(node, "offset", data, 4);
 	if(ret){
 		pr_err("%s: %s missing offset property", __func__, node->name);
 		return;
@@ -466,6 +511,14 @@ static void __init _of_hobot_laintpll_clk_setup(struct device_node *node,
 	reg.freq_reg = reg_base + data[0];
 	reg.pd_reg = reg_base + data[1];
 	reg.status = reg_base + data[2];
+	reg.pllclk_sel = reg_base + data[3];
+
+	ret = of_property_read_u32(node, "bits", &val);
+	if(ret) {
+		pr_err("%s: %s missing bits property!\n", __func__, node->name);
+		return;
+	}
+	reg.sel_bit = val;
 
 	clk = laintpll_clk_register(NULL, node->name, parent_name, flags, &reg,
 			clk_laintpll_flags, ops);

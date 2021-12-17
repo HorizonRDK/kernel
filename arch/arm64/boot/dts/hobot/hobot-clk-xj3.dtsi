@@ -72,7 +72,8 @@
 			#clock-cells = <0>;
 			compatible = "hobot,laintpll-clk";
 			clocks = <&osc_clk>;
-			offset = <0x0 0x4 0x8>;
+			offset = <0x0 0x4 0x8 0x300>;
+			bits = <0>;
 			clk-flags = <CLK_IGNORE_UNUSED>;
 		};
 
@@ -80,7 +81,8 @@
 			#clock-cells = <0>;
 			compatible = "hobot,laintpll-clk";
 			clocks = <&osc_clk>;
-			offset = <0x10 0x14 0x18>;
+			offset = <0x10 0x14 0x18 0x300>;
+			bits = <24>;
 			clk-flags = <CLK_IS_CRITICAL>;
 		};
 
@@ -298,7 +300,8 @@
 			#clock-cells = <0>;
 			compatible = "hobot,laintpll-clk";
 			clocks = <&osc_clk>;
-			offset = <0x20 0x24 0x28>;
+			offset = <0x20 0x24 0x28 0x300>;
+			bits = <9>;
 		};
 
 		cnn_src_clk: cnn_src_clk {
@@ -403,7 +406,8 @@
 			#clock-cells = <0>;
 			compatible = "hobot,laintpll-clk";
 			clocks = <&osc_clk>;
-			offset = <0x40 0x44 0x48>;
+			offset = <0x40 0x44 0x48 0x300>;
+			bits = <16>;
 		};
 
 		vio_pllmux_clk: vio_pllmux_clk {
@@ -419,7 +423,8 @@
 			#clock-cells = <0>;
 			compatible = "hobot,laintpll-clk";
 			clocks = <&osc_clk>;
-			offset = <0xB0 0xB4 0xB8>;
+			offset = <0xB0 0xB4 0xB8 0x300>;
+			bits = <17>;
 		};
 
 		vio2_pllmux_clk: vio2_pllmux_clk {
@@ -776,7 +781,8 @@
 			#clock-cells = <0>;
 			compatible = "hobot,laintpll-clk";
 			clocks = <&osc_clk>;
-			offset = <0x50 0x54 0x58>;
+			offset = <0x50 0x54 0x58 0x300>;
+			bits = <20>;
 			clk-flags = <CLK_IGNORE_UNUSED>;
 		};
 
