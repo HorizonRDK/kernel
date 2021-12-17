@@ -52,7 +52,7 @@
 				>;
 			};
 			/* sd2 3.3v func */
-			sd2_3_3v_func: sd1_3_3v_func {
+			sd2_3_3v_func: sd2_3_3v_func {
 				pinctrl-single,bits = <
 					0x0 MODE_3_3V SD2_MODE
 				>;
@@ -64,7 +64,7 @@
 				>;
 			};
 			/* sd1 3.3v func */
-			sd1_3_3v_func: sd2_3_3v_func {
+			sd1_3_3v_func: sd1_3_3v_func {
 				pinctrl-single,bits = <
 					0x0 MODE_3_3V SD1_MODE
 				>;
@@ -449,11 +449,6 @@
 					0x06c	(MUX_F0 | DRIVE2_09MA | SCHMITT2_ENA | PULL2_UP) /*BIFSPI_CSN*/
 					0x078	(MUX_F0 | DRIVE2_09MA | SCHMITT2_DIS | PULL2_UP) /*BIFSPI_MISO*/
 					0x07c	(MUX_F3 | DRIVE2_09MA | SCHMITT2_ENA | PULL2_UP) /*BIFSPI_RSTN*/
-				>;
-			};
-
-			bifspi_funcc: bifspi_funcc {
-				pinctrl-single,pins = <
 					0x070	(MUX_F0 | DRIVE2_09MA | SCHMITT2_ENA | PULL2_UP) /*BIFSPI_SCLK*/
 					0x074	(MUX_F3 | DRIVE2_09MA | SCHMITT2_DIS | PULL2_UP) /*BIFSPI_MOSI*/
 				>;
@@ -464,11 +459,6 @@
 					0x06c	(MUX_F0 | DRIVE2_09MA | SCHMITT2_ENA | PULL2_UP) /*BIFSPI_CSN*/
 					0x078	(MUX_F0 | DRIVE2_09MA | SCHMITT2_DIS | PULL2_UP) /*BIFSPI_MISO*/
 					0x07c	(MUX_F0 | DRIVE2_09MA | SCHMITT2_ENA | PULL2_UP)/*BIFSPI_RSTN*/
-				>;
-			};
-
-			bifspi_funcc_reset: bifspi_funcc_reset {
-				pinctrl-single,pins = <
 					0x070	(MUX_F0 | DRIVE2_09MA | SCHMITT2_ENA | PULL2_UP) /*BIFSPI_SCLK*/
 					0x074	(MUX_F0 | DRIVE2_09MA | SCHMITT2_DIS | PULL2_UP) /*BIFSPI_MOSI*/
 				>;
@@ -523,12 +513,6 @@
 				pinctrl-single,pins = <
 					0x0d4	(MUX_F0 | DRIVE2_24MA | SCHMITT2_DIS | PULL2_DOWN)
 					0x0fc	(MUX_F0 | DRIVE1_22MA | SCHMITT2_ENA | PULL2_DOWN)
-					/* 0x104	MUX_F0 */ /* sd wprot - reused by usb id pin */
-				>;
-			};
-
-			sdio0_funcc: sdio0_funcc {
-				pinctrl-single,pins = <
 					0x0d8	(MUX_F0 | DRIVE1_22MA | SCHMITT2_DIS | PULL2_UP)
 					0x0dc	(MUX_F0 | DRIVE1_22MA | SCHMITT2_ENA | PULL2_UP)
 					0x0e0	(MUX_F0 | DRIVE1_22MA | SCHMITT2_ENA | PULL2_UP)
@@ -555,11 +539,6 @@
 					0x114	(MUX_F0 | DRIVE1_22MA | SCHMITT2_ENA | PULL2_UP) /*SD1_DATA1*/
 					0x118	(MUX_F0 | DRIVE1_22MA | SCHMITT2_ENA | PULL2_UP) /*SD1_DATA2*/
 					0x11c	(MUX_F0 | DRIVE1_22MA | SCHMITT2_ENA | PULL2_UP) /*SD1_DATA3*/
-				>;
-			};
-
-			sdio1_funcc: sdio1_funcc {
-				pinctrl-single,pins = <
 					0x108	(MUX_F0 | DRIVE1_22MA | SCHMITT2_DIS | PULL2_DOWN) /*SD1_CLK*/
 				>;
 			};

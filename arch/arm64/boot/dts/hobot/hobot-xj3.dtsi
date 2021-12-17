@@ -1005,6 +1005,9 @@
 			interrupts = <0 25 4>;
 			clocks = <&sys_qspi_aclk>;
 			clock-names = "qspi_aclk";
+			pinctrl-names = "default";
+			pinctrl-0 = <&qspi_func>;
+
 		};
 
 		nor_flash: nor@0xB0000000 {
@@ -1015,6 +1018,8 @@
 			interrupts = <0 25 4>;
 			clocks = <&sys_qspi_aclk>;
 			clock-names = "qspi_aclk";
+			pinctrl-names = "default";
+			pinctrl-0 = <&qspi_func>;
 		};
 
 		ethernet: ethernet@A5014000 {
