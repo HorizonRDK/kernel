@@ -53,11 +53,14 @@ unsigned int video_layer_num = 2;
 unsigned int display_out_width = 1920;
 unsigned int display_out_height = 1080;
 unsigned int fb_num = 1;
+unsigned int logo = 0;
 EXPORT_SYMBOL(fb_num);
+EXPORT_SYMBOL(logo);
 module_param(video_layer_num, uint, 0644);
 module_param(display_out_width, uint, 0644);
 module_param(display_out_height, uint, 0644);
 module_param(fb_num, uint, 0644);
+module_param(logo, uint, 0644);
 
 #define IAR_ENABLE 1
 #define IAR_DISABLE 0
@@ -164,7 +167,7 @@ uint32_t pixel_clk_video_1280x720 = 74250000;
 uint32_t pixel_clk_video_800x480 = 32000000;
 uint32_t pixel_clk_video_720x1280 = 68000000;
 uint32_t pixel_clk_video_1080x1920 = 32000000;
-uint32_t pixel_clk_video_720x1280_touch = 54000000;
+uint32_t pixel_clk_video_720x1280_touch = 54400000;
 uint32_t pixel_clk_video_704x576 = 27000000;
 uint32_t pixel_clk_video_720x480 = 27000000;
 EXPORT_SYMBOL(disp_user_config_done);
@@ -3700,6 +3703,10 @@ static int hobot_xj3_iar_memory_alloc(phys_addr_t paddr, void *vaddr,
 {
 #ifdef USE_ION_MEM
 	if (fb_num == 0 && video_num == 0) {
+		if(logo_paddr != 0) {
+			pr_err("%s: fb number should not be 0 , if display logo!\n", __func__);
+			return -1;
+		}
 		g_iar_dev->frambuf[IAR_CHANNEL_1].paddr = 0;
 		g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr = NULL;
 		g_iar_dev->frambuf[IAR_CHANNEL_2].paddr = 0;
@@ -3717,11 +3724,30 @@ static int hobot_xj3_iar_memory_alloc(phys_addr_t paddr, void *vaddr,
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[1].paddr = 0;
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[1].vaddr = NULL;
 	} else if (fb_num > 0 && video_num == 0) {
-		g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = paddr;
-		g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = vaddr;
-		g_iar_dev->frambuf[IAR_CHANNEL_4].paddr = paddr + (fb_num - 1) * size_rgba;
-		g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr = vaddr + (fb_num - 1) * size_rgba;
+		if (logo_paddr == 0) {
+			g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = paddr;
+			g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = vaddr;
+			g_iar_dev->frambuf[IAR_CHANNEL_4].paddr = paddr + (fb_num - 1) * size_rgba;
+			g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr = vaddr + (fb_num - 1) * size_rgba;
+		} else {
+			if (fb_num == 1) {
+				g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = logo_paddr;
+				g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = logo_vaddr;
+				g_iar_dev->frambuf[IAR_CHANNEL_4].paddr = logo_paddr;
+				g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr = logo_vaddr;
+			} else {
+				g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = logo_paddr;
+				g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = logo_vaddr;
+				g_iar_dev->frambuf[IAR_CHANNEL_4].paddr = paddr;
+				g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr = vaddr;
+			}
+		}
 	} else if (fb_num == 0 && video_num > 0) {
+		if(logo_paddr != 0) {
+                        pr_err("%s: fb number should not be 0!\n",
+					__func__);
+                        return -1;
+                }
 		g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = 0;
 		g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = NULL;
 		g_iar_dev->frambuf[IAR_CHANNEL_4].paddr = 0;
@@ -3747,14 +3773,34 @@ static int hobot_xj3_iar_memory_alloc(phys_addr_t paddr, void *vaddr,
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[1].vaddr =
 			g_iar_dev->pingpong_buf[IAR_CHANNEL_2].framebuf[0].vaddr + size_nv12;
 	} else if (fb_num > 0 && video_num > 0) {
-		g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = paddr;
-		g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = vaddr;
-		g_iar_dev->frambuf[IAR_CHANNEL_4].paddr = paddr + (fb_num - 1) * size_rgba;
-		g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr = vaddr + (fb_num - 1) * size_rgba;
-		g_iar_dev->frambuf[IAR_CHANNEL_1].paddr =
-			g_iar_dev->frambuf[IAR_CHANNEL_4].paddr + size_rgba;
-		g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr =
+		if (logo_paddr == 0) {
+			g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = paddr;
+			g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = vaddr;
+			g_iar_dev->frambuf[IAR_CHANNEL_4].paddr = paddr + (fb_num - 1) * size_rgba;
+			g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr = vaddr + (fb_num - 1) * size_rgba;
+			g_iar_dev->frambuf[IAR_CHANNEL_1].paddr =
+                        g_iar_dev->frambuf[IAR_CHANNEL_4].paddr + size_rgba;
+			g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr =
 			g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr + size_rgba;
+		} else {
+			if (fb_num == 1) {
+				g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = logo_paddr;
+				g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = logo_vaddr;
+				g_iar_dev->frambuf[IAR_CHANNEL_4].paddr = logo_paddr;
+				g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr = logo_vaddr;
+				g_iar_dev->frambuf[IAR_CHANNEL_1].paddr = paddr;
+				g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr = vaddr;
+			} else {
+				g_iar_dev->frambuf[IAR_CHANNEL_3].paddr = logo_paddr;
+				g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr = logo_vaddr;
+				g_iar_dev->frambuf[IAR_CHANNEL_4].paddr = paddr;
+				g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr = vaddr;
+				g_iar_dev->frambuf[IAR_CHANNEL_1].paddr =
+					g_iar_dev->frambuf[IAR_CHANNEL_4].paddr + size_rgba;
+				g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr =
+					g_iar_dev->frambuf[IAR_CHANNEL_4].vaddr + size_rgba;
+			}
+		}
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].paddr =
 			g_iar_dev->frambuf[IAR_CHANNEL_1].paddr + size_nv12;
 		g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[0].vaddr =
@@ -3978,9 +4024,11 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "missing controller reset\n");
 		goto err1;
 	} else {
-		reset_control_assert(g_iar_dev->rst);
-		udelay(2);
-		reset_control_deassert(g_iar_dev->rst);
+		if (logo == 0) {
+			reset_control_assert(g_iar_dev->rst);
+			udelay(2);
+			reset_control_deassert(g_iar_dev->rst);
+		}
 	}
 
 	irq = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
@@ -4448,7 +4496,9 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		display_color_bar(1080, 1920, g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
 		pr_debug("set mipi 1080p done!\n");
 	}
-	disp_set_panel_timing(&default_timing);
+	if (logo == 0)
+		disp_set_panel_timing(&default_timing);
+
 	channel_buf_addr_3.addr = g_iar_dev->frambuf[IAR_CHANNEL_3].paddr;
 	channel_buf_addr_4.addr = g_iar_dev->frambuf[IAR_CHANNEL_4].paddr;
 	iar_switch_buf(0);
@@ -4457,8 +4507,11 @@ static int hobot_iar_probe(struct platform_device *pdev)
 	iar_register_get_callback((int (*)(u8 *, u8 *))(ipu_get_iar_display_type));
 	iar_register_set_callback(ipu_set_display_addr);
 	iar_update();
-	clk_disable_unprepare(g_iar_dev->iar_pixel_clk);
-	iar_disable_sif_mclk();
+
+	if (logo == 0) {
+		clk_disable_unprepare(g_iar_dev->iar_pixel_clk);
+		iar_disable_sif_mclk();
+	}
 	pr_info("iar probe end success!!!\n");
 	return 0;
 err1:

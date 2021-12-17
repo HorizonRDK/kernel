@@ -972,7 +972,8 @@ static int hbfb_set_par(struct fb_info *fb)
 		pr_debug("start_flag = %d\n", start_flag);
 		start_flag = 1;
 		//iar_stop();
-		user_config_display(display_type);
+		if (logo == 0)
+			user_config_display(display_type);
 	}
 
 	return regval;
