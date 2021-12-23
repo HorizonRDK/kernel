@@ -79,6 +79,34 @@ EXPORT_SYMBOL(sif_get_mismatch_status);
 #define FRMAE_ID_NR    		(0xF << BASE_SHIFT)
 #define FRAME_ID_MASK  		(~FRMAE_ID_NR)
 
+void sif_get_frameinfo(u32 instance, struct vio_frame_id *vinfo)
+{
+	struct sif_subdev *subdev = NULL;
+	struct x3_sif_dev *sif_dev = NULL;
+	struct vio_group *group = NULL;
+	u32 cnt_shift;
+	struct frame_id info;
+
+	group = vio_get_chain_group(instance, GROUP_ID_SIF_OUT);
+	if (group == NULL || group->sub_ctx[0] == NULL
+		|| ((struct sif_subdev *)group->sub_ctx[0])->sif_dev == NULL)
+		return;
+	subdev = group->sub_ctx[0];
+	sif_dev = subdev->sif_dev;
+	cnt_shift = subdev->cnt_shift;
+	sif_get_frameid_timestamps(sif_dev->base_reg, subdev->mux_index,
+					subdev->ipi_index, &info, subdev->dol_num,
+					instance, &subdev->sif_cfg.output,
+					&subdev->sif_cfg.input,
+					&cnt_shift);
+	vinfo->frame_id = sif_frame_info[instance].frame_id;
+	vinfo->timestamps = sif_frame_info[instance].timestamps;
+	vinfo->tv = sif_frame_info[instance].tv;
+
+	return;
+}
+EXPORT_SYMBOL(sif_get_frameinfo);
+
 static int x3_sif_suspend(struct device *dev)
 {
 	int ret = 0;

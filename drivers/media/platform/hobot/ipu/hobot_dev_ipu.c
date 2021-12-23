@@ -60,6 +60,7 @@ void ipu_disable_all_channels(void __iomem *base_reg, u8 shadow_index);
 int ipu_hw_enable_channel(struct ipu_subdev *subdev, bool enable);
 void ipu_frame_ndone(struct ipu_subdev *subdev);
 void ipu_frame_done(struct ipu_subdev *subdev);
+extern void sif_get_frameinfo(u32 instance, struct vio_frame_id *vinfo);
 
 
 extern struct ion_device *hb_ion_dev;
@@ -4295,6 +4296,13 @@ static irqreturn_t ipu_isr(int irq, void *data)
 			} else if (src_subdev->ipu_cfg.ctrl_info.source_sel == IPU_FROM_SIF_YUV422 ||
 				src_subdev->ipu_cfg.ctrl_info.source_sel == IPU_FROM_ISP_YUV420) {
 				vio_get_sif_frame_info(instance, &frmid);
+				if ((frmid.frame_id == ipu_frame_info[instance].frame_id)
+					&& vio_check_all_online_state(group)) {
+					sif_get_frameinfo(instance, &frmid);
+					vio_warn("[S%d] get same frameid %d, "
+							"retry through register frameid %d\n", instance,
+							ipu_frame_info[instance].frame_id, frmid.frame_id);
+				}
 				ipu_frame_info[instance].frame_id = frmid.frame_id;
 				ipu_frame_info[instance].timestamps = frmid.timestamps;
 				ipu_frame_info[instance].tv = frmid.tv;
