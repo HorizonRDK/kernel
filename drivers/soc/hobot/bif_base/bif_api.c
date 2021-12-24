@@ -396,7 +396,6 @@ int bifplat_gpio_init(void *p)
 		ret = gpio_request(pl->irq_pin, "irq_pin");
 		if (ret < 0) {
 			pr_err("bifapi: Err get irq pin ret = %d\n", ret);
-			gpio_free(pl->tri_pin);
 			goto exit_1;
 		}
 		pl->irq_num = gpio_to_irq(pl->irq_pin);
