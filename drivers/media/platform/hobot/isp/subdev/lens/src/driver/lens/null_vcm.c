@@ -110,7 +110,8 @@ void lens_null_deinit( void *ctx )
 
 void lens_null_init( void **ctx, lens_control_t *ctrl, uint32_t lens_bus )
 {
-    lens_context_t *p_ctx = &lens_ctx[0];
+    lens_context_t *p_ctx = &lens_ctx[lens_bus];
+    lens_ctx[lens_bus].port = lens_bus;
     *ctx = p_ctx;
 
     ctrl->is_moving = vcm_null_drv_is_moving;
