@@ -85,7 +85,7 @@ static struct usb_function *f_msg;
 /****************************** Configurations ******************************/
 
 static struct fsg_module_parameters mod_data = {
-	.stall = 1
+	.stall = 0
 };
 #ifdef CONFIG_USB_GADGET_DEBUG_FILES
 
