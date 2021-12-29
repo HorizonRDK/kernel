@@ -121,7 +121,7 @@ static int clk_lainpll_wait_lock(struct clk_laintpll *pll)
 
 	val = readl_relaxed(pll->reg.status) & BIT(PLL_STATUS_LOCK_BIT);
 
-	udelay(50);
+	udelay(100);
 
 	return  val ? 0 : -ETIMEDOUT;
 }
@@ -410,14 +410,14 @@ static void laintpll_clk_disable(struct clk_hw *hw)
 		pr_debug("%d,val:0x%x\n", __LINE__, val);
 		writel(val, clk->reg.pd_reg);
 	}
-
+#if 0
 	if (clk->reg.sel_bit != 0) {
 		val = readl(clk->reg.pllclk_sel);
 		val |= BIT(clk->reg.sel_bit);
 		pr_debug("%d,val:0x%x\n", __LINE__, val);
 		writel(val, clk->reg.pllclk_sel);
 	}
-
+#endif
 	pr_debug("clk->reg.sel_bit disable:%d after\n", clk->reg.sel_bit);
 	spin_unlock_irqrestore(&clk->lock, flags);
 
