@@ -51,7 +51,7 @@ static int camera_fop_open(struct inode *pinode, struct file *pfile)
 		if(camera_mod[tmp] &&
 				camera_mod[tmp]->dev_minor_id == minor ) {
 				camera_cdev = camera_mod[tmp];
-				pr_info(" tmp %d is open !\n", tmp);
+				pr_info("dev_port %d is open !\n", tmp);
 				break;
 			}
 	}
@@ -67,6 +67,7 @@ static int camera_fop_open(struct inode *pinode, struct file *pfile)
 		camera_cdev->init_num = 0;
 		camera_cdev->pre_state = SENSOR_PRE_STATE_UNLOCK;
 		pfile->private_data = camera_cdev;
+		bitmap_zero(camera_cdev->gpio_req_mask, GPIO_MAX_NUM);
 		pr_info("user_mutex init !\n");
 	}
 	camera_cdev->user_num++;
@@ -82,12 +83,14 @@ static int camera_fop_release(struct inode *pinode, struct file *pfile)
 	int port = camera_cdev->port;
 
 	mutex_lock(&camera_cdev->slock);
-	camera_cdev->user_num--;
+	if(camera_cdev->user_num > 0)
+		camera_cdev->user_num--;
 	if (camera_cdev->user_num <= 0) {
 		camera_cdev->pre_state = SENSOR_PRE_STATE_UNLOCK;
 		camera_sys_stream_off(camera_cdev->port);
 		camera_sys_tuning_release(camera_cdev->port);
 		camera_i2c_release(camera_cdev->port);
+		camera_gpio_all_free(camera_cdev);
 		memset(&camera_mod[camera_cdev->port]->camera_param, 0,
 			sizeof(sensor_turning_data_t));
 		kzfree(camera_mod[port]->camera_state_register_info.\
@@ -109,8 +112,8 @@ static int camera_fop_release(struct inode *pinode, struct file *pfile)
 	}
 	pfile->private_data = NULL;
 	mutex_unlock(&camera_cdev->slock);
-	pr_info("line %d user_num %d  camera_cdev->start_num %d \n",
-			__LINE__, camera_cdev->user_num, camera_cdev->start_num);
+	pr_info("line %d port %d user_num %d  camera_cdev->start_num %d \n",
+			__LINE__, port, camera_cdev->user_num, camera_cdev->start_num);
 	return 0;
 }
 static long camera_fop_ioctl(struct file *pfile, unsigned int cmd,
@@ -257,21 +260,26 @@ static long camera_fop_ioctl(struct file *pfile, unsigned int cmd,
 			pr_err("ae_share %d \n", camera_cdev->ae_share_flag);
 			break;
 		case SENSOR_GPIO_CONTROL: {
+			mutex_lock(&camera_cdev->slock);
 				gpio_info_t gpio_info;
 				if (arg == 0) {
 					pr_err("arg is null !\n");
+					mutex_unlock(&camera_cdev->slock);
 					return -EINVAL;
 				}
 				if (copy_from_user((void *)&gpio_info, (void __user *)arg,
 					sizeof(gpio_info_t))) {
 					pr_err("gpio_info_t copy is err !\n");
+					mutex_unlock(&camera_cdev->slock);
 					return -EINVAL;
 				}
-				ret = camera_gpio_info_config(&gpio_info);
+				ret = camera_gpio_info_config(camera_cdev, &gpio_info);
 				if(ret < 0) {
 					pr_err("camera_gpio_info_config err !\n");
+					mutex_unlock(&camera_cdev->slock);
 					return -EINVAL;
 				}
+			mutex_unlock(&camera_cdev->slock);
 			}
 			break;
 		case CAMERA_REG_PARAM: {
@@ -512,7 +520,6 @@ int __init camera_dev_init(uint32_t port)
 	mutex_init(&(camera_mod[port]->slock));
 	mutex_init(&(camera_mod[port]->user_mutex));
 	init_waitqueue_head(&camera_mod[port]->pre_wq);
-	pr_info("port %d %s register success !\n", port, camera_mod[port]->name);
 	return ret;
 
 register_err:
@@ -529,7 +536,6 @@ void __exit camera_dev_exit(int port)
 		kzfree(camera_mod[port]);
 		camera_mod[port] = NULL;
 	}
-	pr_info("camera_dev_exit port %d successfully.\n", port);
 }
 
 void camera_cdev_exit(void)

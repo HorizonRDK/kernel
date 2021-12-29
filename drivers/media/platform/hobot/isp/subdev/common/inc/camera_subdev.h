@@ -19,7 +19,7 @@
 
 #define GPIO_HIGH	1
 #define GPIO_LOW	0
-#define CAMERA_GPIO_NAME_LENGTH 20
+#define GPIO_NAME_LENGTH 20
 
 #include <linux/list.h>
 #include <linux/workqueue.h>
@@ -231,8 +231,6 @@ typedef struct camera_gpio_info_t {
 	uint32_t gpio;
 	uint32_t gpio_level;
 } gpio_info_t;
-
-int camera_gpio_info_config(gpio_info_t *gpio_info);
 
 #endif // DRIVERS_MEDIA_PLATFORM_HOBOT_ISP_SUBDEV_COMMON_INC_CAMERA_SUBDEV_H_
 

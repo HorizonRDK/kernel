@@ -37,6 +37,7 @@
 #include "inc/camera_dev.h"
 #include "inc/camera_ctrl.h"
 #include "inc/camera_subdev.h"
+#include "inc/serdes_dev.h"
 #include "inc/camera_i2c.h"
 #include "inc/camera_sys_api.h"
 
@@ -50,53 +51,77 @@ typedef struct _camera_subdev_ctx {
 static camera_subdev_ctx *camera_ctx;
 static event_header_t event_header;
 
-static int camera_gpio_request(u32 gpio)
+static int camera_gpio_request(u32 gpio, int init)
 {
 	int ret = 0;
-	char gpio_name[CAMERA_GPIO_NAME_LENGTH];
+	char gpio_name[GPIO_NAME_LENGTH];
 
-	memset(gpio_name, 0, CAMERA_GPIO_NAME_LENGTH);
-	snprintf(gpio_name, CAMERA_GPIO_NAME_LENGTH, "gpio_%d", gpio);
+	memset(gpio_name, 0, GPIO_NAME_LENGTH);
+	snprintf(gpio_name, GPIO_NAME_LENGTH, "%s_gpio_%d",
+		V4L2_CAMERA_NAME, gpio);
 
-	pr_info("gpio %d gpio_name %s-----\n", gpio, gpio_name);
+	pr_info("gpio %d req %s\n", gpio, gpio_name);
 	ret = gpio_request(gpio, gpio_name);
 	if (ret < 0) {
 		pr_err("gpio %d request failed!", gpio);
-		goto err_request;
+		return ret;
 	}
-	ret = gpio_direction_output(gpio, 0);
+	ret = gpio_direction_output(gpio, init);
 	if (ret < 0) {
 		pr_err("gpio %d set direction failed!", gpio);
 		gpio_free(gpio);
-		goto err_set;
 	}
-	return ret;
-err_set:
-	gpio_free(gpio);
-err_request:
 	return ret;
 }
 
-int camera_gpio_info_config(gpio_info_t *gpio_info)
+int camera_gpio_info_config(camera_charmod_s * camera_cdev,
+		gpio_info_t *gpio_info)
 {
 	int ret = 0;
-	u32 gpio = gpio_info->gpio;
-	u32 gpio_level = gpio_info->gpio_level;
+	u32 gpio;
+	int gpio_v;
 
-	ret = camera_gpio_request(gpio);
-	if(ret < 0) {
-		pr_err("line %d gpio_request error gpio %d\n",
+	if (!camera_cdev || !gpio_info) {
+		pr_err("line %d param invalid\n", __LINE__);
+		return -1;
+	}
+
+	gpio = gpio_info->gpio;
+	gpio_v = (GPIO_HIGH == gpio_info->gpio_level) ? 1 : 0;
+
+	if (gpio >= GPIO_MAX_NUM) {
+		pr_err("line %d gpio %d exceed max gpio  error\n",
 				__LINE__, gpio);
 		return -1;
 	}
-	if(GPIO_HIGH == gpio_level) {
-		gpio_set_value(gpio, 1);
-	} else {
-		gpio_set_value(gpio, 0);
+
+	if (!test_bit(gpio, camera_cdev->gpio_req_mask)) {
+		ret = camera_gpio_request(gpio, gpio_v);
+		if(ret < 0) {
+			pr_err("line %d gpio_request error gpio %d\n",
+				   __LINE__, gpio);
+			return -1;
+		}
+		set_bit(gpio, camera_cdev->gpio_req_mask);
 	}
-	mdelay(5);
-	gpio_free(gpio);
+	gpio_set_value(gpio, gpio_v);
+	pr_info("gpio %d gpio_v %d\n", gpio, gpio_v);
 	return ret;
+}
+
+void camera_gpio_all_free(camera_charmod_s * camera_cdev)
+{
+	int i;
+
+	if (!camera_cdev) {
+		return;
+	}
+
+	for_each_set_bit(i, camera_cdev->gpio_req_mask, GPIO_MAX_NUM) {
+		pr_info("gpio %d free\n", i);
+		gpio_free(i);
+	}
+	bitmap_zero(camera_cdev->gpio_req_mask, GPIO_MAX_NUM);
 }
 
 static int camera_subdev_status(struct v4l2_subdev *sd)
@@ -344,6 +369,7 @@ int __init camera_subdev_driver_init(void)
 	}
 	camera_cdev_init();
 	camera_ctrldev_init();
+	serdes_cdev_init();
 	return ret;
 init_err:
 
@@ -356,6 +382,7 @@ void __exit camera_subdev_driver_exit(void)
 {
 	camera_cdev_exit();
 	camera_ctrldev_exit();
+	serdes_cdev_exit();
 	platform_driver_unregister(&camera_subdev_driver);
 	platform_device_unregister(camera_subdev);
 	pr_info("[KeyMsg] camera subdevice exit done");

@@ -24,6 +24,8 @@
 #define I2C_BUS  0
 #define SPI_BUS  1
 
+#define GPIO_MAX_NUM	256 /*max gpio number*/
+
 #define CAMERA_IOC_MAGIC    'x'
 #define SENSOR_TURNING_PARAM  _IOW(CAMERA_IOC_MAGIC, 0, sensor_turning_data_t)
 #define SENSOR_OPEN_CNT       _IOR(CAMERA_IOC_MAGIC, 1, int)
@@ -100,9 +102,14 @@ typedef struct _camera_charmod_s {
 	bool pre_done;
 	wait_queue_head_t pre_wq;
 	uint32_t write_flag;
+	DECLARE_BITMAP(gpio_req_mask, GPIO_MAX_NUM);
 } camera_charmod_s;
 
 extern camera_charmod_s *camera_mod[CAMERA_TOTAL_NUMBER];
+
+int camera_gpio_info_config(camera_charmod_s * camera_cdev,
+		gpio_info_t *gpio_info);
+void camera_gpio_all_free(camera_charmod_s * camera_cdev);
 
 int camera_state_register_set(uint32_t port,
 		camera_state_register_t *camera_register_data);

@@ -1546,7 +1546,7 @@ int camera_sys_stream_off(uint32_t port)
 		}
 	}
 
-	pr_info("camera_sys_stream_off success %d dev_name %s\n",
+	pr_info("camera_sys_stream_off success line %d dev_name %s\n",
 		__LINE__, camera_mod[port]->name);
 	return ret;
 }
