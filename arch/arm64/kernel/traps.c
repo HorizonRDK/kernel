@@ -265,11 +265,15 @@ void die(const char *str, struct pt_regs *regs, int err)
 
 	if (regs && kexec_should_crash(current))
 		crash_kexec(regs);
-
+#ifndef CONFIG_PREEMPT_RT_FULL
 	bust_spinlocks(0);
+#endif
 	add_taint(TAINT_DIE, LOCKDEP_NOW_UNRELIABLE);
 	oops_exit();
-
+#ifdef CONFIG_PREEMPT_RT_FULL
+	if(!panic_on_oops)
+		bust_spinlocks(0);
+#endif
 	if (in_interrupt())
 		panic("Fatal exception in interrupt");
 	if (panic_on_oops)
