@@ -4296,8 +4296,10 @@ static irqreturn_t ipu_isr(int irq, void *data)
 			} else if (src_subdev->ipu_cfg.ctrl_info.source_sel == IPU_FROM_SIF_YUV422 ||
 				src_subdev->ipu_cfg.ctrl_info.source_sel == IPU_FROM_ISP_YUV420) {
 				vio_get_sif_frame_info(instance, &frmid);
-				if ((frmid.frame_id == ipu_frame_info[instance].frame_id)
-					&& vio_check_all_online_state(group)) {
+				if (frmid.frame_id == ipu_frame_info[instance].frame_id &&
+					frmid.tv.tv_sec == ipu_frame_info[instance].tv.tv_sec &&
+					frmid.tv.tv_usec == ipu_frame_info[instance].tv.tv_usec &&
+					vio_check_all_online_state(group)) {
 					sif_get_frameinfo(instance, &frmid);
 					vio_warn("[S%d] get same frameid %d, "
 							"retry through register frameid %d\n", instance,
