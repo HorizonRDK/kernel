@@ -154,6 +154,18 @@ static int i2c_dpm_callback(struct hobot_dpm *self,
 }
 #endif
 
+/**
+ * Why remove the "iowrite32(0xffff, &dev->i2c_regs->tocnt);" ?
+ * Most NACK err didn't have influence on the next transfer.But in this
+ * situation, the nack err will make the next transfer generate stop error,
+ * reset the controller can fix the problem. If we only reset the controller
+ * before NACK error, when we try to generate many ack error, the value of
+ * fifo_ctl register also become 1 which make the i2c timeout.
+ * Combined with previous testing, remove the config of tocnt register in
+ * function hobot_i2c_cfg also can fix the i2c timeout problem. Doing this
+ * change, we can pass the situation that there are may ack error.
+ * (Edited by peng01.liu)
+ */
 static int hobot_i2c_cfg(struct hobot_i2c_dev *dev, int dir_rd, int timeout_enable)
 {
 	union cfg_reg_e cfg;
@@ -168,7 +180,6 @@ static int hobot_i2c_cfg(struct hobot_i2c_dev *dev, int dir_rd, int timeout_enab
 	}
 	cfg.bit.dir_rd = dir_rd;
 	cfg.bit.clkdiv = dev->clkdiv;
-	iowrite32(0xffff, &dev->i2c_regs->tocnt);
 	iowrite32(cfg.all, &dev->i2c_regs->cfg);
 	return 0;
 }
@@ -476,6 +487,9 @@ static int hobot_i2c_xfer_msg(struct hobot_i2c_dev *dev, struct i2c_msg *msg)
 	if (likely(!dev->msg_err))
 		return 0;
 
+	/* reset i2c controller in case of errors */
+	hobot_i2c_reset(dev);
+
 	if(dev->msg_err & HOBOT_I2C_STAT_NACK) {
 		if (msg->flags & I2C_M_IGNORE_NAK)
 			return 0;
@@ -483,7 +497,6 @@ static int hobot_i2c_xfer_msg(struct hobot_i2c_dev *dev, struct i2c_msg *msg)
 		return -EREMOTEIO;
 	}
 
-	hobot_i2c_reset(dev);
 	dev_err(dev->dev, "i2c transfer failed: %x\n", dev->msg_err);
 	return -EIO;
 }
@@ -644,12 +657,14 @@ static int hobot_i2c_doxfer_smbus(struct hobot_i2c_dev *dev, u16 addr, bool writ
 	if (likely(!dev->msg_err))
 		return 0;
 
+	/* reset i2c controller in case of errors */
+	hobot_i2c_reset(dev);
+
 	if(dev->msg_err & HOBOT_I2C_STAT_NACK) {
 		dev_warn(dev->dev, "i2c transfer failed: %x\n", dev->msg_err);
 		return -EREMOTEIO;
 	}
 
-	hobot_i2c_reset(dev);
 	dev_err(dev->dev, "i2c sbus transfer failed: %x\n", dev->msg_err);
 	return -EIO;
 }
