@@ -214,6 +214,7 @@ static int hobot_uart_dma_alloc(struct uart_port *port)
 	}
 
 	hobot_port->rx_off = 0;
+	hobot_port->rx_bytes = 0;
 
 	hobot_port->tx_dma_buf = dma_map_single(port->dev,
 						 port->state->xmit.buf,
@@ -1046,6 +1047,7 @@ static void hobot_uart_set_termios(struct uart_port *port,
 
 #ifdef CONFIG_HOBOT_TTY_DMA_MODE
 	hobot_uart->rx_off = 0;
+	hobot_uart->rx_bytes = 0;
 	if (hobot_uart->rx_enabled) {
 		ctrl_reg = readl(port->membase + HOBOT_UART_RXDMA);
 		ctrl_reg |= UART_RXSTA;
@@ -1293,6 +1295,7 @@ static void hobot_uart_shutdown(struct uart_port *port)
 	dma_unmap_single(port->dev, hobot_uart->tx_dma_buf,
 			UART_XMIT_SIZE, DMA_TO_DEVICE);
 	hobot_uart->rx_off = 0;
+	hobot_uart->rx_bytes = 0;
 #endif
 	free_irq(port->irq, port);
 	hobot_uart->tx_in_progress = 0;
