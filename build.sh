@@ -207,6 +207,13 @@ function all()
         echo "make failed"
         exit 1
     }
+    if [ "x$UBUNTU_ROOT" = "xtrue" ]; then
+        make ARCH=${ARCH_KERNEL} -j${N} O=${BUILD_OUTPUT_PATH} bindeb-pkg || {
+            echo "make failed"
+            exit 1
+        }
+    fi
+
 
     # Moving Close Source kos to target/tmprootfs
     rel_ko_path="${SRC_PREBUILTS_DIR}/ko"
