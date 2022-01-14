@@ -1,3 +1,11 @@
+/*
+ *  Horizon Robotics
+ *
+ *  Copyright (C) 2020 Horizon Robotics Inc.
+ *  All rights reserved.
+ *
+ */
+
 #ifndef SPACC_CRYPTOAPI_H_
 #define SPACC_CRYPTOAPI_H_
 
@@ -60,6 +68,7 @@ struct spacc_crypto_ctx {
 	char key[SPACC_MAX_KEY_SIZE];
 	int keylen;
 	spinlock_t lock;
+	struct mutex mutex_lock;
 	struct list_head jobs;
 	int handle, mode, auth_size;
 

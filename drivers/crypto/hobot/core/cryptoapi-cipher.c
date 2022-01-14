@@ -135,11 +135,14 @@ static int __spacc_cipher_process(struct skcipher_request *req, int enc)
 	struct spacc_priv *priv = dev_get_drvdata(tctx->dev);
 	int rc;
 
+	mutex_lock(&tctx->mutex_lock);
+
 	spacc_ciper_prepare(req, enc);
 
 	rc = spacc_cipher_init_dma(tctx->dev, req);
 	if (rc < 0) {
 		pr_err("%s: failed to init ddt.\n", __func__);
+		mutex_unlock(&tctx->mutex_lock);
 		return -ENOMEM;
 	}
 
@@ -154,12 +157,15 @@ static int __spacc_cipher_process(struct skcipher_request *req, int enc)
 		pr_err("%s: failed to enqueue ddt.\n", __func__);
 		if (rc != CRYPTO_FIFO_FULL) {
 			dev_err(tctx->dev, "failed to enqueue job: %s\n", spacc_error_msg(rc));
-		} else if (!(req->base.flags & CRYPTO_TFM_REQ_MAY_BACKLOG))
+		} else if (!(req->base.flags & CRYPTO_TFM_REQ_MAY_BACKLOG)) {
+			mutex_unlock(&tctx->mutex_lock);
 			return -EBUSY;
-
+		}
+		mutex_unlock(&tctx->mutex_lock);
 		return -EBUSY;
 	}
 
+	mutex_unlock(&tctx->mutex_lock);
 	return -EINPROGRESS;
 
 }
@@ -329,6 +335,8 @@ static int spacc_cipher_cra_init(struct crypto_tfm *tfm)
 	tctx->ctx_valid = false;
 	tctx->dev       = get_device(salg->dev[0]);
 
+	mutex_init(&tctx->mutex_lock);
+
 	tctx->fb.cipher = __crypto_skcipher_cast(tfm);
 
 	align = crypto_skcipher_alignmask(tctx->fb.cipher);
@@ -350,6 +358,8 @@ static void spacc_cipher_cra_exit(struct crypto_tfm *tfm)
 
 	if (tctx->handle >= 0)
 		spacc_close(&priv->spacc, tctx->handle);
+
+	mutex_destroy(&tctx->mutex_lock);
 
 	put_device(tctx->dev);
 }
