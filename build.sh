@@ -172,7 +172,7 @@ function pre_pkg_preinst() {
     local module_sig_hash="$(grep -Po '(?<=CONFIG_MODULE_SIG_HASH=").*(?=")' "${BUILD_OUTPUT_PATH}/.config")"
     # Get the key file used by the kernel.
     local module_sig_key="$(grep -Po '(?<=CONFIG_MODULE_SIG_KEY=").*(?=")' "${BUILD_OUTPUT_PATH}/.config")"
-    module_sig_key="${module_sig_key:-certs/signing_key.pem}"
+    module_sig_key="${module_sig_key:-certs/hobot_fixed_signing_key.pem}"
     # Path to the key file or PKCS11 URI
     if [[ "${module_sig_key#pkcs11:}" == "${module_sig_key}" && "${module_sig_key#/}" == "${module_sig_key}" ]]; then
         local key_path="${BUILD_OUTPUT_PATH}/${module_sig_key}"
@@ -224,7 +224,8 @@ function all()
 
     #release: module signature: use fixed public and private keys
     if [ "$TARGET_MODE" = "release" ];then
-        cp -rf ${SRC_KERNEL_DIR}/certs/signing_key.* ${BUILD_OUTPUT_PATH}/certs/
+        cp -rf ${SRC_KERNEL_DIR}/certs/hobot_fixed_signing_key.pem ${BUILD_OUTPUT_PATH}/certs/
+        cp -rf ${SRC_KERNEL_DIR}/certs/signing_key.x509 ${BUILD_OUTPUT_PATH}/certs/
     fi
 
     # make modules_install to INSTALL_MOD_PATH for debug ko (default: /)
