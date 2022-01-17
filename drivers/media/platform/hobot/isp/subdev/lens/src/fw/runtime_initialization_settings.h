@@ -33,9 +33,6 @@ extern uint32_t get_calibrations_dummy( uint32_t ctx_num,void * sensor_arg,ACame
 #endif // FIRMWARE_CONTEXT_NUMBER == 2
 */
 
-extern int32_t lens_init( void** ctx, lens_control_t* ctrl ) ;
-extern void lens_deinit( void * ctx) ;
-
 #if FIRMWARE_CONTEXT_NUMBER == 1
         #define SENSOR_INIT_SUBDEV_FUNCTIONS {sensor_init_dummy,}
         #define SENSOR_DEINIT_SUBDEV_FUNCTIONS {sensor_deinit_dummy,}

@@ -21,7 +21,6 @@
 #include "acamera_lens_api.h"
 #include "acamera_types.h"
 
-#ifdef BUILD_MODULE
 /*    - Test the driver in this file                            */
 /*                                                              */
 #if ISP_SENSOR_DRIVER_V4L2
@@ -51,4 +50,3 @@ void lens_deinit( void *ctx )
     lens_v4l2_subdev_deinit( ctx );
 #endif
 }
-#endif

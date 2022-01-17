@@ -29,8 +29,8 @@
 
 #define ARGS_TO_PTR( arg ) ( (struct soc_lens_ioctl_args *)arg )
 
-extern void lens_init(void **ctx, lens_control_t *ctrl, uint32_t port);
-extern void lens_deinit(void *ctx);
+extern void sub_lens_init(void **ctx, lens_control_t *ctrl, uint32_t port);
+extern void sub_lens_deinit(void *ctx);
 
 static struct v4l2_subdev soc_lens;
 
@@ -54,7 +54,9 @@ static int soc_lens_init( struct v4l2_subdev *sd, u32 val )
 
     if ( val < FIRMWARE_CONTEXT_NUMBER ) {
         l_ctx[val].lens_context = NULL;
-        lens_init(&(l_ctx[val].lens_context), &(l_ctx[val].lens_control), val);
+        sub_lens_init(&(l_ctx[val].lens_context),
+                      &(l_ctx[val].lens_control),
+                      val);
         if ( l_ctx[val].lens_context == NULL ) {
             LOG( LOG_ERR, "Failed to process lens_ioctl. Lens is not initialized yet. lens_init must be called before" );
             rc = -1;
@@ -74,7 +76,7 @@ static int soc_lens_reset( struct v4l2_subdev *sd, u32 val )
 {
     int rc = 0;
     if ( val < FIRMWARE_CONTEXT_NUMBER ) {
-        lens_deinit( l_ctx[val].lens_context );
+        sub_lens_deinit(l_ctx[val].lens_context);
     } else {
         rc = -1;
         LOG( LOG_ERR, "Failed to process camera reset for ctx:%d", val );

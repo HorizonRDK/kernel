@@ -38,14 +38,20 @@
 
 #include "acamera_logger.h"
 
-int32_t lens_init(void **ctx, lens_control_t *ctrl, uint32_t port)
+int32_t sub_lens_init(void **ctx, lens_control_t *ctrl, uint32_t port)
 {
 
     uint32_t lens_bus = 0;
 #if ISP_SENSOR_DRIVER_COMMON
     // Null should always be tested last
     if ( lens_null_test( lens_bus ) ) {
-        lens_null_init( ctx, ctrl, port);
+        if (unlikely(port >= FIRMWARE_CONTEXT_NUMBER)) {
+            LOG(LOG_ERR, "Failed to %s, port:%d must less than %d\n",
+                __func__, port, FIRMWARE_CONTEXT_NUMBER);
+            return -1;
+        } else {
+            lens_null_init(ctx, ctrl, port);
+        }
         LOG( LOG_NOTICE, "Lens VCM driver is COMMON" );
         return 0;
     }
@@ -55,7 +61,7 @@ int32_t lens_init(void **ctx, lens_control_t *ctrl, uint32_t port)
     return -1;
 }
 
-void lens_deinit( void *ctx )
+void sub_lens_deinit(void *ctx)
 {
 
 }
