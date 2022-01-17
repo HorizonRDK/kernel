@@ -1042,10 +1042,32 @@ void sif_transfer_ddr_owner(u32 __iomem *base_reg, u32 mux_out_index,
 	if (mux_out_index < 8 && buf_index < 4) {
 		shift = mux_out_index*4 + buf_index;
 		vio_hw_set_owner_field(base_reg, &sif_regs[SIF_AXI_BUS_OWNER],
-				&sif_fields[SW_SIF_OUT_FRM0_W_DDR0_OWNER - shift], 1);
+			&sif_fields[SW_SIF_OUT_FRM0_W_DDR0_OWNER - shift], 1);
 	} else {
 		vio_err("sif_transfer_ddr_owner wrong index[%d,%d]\n",
-				mux_out_index, buf_index);
+			mux_out_index, buf_index);
+	}
+}
+
+/*
+ * @brief transfer buffer's ownership to SF
+ * must write 1 two times
+ * @param mux_out_index index of mux out
+ * @param buf_index index of buffer on the specific mux ou
+ *
+ */
+void sif_transfer_ddr_owner_release(u32 __iomem *base_reg, u32 mux_out_index,
+	u32 buf_index)
+{
+	u32 shift = 0;
+
+	if (mux_out_index < 8 && buf_index < 4) {
+		shift = mux_out_index*4 + buf_index;
+		vio_hw_set_owner_field(base_reg, &sif_regs[SIF_AXI_BUS_OWNER_RELEASE],
+			&sif_fields[SW_SIF_OUT_FRM0_W_DDR0_OWNER_RELEASE - shift], 1);
+	} else {
+		vio_err("sif_transfer_ddr_owner wrong index[%d,%d]\n",
+			mux_out_index, buf_index);
 	}
 }
 

@@ -1060,6 +1060,30 @@ static void sif_clear_yuv422_proc_b_mux_mask(struct x3_sif_dev *sif,
 	}
 }
 
+static void sif_disable_wdma(struct sif_subdev *subdev)
+{
+	struct x3_sif_dev *sif;
+	u32 mux_index, yuv_format;
+	int i;
+
+	sif = subdev->sif_dev;
+	mux_index = subdev->mux_index;
+	yuv_format = subdev->format;
+
+	sif_set_wdma_enable(sif->base_reg, mux_index, 0);
+	if (yuv_format || subdev->dol_num > 1) {
+		sif_set_wdma_enable(sif->base_reg, mux_index + 1, 0);
+	}
+	if (subdev->dol_num > 2) {
+		sif_set_wdma_enable(sif->base_reg, mux_index + 2, 0);
+	}
+	if (subdev->splice_info.splice_enable) {
+		for(i = 0; i < subdev->splice_info.pipe_num; i++) {
+			sif_set_wdma_enable(sif->base_reg, mux_index + 1 + i, 0);
+		}
+	}
+}
+
 static void sif_clear_normal_subdev_mux_mask(struct x3_sif_dev *sif,
 		struct sif_subdev *subdev)
 {
@@ -1108,6 +1132,7 @@ static void sif_clear_normal_subdev_mux_mask(struct x3_sif_dev *sif,
 			clear_bit(SIF_SPLICE_OP + subdev->mux_index + i + 1, &sif->state);
 		}
 	}
+	sif_disable_wdma(subdev);
 }
 
 static int x3_sif_close(struct inode *inode, struct file *file)
@@ -2704,6 +2729,44 @@ void sif_get_timestamps(struct vio_group *group, struct frame_id *info) {
 	info = &subdev->info;
 }
 
+static void sif_write_buffer_config(struct sif_subdev *subdev)
+{
+	struct x3_sif_dev *sif;
+	u32 yuv_format = 0, mux_index;
+	int i;
+
+	sif = subdev->sif_dev;
+	mux_index = subdev->mux_index;
+	yuv_format = subdev->format;
+
+	/*disenable w_enable*/
+	sif_set_wdma_enable(sif->base_reg, mux_index, 0);
+	if (yuv_format || subdev->dol_num > 1) {
+		sif_set_wdma_enable(sif->base_reg, mux_index + 1, 0);
+	}
+	if (subdev->dol_num > 2) {
+		sif_set_wdma_enable(sif->base_reg, mux_index + 2, 0);
+	}
+	if (subdev->splice_info.splice_enable) {
+		for(i = 0; i < subdev->splice_info.pipe_num; i++) {
+			sif_set_wdma_enable(sif->base_reg, mux_index + 1 + i, 0);
+		}
+	}
+	/*enable w_enable*/
+	sif_set_wdma_enable(sif->base_reg, mux_index, 1);
+	if (yuv_format || subdev->dol_num > 1) {
+		sif_set_wdma_enable(sif->base_reg, mux_index + 1, 1);
+	}
+	if (subdev->dol_num > 2) {
+		sif_set_wdma_enable(sif->base_reg, mux_index + 2, 1);
+	}
+	if (subdev->splice_info.splice_enable) {
+		for(i = 0; i < subdev->splice_info.pipe_num; i++) {
+			sif_set_wdma_enable(sif->base_reg, mux_index + 1 + i, 1);
+		}
+	}
+}
+
 static void sif_frame_ndone_process(struct sif_subdev *subdev,
 					struct sif_video_ctx *sif_ctx)
 {
@@ -2727,6 +2790,7 @@ static void sif_frame_ndone_process(struct sif_subdev *subdev,
 				subdev->id,
 				frame->frameinfo.bufferindex,
 				frame->frameinfo.frame_id);
+		sif_write_buffer_config(subdev);  /*disable/enable w_enable*/
 		trans_frame(framemgr, frame, FS_REQUEST);
 		vio_group_start_trigger_mp(group, frame);
 	} else {
@@ -2997,6 +3061,7 @@ void sif_overflow_diag_report(struct x3_sif_dev *sif, uint32_t mux_index,
 {
 	struct sif_subdev *subdev;
 	struct vio_group *group;
+	u32 diag_flow = 0;
 
 	group = sif->sif_mux[mux_index];
 	if(group == NULL)
@@ -3004,8 +3069,8 @@ void sif_overflow_diag_report(struct x3_sif_dev *sif, uint32_t mux_index,
 	subdev = group->sub_ctx[0];
 	if(subdev == NULL)
 		return;
-	subdev->overflow = sif_find_overflow_instance(mux_index, subdev, of_value);
-	if(subdev->overflow != 0) {
+	diag_flow = sif_find_overflow_instance(mux_index, subdev, of_value);
+	if(diag_flow != 0) {
 		subdev->diag_state_overflow = 1;
 		sif_diag_report(1, INTR_SIF_IN_OVERFLOW,
 			sif_frm_int, subdev->group->instance);
@@ -3105,6 +3170,29 @@ static void sif_hw_resource_process(struct x3_sif_dev *sif,
 	}
 }
 
+/*
+* @brief
+* disable/enable SIF_OUT_FRM_CTRL when overflow occurs,
+* go to ndone logic
+*/
+void sif_overflow_handle(struct x3_sif_dev *sif, u32 mux_index, u32 of_value)
+{
+	struct sif_subdev *subdev;
+	struct vio_group *group;
+
+	group = sif->sif_mux[mux_index];
+	if(group == NULL)
+		return;
+	subdev = group->sub_ctx[0];
+	if(subdev == NULL)
+		return;
+	subdev->overflow = sif_find_overflow_instance(mux_index, subdev, of_value);
+	if(subdev->overflow != 0) {
+		sif_frame_ndone(subdev);
+		temp_flow &= ~(subdev->overflow);
+	}
+}
+
 static irqreturn_t sif_isr(int irq, void *data)
 {
 	int ret = 0, i;
@@ -3145,12 +3233,15 @@ static irqreturn_t sif_isr(int irq, void *data)
 			sif_statics_err_clr(sif->base_reg);
 			vio_err("input buffer overflow(0x%x) temp_flow 0x%x \n",
 				irq_src.sif_in_buf_overflow, temp_flow);
-#ifdef CONFIG_HOBOT_DIAG
 			for (mux_index = 0; mux_index < SIF_MUX_MAX; mux_index++) {
+#ifdef CONFIG_HOBOT_DIAG
 				sif_overflow_diag_report(sif, mux_index,
 					temp_flow, irq_src.sif_frm_int);
+#endif
+				sif_overflow_handle(sif, mux_index, temp_flow);
 			}
 		} else {
+#ifdef CONFIG_HOBOT_DIAG
 			for (mux_index = 0; mux_index < SIF_MUX_MAX; mux_index++) {
 				sif_overflow_diag_report(sif, mux_index,
 					temp_flow, irq_src.sif_frm_int);
@@ -3163,18 +3254,16 @@ static irqreturn_t sif_isr(int irq, void *data)
 
 			if (status & 1 << (mux_index + INTR_SIF_MUX0_FRAME_DONE)) {
 				group = sif->sif_mux[mux_index];
+				if(!group || !group->sub_ctx[0]) {
+					continue;
+				}
 				subdev = group->sub_ctx[0];
-				if(!group || !subdev)
-					return IRQ_HANDLED;
 				if(subdev->ipi_disable == true) {
 					vio_info("%s : rx_index = %d vc_index %d ipi_index %d instance %d \n",
 							__func__, subdev->rx_index, subdev->vc_index,
 							subdev->ipi_index, group->instance);
 					mipi_host_reset_ipi(subdev->rx_index, subdev->vc_index, 0);
 				}
-				subdev->overflow = sif_find_overflow_instance(mux_index,
-					subdev, temp_flow);
-				temp_flow &= ~(subdev->overflow);
 				if (subdev->splice_info.splice_enable) {
 					if (test_bit(mux_index + SIF_SPLICE_OP, &sif->state)) {
 						subdev->splice_info.splice_done = 1;
@@ -3182,32 +3271,12 @@ static irqreturn_t sif_isr(int irq, void *data)
 						subdev->splice_info.frame_done = 1;
 					}
 				}
-				multiplexing_proc = \
-					subdev->sif_cfg.input.mux_multiplexing.yuv_multiplexing_proc;
-				if (subdev->overflow != 0) {
-					vio_err("FE overflow %d mux_index %d temp_flow 0x%x\n",
-							subdev->overflow, mux_index, temp_flow);
-					if(subdev->ipi_disable == true && \
-						(YUV422_MULTIPLEXING_PROC_A == multiplexing_proc || \
-						YUV422_MULTIPLEXING_PROC_B == multiplexing_proc) && \
-						HW_FORMAT_YUV422 == subdev->format) {
-						/* when ipi disable in multiplex scene, we just transfer
-						 * frame to FS_REQUEST queue without noticing userspace
-						 */
-						sif_transfer_frame_to_request(subdev);
-					} else {
-						sif_frame_ndone(subdev);
-					}
-					if (subdev->splice_info.splice_enable) {
-						if (subdev->splice_info.splice_done && subdev->splice_info.frame_done) {
-							subdev->splice_info.splice_done = 0;
-							subdev->splice_info.frame_done = 0;
-							subdev->overflow = 0;
-						}
-					} else {
-						subdev->overflow = 0;
-					}
+				/*clr overflow flag when FE*/
+				if(subdev->overflow != 0) {
+					subdev->overflow = 0;
 				} else {
+					multiplexing_proc = \
+						subdev->sif_cfg.input.mux_multiplexing.yuv_multiplexing_proc;
 					if(subdev->ipi_disable == true && \
 						(YUV422_MULTIPLEXING_PROC_A == multiplexing_proc || \
 						YUV422_MULTIPLEXING_PROC_B == multiplexing_proc) && \
@@ -3227,12 +3296,20 @@ static irqreturn_t sif_isr(int irq, void *data)
 						(!atomic_read(&subdev->fps_ctrl.lost_this_frame))) {
 					subdev_set_frm_owner(subdev, sif, mux_index);
 				}
+			} else {
+				/*clr overflow flag when no FE*/
+				group = sif->sif_mux[mux_index];
+				if(group && group->sub_ctx[0]) {
+					subdev = group->sub_ctx[0];
+					if(subdev->overflow != 0)
+						subdev->overflow = 0;
+				}
 			}
 			//Frame start processing
 			if ((status & 1 << mux_index)) {
 				group = sif->sif_mux[mux_index];
 				if(!group || !group->sub_ctx[0]) {
-					return IRQ_HANDLED;
+					continue;
 				}
 				subdev = group->sub_ctx[0];
 				sif->statistic.fs[group->instance]++;
