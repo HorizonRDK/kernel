@@ -272,7 +272,7 @@ static int hobot_copy_usr(struct snd_pcm_substream *substream,
 
 	for (i = 0; i < period_count; i++) {
 		if (runtime->access == SNDRV_PCM_ACCESS_RW_INTERLEAVED) {
-			if (tstamp_mode == 1) {
+			if (tstamp_mode == 1 && substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
 				if (copy_to_user((void __user *)buf + (count+i)*sizeof(struct timespec)
 						+ i*dma_ctrl->periodsz,
 						&dma_ctrl->tstamp[count+i], sizeof(struct timespec)))
