@@ -203,6 +203,7 @@ static void hobot_uart_rxdma_start(struct uart_port *port)
 	 */
 	hobot_port->rx_enabled = 1;
 	hobot_port->rx_off = 0;
+	hobot_port->rx_bytes = 0;
 
 	val = readl(port->membase + HOBOT_UART_RXDMA);
 	val &= 0xFFFFFF00;
