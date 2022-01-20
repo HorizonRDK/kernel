@@ -56,6 +56,8 @@
 
 #define SEC_FLAG_REG_ADDR       0xA6000214
 #define SEC_FLAG_SIZE           4
+#define BOOT_COUNT_REG_ADDR     0xA600025c
+#define BOOT_COUNT_SIZE         4
 
 enum hobot_board {
 	X2_SVB = 100,
