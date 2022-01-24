@@ -205,7 +205,7 @@ void acamera_fsm_mgr_process_events(acamera_fsm_mgr_t *p_fsm_mgr,int n_max_event
 							(start.tv_sec*1000000 + start.tv_usec);
 						diff = diff / 1000;
 						if (diff > threshold)
-							printk_ratelimited(TAG_EVT_DBG "%s cost %d ms\n", event_name[event_id], diff);
+							printk_ratelimited(TAG_EVT_DBG "[s%d] %s cost %d ms\n", p_fsm_mgr->ctx_id, event_name[event_id], diff);
 					}
 					b_event_processed |= b_processed;
 #if ACAMERA_ISP_PROFILING

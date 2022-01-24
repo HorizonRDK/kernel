@@ -415,7 +415,7 @@ uint8_t general_fsm_process_event( general_fsm_t *p_fsm, event_id_t event_id )
                 else
                     us_diff = 1000000 + tv2[i].tv_usec - tv1[i].tv_usec;
 
-                pr_debug("idx %d, cost %ld.%06ld\n", i, sec_diff, us_diff);
+                pr_debug("[s%d] idx %d, cost %ld.%06ld\n", ACAMERA_FSM2CTX_PTR( p_fsm )->context_id, i, sec_diff, us_diff);
             }
         }
 

@@ -713,10 +713,10 @@ void acamera_isp_ctxsv(uint8_t ctx_id)
                 vio_get_sif_frame_info(ctx_id, &frmid);
                 cn->ctx.frame_id = frmid.frame_id;
                 cn->ctx.timestamps = frmid.timestamps;
-                offset = p_ctx->sw_reg_map.isp_sw_config_map + ACAMERA_DECOMPANDER0_MEM_BASE_ADDR;
+                offset = p_ctx->sw_reg_map.isp_sw_config_map + CTX_CP_SPEED_1; //offset should be 1024 align, memcpy_fromio will be faster
 				if(p_ctx->isp_ctxsv_on != 0) {
-					memcpy_fromio(cn->base, offset, CTX_SIZE);
-					cn->ctx.crc16 = crc16(0xffff, cn->base, CTX_SIZE);
+					memcpy_fromio(cn->base, offset, CTX_NODE_TOTAL_SIZE);
+					cn->ctx.crc16 = crc16(0xffff, cn->base + CTX_CP_SPEED_2, CTX_SIZE);
 				}
                 isp_ctx_put_node(ctx_id, cn, ISP_CTX, DONEQ);
 
@@ -1221,6 +1221,12 @@ int sif_isp_ctx_sync_func(int ctx_id)
 	} else {
         p_ctx->sts.evt_process_drop++;
         system_semaphore_raise( p_ctx->sem_evt_avail );
+        pr_debug("sem cnt %d, ev_q head %d tail %d\n",
+            ((struct semaphore *)p_ctx->sem_evt_avail)->count,
+            p_ctx->fsm_mgr.event_queue.buf.head,
+            p_ctx->fsm_mgr.event_queue.buf.tail);
+        acamera_evt_process_dbg(p_ctx);
+        //acamera_event_queue_view(&p_ctx->fsm_mgr.event_queue);
         pr_err("[s%d] =>previous frame events are not process done\n", ctx_id);
 
         if (instance->reserved) {   //dma writer on
@@ -1236,11 +1242,7 @@ int sif_isp_ctx_sync_func(int ctx_id)
 
             acamera_dma_wr_check();
         }
-        // pr_info("sem cnt %d, ev_q head %d tail %d\n",
-        //     ((struct semaphore *)p_ctx->sem_evt_avail)->count,
-        //     p_ctx->fsm_mgr.event_queue.buf.head,
-        //     p_ctx->fsm_mgr.event_queue.buf.tail);
-        // acamera_event_queue_view(&p_ctx->fsm_mgr.event_queue);
+
         goto out;
 	}
 

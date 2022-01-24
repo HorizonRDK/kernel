@@ -293,7 +293,7 @@ int isp_ctx_queue_init(void)
 			af_base = awb_base + AWB_SIZE_IN_ONE_ZONE;
 			ae_5bin_base = af_base + AF_SIZE_IN_ONE_ZONE;
 			lumvar_base = ae_5bin_base + AE_5BIN_SIZE_IN_ONE_ZONE;
-			ctx_node[i][ISP_CTX][j].base = cfg_base + j * CFG_NODE_SIZE;
+			ctx_node[i][ISP_CTX][j].base = cfg_base + j * CTX_NODE_TOTAL_SIZE;
 			ctx_node[i][ISP_AE][j].base = ae_base + j * AE_NODE_SIZE;
 			ctx_node[i][ISP_AWB][j].base = awb_base + j * AWB_NODE_SIZE;
 			ctx_node[i][ISP_AF][j].base = af_base + j * AF_NODE_SIZE;
