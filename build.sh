@@ -50,7 +50,7 @@ function make_recovery_img()
 
     # put binaries to dest directory
     runcmd "mkdir -p ${prefix}"
-    runcmd "cp ${BUILD_OUTPUT_PATH}/arch/$ARCH_KERNEL/boot/Image.gz $prefix/recovery.gz"
+    runcmd "cp ${BUILD_OUTPUT_PATH}/arch/$ARCH_KERNEL/boot/$KERNEL_IMAGE_NAME $prefix/$RECOVERY_IMAGE_NAME"
     if [ -f "${BUILD_OUTPUT_PATH}/vmlinux_ori" ];then
         mv "${BUILD_OUTPUT_PATH}/vmlinux" "${BUILD_OUTPUT_PATH}/vmlinux_recovery"
         mv "${BUILD_OUTPUT_PATH}/vmlinux_ori" "${BUILD_OUTPUT_PATH}/vmlinux"
@@ -258,7 +258,7 @@ function all()
     cpfiles "${BUILD_OUTPUT_PATH}/arch/$ARCH_KERNEL/boot/dts/hobot/$KERNEL_DTB_NAME" "$prefix/"
 
     #calculate kernel crc
-    runcmd "$SRC_KERNEL_DIR/crc.py ${BUILD_OUTPUT_PATH}/arch/arm64/boot/Image.gz ${BUILD_OUTPUT_PATH}/result_crc"
+    runcmd "$SRC_KERNEL_DIR/crc.py ${BUILD_OUTPUT_PATH}/arch/arm64/boot/$KERNEL_IMAGE_NAME ${BUILD_OUTPUT_PATH}/result_crc"
     cpfiles "${BUILD_OUTPUT_PATH}/result_crc " "$TARGET_TMPROOTFS_DIR/etc/diag/"
     #rm $SRC_KERNEL_DIR/_install/ -rf
 
@@ -266,7 +266,7 @@ function all()
     build_dtbmapping
 
     if [ "x$KERNEL_WITH_RECOVERY" = "xtrue" ];then
-        # get recovery.gz
+        # get recovery.gz or recovery.lz4
         # TODO: should be optimized with "choose"
         make_recovery_img
     fi

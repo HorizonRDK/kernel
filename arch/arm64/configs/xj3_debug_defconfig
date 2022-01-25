@@ -538,6 +538,12 @@ CONFIG_ARM64_UAO=y
 # CONFIG_RANDOMIZE_BASE is not set
 
 #
+# Kernel Compress
+#
+# CONFIG_KERNEL_COMPRESS_WITH_GZIP is not set
+CONFIG_KERNEL_COMPRESS_WITH_LZ4=y
+
+#
 # Boot options
 #
 CONFIG_CMDLINE=""

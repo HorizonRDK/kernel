@@ -1082,6 +1082,35 @@ config RANDOMIZE_MODULE_REGION_FULL
 	  a limited range that contains the [_stext, _etext] interval of the
 	  core kernel, so branch relocations are always in range.
 
+comment "Kernel Compress"
+choice
+	prompt "Kernel Compress"
+	default KERNEL_COMPRESS_WITH_LZ4
+
+config KERNEL_COMPRESS_WITH_GZIP
+	bool "Compress kernel with GZIP"
+	depends on ARCH_HOBOT
+	depends on HOBOT_XJ3
+	help
+	  The old and tried gzip compression. It provides a good balance
+	  between compression ratio and decompression speed.
+	  Linux kernel will compressed to Image.gz.
+
+config KERNEL_COMPRESS_WITH_LZ4
+	bool "Compress kernel with LZ4"
+	depends on ARCH_HOBOT
+	depends on HOBOT_XJ3
+	help
+	  LZ4 is an LZ77-type compressor with a fixed, byte-oriented encoding.
+	  A preliminary version of LZ4 de/compression tool is available at
+	  <https://code.google.com/p/lz4/>.
+
+	  Its compression ratio is worse than LZO. The size of the kernel
+	  is about 8% bigger than LZO. But the decompression speed is
+	  faster than LZO.
+	  Linux kernel will compressed to Image.lz4.
+endchoice
+
 endmenu
 
 menu "Boot options"
