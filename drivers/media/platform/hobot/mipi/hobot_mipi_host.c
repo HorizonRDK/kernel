@@ -220,6 +220,8 @@ static const char *g_mh_snrclk_name[] = {
 
 typedef struct _mipi_host_snrclk_s {
 	int                   index;
+	int                   en_cnt;
+	int                   sys_cnt;
 	struct pinctrl       *pinctrl;
 	struct pinctrl_state *enable;
 	struct pinctrl_state *disable;
@@ -1506,21 +1508,76 @@ static int32_t mipi_host_snrclk_set_freq(mipi_hdev_t *hdev, uint32_t freq)
 		return -1;
 	}
 	name = g_mh_snrclk_name[snrclk->index];
-	ret = mipi_host_configure_clk(hdev, name, freq, 0);
-	if (freq != 0) {
-		param->snrclk_freq = (uint32_t)(mipi_host_get_clk(hdev, name));
-		diff = (freq > param->snrclk_freq) ? (freq - param->snrclk_freq) :
-			param->snrclk_freq - freq;
-		if ((diff * 10) > freq) {
-			ret = -1;
+	if (freq > 0 || snrclk->en_cnt > 0) {
+		/* enable: first time with default freq */
+	#if 0
+		if (freq > 0 && snrclk->en_cnt == 0) {
+			ret = mipi_host_configure_clk(hdev, name, 37125000UL, 0);
+			if (ret == 0) {
+				snrclk->en_cnt++;
+			}
 		}
+	#endif
+		/* enable: then change real freq / disable: freq = 0 */
+		ret = mipi_host_configure_clk(hdev, name, freq, 0);
+		if (ret == 0) {
+			if (freq)
+				snrclk->en_cnt++;
+			else
+				snrclk->en_cnt--;
+		}
+		param->snrclk_freq = (uint32_t)(mipi_host_get_clk(hdev, name));
+		if (freq != 0) {
+			diff = (freq > param->snrclk_freq) ? (freq - param->snrclk_freq) :
+				param->snrclk_freq - freq;
+			if ((diff * 10) > freq) {
+				if (ret == 0) {
+					(void)mipi_host_configure_clk(hdev, name, 0, 0);
+					snrclk->en_cnt--;
+				}
+				ret = -1;
+			}
+		}
+		if (ret)
+			mipierr("%s set(%d) %u but %u error", name, snrclk->en_cnt,
+				freq, param->snrclk_freq);
+		else
+			mipiinfo("%s set(%d) %u as %u", name, snrclk->en_cnt,
+				freq, param->snrclk_freq);
+	} else {
+		mipiinfo("%s set(%d) %u done", name, snrclk->en_cnt, freq);
 	}
-	if (ret)
-		mipierr("%s set %u but %u error", name, freq, param->snrclk_freq);
-	else
-		mipiinfo("%s set %u as %u", name, freq, param->snrclk_freq);
 
 	return ret;
+}
+
+/**
+ * @brief mipi_host_snrclk_close_freq: close snrclk of mipi host
+ *
+ * @param [in] keep_sys: close all or keep sysfs cnt?
+ *
+ * @return void : none
+ */
+static void mipi_host_snrclk_close_freq(mipi_hdev_t *hdev, int32_t keep_sys)
+{
+	mipi_host_snrclk_t *snrclk = &hdev->host.snrclk;
+	int32_t ret = 0;
+
+	if (snrclk->index < 0) {
+		return;
+	}
+
+	while (ret == 0 && snrclk->en_cnt > snrclk->sys_cnt) {
+		ret = mipi_host_snrclk_set_freq(hdev, 0);
+	}
+
+	if (keep_sys == 0) {
+		while (ret == 0 && snrclk->sys_cnt > 0) {
+			ret = mipi_host_snrclk_set_freq(hdev, 0);
+			if (ret == 0)
+				snrclk->sys_cnt--;
+		}
+	}
 }
 
 /**
@@ -1542,15 +1599,7 @@ static int32_t mipi_host_snrclk_set_en(mipi_hdev_t *hdev, int enable)
 		mipierr("snrclk set en not support");
 		return -1;
 	}
-#if 0
-	/* enable clk as default at first time */
-	if (param->snrclk_en == MIPI_HOST_SNRCLK_NOUSED) {
-		mipiinfo("snrclk clk default as %lu",
-			mipi_host_get_clk(hdev, g_mh_snrclk_name[snrclk->index]));
-		mipi_host_configure_clk(hdev, g_mh_snrclk_name[snrclk->index],
-			mipi_host_get_clk(hdev, g_mh_snrclk_name[snrclk->index]), 0);
-	}
-#endif
+
 	if (enable) {
 		if (snrclk->enable) {
 			mipiinfo("snrclk set enable");
@@ -1562,6 +1611,12 @@ static int32_t mipi_host_snrclk_set_en(mipi_hdev_t *hdev, int enable)
 			mipierr("snrclk set enable not support");
 			ret = -1;
 		}
+
+		/* enable clk if not enabled */
+		if (ret == 0 && snrclk->en_cnt == 0) {
+			mipi_host_snrclk_set_freq(hdev,
+				mipi_host_get_clk(hdev, g_mh_snrclk_name[snrclk->index]));
+		}
 	} else {
 		if (snrclk->disable) {
 			mipiinfo("snrclk set disable");
@@ -1572,6 +1627,11 @@ static int32_t mipi_host_snrclk_set_en(mipi_hdev_t *hdev, int enable)
 		} else {
 			mipierr("snrclk set disable not support");
 			ret = -1;
+		}
+
+		/* disable clk if enabled once */
+		if (ret == 0 && snrclk->en_cnt == 1) {
+			mipi_host_snrclk_set_freq(hdev, 0);
 		}
 	}
 
@@ -2564,6 +2624,7 @@ static int hobot_mipi_host_close(struct inode *inode, struct file *file)
 		}
 		mipi_host_configure_clk(hdev, MIPI_HOST_CFGCLK_NAME, 0, 0);
 		mipi_host_configure_clk(hdev, MIPI_HOST_REFCLK_NAME, 0, 0);
+		mipi_host_snrclk_close_freq(hdev, 1);
 	}
 	mutex_unlock(&user->open_mutex);
 
@@ -3177,7 +3238,19 @@ static ssize_t mipi_host_param_store(struct device *dev,
 			param[idx] = pbak;
 			error = mipi_host_snrclk_set_en(hdev, val);
 		} else if (!strcmp(attr->attr.name, "snrclk_freq")) {
-			error = mipi_host_snrclk_set_freq(hdev, val);
+			if (val == 0xffffffff) {
+				mipi_host_snrclk_close_freq(hdev, 0);
+			} else if (val > 0 || hdev->host.snrclk.sys_cnt > 0) {
+				error = mipi_host_snrclk_set_freq(hdev, val);
+				if (error == 0) {
+					if (val)
+						hdev->host.snrclk.sys_cnt++;
+					else
+						hdev->host.snrclk.sys_cnt--;
+				}
+			} else {
+				error = -EPERM;
+			}
 		}
 	}
 
@@ -3440,6 +3513,7 @@ static ssize_t mipi_host_status_show(struct device *dev,
 			(param->snrclk_en == MIPI_HOST_SNRCLK_NOUSED) ? "noused" :
 			((param->snrclk_en == MIPI_HOST_SNRCLK_ENABLE) ? "enable" : "disable"));
 		MH_STA_SHOW(freq, "%u", param->snrclk_freq);
+		MH_STA_SHOW(cnt, "%u(sys) / %u(en)", snrclk->sys_cnt, snrclk->en_cnt);
 	} else if (strcmp(attr->attr.name, "user") == 0) {
 		MH_STA_SHOW(user, "%d", user->open_cnt);
 		MH_STA_SHOW(init, "%d", user->init_cnt);
