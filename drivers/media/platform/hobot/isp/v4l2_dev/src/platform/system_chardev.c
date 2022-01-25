@@ -425,6 +425,7 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		acamera_context_t *p_ctx;
 
 		if (copy_from_user(&md, (void __user *)arg, sizeof(md))) {
+			pr_err("copy_from_user error\n");
 			ret = -EFAULT;
 			break;
 		}
@@ -471,11 +472,13 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		s = md.elem * sizeof(struct regs_t);
 		md.ptr = kzalloc(s, GFP_KERNEL);
 		if (md.ptr == NULL) {
+			pr_err("ctx id %d, elem alloc mem failed\n", md.chn);
 			ret = -ENOMEM;
 			break;
 		}
 
 		if (copy_from_user(md.ptr, pmd->ptr, s)) {
+			pr_err("ctx id %d, copy_from_user error\n", md.chn);
 			ret = -EFAULT;
 			kfree(md.ptr);
 			break;
@@ -484,12 +487,14 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		rg = md.ptr;
 
 		for (i = 0; i < md.elem; i++) {
-			//pr_debug("dir %d, elem %d, m %d, n %d, v %d\n", md.dir, md.elem, rg[i].m, rg[i].n, rg[i].v);
 			system_reg_rw(&rg[i], md.dir);
+			pr_debug("ctx id %d, dir %d, elem %d, addr %x, m %d, n %d, v %d\n",
+					md.chn, md.dir, md.elem, rg[i].addr, rg[i].m, rg[i].n, rg[i].v);
 		}
 
 		if (md.dir == COMMAND_GET) {
 			if (copy_to_user(pmd->ptr, md.ptr, s)) {
+				pr_err("ctx id %d, copy_to_user error\n", md.chn);
 				ret = -EFAULT;
 			}
 		}
@@ -510,11 +515,13 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		}
 		md.ptr = kzalloc(s, GFP_KERNEL);
 		if (md.ptr == NULL) {
+			pr_err("ctx id %d, md ptr alloc mem failed\n", md.chn);
 			ret = -ENOMEM;
 			break;
 		}
 
 		if (copy_from_user(md.ptr, pmd->ptr, s)) {
+			pr_err("ctx id %d, copy_from_user error\n", md.chn);
 			ret = -EFAULT;
 			kfree(md.ptr);
 			break;
@@ -523,6 +530,7 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		ret = acamera_api_calibration(md.chn, 0, md.id, md.dir, md.ptr, s, &ret_value);
 		if (ret == SUCCESS && md.dir == COMMAND_GET) {
 			if (copy_to_user(pmd->ptr, md.ptr, s)) {
+				pr_err("ctx id %d, copy_to_user error\n", md.chn);
 				ret = -EFAULT;
 			}
 		}
@@ -538,6 +546,7 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		struct regs_mem_t *prgm = (struct regs_mem_t *)arg;
 
 		if (copy_from_user(&rgm, (void __user *)arg, sizeof(rgm))) {
+			pr_err("ISPIOC_REG_MEM_RW copy_from_user error\n");
 			ret = -EFAULT;
 			break;
 		}
@@ -559,11 +568,13 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 
 		rgm.ptr = vzalloc(rgm.size);
 		if (rgm.ptr == NULL) {
+			pr_err("ctx id %d, rgm ptr alloc mem failed\n", rgm.chn);
 			ret = -ENOMEM;
 			break;
 		}
 
 		if (copy_from_user(rgm.ptr, prgm->ptr, rgm.size)) {
+			pr_err("ctx id %d, copy_from_user error\n", rgm.chn);
 			ret = -EFAULT;
 			vfree(rgm.ptr);
 			break;
@@ -576,10 +587,12 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 			} else {
 				rgm.ptr[i] = system_sw_read_32(sw_addr + i * 4);
 			}
+			pr_debug("ctx id %d, dir %d, addr %p, val %x\n", rgm.chn, rgm.dir, (uint32_t *)(sw_addr + i * 4), rgm.ptr[i]);
 		}
 
 		if (rgm.dir == COMMAND_GET) {
 			if (copy_to_user(prgm->ptr, rgm.ptr, rgm.size)) {
+				pr_err("ctx id %d, copy_to_user error\n", rgm.chn);
 				ret = -EFAULT;
 			}
 		}
@@ -597,11 +610,13 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		s = md.elem * sizeof(struct kv_t);
 		md.ptr = kzalloc(s, GFP_KERNEL);
 		if (md.ptr == NULL) {
+			pr_err("ctx id %d, md ptr alloc mem failed\n", md.chn);
 			ret = -ENOMEM;
 			break;
 		}
 
 		if (copy_from_user(md.ptr, pmd->ptr, s)) {
+			pr_err("ctx id %d, copy_from_user error\n", md.chn);
 			ret = -EFAULT;
 			kfree(md.ptr);
 			break;
@@ -625,6 +640,7 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 
 		if (md.dir == COMMAND_GET) {
 			if (copy_to_user(pmd->ptr, md.ptr, s)) {
+				pr_err("ctx id %d, copy_to_user error\n", md.chn);
 				ret = -EFAULT;
 			}
 		}
@@ -640,6 +656,7 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		acamera_context_t *p_ctx;
 
 		if (copy_from_user(&ctx, (void __user *)arg, sizeof(ctx))) {
+			pr_err("ISPIOC_GET_CTX copy_from_user error\n");
 			ret = -EFAULT;
 			break;
 		}
@@ -667,9 +684,11 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		cn = isp_ctx_get(ctx.ctx_id, ctx.type, ctx.time_out, ctx.latest_flag);
 		if (cn) {
 			if (copy_to_user((void __user *)arg, (void *)&cn->ctx, sizeof(ctx))) {
+				pr_err("ctx id %d, copy_to_user error\n", ctx.ctx_id);
 				ret = -EFAULT;
 			}
 		} else {
+			pr_err("ctx id %d, type %d, node is null\n", ctx.ctx_id, ctx.type);
 			ret = -EFAULT;
 		}
 	}
@@ -681,6 +700,7 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		acamera_context_t *p_ctx;
 
 		if (copy_from_user(&ctx, (void __user *)arg, sizeof(ctx))) {
+			pr_err("ISPIOC_GET_CTX_CONDITIONAL copy_from_user error\n");
 			ret = -EFAULT;
 			break;
 		}
@@ -696,9 +716,11 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		cn = isp_ctx_get_conditional(ctx.ctx_id, ctx.type, ctx.frame_id, ctx.time_out);
 		if (cn) {
 			if (copy_to_user((void __user *)arg, (void *)&cn->ctx, sizeof(ctx))) {
+				pr_err("ctx id %d, copy_to_user error\n", ctx.ctx_id);
 				ret = -EFAULT;
 			}
 		} else {
+			pr_err("ctx id %d, type %d, node is null\n", ctx.ctx_id, ctx.type);
 			ret = -EFAULT;
 		}
 	}
@@ -709,6 +731,7 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		isp_ctx_r_t ctx;
 		acamera_context_t *p_ctx;
 		if (copy_from_user(&ctx, (void __user *)arg, sizeof(ctx))) {
+			pr_err("ISPIOC_PUT_CTX copy_from_user error\n");
 			ret = -EFAULT;
 			break;
 		}
