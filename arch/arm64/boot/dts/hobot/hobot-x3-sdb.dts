@@ -424,6 +424,7 @@
 	status = "okay";
 	bus-width = <4>;
 	no-mmc;
+	no-sd;
 	cap-sdio-irq;
 	broken-cd;
 	disable-wp;
@@ -439,7 +440,8 @@
 &sdio2 {
 	status = "okay";
 	bus-width = <4>;
-	/* no-mmc; */
+	no-mmc;
+	no-sdio;
 	cd-gpios = <&gpios 116 GPIO_ACTIVE_LOW>;
 	/* broken-cd; */
 	disable-wp;

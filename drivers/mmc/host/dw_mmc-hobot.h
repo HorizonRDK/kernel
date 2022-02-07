@@ -17,7 +17,9 @@
 
 struct dw_mci_hobot_priv_data {
 	void __iomem *sysctrl_reg;
+	void __iomem *clk_ctrl_reg;
 	void __iomem *padcctrl_reg;
+	bool not_mmc;
 	u32 clock_frequency;
 	int default_sample_phase;
 	u32 uhs_180v_gpio;

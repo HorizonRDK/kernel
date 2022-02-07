@@ -34,8 +34,8 @@
 #define DWMMC_SD1_ID			(2)
 #define DWMMC_SD2_ID			(3)
 #ifdef CONFIG_HOBOT_XJ3
-/* Maximum mmc device is 3, starting from 0 */
-#define MMC_MAX_ID				(2)
+/* Maximum mmc device is 3, starting from 1 used to determine register offset*/
+#define MMC_MAX_ID				(3)
 #else
 #define MMC_MAX_ID				(1)
 #endif
@@ -228,7 +228,7 @@ void hb_mmc_set_power(struct dw_mci_hobot_priv_data *priv, bool val)
 		else
 			logic_val = 1;
 	}
-	if (priv->ctrl_id != DWMMC_MMC_ID) {
+	if (priv->not_mmc) {
 		if (priv->powerup_gpio) {
 			gpio_direction_output(priv->powerup_gpio, logic_val);
 			usleep_range(1000, 2000);
@@ -241,34 +241,26 @@ static int hb_mmc_set_sample_phase(struct dw_mci *host,
 {
 	struct dw_mci_hobot_priv_data *priv = host->priv;
 	u32 reg_value;
+	if (priv->clk_ctrl_reg == NULL) {
+		dev_info_once(host->dev,
+				"Clock ctrl register not found, ignoring clk operation.\n");
+		return 0;
+	}
 
 	priv->current_sample_phase = degrees;
 
 	disable_irq(host->irq);
 	tasklet_disable(&host->tasklet);
 	hb_mmc_disable_clk(host);
-	if (priv->ctrl_id == DWMMC_MMC_ID) {
-		reg_value = readl(priv->sysctrl_reg + HOBOT_SD0_PHASE_REG);
-		reg_value &= 0xFFFF0FFF;
-		reg_value |= degrees << HOBOT_MMC_SAMPLE_DEGREE_SHIFT;
-		writel(reg_value, priv->sysctrl_reg + HOBOT_SD0_PHASE_REG);
-	} else if (priv->ctrl_id == DWMMC_SD1_ID) {
-		reg_value = readl(priv->sysctrl_reg + HOBOT_SD1_PHASE_REG);
-		reg_value &= 0xFFFF0FFF;
-		reg_value |= degrees << HOBOT_MMC_SAMPLE_DEGREE_SHIFT;
-		writel(reg_value, priv->sysctrl_reg + HOBOT_SD1_PHASE_REG);
-	}
-#ifdef CONFIG_HOBOT_XJ3
-	else if (priv->ctrl_id == DWMMC_SD2_ID) {
-		reg_value = readl(priv->sysctrl_reg + HOBOT_SD2_PHASE_REG);
-		reg_value &= 0xFFFF0FFF;
-		reg_value |= degrees << HOBOT_MMC_SAMPLE_DEGREE_SHIFT;
-		writel(reg_value, priv->sysctrl_reg + HOBOT_SD2_PHASE_REG);
-	}
-#endif
+
+	reg_value = readl(priv->clk_ctrl_reg);
+	reg_value &= 0xFFFF0FFF;
+	reg_value |= degrees << HOBOT_MMC_SAMPLE_DEGREE_SHIFT;
+	writel(reg_value, priv->clk_ctrl_reg);
+
 	hb_mmc_enable_clk(host);
 	/* usleep is required for SDcard/SDIO initialization */
-	if (priv->ctrl_id != DWMMC_MMC_ID)
+	if (priv->not_mmc)
 		usleep_range(20000, 25000);
 	tasklet_enable(&host->tasklet);
 	enable_irq(host->irq);
@@ -280,34 +272,25 @@ static int hb_mmc_set_drv_phase(struct dw_mci *host,
 {
 	struct dw_mci_hobot_priv_data *priv = host->priv;
 	u32 reg_value;
-
+	if (priv->clk_ctrl_reg == NULL) {
+		dev_info_once(host->dev,
+				"Clock ctrl register not found, ignoring clk operation.\n");
+		return 0;
+	}
 	priv->current_drv_phase = degrees;
 
 	disable_irq(host->irq);
 	tasklet_disable(&host->tasklet);
 	hb_mmc_disable_clk(host);
-	if (priv->ctrl_id == DWMMC_MMC_ID) {
-		reg_value = readl(priv->sysctrl_reg + HOBOT_SD0_PHASE_REG);
-		reg_value &= 0xFFFFF0FF;
-		reg_value |= degrees << HOBOT_MMC_DRV_DEGREE_SHIFT;;
-		writel(reg_value, priv->sysctrl_reg + HOBOT_SD0_PHASE_REG);
-	} else if (priv->ctrl_id == DWMMC_SD1_ID) {
-		reg_value = readl(priv->sysctrl_reg + HOBOT_SD1_PHASE_REG);
-		reg_value &= 0xFFFFF0FF;
-		reg_value |= degrees << HOBOT_MMC_DRV_DEGREE_SHIFT;;
-		writel(reg_value, priv->sysctrl_reg + HOBOT_SD1_PHASE_REG);
-	}
-#ifdef CONFIG_HOBOT_XJ3
-	else if (priv->ctrl_id == DWMMC_SD2_ID) {
-		reg_value = readl(priv->sysctrl_reg + HOBOT_SD2_PHASE_REG);
-		reg_value &= 0xFFFFF0FF;
-		reg_value |= degrees << HOBOT_MMC_DRV_DEGREE_SHIFT;
-		writel(reg_value, priv->sysctrl_reg + HOBOT_SD2_PHASE_REG);
-	}
-#endif
+
+	reg_value = readl(priv->clk_ctrl_reg);
+	reg_value &= 0xFFFFF0FF;
+	reg_value |= degrees << HOBOT_MMC_DRV_DEGREE_SHIFT;;
+	writel(reg_value, priv->clk_ctrl_reg);
+
 	hb_mmc_enable_clk(host);
 	/* usleep is required for SDcard/SDIO initialization */
-	if (priv->ctrl_id != DWMMC_MMC_ID)
+	if (priv->not_mmc)
 		usleep_range(20000, 25000);
 	tasklet_enable(&host->tasklet);
 	enable_irq(host->irq);
@@ -563,6 +546,8 @@ static int dw_mci_hb_parse_dt(struct dw_mci *host)
 	priv->ctrl_id = of_alias_get_id(host->dev->of_node, "mmc");
 	if (priv->ctrl_id > MMC_MAX_ID)
 		return -EINVAL;
+	priv->not_mmc = false;
+	priv->not_mmc |= device_property_read_bool(host->dev, "no-mmc");
 
 	if (of_property_read_u32(np, "hobot,default-sample-phase",
 				 &priv->default_sample_phase))
@@ -583,6 +568,13 @@ static int dw_mci_hb_parse_dt(struct dw_mci *host)
 	priv->mmc_fixed_voltage = 0;
 
 	of_val = 0;
+	if (!device_property_read_u32(host->dev, "clk_ctrl_off", &of_val)) {
+		if (of_val)
+			priv->clk_ctrl_reg = priv->sysctrl_reg + of_val;
+		else
+			priv->clk_ctrl_reg = NULL;
+	}
+	of_val = 0;
 	if (!device_property_read_u32(host->dev, "powerup-logic", &of_val)) {
 		if (of_val)
 			priv->powerup_logic = 1;
@@ -595,7 +587,7 @@ static int dw_mci_hb_parse_dt(struct dw_mci *host)
 		if(gpio_request(priv->powerup_gpio, "sd-power"))
 			dev_err(host->dev, "request sd-power gpio failed!\n");
 
-		if (priv->ctrl_id == DWMMC_SD1_ID) {
+		if (priv->not_mmc) {
 			hb_mmc_set_power(priv, 0);
 			hb_mmc_set_power(priv, 1);
 		}
@@ -722,7 +714,7 @@ static int dw_mci_hb_switch_voltage(struct mmc_host *mmc, struct mmc_ios *ios)
 	if (!priv)
 		return 0;
 
-	if (priv->ctrl_id != DWMMC_MMC_ID) {
+	if (priv->not_mmc) {
 		if (priv->mmc_fixed_voltage == 3300 ||
 			ios->signal_voltage == MMC_SIGNAL_VOLTAGE_330) {
 			ios->signal_voltage = MMC_SIGNAL_VOLTAGE_330;

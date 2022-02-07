@@ -265,11 +265,13 @@
 };
 
 &sdio1 {
+	no-sdio;
 	powerup-gpio = <100>;	/* x3-dvb UART1_CTSN/GPIO6[4] */
 	powerup-logic = <1>;
 };
 
 &sdio2 {
+	no-sd;
 	powerup-gpio = <2>; /* x3-dvb EN_VDD_CNN1/GPIO0[2] */
 };
 

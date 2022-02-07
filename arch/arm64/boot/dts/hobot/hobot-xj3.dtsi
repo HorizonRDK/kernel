@@ -428,7 +428,7 @@
                         channel_max = <8>;
                         status = "disabled";
                 };
-			
+
 		snd6: sndcard@6 {
                         compatible = "hobot, hobot-snd6";
                         i2s_mode = <4>;
@@ -1252,6 +1252,7 @@
 		sdio0: dwmmc@A5010000 {
 			compatible = "hobot,hb-dw-mmc";
 			reg = <0x0 0xA5010000 0x0 0x1000>;
+			clk_ctrl_off = <0x320>;
 			clock-freq-min-max = <100000 200000000>;
 			clocks = <&sd0_cclk>;
 			clock-names = "sdio_mclk";
@@ -1276,6 +1277,7 @@
 		sdio1: dwmmc@A5011000 {
 			compatible = "hobot,hb-dw-mmc";
 			reg = <0x0 0xA5011000 0x0 0x1000>;
+			clk_ctrl_off = <0x330>;
 			clock-freq-min-max = <100000 200000000>;
 			clocks = <&sd1_cclk>;
 			clock-names = "sdio_mclk";
@@ -1295,6 +1297,7 @@
 		sdio2: dwmmc@A5012000 {
 			compatible = "hobot,hb-dw-mmc";
 			reg = <0x0 0xA5012000 0x0 0x1000>;
+			clk_ctrl_off = <0x340>;
 			clock-freq-min-max = <100000 200000000>;
 			clocks = <&sd2_cclk>;
 			clock-names = "sdio_mclk";
