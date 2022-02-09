@@ -204,7 +204,7 @@ int AF_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t input_
 
         uint32_t af_kernel = *(uint32_t *)input;
 
-        if (af_kernel < 3) {
+        if (af_kernel <= 3) {
             p_fsm->af_status_kernel = (uint16_t)af_kernel;
         }
 
