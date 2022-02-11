@@ -522,7 +522,7 @@ err0:
 err1:
 	mutex_unlock(&dclk->mlock);
 err2:
-	spin_unlock_irqrestore(&dclk->lock, flags);
+	raw_spin_unlock_irqrestore(&dclk->raw_lock, flags);
 
 	return ret;
 }
