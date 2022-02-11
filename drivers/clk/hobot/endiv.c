@@ -34,7 +34,7 @@ struct clk_endiv {
 	struct clk_engate_reg gate_reg;
 	struct clk_invert_reg invert_reg;
 	unsigned int flags;
-	spinlock_t *lock;
+	raw_spinlock_t *lock;
 };
 
 int endiv_clk_enable(struct clk_hw *hw)
@@ -45,7 +45,7 @@ int endiv_clk_enable(struct clk_hw *hw)
 	int cnt = 10;
 
 	if (clk->lock)
-		spin_lock_irqsave(clk->lock, flags);
+		raw_spin_lock_irqsave(clk->lock, flags);
 	else
 		__acquire(clk->lock);
 
@@ -70,7 +70,7 @@ int endiv_clk_enable(struct clk_hw *hw)
 	}
 
 	if (clk->lock)
-		spin_unlock_irqrestore(clk->lock, flags);
+		raw_spin_unlock_irqrestore(clk->lock, flags);
 	else
 		__release(clk->lock);
 
@@ -85,7 +85,7 @@ void endiv_clk_disable(struct clk_hw *hw)
 	int cnt = 100;
 
 	if (clk->lock)
-		spin_lock_irqsave(clk->lock, flags);
+		raw_spin_lock_irqsave(clk->lock, flags);
 	else
 		__acquire(clk->lock);
 
@@ -111,7 +111,7 @@ void endiv_clk_disable(struct clk_hw *hw)
 	}
 
 	if (clk->lock)
-		spin_unlock_irqrestore(clk->lock, flags);
+		raw_spin_unlock_irqrestore(clk->lock, flags);
 	else
 		__release(clk->lock);
 
@@ -127,7 +127,7 @@ int endiv_clk_is_enabled(struct clk_hw *hw)
 	clk = to_clk_endiv(hw);
 
 	if (clk->lock)
-		spin_lock_irqsave(clk->lock, flags);
+		raw_spin_lock_irqsave(clk->lock, flags);
 	else
 		__acquire(clk->lock);
 
@@ -136,7 +136,7 @@ int endiv_clk_is_enabled(struct clk_hw *hw)
 	>> clk->gate_reg.gt_reg.clken_sta_bit;
 
 	if (clk->lock)
-		spin_unlock_irqrestore(clk->lock, flags);
+		raw_spin_unlock_irqrestore(clk->lock, flags);
 	else
 		__release(clk->lock);
 
@@ -166,7 +166,7 @@ static int endiv_clk_set_rate(struct clk_hw *hw, unsigned long rate,
 	u32 val;
 
 	if (clk->lock)
-		spin_lock_irqsave(clk->lock, flags);
+		raw_spin_lock_irqsave(clk->lock, flags);
 	else
 		__acquire(clk->lock);
 
@@ -192,7 +192,7 @@ static int endiv_clk_set_rate(struct clk_hw *hw, unsigned long rate,
 				clk->div_reg.div_field, clk->flags);
 	if (value < 0) {
 		if (clk->lock) {
-		spin_unlock_irqrestore(clk->lock, flags);
+		raw_spin_unlock_irqrestore(clk->lock, flags);
 		} else {
 		__release(clk->lock);
 		}
@@ -216,7 +216,7 @@ static int endiv_clk_set_rate(struct clk_hw *hw, unsigned long rate,
 	}
 
 	if (clk->lock)
-		spin_unlock_irqrestore(clk->lock, flags);
+		raw_spin_unlock_irqrestore(clk->lock, flags);
 	else
 		__release(clk->lock);
 
@@ -276,7 +276,7 @@ static struct clk *endiv_clk_register(struct device *dev, const char *name,
 		const char *parent_name, unsigned long flags, struct clk_div_reg *div_reg,
 		struct clk_engate_reg *gate_reg, struct clk_invert_reg *invert_reg,
 		unsigned int clk_gate_flags, unsigned int clk_divider_flags,
-		spinlock_t *lock, const struct clk_ops *ops)
+		raw_spinlock_t *lock, const struct clk_ops *ops)
 {
 	struct clk_init_data init = {NULL};
 	struct clk_endiv *clk_hw;
@@ -332,14 +332,14 @@ static void __init _of_hobot_endiv_clk_setup(struct device_node *node,
 	unsigned int clk_divider_flags = 0;
 	unsigned int data[6] = {0};
 	static void __iomem *reg_base;
-	spinlock_t *lock = NULL;
+	raw_spinlock_t *lock = NULL;
 	struct clk *clk;
 	int ret;
 
 	lock = kzalloc(sizeof(*lock), GFP_KERNEL);
 	if(!lock)
 		return;
-	spin_lock_init(lock);
+	raw_spin_lock_init(lock);
 
 	if(of_clk_get_parent_count(node) != 1) {
 		pr_err("%s: %s must have 1 parent\n", __func__, node->name);

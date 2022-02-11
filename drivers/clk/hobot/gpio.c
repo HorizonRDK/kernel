@@ -23,7 +23,7 @@ struct hobot_clk_gpio {
 	void __iomem *reg;
 	unsigned int bit;
 	unsigned int flags;
-	spinlock_t *lock;
+	raw_spinlock_t *lock;
 };
 
 int gpio_clk_enable(struct clk_hw *hw)
@@ -35,7 +35,7 @@ int gpio_clk_enable(struct clk_hw *hw)
 	clk = to_hobot_clk_gpio(hw);
 
 	if (clk->lock)
-		spin_lock_irqsave(clk->lock, flags);
+		raw_spin_lock_irqsave(clk->lock, flags);
 	else
 		__acquire(clk->lock);
 
@@ -48,7 +48,7 @@ int gpio_clk_enable(struct clk_hw *hw)
 	}
 
 	if (clk->lock)
-		spin_unlock_irqrestore(clk->lock, flags);
+		raw_spin_unlock_irqrestore(clk->lock, flags);
 	else
 		__release(clk->lock);
 
@@ -65,7 +65,7 @@ void gpio_clk_disable(struct clk_hw *hw)
 	clk = to_hobot_clk_gpio(hw);
 
 	if (clk->lock)
-		spin_lock_irqsave(clk->lock, flags);
+		raw_spin_lock_irqsave(clk->lock, flags);
 	else
 		__acquire(clk->lock);
 
@@ -78,7 +78,7 @@ void gpio_clk_disable(struct clk_hw *hw)
 	}
 
 	if (clk->lock)
-		spin_unlock_irqrestore(clk->lock, flags);
+		raw_spin_unlock_irqrestore(clk->lock, flags);
 	else
 		__release(clk->lock);
 
@@ -106,7 +106,7 @@ const struct clk_ops gpio_clk_ops = {
 
 static struct clk *gpio_clk_register(struct device *dev, const char *name,
 		const char *parent_name, unsigned long flags, void __iomem *reg, unsigned int bit,
-		unsigned int clk_gpio_flags, spinlock_t *lock, const struct clk_ops *ops)
+		unsigned int clk_gpio_flags, raw_spinlock_t *lock, const struct clk_ops *ops)
 {
 	struct clk_init_data init = {NULL};
 	struct hobot_clk_gpio *clk_hw;
@@ -160,13 +160,13 @@ static void __init _of_hobot_gpio_clk_setup(struct device_node *node,
 	unsigned int val;
 	void __iomem *reg_base;
 	void __iomem *reg;
-	spinlock_t *lock;
+	raw_spinlock_t *lock;
 	int ret;
 
 	lock = kzalloc(sizeof(*lock), GFP_KERNEL);
 	if(!lock)
 		return;
-	spin_lock_init(lock);
+	raw_spin_lock_init(lock);
 
 	if(of_clk_get_parent_count(node) != 1){
 		pr_err("%s: %s must have 1 parent\n", __func__, node->name);

@@ -38,7 +38,7 @@ struct hobot_clk_gate {
 	struct clk_hw hw;
 	struct clk_gate_reg reg;
 	unsigned int flags;
-	spinlock_t *lock;
+	raw_spinlock_t *lock;
 };
 
 int gate_clk_enable(struct clk_hw *hw)
@@ -50,7 +50,7 @@ int gate_clk_enable(struct clk_hw *hw)
 	clk = to_hobot_clk_gate(hw);
 
 	if (clk->lock)
-		spin_lock_irqsave(clk->lock, flags);
+		raw_spin_lock_irqsave(clk->lock, flags);
 	else
 		__acquire(clk->lock);
 
@@ -84,7 +84,7 @@ int gate_clk_enable(struct clk_hw *hw)
 	}
 
 	if (clk->lock)
-		spin_unlock_irqrestore(clk->lock, flags);
+		raw_spin_unlock_irqrestore(clk->lock, flags);
 	else
 		__release(clk->lock);
 
@@ -100,7 +100,7 @@ void gate_clk_disable(struct clk_hw *hw)
 	clk = to_hobot_clk_gate(hw);
 
 	if (clk->lock)
-		spin_lock_irqsave(clk->lock, flags);
+		raw_spin_lock_irqsave(clk->lock, flags);
 	else
 		__acquire(clk->lock);
 
@@ -134,7 +134,7 @@ void gate_clk_disable(struct clk_hw *hw)
 	udelay(1);
 
 	if (clk->lock)
-		spin_unlock_irqrestore(clk->lock, flags);
+		raw_spin_unlock_irqrestore(clk->lock, flags);
 	else
 		__release(clk->lock);
 
@@ -163,7 +163,7 @@ const struct clk_ops gate_clk_ops = {
 
 static struct clk *gate_clk_register(struct device *dev, const char *name,
 		const char *parent_name, unsigned long flags, struct clk_gate_reg *reg,
-		unsigned int clk_gate_flags, spinlock_t *lock, const struct clk_ops *ops)
+		unsigned int clk_gate_flags, raw_spinlock_t *lock, const struct clk_ops *ops)
 {
 	struct clk_init_data init = {NULL};
 	struct hobot_clk_gate *clk_hw;
@@ -217,13 +217,13 @@ static void __init _of_hobot_gate_clk_setup(struct device_node *node,
 	unsigned int data[4] = {0};
 	static void __iomem *reg_base;
 	static void __iomem *ipsreg_base;
-	spinlock_t *lock;
+	raw_spinlock_t *lock;
 	int ret;
 
 	lock = kzalloc(sizeof(*lock), GFP_KERNEL);
 	if(!lock)
 		return;
-	spin_lock_init(lock);
+	raw_spin_lock_init(lock);
 
 	if (of_clk_get_parent_count(node) != 1) {
 		pr_err("%s: %s must have 1 parent\n", __func__, node->name);

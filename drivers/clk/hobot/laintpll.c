@@ -100,7 +100,7 @@ struct clk_laintpll {
 	unsigned int postdiv1;
 	unsigned int postdiv2;
 	unsigned int round_rate;
-	spinlock_t lock;
+	raw_spinlock_t lock;
 };
 
 static int clk_lainpll_wait_lock(struct clk_laintpll *pll)
@@ -348,7 +348,7 @@ int laintpll_clk_enable(struct clk_hw *hw)
 
 	clk = to_clk_laintpll(hw);
 
-	spin_lock_irqsave(&clk->lock, flags);
+	raw_spin_lock_irqsave(&clk->lock, flags);
 
 	pr_debug("clk->reg.sel_bit enable:%d\n", clk->reg.sel_bit);
 	if (clk->reg.sel_bit != 0) {
@@ -378,7 +378,7 @@ int laintpll_clk_enable(struct clk_hw *hw)
 	}
 
 	pr_debug("clk->reg.sel_bit enable:%d after\n", clk->reg.sel_bit);
-	spin_unlock_irqrestore(&clk->lock, flags);
+	raw_spin_unlock_irqrestore(&clk->lock, flags);
 
 	return 0;
 }
@@ -391,7 +391,7 @@ static void laintpll_clk_disable(struct clk_hw *hw)
 	unsigned int val;
 
 	clk = to_clk_laintpll(hw);
-	spin_lock_irqsave(&clk->lock, flags);
+	raw_spin_lock_irqsave(&clk->lock, flags);
 
 	pr_debug("clk->reg.sel_bit disable:%d\n", clk->reg.sel_bit);
 	if (clk->reg.sel_bit != 0) {
@@ -419,7 +419,7 @@ static void laintpll_clk_disable(struct clk_hw *hw)
 	}
 #endif
 	pr_debug("clk->reg.sel_bit disable:%d after\n", clk->reg.sel_bit);
-	spin_unlock_irqrestore(&clk->lock, flags);
+	raw_spin_unlock_irqrestore(&clk->lock, flags);
 
 	return;
 }
@@ -458,7 +458,7 @@ static struct clk *laintpll_clk_register(struct device *dev, const char *name,
 	memcpy(&clk_hw->reg, reg, sizeof(*reg));
 	clk_hw->flags = clk_pll_flags;
 
-	spin_lock_init(&clk_hw->lock);
+	raw_spin_lock_init(&clk_hw->lock);
 	clk = clk_register(dev, &clk_hw->hw);
 	if(IS_ERR(clk)){
 		pr_err("%s: failed to register clock for %s!\n", __func__, name);

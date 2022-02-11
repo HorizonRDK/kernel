@@ -24,7 +24,7 @@
 #define RESET_REG_BIT_MASK      0x1f
 
 struct hobot_reset_data {
-        spinlock_t      lock;
+        raw_spinlock_t      lock;
         void __iomem    *membase;
         struct reset_controller_dev rcdev;
 };
@@ -44,7 +44,7 @@ static int hobot_reset_assert(struct reset_controller_dev *rcdev,
         if (rcdev == NULL || id < 0)
                 return -EINVAL;
 
-        spin_lock_irqsave(&data->lock, flags);
+        raw_spin_lock_irqsave(&data->lock, flags);
         offset = (id & RESET_REG_OFFSET_MASK) >> RESET_REG_OFFSET_SHIFT;
         regaddr = data->membase + offset;
 
@@ -53,7 +53,7 @@ static int hobot_reset_assert(struct reset_controller_dev *rcdev,
         reg_val |= BIT(bit);
         writel(reg_val, regaddr);
 
-        spin_unlock_irqrestore(&data->lock, flags);
+        raw_spin_unlock_irqrestore(&data->lock, flags);
 
         return 0;
 }
@@ -70,7 +70,7 @@ static int hobot_reset_deassert(struct reset_controller_dev *rcdev,
         if (rcdev == NULL || id < 0)
                 return -EINVAL;
 
-        spin_lock_irqsave(&data->lock, flags);
+        raw_spin_lock_irqsave(&data->lock, flags);
         offset = (id & RESET_REG_OFFSET_MASK) >> RESET_REG_OFFSET_SHIFT;
         regaddr = data->membase + offset;
 
@@ -79,7 +79,7 @@ static int hobot_reset_deassert(struct reset_controller_dev *rcdev,
         reg_val &= ~(BIT(bit));
         writel(reg_val, regaddr);
 
-        spin_unlock_irqrestore(&data->lock, flags);
+        raw_spin_unlock_irqrestore(&data->lock, flags);
         return 0;
 }
 
@@ -143,7 +143,7 @@ static int hobot_reset_probe(struct platform_device *pdev)
         }
         data->membase += modrst_offset;
 
-        spin_lock_init(&data->lock);
+        raw_spin_lock_init(&data->lock);
 
         data->rcdev.owner = THIS_MODULE;
         data->rcdev.nr_resets = HOBOT_MAX_NR_RESETS;
