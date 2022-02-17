@@ -1135,6 +1135,16 @@ static void sif_clear_normal_subdev_mux_mask(struct x3_sif_dev *sif,
 	sif_disable_wdma(subdev);
 }
 
+void sif_last_process_clr(struct x3_sif_dev *sif)
+{
+	clear_bit(SIF_DMA_IN_ENABLE, &sif->state);
+	clear_bit(SIF_OTF_OUTPUT, &sif->state);
+	sif->ovflow_cnt = 0;
+	sif->owner_value = 0;
+	sif->wdma_used_cnt = 0;
+}
+
+/*Clear the overflow related flag when DDR deadlock occurs*/
 static int x3_sif_close(struct inode *inode, struct file *file)
 {
 	struct sif_video_ctx *sif_ctx;
@@ -1198,6 +1208,7 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 	if (atomic_dec_return(&sif->open_cnt) == 0) {
 		clear_bit(SIF_DMA_IN_ENABLE, &sif->state);
 		clear_bit(SIF_OTF_OUTPUT, &sif->state);
+		sif_last_process_clr(sif);
 		sif_hw_disable_ex(sif->base_reg);
 		//it should disable after ipu stream off because it maybe contain ipu/sif clk
 		//vio_clk_disable("sif_mclk");
@@ -1326,7 +1337,6 @@ int get_free_mux(struct sif_subdev *subdev, u32 index, int format, u32 dol_num,
 			vio_err("can't get free mux for 4k\n");
 			ret = -EINVAL;
 		}
-
 		vio_info("mux %d sif->mux_mask 0x%lx \n", ret, sif->mux_mask);
 	} else if (width >= LINE_BUFFER_SIZE && step == 4) {
 		/*4M yuv or 8M DOL2 need 2fifo merge*/
@@ -1505,14 +1515,6 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 	sif_config->input.mipi.func.set_mux_out_index = mux_index;
 	subdev->mux_index = mux_index;
 	ddr_mux_index = mux_index;
-	subdev->format = format;
-	if (format == HW_FORMAT_YUV422)
-		subdev->mux_index1 = mux_index + 1;
-	if (dol_exp_num > 1)
-		subdev->mux_index1 = mux_index + 1;
-	if(dol_exp_num > 2) {
-		subdev->mux_index2 = mux_index + 2;
-	}
 
 	if (isp_flyby && ddr_enable) {
 		vio_info("ddr output enable in online mode\n");
@@ -1524,6 +1526,16 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 	}
 	sif_config->output.ddr.mux_index = ddr_mux_index;
 	subdev->ddr_mux_index = ddr_mux_index;
+	if (format == HW_FORMAT_YUV422)
+		subdev->mux_index1 = mux_index + 1;
+	if (dol_exp_num > 1)
+		subdev->mux_index1 = mux_index + 1;
+	if(dol_exp_num > 2) {
+		subdev->mux_index2 = mux_index + 2;
+	}
+	if(splice_enable) {
+		subdev->mux_index1 = mux_index + 1;
+	}
 
 	if (format == HW_FORMAT_YUV422) {
 		if (mux_index % 2 == 0) {
@@ -1651,7 +1663,7 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 
 	sif_hw_config(sif->base_reg, sif_config);
 
-	sif->buff_count[subdev->mux_index] = \
+	sif->buff_count[subdev->ddr_mux_index] = \
 		sif_get_current_bufindex(sif->base_reg, ddr_mux_index);
 	sif->mismatch_cnt = 0;
 
@@ -2488,7 +2500,7 @@ static inline void sif_config_current_buffer(struct sif_subdev *subdev)
 				buf_index, frame->frameinfo.addr[1]);
 		sif_transfer_ddr_owner(sif->base_reg, mux_index + 1, buf_index);
 		trans_frame(framemgr, frame, FS_PROCESS);
-		sif_print_buffer_status(sif->base_reg);
+		sif_print_buffer_owner(sif->base_reg);
 		/* config the buff_count HW buffer index plus one for
 		 * sif_write_frame_work() to continue config the next frame
 		 */
@@ -2729,44 +2741,6 @@ void sif_get_timestamps(struct vio_group *group, struct frame_id *info) {
 	info = &subdev->info;
 }
 
-static void sif_write_buffer_config(struct sif_subdev *subdev)
-{
-	struct x3_sif_dev *sif;
-	u32 yuv_format = 0, mux_index;
-	int i;
-
-	sif = subdev->sif_dev;
-	mux_index = subdev->mux_index;
-	yuv_format = subdev->format;
-
-	/*disenable w_enable*/
-	sif_set_wdma_enable(sif->base_reg, mux_index, 0);
-	if (yuv_format || subdev->dol_num > 1) {
-		sif_set_wdma_enable(sif->base_reg, mux_index + 1, 0);
-	}
-	if (subdev->dol_num > 2) {
-		sif_set_wdma_enable(sif->base_reg, mux_index + 2, 0);
-	}
-	if (subdev->splice_info.splice_enable) {
-		for(i = 0; i < subdev->splice_info.pipe_num; i++) {
-			sif_set_wdma_enable(sif->base_reg, mux_index + 1 + i, 0);
-		}
-	}
-	/*enable w_enable*/
-	sif_set_wdma_enable(sif->base_reg, mux_index, 1);
-	if (yuv_format || subdev->dol_num > 1) {
-		sif_set_wdma_enable(sif->base_reg, mux_index + 1, 1);
-	}
-	if (subdev->dol_num > 2) {
-		sif_set_wdma_enable(sif->base_reg, mux_index + 2, 1);
-	}
-	if (subdev->splice_info.splice_enable) {
-		for(i = 0; i < subdev->splice_info.pipe_num; i++) {
-			sif_set_wdma_enable(sif->base_reg, mux_index + 1 + i, 1);
-		}
-	}
-}
-
 static void sif_frame_ndone_process(struct sif_subdev *subdev,
 					struct sif_video_ctx *sif_ctx)
 {
@@ -2779,9 +2753,7 @@ static void sif_frame_ndone_process(struct sif_subdev *subdev,
 
 	group = subdev->group;
 	sif = subdev->sif_dev;
-
 	framemgr = &subdev->framemgr;
-
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_PROCESS);
 	if (frame) {
@@ -2790,7 +2762,6 @@ static void sif_frame_ndone_process(struct sif_subdev *subdev,
 				subdev->id,
 				frame->frameinfo.bufferindex,
 				frame->frameinfo.frame_id);
-		sif_write_buffer_config(subdev);  /*disable/enable w_enable*/
 		trans_frame(framemgr, frame, FS_REQUEST);
 		vio_group_start_trigger_mp(group, frame);
 	} else {
@@ -3172,25 +3143,150 @@ static void sif_hw_resource_process(struct x3_sif_dev *sif,
 
 /*
 * @brief
-* disable/enable SIF_OUT_FRM_CTRL when overflow occurs,
-* go to ndone logic
+* disable/enable SIF_SETTING drop bit 0/1/19 when DDR deadlock occurs,
+* ignore frame
 */
-void sif_overflow_handle(struct x3_sif_dev *sif, u32 mux_index, u32 of_value)
+static void sif_enable_drop(struct x3_sif_dev *sif, bool enable)
 {
-	struct sif_subdev *subdev;
+	/*config drop*/
+	sif_set_drop_enable(sif->base_reg, enable);
+	vio_info("%s sif_enable_drop enable %d", __func__, enable);
+}
+
+/*
+* @brief
+* disable SIF_OUT_FRM_CTRL when DDR deadlock occurs, can't write ddr
+*/
+static void sif_disable_dma(struct x3_sif_dev *sif)
+{
+	u32 value = 0;
+	/*config w_enable*/
+	value = sif_get_wdma_reg(sif->base_reg);
+	vio_info("%s sif_get_wdma_value 0x%x---\n", __func__, value);
+	value &= 0xffffff00;
+	vio_info("%s after dma value 0x%x---\n", __func__, value);
+	sif_enable_dma(sif->base_reg, value);
+}
+
+/*
+* @brief
+* overflow handle when overflow occurs,
+* When the ownerbit value remains unchanged for 10 times, that's ddr deadlock occurs
+* enable the drop function and disabled wdma of each channel.
+*/
+void sif_overflow_handle(struct x3_sif_dev *sif, u32 mux_index,
+			u32 *status)
+{
+  struct sif_subdev *subdev;
+  struct vio_group *group;
+
+  group = sif->sif_mux[mux_index];
+  if (group == NULL)
+	return;
+  subdev = group->sub_ctx[0];
+  if (subdev == NULL)
+	return;
+  if (sif->ovflow_cnt >= SIF_ERR_COUNT) {
+	*status &= ~(1 << mux_index); /*this time don't process fs*/
+	if((mux_index == subdev->ddr_mux_index) ||
+		(subdev->splice_info.splice_enable)) {
+		sif->wdma_used_cnt++;
+		subdev->arbit_dead = 1;
+	}
+	vio_info("instance %d mux_index %d ovflow_cnt %d sif->wdma_used_cnt %d\n",
+		group->instance, mux_index, sif->ovflow_cnt, sif->wdma_used_cnt);
+  }
+
+  return;
+}
+
+static void sif_overflow_process(struct x3_sif_dev *sif,
+		u32 sif_in_buf_overflow, u32 *status)
+{
+	u32 instance, owner_value = 0;
+	u32 mux_index;
+
+	sif->error_count++;
+	instance = atomic_read(&sif->instance);
+	sif->statistic.hard_overflow[instance]++;
+	temp_flow |= sif_in_buf_overflow;
+	sif_statics_err_clr(sif->base_reg);
+	owner_value = sif_get_buffer_status(sif->base_reg);
+	if((sif->owner_value == owner_value) && (owner_value != 0x0)) {
+		sif->ovflow_cnt++;
+	} else {
+		sif->ovflow_cnt = 0;
+	}
+	sif->owner_value = owner_value;
+	/*disable dam and enable drop, ignore overflow*/
+	if(sif->wdma_used_cnt) {
+		vio_info("overflow count than 10,ignore overflow");
+		return;
+	}
+	if (sif->ovflow_cnt == SIF_ERR_COUNT) {
+	  sif_enable_drop(sif, 1);
+	  sif_disable_dma(sif);
+	}
+	vio_err("input buffer overflow(0x%x) temp_flow 0x%x \n",
+		sif_in_buf_overflow, temp_flow);
+	for (mux_index = 0; mux_index < SIF_MUX_MAX; mux_index++) {
+#ifdef CONFIG_HOBOT_DIAG
+		sif_overflow_diag_report(sif, mux_index,
+			temp_flow, *status);
+#endif
+		sif_overflow_handle(sif, mux_index, status);
+	}
+}
+
+/*
+* @brief
+* When fs of each channel comes, enable wdma. After all wdma are enabled,
+* turn off the frame drop function.
+*/
+static void sif_config_dma_and_drop(struct sif_subdev *subdev,
+		struct x3_sif_dev *sif, u32 mux_index)
+{
+	int i;
+	u32 format = 0, mux_nums;
 	struct vio_group *group;
 
 	group = sif->sif_mux[mux_index];
-	if(group == NULL)
-		return;
-	subdev = group->sub_ctx[0];
-	if(subdev == NULL)
-		return;
-	subdev->overflow = sif_find_overflow_instance(mux_index, subdev, of_value);
-	if(subdev->overflow != 0) {
-		sif_frame_ndone(subdev);
-		temp_flow &= ~(subdev->overflow);
+	format = subdev->format;
+	mux_nums = subdev->mux_nums;
+	if (subdev->splice_info.splice_enable) {
+		if(mux_index == subdev->ddr_mux_index) {
+			sif_set_wdma_enable(sif->base_reg, subdev->ddr_mux_index, 1);
+			subdev->splice_flow_clr |= 1 << 0;
+			vio_dbg("[S%d] mux_index %d splice_flow_clr is 0x%x",
+				group->instance, mux_index, subdev->splice_flow_clr);
+		}
+		if(mux_index == subdev->ddr_mux_index + 1) {
+			sif_set_wdma_enable(sif->base_reg, subdev->ddr_mux_index + 1, 1);
+			subdev->splice_flow_clr |= 1 << 1;
+			vio_dbg("[S%d] mux_index %d splice_flow_clr is 0x%x",
+				group->instance, mux_index, subdev->splice_flow_clr);
+		}
+		if(subdev->splice_flow_clr == 0x3) {
+			subdev->arbit_dead = 0;
+			subdev->splice_flow_clr = 0;
+		}
+	} else {
+		for(i = 0; i < mux_nums; i++) {
+			vio_info("[S%d] mux_nums %d mux_index %d",
+				group->instance, mux_nums, mux_index);
+			sif_set_wdma_enable(sif->base_reg, subdev->ddr_mux_index + i, 1);
+		}
+		subdev->arbit_dead = 0;
 	}
+	sif->wdma_used_cnt--;
+	temp_flow = 0;
+	subdev->overflow = 0;
+	sif->ovflow_cnt = 0;
+	if(sif->wdma_used_cnt == 0) {
+		sif_enable_drop(sif, 0);
+	}
+	vio_info("%s instance %d mux_index %d wdma_used_cnt %d",
+		__func__, group->instance, mux_index, sif->wdma_used_cnt);
 }
 
 static irqreturn_t sif_isr(int irq, void *data)
@@ -3224,22 +3320,7 @@ static irqreturn_t sif_isr(int irq, void *data)
 
 	if (status) {
 		if (irq_src.sif_frm_int & 1 << INTR_SIF_IN_OVERFLOW) {
-			sif->error_count++;
-			sif_print_buffer_status(sif->base_reg);
-			err_occured = 1;
-			instance = atomic_read(&sif->instance);
-			sif->statistic.hard_overflow[instance]++;
-			temp_flow |= irq_src.sif_in_buf_overflow;
-			sif_statics_err_clr(sif->base_reg);
-			vio_err("input buffer overflow(0x%x) temp_flow 0x%x \n",
-				irq_src.sif_in_buf_overflow, temp_flow);
-			for (mux_index = 0; mux_index < SIF_MUX_MAX; mux_index++) {
-#ifdef CONFIG_HOBOT_DIAG
-				sif_overflow_diag_report(sif, mux_index,
-					temp_flow, irq_src.sif_frm_int);
-#endif
-				sif_overflow_handle(sif, mux_index, temp_flow);
-			}
+			sif_overflow_process(sif, irq_src.sif_in_buf_overflow, &status);
 		} else {
 #ifdef CONFIG_HOBOT_DIAG
 			for (mux_index = 0; mux_index < SIF_MUX_MAX; mux_index++) {
@@ -3271,9 +3352,22 @@ static irqreturn_t sif_isr(int irq, void *data)
 						subdev->splice_info.frame_done = 1;
 					}
 				}
+				subdev->overflow = sif_find_overflow_instance(mux_index, subdev, temp_flow);
 				/*clr overflow flag when FE*/
-				if(subdev->overflow != 0) {
-					subdev->overflow = 0;
+				if (subdev->overflow != 0) {
+					sif_frame_ndone(subdev);
+					temp_flow &= ~(subdev->overflow);
+					vio_err("FE overflow %d mux_index %d temp_flow 0x%x\n",
+							subdev->overflow, mux_index, temp_flow);
+					if (subdev->splice_info.splice_enable) {
+						if (subdev->splice_info.splice_done && subdev->splice_info.frame_done) {
+							subdev->splice_info.splice_done = 0;
+							subdev->splice_info.frame_done = 0;
+							subdev->overflow = 0;
+						}
+					} else {
+						subdev->overflow = 0;
+					}
 				} else {
 					multiplexing_proc = \
 						subdev->sif_cfg.input.mux_multiplexing.yuv_multiplexing_proc;
@@ -3296,14 +3390,6 @@ static irqreturn_t sif_isr(int irq, void *data)
 						(!atomic_read(&subdev->fps_ctrl.lost_this_frame))) {
 					subdev_set_frm_owner(subdev, sif, mux_index);
 				}
-			} else {
-				/*clr overflow flag when no FE*/
-				group = sif->sif_mux[mux_index];
-				if(group && group->sub_ctx[0]) {
-					subdev = group->sub_ctx[0];
-					if(subdev->overflow != 0)
-						subdev->overflow = 0;
-				}
 			}
 			//Frame start processing
 			if ((status & 1 << mux_index)) {
@@ -3312,6 +3398,8 @@ static irqreturn_t sif_isr(int irq, void *data)
 					continue;
 				}
 				subdev = group->sub_ctx[0];
+				if(subdev->arbit_dead)
+					sif_config_dma_and_drop(subdev, sif, mux_index);
 				sif->statistic.fs[group->instance]++;
 				sif->statistic.grp_tsk_left[group->instance]
 					= atomic_read(&group->rcount);

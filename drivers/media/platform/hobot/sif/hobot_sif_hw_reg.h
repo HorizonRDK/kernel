@@ -454,6 +454,7 @@ enum sif_reg_field {
 	SW_VSYNC_INV,
 	SW_SIF_OWNBIT_UNDERRUN_SKIP_FRM_ENABLE,
 	SW_SIF_OVERFLOW_SKIP_FRM_ENABLE,
+	SW_DROP_INT_SHOW_ENABLE,
 	SW_DROP_FRAME,
 
 	/* SIF_SHD_UP_SEL */
@@ -1199,6 +1200,7 @@ static struct vio_field_def sif_fields[NUM_OF_SIF_FIELD] = {
 	{SIF_SETTING, SW_VSYNC_INV                           , 12 , 1 , 0},
 	{SIF_SETTING, SW_SIF_OWNBIT_UNDERRUN_SKIP_FRM_ENABLE , 9  , 1 , 0},
 	{SIF_SETTING, SW_SIF_OVERFLOW_SKIP_FRM_ENABLE        , 8  , 1 , 1},
+	{SIF_SETTING, SW_DROP_INT_SHOW_ENABLE                , 1  , 1 , 0},
 	{SIF_SETTING, SW_DROP_FRAME                          , 0  , 1 , 0},
 	{SIF_SHD_UP_SEL, SW_SHADOW_SELECT_ISP0, 16, 1, 0},
 	{SIF_SHD_UP_SEL, SW_SHADOW_SELECT13, 13, 1, 0},

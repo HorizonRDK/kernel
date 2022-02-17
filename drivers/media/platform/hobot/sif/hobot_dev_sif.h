@@ -261,6 +261,8 @@ struct sif_subdev {
 	u32 ipi_channels;
 	u32 mux_nums;
 	u32 overflow;
+	u32 arbit_dead;	 /*arbit deadlock happens*/
+	u32 splice_flow_clr;   /*close wdma for splice*/
 	sif_data_desc_t ddrin_fmt;
 	sif_data_desc_t fmt;
 	struct frame_id info;
@@ -346,6 +348,9 @@ struct x3_sif_dev {
 	u32 				error_count;
 	u64 				buff_count[SIF_MUX_MAX];
 	u32				hblank;
+	u32				ovflow_cnt;	/*Count of overflow occurrences*/
+	u32				owner_value; 	/*Ownerbit value in case of DDR deadlock*/
+	u32				wdma_used_cnt; 	/*Number of disabled wdma*/
 	unsigned long			mux_mask;
 	unsigned long			yuv422_mux_mask_a;
 	unsigned long			yuv422_mux_mask_b;

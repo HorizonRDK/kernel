@@ -1487,7 +1487,7 @@ void sif_disable_ipi(u32 __iomem *base_reg, u8 ipi_channel)
 
 static void sif_disable_input_and_output(u32 __iomem *base_reg)
 {
-	uint32_t t = 0, value = 0;
+	// uint32_t t = 0, value = 0;
 
 	// Disable Bypass && all TX IPIs
 	// NOTICE: SW_MIPI_RX_OUT_TX_LINE_INS_ENABLE's default value = 1
@@ -1524,7 +1524,7 @@ static void sif_disable_input_and_output(u32 __iomem *base_reg)
 			&sif_fields[SW_SIF_ISP0_FLYBY_ENABLE], 0);
 	vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_CTRL],
 			&sif_fields[SW_SIF_IPU0_OUT_ENABLE], 0);
-
+#if 0
 	do
 	{
 		value = vio_hw_get_field(base_reg, &sif_regs[SIF_AXI_FRM_W_BUSY_RPT],
@@ -1541,6 +1541,7 @@ static void sif_disable_input_and_output(u32 __iomem *base_reg)
 		}
 		vio_err("Timeout to wait idle: 1s");
 	} while (1);
+#endif
 }
 
 void sif_disable_isp_out_config(u32 __iomem *base_reg)
@@ -1749,6 +1750,28 @@ u32 sif_get_current_bufindex(u32 __iomem *base_reg, u32 mux)
 	return value;
 }
 
+/*
+ * @brief get current onwerbit of mux
+ *
+ */
+u32 sif_get_current_ownerbit(u32 __iomem *base_reg,
+		u32 mux, u32 buf_idx)
+{
+	u32 value = 0;
+	u32 shift = 0;
+
+	if (mux < 8 && buf_idx < 4) {
+		shift = mux*4 + buf_idx;
+		value = vio_hw_get_field(base_reg, &sif_regs[SIF_AXI_BUS_OWNER],
+			&sif_fields[SW_SIF_OUT_FRM0_W_DDR0_OWNER - shift]);
+	} else {
+		vio_err("sif_get_current_ownerbit wrong index[%d,%d]\n",
+			mux, buf_idx);
+	}
+	return value;
+}
+
+
 void sif_print_rx_status(u32 __iomem *base_reg, u32 err_status)
 {
 	int i = 0;
@@ -1761,7 +1784,22 @@ void sif_print_rx_status(u32 __iomem *base_reg, u32 err_status)
 		}
 	}
 }
-void sif_print_buffer_status(u32 __iomem *base_reg)
+
+void sif_print_buffer_owner(u32 __iomem *base_reg)
+{
+	int cur_index = 0;
+	int value = 0;
+	int sys_report;
+
+	cur_index = vio_hw_get_reg(base_reg, &sif_regs[SIF_AXI_BUF_STATUS]);
+	value = vio_hw_get_reg(base_reg, &sif_regs[SIF_AXI_BUS_OWNER]);
+	sys_report = vio_hw_get_reg(base_reg, &sif_regs[SIF_SYS_REPORT]);
+
+	vio_dbg("sys_report 0x%x current buffer index = 0x%x, buffer owner = 0x%x\n\n",
+			sys_report, cur_index, value);
+}
+
+u32 sif_get_buffer_status(u32 __iomem *base_reg)
 {
 	int cur_index = 0;
 	int value = 0;
@@ -1773,6 +1811,37 @@ void sif_print_buffer_status(u32 __iomem *base_reg)
 
 	vio_err("sys_report 0x%x current buffer index = 0x%x, buffer owner = 0x%x\n\n",
 			sys_report, cur_index, value);
+	return value;
+}
+
+/*
+ * @brief enable/disable drop func
+ */
+void sif_set_drop_enable(u32 __iomem *base_reg, bool enable)
+{
+	u32 value = 0;
+
+	vio_hw_set_field(base_reg, &sif_regs[SIF_SETTING],
+			&sif_fields[SW_DROP_FRAME], enable);
+	vio_hw_set_field(base_reg, &sif_regs[SIF_SETTING],
+			&sif_fields[SW_DROP_INT_SHOW_ENABLE], enable);
+	vio_hw_set_field(base_reg, &sif_regs[SIF_SETTING],
+			&sif_fields[SW_DROP_FRAME_ENABLE], enable);
+
+	value = vio_hw_get_reg(base_reg, &sif_regs[SIF_SETTING]);
+	vio_info("value 0x%x SIF_SETTING\n", value);
+}
+
+/*
+ * @brief get wdma value
+ */
+u32 sif_get_wdma_reg(u32 __iomem *base_reg)
+{
+	/* if DMA_DISABLE field value is 1, this means dma output is disabled */
+	u32 value = 0;
+	value = vio_hw_get_reg(base_reg, &sif_regs[SIF_OUT_FRM_CTRL]);
+	vio_info("value 0x%x sif_get_wdma_reg\n", value);
+	return value;
 }
 
 bool sif_get_wdma_enable(u32 __iomem *base_reg, u32 mux)

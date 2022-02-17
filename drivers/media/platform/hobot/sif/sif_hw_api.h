@@ -52,7 +52,7 @@ u32 sif_get_frame_intr(void __iomem *base_reg);
 void sif_set_isp_performance(u32 __iomem *base_reg, u8 value);
 void sif_enable_init_frameid(u32 __iomem *base_reg, u32 index, bool enable);
 void sif_print_rx_status(u32 __iomem *base_reg, u32 err_status);
-void sif_print_buffer_status(u32 __iomem *base_reg);
+u32 sif_get_buffer_status(u32 __iomem *base_reg);
 void sif_set_md_output(u32 __iomem *base_reg, sif_output_md_t *p_md);
 void sif_set_pattern_config_framerate(u32 __iomem *base_reg,
 				u32 pat_index, sif_data_desc_t* p_data, u32 framerate);
@@ -65,6 +65,10 @@ void sif_disable_isp_out_config(u32 __iomem *base_reg);
 void sif_statics_err_clr(u32 __iomem *base_reg);
 void sif_transfer_ddr_owner_release(u32 __iomem *base_reg,
 	u32 mux_out_index, u32 buf_index);
-
+void sif_set_drop_enable(u32 __iomem *base_reg, bool enable);
+u32 sif_get_current_ownerbit(u32 __iomem *base_reg,
+		u32 mux, u32 buf_idx);
+u32 sif_get_wdma_reg(u32 __iomem *base_reg);
+void sif_print_buffer_owner(u32 __iomem *base_reg);
 
 #endif
