@@ -176,7 +176,7 @@ static struct uac2_input_terminal_descriptor io_in_it_desc = {
 
 	.bDescriptorSubtype = UAC_INPUT_TERMINAL,
 	/* .bTerminalID = DYNAMIC */
-	.wTerminalType = cpu_to_le16(UAC_INPUT_TERMINAL_UNDEFINED),
+	.wTerminalType = cpu_to_le16(UAC_INPUT_TERMINAL_MICROPHONE),
 	.bAssocTerminal = 0,
 	/* .bCSourceID = DYNAMIC */
 	.iChannelNames = 0,
@@ -204,7 +204,7 @@ static struct uac2_output_terminal_descriptor io_out_ot_desc = {
 
 	.bDescriptorSubtype = UAC_OUTPUT_TERMINAL,
 	/* .bTerminalID = DYNAMIC */
-	.wTerminalType = cpu_to_le16(UAC_OUTPUT_TERMINAL_UNDEFINED),
+	.wTerminalType = cpu_to_le16(UAC_OUTPUT_TERMINAL_SPEAKER),
 	.bAssocTerminal = 0,
 	/* .bSourceID = DYNAMIC */
 	/* .bCSourceID = DYNAMIC */
@@ -215,7 +215,7 @@ static struct uac2_ac_header_descriptor ac_hdr_desc = {
 	.bLength = sizeof ac_hdr_desc,
 	.bDescriptorType = USB_DT_CS_INTERFACE,
 
-	.bDescriptorSubtype = UAC_MS_HEADER,
+	.bDescriptorSubtype = UAC_HEADER,
 	.bcdADC = cpu_to_le16(0x200),
 	.bCategory = UAC2_FUNCTION_IO_BOX,
 	/* .wTotalLength = DYNAMIC */
@@ -932,8 +932,8 @@ afunc_bind(struct usb_configuration *cfg, struct usb_function *fn)
 	hs_epin_fback_desc.bEndpointAddress = fs_epin_fback_desc.bEndpointAddress;
 	hs_epin_desc.bEndpointAddress = fs_epin_desc.bEndpointAddress;
 	ss_epout_desc.bEndpointAddress = fs_epout_desc.bEndpointAddress;
-	/* 
-	 * wBytesPerInterval = wMaxPacketSize*(bMaxBurst+1)*(Mult+1). 
+	/*
+	 * wBytesPerInterval = wMaxPacketSize*(bMaxBurst+1)*(Mult+1).
 	 * According to UAC2 SuperSpeed company descriptor,  all bMaxBurst and Mult value is zero
 	 */
 	ss_epout_desc_comp.wBytesPerInterval = ss_epout_desc.wMaxPacketSize;
