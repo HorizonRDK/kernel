@@ -584,7 +584,7 @@ CONFIG_ARCH_SUSPEND_POSSIBLE=y
 #
 # Horizon Quick Boot
 #
-# CONFIG_HOBOT_QUICK_BOOT is not set
+CONFIG_HOBOT_QUICK_BOOT=y
 
 #
 # CPU Power Management

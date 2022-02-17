@@ -1234,6 +1234,16 @@ config ARCH_SUSPEND_POSSIBLE
 
 endmenu
 
+menu "Horizon Quick Boot"
+
+config HOBOT_QUICK_BOOT
+	bool "QUICK_BOOT"
+	default n
+	help
+	  XJ3 quick boot mode(mmc only), Optimize unnecessary startup procedures
+
+endmenu # Horizon Quick Boot
+
 menu "CPU Power Management"
 
 source "drivers/cpuidle/Kconfig"

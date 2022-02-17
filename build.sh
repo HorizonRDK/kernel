@@ -213,7 +213,7 @@ function all()
     [ ! -d ${TARGET_TMPROOTFS_DIR}/ -a -d ${rel_ko_path} ] && mkdir -p ${TARGET_TMPROOTFS_DIR}/
     if [ "$TARGET_MODE" = "debug" ];then
         [ -d ${rel_ko_path}/ko_debug/ ] && cp -raf ${rel_ko_path}/ko_debug/* ${TARGET_TMPROOTFS_DIR}/
-    elif [ "$TARGET_MODE" = "release" ];then
+    elif [ "$TARGET_MODE" = "release" ] || [ "$TARGET_MODE" = "quickboot" ];then
         [ -d ${rel_ko_path}/ko_release/ ] && cp -raf ${rel_ko_path}/ko_release/* ${TARGET_TMPROOTFS_DIR}/
     elif [ "$TARGET_MODE" = "docker" ];then
         [ -d ${rel_ko_path}/ko_docker/ ] && cp -raf ${rel_ko_path}/ko_docker/* ${TARGET_TMPROOTFS_DIR}/
@@ -223,7 +223,7 @@ function all()
     fi
 
     #release: module signature: use fixed public and private keys
-    if [ "$TARGET_MODE" = "release" ];then
+    if [ "$TARGET_MODE" = "release" ] || [ "$TARGET_MODE" = "quickboot" ];then
         cp -rf ${SRC_KERNEL_DIR}/certs/hobot_fixed_signing_key.pem ${BUILD_OUTPUT_PATH}/certs/
         cp -rf ${SRC_KERNEL_DIR}/certs/signing_key.x509 ${BUILD_OUTPUT_PATH}/certs/
     fi
@@ -244,7 +244,7 @@ function all()
     [ -z "${KERNEL_VER}" ] && { KERNEL_VER=$(cat ${BUILD_OUTPUT_PATH}/include/config/kernel.release 2> /dev/null); }
     ${CROSS_COMPILE}strip -v -g $TARGET_TMPROOTFS_DIR/lib/modules/${KERNEL_VER}/*.ko
 
-    if [ "$TARGET_MODE" = "release" ];then
+    if [ "$TARGET_MODE" = "release" ] || [ "$TARGET_MODE" = "quickboot" ];then
         pre_pkg_preinst
     fi
 

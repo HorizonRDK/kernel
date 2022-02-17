@@ -1,0 +1,1563 @@
+/*
+ * dts file for Hobot XJ3
+ *
+ * (C) Copyright 2018, Horizon, Inc.
+ *
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+ */
+
+/*
+* Quickboot Mode
+* NOTE: this file is copy from "hobot-xj3.dtsi"
+* Autor ru.tang
+* Copy data:2022/02/17
+*/
+
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/thermal/thermal.h>
+#include <dt-bindings/soc/hobot,boot-mode.h>
+
+ / {
+	compatible = "hobot,x3";
+	#address-cells = <2>;
+	#size-cells = <2>;
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu0: cpu@0 {
+			compatible = "arm,cortex-a53", "arm,armv8";
+			device_type = "cpu";
+			enable-method = "psci";
+			operating-points-v2 = <&cpu_opp_table>;
+			clocks = <&cpu_clk>;
+			#cooling-cells = <2>;
+			cooling-min-level = <0>;
+			cooling-max-level = <2>;
+			dynamic-power-coefficient = <120>;
+			reg = <0x0>;
+			cpu-idle-states = <&CPU_SLEEP>;
+		};
+
+		cpu1: cpu@1 {
+			compatible = "arm,cortex-a53", "arm,armv8";
+			device_type = "cpu";
+			enable-method = "psci";
+			cpu-release-addr = <0 0xA6000278>;
+			operating-points-v2 = <&cpu_opp_table>;
+			clocks = <&cpu_clk>;
+			reg = <0x1>;
+			cpu-idle-states = <&CPU_SLEEP>;
+		};
+
+		cpu2: cpu@2 {
+			compatible = "arm,cortex-a53", "arm,armv8";
+			device_type = "cpu";
+			enable-method = "psci";
+			cpu-release-addr = <0 0xA6000278>;
+			operating-points-v2 = <&cpu_opp_table>;
+			clocks = <&cpu_clk>;
+			reg = <0x2>;
+			cpu-idle-states = <&CPU_SLEEP>;
+		};
+
+		cpu3: cpu@3 {
+			compatible = "arm,cortex-a53", "arm,armv8";
+			device_type = "cpu";
+			enable-method = "psci";
+			cpu-release-addr = <0 0xA6000278>;
+			operating-points-v2 = <&cpu_opp_table>;
+			clocks = <&cpu_clk>;
+			reg = <0x3>;
+			cpu-idle-states = <&CPU_SLEEP>;
+		};
+
+		/*TODO: maybe need to change */
+		idle-states {
+			/*entry-method = "arm,psci";*/
+			entry-method = "arm,psci";
+
+			CPU_SLEEP: cpu-sleep {
+				compatible = "arm,idle-state";
+				arm,psci-suspend-param = <0x0000001>;
+				local-timer-stop;
+				entry-latency-us = <300>;
+				exit-latency-us = <600>;
+				min-residency-us = <100000>;
+			};
+		};
+	};
+
+	/*TODO: maybe need to change or delete */
+	cpu_opp_table: cpu_opp_table {
+		compatible = "operating-points-v2";
+		opp-shared;
+		opp00 {
+			opp-hz = /bits/ 64 <1200000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <500000>;
+		};
+		opp01 {
+			opp-hz = /bits/ 64 <1000000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <500000>;
+		};
+		opp02 {
+			opp-hz = /bits/ 64 <800000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <500000>;
+		};
+		opp03 {
+			opp-hz = /bits/ 64 <500000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <500000>;
+		};
+		opp04 {
+			opp-hz = /bits/ 64 <240000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <500000>;
+		};
+		opp05 {
+			opp-hz = /bits/ 64 <1500000000>;
+			opp-microvolt = <1000000>;
+			clock-latency-ns = <500000>;
+			turbo-mode;
+		};
+	};
+
+	psci {
+		compatible = "arm,psci-1.0";
+		method = "smc";
+	};
+
+	gic: interrupt-controller@90001000 {
+		compatible = "arm,gic-400", "arm,cortex-a53-gic";
+		#interrupt-cells = <3>;
+		reg = <0x0 0x90001000 0x0 0x1000>,		/* GICD */
+			  <0x0 0x90002000 0x0 0x2000>;		/* GICC */
+		interrupt-controller;
+	};
+
+	arch_timer: arch-timer{
+		compatible = "arm,armv8-timer";
+		interrupts = <GIC_PPI 13 (GIC_CPU_MASK_SIMPLE(2)
+					 | IRQ_TYPE_LEVEL_LOW)>,
+					 <GIC_PPI 14 (GIC_CPU_MASK_SIMPLE(2)
+					 | IRQ_TYPE_LEVEL_LOW)>,
+					 <GIC_PPI 11 (GIC_CPU_MASK_SIMPLE(2)
+					 | IRQ_TYPE_LEVEL_LOW)>,
+					 <GIC_PPI 10 (GIC_CPU_MASK_SIMPLE(2)
+					 | IRQ_TYPE_LEVEL_LOW)>;
+		interrupt-parent = <&gic>;
+		clock-frequency = <24000000>;
+		arm,no-tick-in-suspend;
+	};
+
+	rst: reset-controller {
+		compatible = "hobot,hobot-reset";
+		#reset-cells = <2>;
+		reg = <0x0 0xA1000000 0x0 0x500>;
+		hobot,modrst-offset = <0x400>;
+	};
+
+	sysctrl: system-controller@0xA1000000 {
+		compatible = "hobot,sysctrl";
+		reg = <0x0 0xA1000000 0x0 0x1000>;
+		reboot-offset = <0x530>;
+	};
+
+	arm-pmu {
+		compatible = "arm,cortex-a53-pmu", "arm,armv8-pmuv3";
+		interrupt-parent = <&gic>;
+		interrupts = <0 8 4>, <0 9 4>, <0 10 4>, <0 11 4>;
+		interrupt-affinity = <&cpu0>,<&cpu1>,<&cpu2>,<&cpu3>;
+	};
+
+	thermal_zones: thermal-zones {
+		soc_thermal: soc-thermal {
+			polling-delay-passive = <500>; /* milliseconds */
+			polling-delay = <1000>; /* milliseconds */
+			status = "disabled";
+
+			thermal-sensors = <&pvt>;
+
+			trips {
+				threshold: trip-point@0 {
+					temperature = <60000>;
+					hysteresis = <0>;
+					type = "passive";
+				};
+				target: trip-point@1 {
+					temperature = <75000>;
+					hysteresis = <0>;
+					type = "passive";
+				};
+				soc_crit: soc-crit {
+					temperature = <110000>;
+					hysteresis = <0>; /* millicelsius */
+					type = "critical";
+				};
+			};
+			cooling-maps {
+				map0 {
+					trip = <&target>;
+					cooling-device = <&cpu0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+					contribution = <2048>;
+				};
+				map1 {
+					trip = <&target>;
+					cooling-device = <&cnn0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+					contribution = <1024>;
+				};
+				map2 {
+					trip = <&target>;
+					cooling-device = <&cnn1 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+					contribution = <1024>;
+				};
+			};
+		};
+
+	};
+
+	soc {
+		compatible = "simple-bus";
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		hobot_bus: hobot_bus@0 {
+			compatible = "hobot,hobot-bus";
+			reg-info = <0 0xa1000000 0 0x4fc>;
+		};
+
+		uart0: serial@0xA5000000 {
+			compatible = "hobot,hobot-uart";
+			reg = <0 0xA5000000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 29 4>;
+			clocks = <&uart0_mclk>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart0_func>;
+			status = "disabled";
+		};
+
+		uart1: serial@0xA5001000 {
+			compatible = "hobot,hobot-uart";
+			reg = <0 0xA5001000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 30 4>;
+			clocks = <&uart1_mclk>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart1_func>;
+			status = "disabled";
+		};
+
+		uart2: serial@0xA5002000 {
+			compatible = "hobot,hobot-uart";
+			reg = <0 0xA5002000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 31 4>;
+			clocks = <&uart2_mclk>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart2_func>;
+			status = "disabled";
+		};
+
+		uart3: serial@0xA5003000 {
+			compatible = "hobot,hobot-uart";
+			reg = <0 0xA5003000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 32 4>;
+			clocks = <&uart3_mclk>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart3_func>;
+			status = "disabled";
+		};
+
+		usbdrd3_0: usb@0xB2000000 {
+			compatible = "hobot,sunrise3-dwc3";
+			#address-cells = <2>;
+			#size-cells = <2>;
+			ranges;
+			reg = <0 0xB2000000 0 0x10000>,
+			  <0 0xA1000000 0 0x1000>;
+			resets = <&rst 0x0 12>;
+			reset-names = "usb";
+			clocks = <&usb_aclk>, <&utmi_lst_div_clk>,
+				<&utmi_mclk>, <&pipe_mclk>;
+			clock-names = "usb_aclk", "utmi_lst_div_clk",
+				"utmi_mclk", "pipe_mclk";
+
+			status = "disabled";
+			usbdrd_dwc3_0: dwc3 {
+				compatible = "snps,dwc3";
+				reg = <0 0xB2000000 0 0x10000>,
+				  <0 0xA1000000 0 0x1000>;
+				interrupt-parent = <&gic>;
+				interrupts = <0 26 4>;
+				/* dr_mode: {peripheral, host, otg} */
+				dr_mode = "otg";
+				/* phy_type: {utmi, utmi_wide, ulpi, serial, hsic} */
+				snps,dis_u2_susphy_quirk;
+				/* snps,dis_u3_susphy_quirk; */
+				extcon = <&usb_id>;
+				status = "disabled";
+			};
+		};
+
+		usb_id: usb-id {
+			compatible = "linux,extcon-usb-gpio";
+
+			status = "disabled";
+		};
+
+		dwc3_powersave: dwc3-powersave {
+			compatible = "hobot,dwc3-powersave";
+			usb = <&usbdrd3_0>;
+
+			status = "disabled";
+		};
+
+		i2s0: i2s@0xA5007000 {
+			compatible = "hobot, hobot-i2s0";
+			reg = <0 0xA5007000 0 0x100>,
+				<0 0xA5007500 0 0x100>,
+				<0 0xA1000000 0 0x500>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 36 4>;
+			resets = <&rst 0x50 20>;
+			reset-names = "i2s";
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2s0_func>;
+			div_ws = <3855>;/*only for i2s mode*/
+			ms = <4>;
+			bclk_set = <2048000>;/* only for master mode,tianpai 48K is 6.144M*/
+			mclk_set = <12288000>;/* only for master mode,default is 12.288M*/
+			blck = <6144000>;/* only for master mode*/
+			slot_width= <128>;/*128,64*/
+			status = "disabled";
+		};
+
+		i2s1: i2s@0xA5008000 {
+			compatible = "hobot, hobot-i2s1";
+			reg = <0 0xA5008000 0 0x100>,
+				<0 0xA5008500 0 0x100>,
+				<0 0xA1000000 0 0x500>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 37 4>;
+			resets = <&rst 0x50 21>;
+			reset-names = "i2s";
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2s1_func>;
+			div_ws = <3855>;
+			ms = <1>;
+			bclk_set = <6144000>;/* only for master mode,tianpai is 6.144M*/
+			mclk_set = <12288000>;/* only for master mode,default is 12.288M*/
+			slot_width= <128>;/*128,64*/
+			status = "disabled";
+		};
+
+		i2sidma0: idma@0 {
+			compatible = "hobot-i2s0-idma";
+			reg = <0 0xA5007000 0 0x100>,
+				<0 0xA5007500 0 0x100>,
+				<0 0xA1000000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 36 4>;
+			dummy_node = <0>;  //0: false 1: true
+			i2s-bind = "i2s0";
+			status = "disabled";
+		};
+
+		i2sidma1: idma@1 {
+			compatible = "hobot-i2s1-idma";
+			reg = <0 0xA5008000 0 0x100>,
+				<0 0xA5008500 0 0x100>,
+				<0 0xA1000000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 37 4>;
+			dummy_node = <0>;  //0: false 1: true
+			i2s-bind = "i2s0";
+			status = "disabled";
+		};
+
+		snd0: sndcard@0{
+			compatible = "hobot, hobot-snd0";
+			i2s_mode = <4>;/*1:i2s mode; 4:dsp mode*/
+			master = <1>;/*1:master; 4:slave*/
+			channel_max = <8>;
+			status = "disabled";
+		};
+
+		snd1: sndcard@1 {
+                        compatible = "hobot, hobot-snd1";
+                        i2s_mode = <4>;
+                        master = <1>;
+                        channel_max = <2>;
+			status = "disabled";
+                };
+
+		snd2: sndcard@2 {
+			compatible = "hobot, hobot-snd2";
+			i2s_mode = <4>;
+			master = <1>;
+			channel_max = <2>;
+			status = "disabled";
+		};
+
+		snd3: sndcard@3 {
+                        compatible = "hobot, hobot-snd3";
+                        i2s_mode = <4>;
+                        master = <1>;
+                        channel_max = <8>;
+                        status = "disabled";
+                };
+
+		snd4: sndcard@4 {
+                        compatible = "hobot, hobot-snd4";
+                        i2s_mode = <4>;
+                        master = <1>;
+                        channel_max = <8>;
+                        status = "disabled";
+                };
+
+		snd5: sndcard@5 {
+                        compatible = "hobot, hobot-snd5";
+                        i2s_mode = <4>;
+                        master = <1>;
+                        channel_max = <8>;
+                        status = "disabled";
+                };
+
+		snd6: sndcard@6 {
+                        compatible = "hobot, hobot-snd6";
+                        i2s_mode = <4>;
+                        master = <1>;
+                        channel_max = <8>;
+                        status = "disabled";
+                };
+
+		codec0: codec@0 {
+			compatible = "hobot,hobot-codec0";
+			status = "disabled";
+		};
+
+		dummyi2s0: dummy-i2s@0 {
+			compatible = "hobot, hobot-dummy-i2s0";
+			status = "disabled";
+		};
+
+		i2sidma2: dummy-idma@2 {
+			compatible = "hobot-i2s2-idma";
+			dummy_node = <1>;
+			i2s-bind = "i2s0";
+			status = "disabled";
+		};
+
+		i2sidma3: dummy-idma@3 {
+			compatible = "hobot-i2s3-idma";
+			dummy_node = <1>;
+			i2s-bind = "i2s0";
+			status = "disabled";
+		};
+
+		i2sidma4: dummy-idma@4 {
+			compatible = "hobot-i2s4-idma";
+			dummy_node = <1>;
+			i2s-bind = "i2s0";
+			status = "disabled";
+		};
+
+		i2sidma5: dummy-idma@5 {
+			compatible = "hobot-i2s5-idma";
+			dummy_node = <1>;
+			i2s-bind = "i2s0";
+			status = "disabled";
+		};
+
+		i2sidma6: dummy-idma@6 {
+			compatible = "hobot-i2s6-idma";
+			dummy_node = <1>;
+			i2s-bind = "i2s1";
+			status = "disabled";
+		};
+
+		i2sidma7: dummy-idma@7 {
+			compatible = "hobot-i2s7-idma";
+			dummy_node = <1>;
+			i2s-bind = "i2s1";
+			status = "disabled";
+		};
+
+		i2sidma8: dummy-idma@8 {
+			compatible = "hobot-i2s8-idma";
+			dummy_node = <1>;
+			i2s-bind = "i2s1";
+			status = "disabled";
+		};
+
+		i2sidma9: dummy-idma@9 {
+			compatible = "hobot-i2s9-idma";
+			dummy_node = <1>;
+			i2s-bind = "i2s1";
+			status = "disabled";
+		};
+
+		i2c0: i2c@0xA5009000 {
+			compatible = "hobot,hobot-i2c";
+			reg = <0 0xA5009000 0 0x100>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 38 4>;
+			clocks = <&i2c0_mclk>;
+			clock-names = "i2c_mclk";
+			bus-speed = <400000>;
+			resets = <&rst 0x50 10>;
+			reset-names = "i2c0";
+			status = "disabled";
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c0_func>;
+		};
+
+		i2c1: i2c@0xA500A000 {
+			compatible = "hobot,hobot-i2c";
+			reg = <0 0xA500A000 0 0x100>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 39 4>;
+			clocks = <&i2c1_mclk>;
+			clock-names = "i2c_mclk";
+			bus-speed = <400000>;
+			resets = <&rst 0x50 11>;
+			reset-names = "i2c1";
+			status = "disabled";
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c1_func>;
+		};
+
+		i2c2: i2c@0xA500B000 {
+			compatible = "hobot,hobot-i2c";
+			reg = <0 0xA500B000 0 0x100>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 40 4>;
+			clocks = <&i2c2_mclk>;
+			clock-names = "i2c_mclk";
+			bus-speed = <400000>;
+			resets = <&rst 0x50 12>;
+			reset-names = "i2c2";
+			status = "disabled";
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c2_func>;
+		};
+
+		i2c3: i2c@0xA500C000 {
+			compatible = "hobot,hobot-i2c";
+			reg = <0 0xA500C000 0 0x100>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 41 4>;
+			clocks = <&i2c3_mclk>;
+			clock-names = "i2c_mclk";
+			bus-speed = <400000>;
+			resets = <&rst 0x50 13>;
+			reset-names = "i2c3";
+			status = "disabled";
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c3_func>;
+		};
+
+		i2c4: i2c@0xA5016000 {
+			compatible = "hobot,hobot-i2c";
+			reg = <0 0xA5016000 0 0x100>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 42 4>;
+			clocks = <&i2c4_mclk>;
+			clock-names = "i2c_mclk";
+			bus-speed = <400000>;
+			resets = <&rst 0x50 14>;
+			reset-names = "i2c4";
+			status = "disabled";
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c4_func>;
+		};
+
+		i2c5: i2c@0xA5017000 {
+			compatible = "hobot,hobot-i2c";
+			reg = <0 0xA5017000 0 0x100>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 43 4>;
+			clocks = <&i2c5_mclk>;
+			clock-names = "i2c_mclk";
+			bus-speed = <400000>;
+			resets = <&rst 0x50 15>;
+			reset-names = "i2c5";
+			status = "disabled";
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c5_func>;
+		};
+
+		usrdrv: usrdrv@0xA700C000 {
+			compatible = "hobot,usrdrv";
+			reg = <0 0xA500C000 0 0x100>;
+			interrupt-parent = <&gic>;
+			/* interrupt list : sif, ipu, pym, ldc, dwe*/
+			interrupts = <0 75 4>, <0 73 4>;
+		};
+
+		ips: ips@0xA4000000 {
+			compatible = "hobot,x3-ips";
+			reg = <0 0xA4000000 0 0x200>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 85 4>;
+			clocks = <&sif_mclk>, <&mipi_rx0_ipi_mclk>,
+			<&mipi_rx1_ipi_mclk>, <&mipi_rx2_ipi_mclk>,
+			<&mipi_rx3_ipi_mclk>, <&mipi_tx_ipi_mclk>,
+			<&mipi_cfg_host_mclk>, <&pym_mclk>,
+			<&mipi_dev_ref_clk>, <&mipi_host_ref_clk>,
+			<&sensor0_mclk>, <&sensor1_mclk>,
+			<&sensor2_mclk>, <&sensor3_mclk>;
+			clock-names = "sif_mclk", "mipi_rx0_ipi",
+			"mipi_rx1_ipi", "mipi_rx2_ipi", "mipi_rx3_ipi",
+			"mipi_tx_ipi", "mipi_cfg_host", "pym_mclk",
+			"mipi_dev_ref", "mipi_host_ref", "sensor0_mclk",
+			"sensor1_mclk", "sensor2_mclk", "sensor3_mclk";
+			status = "disabled";
+		};
+
+		ipu: ipu@0xA4040000 {
+			compatible = "hobot,x3-ipu";
+			reg = <0 0xA4040000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 81 4>;
+			status = "disabled";
+		};
+
+                pym: pym@0xA4042000 {
+                        compatible = "hobot,x3-pym";
+                        reg = <0 0xA4042000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 83 4>;
+                        status = "okay";
+                };
+
+                sif: sif@0xA4001000 {
+                        compatible = "hobot,x3-sif";
+                        reg = <0 0xA4001000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 70 4>;
+                        status = "disabled";
+                };
+
+		mipi_host0: mipi_host@0xA4350000 {
+			compatible = "hobot,mipi-host";
+			reg = <0 0xA4350000 0 0x800>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 57 4>;
+			pinctrl-names = "enable", "disable";
+			pinctrl-0 = <&sensor0_func>;
+			pinctrl-1 = <&sensor0_gpio_func>;
+			snrclk-idx = <0>;
+			status = "disabled";
+		};
+
+		mipi_host1: mipi_host@0xA4351000 {
+			compatible = "hobot,mipi-host";
+			reg = <0 0xA4351000 0 0x800>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 58 4>;
+			pinctrl-names = "enable", "disable";
+			pinctrl-0 = <&sensor1_func>;
+			pinctrl-1 = <&sensor1_gpio_func>;
+			snrclk-idx = <1>;
+			status = "disabled";
+		};
+
+		mipi_host2: mipi_host@0xA4350800 {
+			compatible = "hobot,mipi-host";
+			reg = <0 0xA4350800 0 0x800>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 59 4>;
+			status = "disabled";
+		};
+
+		mipi_host3: mipi_host@0xA4351800 {
+			compatible = "hobot,mipi-host";
+			reg = <0 0xA4351800 0 0x800>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 60 4>;
+			status = "disabled";
+		};
+
+	    mipi_dev0: mipi_dev@0xA4354000 {
+			compatible = "hobot,mipi-dev";
+			reg = <0 0xA4354000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 62 4>;
+			status = "disabled";
+		};
+
+		mipi_dphy: mipi_dphy@0xA4300000 {
+			compatible = "hobot,mipi-dphy";
+			reg = <0 0xA4300000 0 0x0100>;
+			status = "disabled";
+		};
+
+		/* gdc0 */
+		gdc0: gdc0@0xA4010000 {
+			compatible = "hobot,gdc";
+			reg = <0 0xA4010000 0 0x10000>;
+			id = <0>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 74 4>;
+			status = "okay";
+		};
+
+		/* gdc1 */
+		gdc1: gdc1@0xA4020000 {
+			compatible = "hobot,gdc";
+			reg = <0 0xA4020000 0 0x10000>;
+			id = <1>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 78 4>;
+			status = "okay";
+		};
+
+                iar: iar@0xA4001000 {
+                        compatible = "hobot,hobot-iar";
+                        reg = <0 0xA4301000 0 0x400>, <0 0xA4355000 0 0x1000>;
+			clocks = <&iar_pix_clk>, <&iar_ipi_clk>, <&sif_mclk>;
+			clock-names = "iar_pix_clk","iar_ipi_clk", "sif_mclk";
+                        interrupt-parent = <&gic>;
+                        interrupts = <0 69 4>;
+                        resets = <&rst 0x40 12>;
+			pinctrl-names = "bt_func", "rgb_func", "rgb_gpio_func", "bt1120_voltage_func";
+			pinctrl-0 = <&btout_func>;
+			pinctrl-1 = <&rgb_func>;
+			pinctrl-2 = <&rgb_gpio_func>;
+			pinctrl-3 = <&bt1120_1_8v_func>;
+			disp_panel_reset_pin = <28>;
+                        reset-names = "iar";
+                        status = "disabled";
+                };
+
+		/* isp0 */
+		isp: isp@0xB3000000 {
+			compatible = "hobot,x3-isp";
+			reg = <0x0 0xB3000000 0x0 0x00040000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 71 4>, <0 88 4>;
+			interrupt-names = "ISP";
+		};
+
+		/* fake addr for sensor/lens/iq driver */
+		sensor: soc_sensor@0x64300000 {
+			compatible = "soc,sensor";
+			reg = <0x0 0x64300000 0x0 0x001000>;
+		};
+		lens: soc_lens@0x64301000 {
+			compatible = "soc,lens";
+			reg = <0x0 0x64301000 0x0 0x001000>;
+		};
+		iq: soc_iq@0x64302000 {
+			compatible = "soc,iq";
+			reg = <0x0 0x64302000 0x0 0x001000>;
+		};
+
+		/* dwe */
+		dwe: dwe@0xA4020000 {
+		    compatible = "hobot,dwe";
+		    //reg = <0 0xA4020000 0 0x10000>;
+		    status = "okay";
+		};
+
+		ldc: ldc@0xA4030000 {
+		    compatible = "hobot,x3-ldc";
+		    reg = <0 0xA4030000 0 0x1000>;
+		    interrupt-parent = <&gic>;
+		    interrupts = <0 75 4>;
+		    status = "okay";
+		};
+
+		dis0: dis0@0xA4034000 {
+		    compatible = "hobot,x3-dis0";
+		    reg = <0 0xA4034000 0 0x1000>;
+		    interrupt-parent = <&gic>;
+		    interrupts = <0 73 4>;
+		    status = "okay";
+		};
+
+		dis1: dis1@0xA4035000 {
+		    compatible = "hobot,x3-dis1";
+		    reg = <0 0xA4035000 0 0x1000>;
+		    //interrupt-parent = <&gic>;
+		    //interrupts = <0 77 4>;
+		    status = "okay";
+		};
+
+		jpu: jpu@0xA8010000 {
+			compatible = "hobot,hobot_jpu";
+			reg = <0 0xA8010000 0 0x10000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 67 4>;
+			status = "disabled";
+		};
+
+		vpu: vpu@0xA8000000 {
+			compatible = "hobot,hobot_vpu";
+			reg = <0 0xA8000000 0 0x10000>, <0 0xA1000460 0 0x10>;
+			clocks = <&vpu_cclk>,<&vpu_bclk>;
+			clock-names = "vpu_cclk","vpu_bclk";
+			interrupt-parent = <&gic>;
+			interrupts = <0 66 4>;
+			status = "disabled";
+		};
+
+		dma: dma@0xA1005000 {
+			compatible = "hobot,hobot-dma";
+			reg = <0 0xA1005000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 24 4>;
+		};
+
+		dmatest: dmatest {
+			compatible = "hobot,hobot-dma-test";
+			status = "disabled";
+		};
+
+		rtc: rtc@0xA6002000 {
+			compatible = "hobot,hobot-rtc";
+			reg = <0 0xA6002000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 53 4>;
+			wakeup-source;
+			status = "disabled";
+		};
+
+		coresight: coresight@0xA0410000 {
+			compatible = "hobot,coresight";
+			#address-cells = <2>;
+			#size-cells = <2>;
+			reg = <0 0xA0410000 0 0x600000>;
+			ranges;
+			dbg0: dbg0@0xA0410000 {
+				compatible = "hobot,coresight-dbg0";
+				reg = <0 0xA0410000 0 0x10000>;
+			};
+			cti0: cti0@0xA0420000 {
+				compatible = "hobot,coresight-cti0";
+				reg = <0 0xA0420000 0 0x10000>;
+			};
+			dbg1: dbg1@0xA0510000 {
+				compatible = "hobot,coresight-dbg1";
+				reg = <0 0xA0510000 0 0x10000>;
+			};
+			cti1: cti1@0xA0520000 {
+				compatible = "hobot,coresight-cti1";
+				reg = <0 0xA0520000 0 0x10000>;
+			};
+			dbg2: dbg2@0xA0610000 {
+				compatible = "hobot,coresight-dbg2";
+				reg = <0 0xA0610000 0 0x10000>;
+			};
+			cti2: cti2@0xA0620000 {
+				compatible = "hobot,coresight-cti2";
+				reg = <0 0xA0620000 0 0x10000>;
+			};
+			dbg3: dbg3@0xA0710000 {
+				compatible = "hobot,coresight-dbg3";
+				reg = <0 0xA0710000 0 0x10000>;
+			};
+			cti3: cti3@0xA0720000 {
+				compatible = "hobot,coresight-cti3";
+				reg = <0 0xA0720000 0 0x10000>;
+			};
+		};
+
+		pwm_gpio: pwm@0 {
+				compatible = "pwm-gpio";
+				status = "disabled";
+				#pwm-cells = <3>;
+				pwm-gpios = <&gpios 5 GPIO_ACTIVE_LOW>;
+		};
+
+		lpwm: lpwm@0xA500D000 {
+			compatible = "hobot,hobot-lpwm";
+			reg = <0 0xA5018000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 68 4>;
+			pinctrl-names = "lpwm0", "lpwm1","lpwm2","lpwm3", "lpwm_pps";
+			pinctrl-0 = <&lpwm0_func>;
+			pinctrl-1 = <&lpwm1_func>;
+			pinctrl-2 = <&lpwm2_func>;
+			pinctrl-3 = <&lpwm3_func>;
+			pinctrl-4 = <&lpwm_pps>;
+			clocks = <&lpwm_mclk>;
+			clock-names = "lpwm_mclk";
+			status = "disabled";
+		};
+
+		pwm_c0: pwm@0xA500D000 {
+			compatible = "hobot,hobot-pwm";
+			#pwm-cells = <3>;
+			reg = <0 0xA500D000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 44 4>;
+			pinctrl-names = "pwm0", "pwm1","pwm2";
+			pinctrl-0 = <&pwm0_func>;
+			pinctrl-1 = <&pwm1_func>;
+			pinctrl-2 = <&pwm2_func>;
+			clocks = <&pwm0_mclk>;
+			clock-names = "pwm_mclk";
+			status = "disabled";
+		};
+
+		pwm_c1: pwm@0xA500E000 {
+			compatible = "hobot,hobot-pwm";
+			#pwm-cells = <3>;
+			reg = <0 0xA500E000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 45 4>;
+			pinctrl-names = "pwm0", "pwm1","pwm2";
+			pinctrl-0 = <&pwm3_func>;
+			pinctrl-1 = <&pwm4_func>;
+			pinctrl-2 = <&pwm5_func>;
+			clocks = <&pwm1_mclk>;
+			clock-names = "pwm_mclk";
+			status = "disabled";
+		};
+
+		pwm_c2: pwm@0xA500F000 {
+			compatible = "hobot,hobot-pwm";
+			#pwm-cells = <3>;
+			reg = <0 0xA500F000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 46 4>;
+			pinctrl-names = "pwm0", "pwm1","pwm2";
+			pinctrl-0 = <&pwm6_func>;
+			pinctrl-1 = <&pwm7_func>;
+			pinctrl-2 = <&pwm8_func>;
+			clocks = <&pwm2_mclk>;
+			clock-names = "pwm_mclk";
+			status = "disabled";
+		};
+
+		spi0: spi@0xA5004000 {
+			compatible = "hobot,hobot-spi";
+			reg = <0 0xA5004000 0 0x1000>;
+			clocks = <&spi0_mclk>;
+			clock-names = "spi_mclk";
+			interrupt-parent = <&gic>;
+			interrupts = <0 33 4>;
+			resets = <&rst 0x50 4>;
+			reset-names = "spi0";
+			pinctrl-names = "default";
+			pinctrl-0 = <&spi0_func>;
+			status = "disabled";
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		spi1: spi@0xA5005000 {
+			compatible = "hobot,hobot-spi";
+			reg = <0 0xA5005000 0 0x1000>;
+			clocks = <&spi1_mclk>;
+			clock-names = "spi_mclk";
+			interrupt-parent = <&gic>;
+			interrupts = <0 34 4>;
+			resets = <&rst 0x50 5>;
+			reset-names = "spi1";
+			pinctrl-names = "default";
+			pinctrl-0 = <&spi1_func>;
+			status = "disabled";
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		spi2: spi@0xA5006000 {
+			compatible = "hobot,hobot-spi";
+			reg = <0 0xA5006000 0 0x1000>;
+			clocks = <&spi2_mclk>;
+			clock-names = "spi_mclk";
+			interrupt-parent = <&gic>;
+			interrupts = <0 35 4>;
+			resets = <&rst 0x50 6>;
+			reset-names = "spi2";
+			pinctrl-names = "default";
+			pinctrl-0 = <&spi2_func>;
+			status = "disabled";
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		gpios: gpio@0xA6003000 {
+			compatible = "hobot,x3-gpio";
+			reg = <0 0xA6003000 0 0x100>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			gpio-ranges = <&pinctrl 0 0 121>;
+			interrupts = <0 54 4>;
+			interrupt-parent = <&gic>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			};
+
+		nand_flash: nand@0xB0000000 {
+			compatible = "hobot,hb-qspi";
+			status = "disabled";
+			num-cs = <8>;
+			reg = <0x0 0xB0000000 0x0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 25 4>;
+			clocks = <&sys_qspi_aclk>;
+			clock-names = "qspi_aclk";
+			pinctrl-names = "default";
+			pinctrl-0 = <&qspi_func>;
+
+		};
+
+		nor_flash: nor@0xB0000000 {
+			compatible = "hobot,hb-qspi";
+			status = "disabled";
+			reg = <0x0 0xB0000000 0x0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 25 4>;
+			clocks = <&sys_qspi_aclk>;
+			clock-names = "qspi_aclk";
+			pinctrl-names = "default";
+			pinctrl-0 = <&qspi_func>;
+		};
+
+		ethernet: ethernet@A5014000 {
+			compatible = "snps,dwc-qos-ethernet-4.10a";
+			reg = <0 0xA5014000 0 0x2000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 50 4>,<0 51 4>, <0 52 4>;
+			interrupt-names = "rx-irq", "tx-irq", "mac-irq";
+
+            clocks = <&eth0_clk>, <&eth0_prediv_clk>, <&sys_div_pclk>;
+            clock-names = "eth0_clk", "eth0_pre_clk", "sys_div_pclk";
+
+            change_pin_mode = <1>;
+			interrupt_mode = <1>;
+            use_riwt = <1>;
+            snps,tso = <0>;
+
+			snps,write-requests = <8>;
+			snps,read-requests = <8>;
+			snps,txpbl = <32>;
+			snps,rxpbl = <16>;
+			snps,clk_csr = <2>;
+            snps,burst-map = <6>;
+
+			snps,force_sf_dma_mode = <1>;
+
+			pinctrl-names = "eth_state";
+			pinctrl-0 = <&eth_func>;
+			status = "disabled";
+			snps,mtl-rx-config {
+				snps,rx-queues-to-use = <4>;
+				snps,rx-sched-sp;
+				queue0 {
+					snps,dcb-algorithm;
+				};
+
+				queue1 {
+
+					snps,avb-algorithm;
+					snps,route-ptp;
+				};
+
+				queue2 {
+					snps,priority = <0x4>;
+					snps,avb-algorithm;
+				};
+
+				queue3 {
+					snps,avb-algorithm;
+					snps,priority = <0x8>;
+				};
+			};
+			snps,mtl-tx-config {
+				snps,tx-queues-to-use = <4>;
+				queue0 {
+					snps,dcb-algorithm;
+					snps,tx-sched-sp;
+				};
+				//for PTP (10%BW)
+				queue1 {
+					snps,avb-algorithm;
+					snps,idle_slope = <0x38e>;
+					snps,send_slope = <0x1ccc>;
+					snps,high_credit = <0x556aaa>;
+					snps,low_credit = <0xff57400>;
+					snps,priority = <0x2>;
+				};
+				//class B traffic (25%BW)
+				queue2 {
+					snps,avb-algorithm;
+					snps,idle_slope = <0x8e4>;
+					snps,send_slope = <0x1800>;
+					snps,high_credit = <0x7d0000>;
+					snps,low_credit = <0xff736000>;
+					snps,priority = <0x4>;
+				};
+				//classA (40%BW)
+				queue3 {
+					snps,avb-algorithm;
+					snps,idle_slope = <0xe38>;
+					snps,send_slope = <0x1333>;
+					snps,high_credit = <0x4b0000>;
+					snps,low_credit = <0xff8f8000>;
+					snps,priority = <0x8>;
+				};
+			};
+		};
+
+
+		fb: fb {
+			compatible = "hobot,hobot-fb";
+			status = "enabled";
+		};
+
+		timer0: timer@0xA1002000 {
+			compatible = "hobot,hobot-timer";
+			status = "disabled";
+			interrupts = <GIC_SPI 14 (GIC_CPU_MASK_SIMPLE(2)
+						 | IRQ_TYPE_LEVEL_HIGH)>,
+						 <GIC_SPI 15 (GIC_CPU_MASK_SIMPLE(2)
+						 | IRQ_TYPE_LEVEL_HIGH)>,
+						 <GIC_SPI 16 (GIC_CPU_MASK_SIMPLE(2)
+						 | IRQ_TYPE_LEVEL_HIGH)>;
+			interrupt-parent = <&gic>;
+			reg = <0x0 0xA1002000 0x0 0x1000>;
+			timer-freq = <1000000>;
+			clocks = <&timer0_mclk>;
+		};
+
+		timer1: timer@0xA1003000 {
+			compatible = "hobot,hobot-timer";
+			status = "disabled";
+			interrupts = <GIC_SPI 17 (GIC_CPU_MASK_SIMPLE(2)
+						 | IRQ_TYPE_LEVEL_HIGH)>,
+						 <GIC_SPI 18 (GIC_CPU_MASK_SIMPLE(2)
+						 | IRQ_TYPE_LEVEL_HIGH)>,
+						 <GIC_SPI 19 (GIC_CPU_MASK_SIMPLE(2)
+						 | IRQ_TYPE_LEVEL_HIGH)>;
+			interrupt-parent = <&gic>;
+			reg = <0x0 0xA1003000 0x0 0x1000>;
+			timer-freq = <1000000>;
+			clocks = <&timer1_mclk>;
+		};
+
+		timer2: timer@0xA1004000 {
+			compatible = "hobot,hobot-timer";
+			status = "disabled";
+			interrupts = <GIC_SPI 20 (GIC_CPU_MASK_SIMPLE(2)
+						 | IRQ_TYPE_LEVEL_HIGH)>,
+						 <GIC_SPI 21 (GIC_CPU_MASK_SIMPLE(2)
+						 | IRQ_TYPE_LEVEL_HIGH)>,
+						 <GIC_SPI 22 (GIC_CPU_MASK_SIMPLE(2)
+						 | IRQ_TYPE_LEVEL_HIGH)>;
+			interrupt-parent = <&gic>;
+			reg = <0x0 0xA1004000 0x0 0x1000>;
+			timer-freq = <1000000>;
+			clocks = <&timer2_mclk>;
+		};
+
+		watchdog: watchdog@0xA1002000 {
+			compatible = "hobot,hobot-wdt";
+			reg = <0 0xA1002000 0 0x1000>;
+			clocks = <&timer0_mclk>;
+			clock-names = "watchdog_mclk";
+			interrupt-parent = <&gic>;
+			interrupts = <0 15 4>;
+			pet-time = <6>;
+			bark-time = <11>;
+			bite-time = <15>;
+			status = "disabled";
+		};
+
+        fiq_debugger: fiq-debugger {
+			compatible = "hobot,fiq-debugger";
+			status = "disabled";
+		};
+
+		cnn0: cnn@0xA3000000 {
+			compatible = "hobot,hobot-bpu";
+			reg = <0x0 0xA3000000 0x0 0x1000>,
+				<0x0 0xA6000010 0x0 0x04>;
+			cnn-id = <0x0>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 55 4>;
+			resets = <&rst 0x20 0 >;
+			reset-names = "cnn_rst";
+			clocks = <&cnn0_aclk>,<&cnn0_mclk>;
+			clock-names = "cnn_aclk","cnn_mclk";
+			iso-bit = <1>;
+			#cooling-cells = <2>;
+			cooling-min-level = <0>;
+			cooling-max-level = <3>;
+			operating-points-v2 = <&cnn_opp_table>;
+			busy_check = <1>;
+		};
+
+		cnn1: cnn@0xA3001000 {
+			compatible = "hobot,hobot-bpu";
+			reg = <0x0 0xA3001000 0x0 0x1000>,
+				<0x0 0xA6000010 0x0 0x04>;
+			cnn-id = <0x1>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 56 4>;
+			resets = <&rst 0x20 1 >;
+			reset-names = "cnn_rst";
+			clocks = <&cnn1_aclk>,<&cnn1_mclk>;
+			clock-names = "cnn_aclk","cnn_mclk";
+			iso-bit = <5>;
+			#cooling-cells = <2>;
+			cooling-min-level = <0>;
+			cooling-max-level = <3>;
+			operating-points-v2 = <&cnn_opp_table>;
+			busy_check = <1>;
+		};
+
+		bifspi: bifspi@0xA1006000 {
+			compatible = "hobot,hobot-bifspi";
+			reg = <0 0xA1006000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 22 4>;
+			status = "disabled";
+			resets = <&rst 0x00 3>;
+			reset-names = "bifspi";
+			pinctrl-names = "default","reset";
+			pinctrl-0 = <&bifspi_func>;
+			pinctrl-1 = <&bifspi_func_reset>;
+			clocks = <&sys_bifspi_aclk>;
+			clock-names = "sys_bifspi_aclk";
+			ap_access_first = <0x0>;
+			ap_access_last = <0xfffffffc>;
+		};
+
+		bifsd: bifsd@A1007000 {
+			compatible = "hobot,hobot-bifsd";
+			reg = <0x0 0xA1007000 0x0 0x1000>,
+				  <0x0 0xA1000590 0x0 0x10>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 23 4>;
+			status = "disabled";
+			resets = <&rst 0x00 5>;
+			reset-names = "bifsd";
+			pinctrl-names = "default";
+			pinctrl-0 = <&bifsd_func>;
+			clocks = <&sys_bifsd_aclk>;
+			clock-names = "sys_bifsd_aclk";
+		};
+
+		sdio0: dwmmc@A5010000 {
+			compatible = "hobot,hb-dw-mmc";
+			reg = <0x0 0xA5010000 0x0 0x1000>;
+			clk_ctrl_off = <0x320>;
+			clock-freq-min-max = <100000 200000000>;
+			clocks = <&sd0_cclk>;
+			clock-names = "sdio_mclk";
+			clock-frequency = <200000000>;
+			bus-width = <8>;
+			fifo-depth = <0x100>;
+			fifo-mode = <0>;
+			cap-mmc-highspeed;
+			non-removable;
+			no-sd;
+			no-sdio;
+			disable-wp;
+			interrupt-parent = <&gic>;
+			interrupts = <0 47 4>;
+			status = "disabled";
+			reset = <&rst 0x50 16>;
+			reset-names = "reset";
+			pinctrl-names = "default";
+			pinctrl-0 = <&sdio0_func>;
+		};
+
+		sdio1: dwmmc@A5011000 {
+			compatible = "hobot,hb-dw-mmc";
+			reg = <0x0 0xA5011000 0x0 0x1000>;
+			clk_ctrl_off = <0x330>;
+			clock-freq-min-max = <100000 200000000>;
+			clocks = <&sd1_cclk>;
+			clock-names = "sdio_mclk";
+			clock-frequency = <200000000>;
+			bus-width = <4>;
+			fifo-depth = <0x100>;
+			fifo-mode = <0>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 48 4>;
+			status = "disabled";
+			reset = <&rst 0x50 17>;
+			reset-names = "reset";
+			pinctrl-names = "default";
+			pinctrl-0 = <&sdio1_func>;
+		};
+
+		sdio2: dwmmc@A5012000 {
+			compatible = "hobot,hb-dw-mmc";
+			reg = <0x0 0xA5012000 0x0 0x1000>;
+			clk_ctrl_off = <0x340>;
+			clock-freq-min-max = <100000 200000000>;
+			clocks = <&sd2_cclk>;
+			clock-names = "sdio_mclk";
+			clock-frequency = <200000000>;
+			bus-width = <4>;
+			fifo-depth = <0x100>;
+			fifo-mode = <0>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 49 4>;
+			status = "disabled";
+			reset = <&rst 0x50 18>;
+			reset-names = "reset";
+			pinctrl-names = "default";
+			pinctrl-0 = <&sdio2_func>;
+		};
+
+		bifbase: bifbase {
+			compatible = "hobot,bifbase";
+			status = "disabled";
+		};
+
+		bifeth: bifeth {
+			compatible = "hobot,bifeth";
+			status = "disabled";
+		};
+
+		mcu_irq: mcu_irq {
+			compatible = "hobot,mcu_irq";
+			status = "disabled";
+		};
+/*
+		biflite_spi: biflite_spi {
+			compatible = "hobot,bif_lite_spi";
+		};
+
+		biflite_sd: biflite_sd {
+			compatible = "hobot,bif_lite_sd";
+		};
+*/
+		pvt: pvt@0xA1009000 {
+			compatible = "hobot,hobot-pvt";
+			reg = <0 0xA1009000 0 0x1000>,
+				  <0 0xA6008000 0 0x100>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 64 4>;
+			clocks = <&sys_div_pclk>;
+			clock-names = "sys_pclk";
+			#thermal-sensor-cells = <0>;
+			voltage_monitor: voltage_monitor {
+				#io-channel-cells = <1>;
+			};
+		};
+
+		adc_key: adc_key {
+			compatible = "hobot,hobot-adc-key";
+			status = "disabled";
+			io-channels = <&voltage_monitor 0>;
+			demo-key {
+				linux,code = <108>;
+				label = "demo key";
+				hobot,adc_value = <130>;
+			};
+		};
+
+		ddr_monitor: ddr_monitor@0xA2D10000 {
+			compatible = "hobot,ddrmonitor";
+			reg = <0 0xA2D10000 0 0x1000>, /* For ddr_monitor */
+				<0 0xA2D00000 0 0x1000>, /* For ECC */
+				<0 0xA1000900 0 0x100>,  /* For MPU */
+				<0 0xA6008200 0 0x300>; /* For MPU */
+			interrupt-parent = <&gic>;
+			interrupts = <0 63 4>, <0 93 4>, <0 90 4>;
+			status = "disabled";
+		};
+
+		apb_timeout: ddr_monitor@0xA7000000 {
+			compatible = "hobot,apb_timeout";
+			reg = <0 0xA7000000 0 0x32>; /* For APB timeout */
+			interrupt-parent = <&gic>;
+			interrupts = <0 65 4>;
+			clocks = <&sys_div_pclk>;
+			clock-names = "sys_pclk";
+			status = "disabled";
+		};
+
+		dmc_opp_table: dmc_opp_table {
+			compatible = "operating-points-v2";
+
+			opp00 {
+				opp-hz = /bits/ 64 <333000000>;
+				opp-microvolt = <900000>;
+			};
+			opp01 {
+				opp-hz = /bits/ 64 <2666000000>;
+				opp-microvolt = <900000>;
+			};
+
+			opp02 {
+				opp-hz = /bits/ 64 <1333000000>;
+				opp-microvolt = <900000>;
+			};
+		};
+
+		dmc0_clk: dmc_clk@channel0 {
+			#clock-cells = <0>;
+			compatible = "hobot,hobot-dmc-clk";
+			method = "test";
+			channel-id = <0>;
+		};
+
+		dmc_0: dmc0 {
+			compatible = "hobot,xj3-dmc";
+			devfreq-events = <&ddr_monitor>;
+			operating-points-v2 = <&dmc_opp_table>;
+			clocks = <&dmc0_clk>;
+			clock-names = "dmc_clk";
+			upthreshold = <55>;
+			downdifferential = <5>;
+		};
+
+		dmc0_min {
+			compatible = "hobot,devfreq_qos";
+			devfreq = <&dmc_0>;
+			devfreq-qos,type-min;
+		};
+
+		onewire: onewire {
+			compatible = "w1-gpio";
+			onewire_gpio = <84>;
+			status = "disabled";
+		};
+
+		pmu: syscon@0xA6000000 {
+			compatible = "syscon", "simple-mfd";
+			reg = <0x0 0xA6000000 0x0 0x1000>;
+
+			power: power-management {
+				compatible = "hobot,hobot-power";
+				reboot-offset = <0x20>;
+				swreg-offset = <0x200>;
+				swinfo-size = <0x10>;
+				swinfo-ro = <0x1>;
+				swinfo-sel = <0x2>;
+				swi-boot = <1 0 3>;
+				swi-dump = <2 0 31>;
+				reboot-flag = <0x214>;
+			};
+
+			reboot-mode {
+				compatible = "syscon-reboot-mode";
+				offset = <0x210>;
+				mode-normal = <BOOT_NORMAL>;
+				mode-recovery = <BOOT_RECOVERY>;
+				mode-fastboot = <BOOT_FASTBOOT>;
+				mode-loader = <BOOT_BL_DOWNLOAD>;
+				mode-ums = <BOOT_UMS>;
+				mode-dfu = <BOOT_DFU>;
+				mode-ufu = <BOOT_UFU>;
+				mode-eye = <BOOT_EYE_DIAG>;
+			};
+		};
+
+		cnn_opp_table: cnn_opp_table {
+			compatible = "operating-points-v2";
+			opp-shared;
+			opp00 {
+				opp-hz = /bits/ 64 <1000000000>;
+				opp-microvolt = <800000>;
+				clock-latency-ns = <500000>;
+			};
+			opp01 {
+				opp-hz = /bits/ 64 <800000000>;
+				opp-microvolt = <800000>;
+				clock-latency-ns = <500000>;
+			};
+			opp02 {
+				opp-hz = /bits/ 64 <400000000>;
+				opp-microvolt = <800000>;
+				clock-latency-ns = <500000>;
+			};
+			opp03 {
+				opp-hz = /bits/ 64 <600000000>;
+				opp-microvolt = <800000>;
+				clock-latency-ns = <500000>;
+			};
+		};
+
+		cr5_service: cr5_service {
+			compatible = "hobot,cr5_service";
+			status = "disabled";
+			clocks = <&cr5_aclk>;
+			resets = <&rst 0x0 13>;
+			image-memory-region = <&image_r5_mem>;
+			msg-memory-region = <&msg_r5_mem>;
+			reg = <0x0 0xA100B000 0x0 0x1000>,<0x0 0xA1000000 0x0 0x1000>;
+			reg-names = "ipi_reg", "sys_ctrl";
+			interrupt-parent = <&gic>;
+			interrupts = <0 89 4>;
+		};
+
+		remoteproc_rcore: remoteproc_rcore {
+			compatible = "hobot,remoteproc-rcore";
+			interrupt-parent = <&gic>;
+			interrupts = <0 89 4>;
+			fix-map-mode = <1>;
+			ipc-int-base-addr = <0xA1000000>;
+		};
+
+		rpmsg_char: rpmsg_char {
+			compatible = "hobot,rpmsg-char";
+			nr-server = <4>;
+			server-list-string = "mcore_acore_heart", "rcore_misc_cmd", "bpu0_sram_check", "bpu1_sram_check";
+		};
+
+		efuse: efuse@0xA1001000{
+			compatible = "hobot,x3-efuse";
+			reg = <0x0 0xA1001000 0x0 0x60>;
+		};
+
+		timesync: timesync {
+			compatible = "hobot,timesync";
+			status = "disabled";
+		};
+
+		cpu_cal_test: cpu_cal_test {
+			compatible = "cpu_cal_test";
+			status = "disabled";
+		};
+		socinfo: socinfo{
+			compatible = "hobot,x3-socinfo";
+			board_name = "0";
+			board_id = "00000000";
+			origin_board_id = "00000000";
+			ddr_vender = "0";
+			ddr_type = "0";
+			ddr_freq = "0";
+			ddr_size = "0";
+			ddr_part_num = "0";
+			som_name = "0";
+			base_board_name = "0";
+			boot_mode = "0";
+			socuid = "00000000000000000000000000000000";
+			chip_id = "00000000";
+		};
+
+		sscg: sscg{
+			compatible = "hobot,sscg";
+			status = "okay";
+		};
+
+		fusa_fatal: fusa_fatal {
+			compatible = "hobot,fusa_fatal";
+			status = "disabled";
+		};
+	};
+};
