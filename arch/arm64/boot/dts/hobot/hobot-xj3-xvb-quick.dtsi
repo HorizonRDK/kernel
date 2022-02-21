@@ -89,7 +89,7 @@
 	};
 
 	chosen {
-		bootargs = "earlycon kgdboc=ttyS0 security=selinux selinux=1 enforcing=0 ";
+		bootargs = "earlycon kgdboc=ttyS0 ";
 		stdout-path = "serial0";
 	};
 
