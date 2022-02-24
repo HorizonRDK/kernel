@@ -149,6 +149,15 @@ config USB_DWC3_IMX8MP
 	  functionality.
 	  Say 'Y' or 'M' if you have one such device.
 
+config USB_DWC3_XILINX
+	tristate "Xilinx Platforms"
+	depends on (ARCH_ZYNQMP || ARCH_VERSAL) && OF
+	default USB_DWC3
+	help
+	  Support Xilinx SoCs with DesignWare Core USB3 IP.
+	  This driver handles both ZynqMP and Versal SoC operations.
+	  Say 'Y' or 'M' if you have one such device.
+
 config USB_DWC3_POWERSAVE
 	tristate "Hobot DWC3 Power Save Feature"
 	depends on OF
@@ -169,4 +178,5 @@ config USB_EXTCON_VBUS_GPIO
 	  When Hobot USB as device, vbus-gpio used to detect usb plug/unplug.
 	  unplug need to reset gadget, otherwise usb device not work.
 	  Say 'Y' or 'M' here to enable GPIO based USB cable detection extcon support.
+
 endif

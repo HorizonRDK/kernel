@@ -17,13 +17,14 @@
 *
 */
 
-#include "acamera_types.h"
 #include "system_semaphore.h"
-#include "acamera_fw.h"
 #include <linux/semaphore.h>
 #include <linux/slab.h>
 #include <linux/sched.h>
 #include <linux/wait.h>
+
+#include "acamera_types.h"
+#include "acamera_fw.h"
 
 extern acamera_firmware_t *acamera_get_firmware_ptr(void);
 

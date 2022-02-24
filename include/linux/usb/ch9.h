@@ -89,6 +89,8 @@ extern enum usb_ssp_rate usb_get_maximum_ssp_rate(struct device *dev);
  *	the string UNKNOWN will be returned.
  */
 extern const char *usb_state_string(enum usb_device_state state);
+unsigned int usb_decode_interval(const struct usb_endpoint_descriptor *epd,
+				 enum usb_device_speed speed);
 
 #ifdef CONFIG_TRACING
 /**

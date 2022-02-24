@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * xHCI host controller driver
  *
@@ -5,10 +6,6 @@
  *
  * Author: Xenia Ragiadakou
  * Email : burzalodowa@gmail.com
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
  */
 
 #undef TRACE_SYSTEM
@@ -26,6 +23,7 @@
 
 #include <linux/tracepoint.h>
 #include "xhci.h"
+#include "xhci-dbgcap.h"
 
 #define XHCI_MSG_MAX	500
 
@@ -158,6 +156,21 @@ DEFINE_EVENT(xhci_log_trb, xhci_queue_trb,
 	TP_ARGS(ring, trb)
 );
 
+DEFINE_EVENT(xhci_log_trb, xhci_dbc_handle_event,
+	TP_PROTO(struct xhci_ring *ring, struct xhci_generic_trb *trb),
+	TP_ARGS(ring, trb)
+);
+
+DEFINE_EVENT(xhci_log_trb, xhci_dbc_handle_transfer,
+	TP_PROTO(struct xhci_ring *ring, struct xhci_generic_trb *trb),
+	TP_ARGS(ring, trb)
+);
+
+DEFINE_EVENT(xhci_log_trb, xhci_dbc_gadget_ep_queue,
+	TP_PROTO(struct xhci_ring *ring, struct xhci_generic_trb *trb),
+	TP_ARGS(ring, trb)
+);
+
 DECLARE_EVENT_CLASS(xhci_log_free_virt_dev,
 	TP_PROTO(struct xhci_virt_device *vdev),
 	TP_ARGS(vdev),
@@ -276,23 +289,12 @@ DECLARE_EVENT_CLASS(xhci_log_urb,
 	),
 	TP_printk("ep%d%s-%s: urb %p pipe %u slot %d length %d/%d sgs %d/%d stream %d flags %08x",
 			__entry->epnum, __entry->dir_in ? "in" : "out",
-			({ char *s;
-			switch (__entry->type) {
-			case USB_ENDPOINT_XFER_INT:
-				s = "intr";
-				break;
-			case USB_ENDPOINT_XFER_CONTROL:
-				s = "control";
-				break;
-			case USB_ENDPOINT_XFER_BULK:
-				s = "bulk";
-				break;
-			case USB_ENDPOINT_XFER_ISOC:
-				s = "isoc";
-				break;
-			default:
-				s = "UNKNOWN";
-			} s; }), __entry->urb, __entry->pipe, __entry->slot_id,
+			__print_symbolic(__entry->type,
+				   { USB_ENDPOINT_XFER_INT,	"intr" },
+				   { USB_ENDPOINT_XFER_CONTROL,	"control" },
+				   { USB_ENDPOINT_XFER_BULK,	"bulk" },
+				   { USB_ENDPOINT_XFER_ISOC,	"isoc" }),
+			__entry->urb, __entry->pipe, __entry->slot_id,
 			__entry->actual, __entry->length, __entry->num_mapped_sgs,
 			__entry->num_sgs, __entry->stream, __entry->flags
 		)
@@ -349,6 +351,11 @@ DEFINE_EVENT(xhci_log_ep_ctx, xhci_handle_cmd_reset_ep,
 );
 
 DEFINE_EVENT(xhci_log_ep_ctx, xhci_handle_cmd_config_ep,
+	TP_PROTO(struct xhci_ep_ctx *ctx),
+	TP_ARGS(ctx)
+);
+
+DEFINE_EVENT(xhci_log_ep_ctx, xhci_add_endpoint,
 	TP_PROTO(struct xhci_ep_ctx *ctx),
 	TP_ARGS(ctx)
 );
@@ -412,6 +419,36 @@ DEFINE_EVENT(xhci_log_slot_ctx, xhci_handle_cmd_reset_dev,
 DEFINE_EVENT(xhci_log_slot_ctx, xhci_handle_cmd_set_deq,
 	TP_PROTO(struct xhci_slot_ctx *ctx),
 	TP_ARGS(ctx)
+);
+
+DEFINE_EVENT(xhci_log_slot_ctx, xhci_configure_endpoint,
+	TP_PROTO(struct xhci_slot_ctx *ctx),
+	TP_ARGS(ctx)
+);
+
+DECLARE_EVENT_CLASS(xhci_log_ctrl_ctx,
+	TP_PROTO(struct xhci_input_control_ctx *ctrl_ctx),
+	TP_ARGS(ctrl_ctx),
+	TP_STRUCT__entry(
+		__field(u32, drop)
+		__field(u32, add)
+	),
+	TP_fast_assign(
+		__entry->drop = le32_to_cpu(ctrl_ctx->drop_flags);
+		__entry->add = le32_to_cpu(ctrl_ctx->add_flags);
+	),
+	TP_printk("%s", xhci_decode_ctrl_ctx(__entry->drop, __entry->add)
+	)
+);
+
+DEFINE_EVENT(xhci_log_ctrl_ctx, xhci_address_ctrl_ctx,
+	TP_PROTO(struct xhci_input_control_ctx *ctrl_ctx),
+	TP_ARGS(ctrl_ctx)
+);
+
+DEFINE_EVENT(xhci_log_ctrl_ctx, xhci_configure_endpoint_ctrl_ctx,
+	TP_PROTO(struct xhci_input_control_ctx *ctrl_ctx),
+	TP_ARGS(ctrl_ctx)
 );
 
 DECLARE_EVENT_CLASS(xhci_log_ring,
@@ -502,6 +539,85 @@ DEFINE_EVENT(xhci_log_portsc, xhci_handle_port_status,
 	     TP_ARGS(portnum, portsc)
 );
 
+DEFINE_EVENT(xhci_log_portsc, xhci_get_port_status,
+	     TP_PROTO(u32 portnum, u32 portsc),
+	     TP_ARGS(portnum, portsc)
+);
+
+DEFINE_EVENT(xhci_log_portsc, xhci_hub_status_data,
+	     TP_PROTO(u32 portnum, u32 portsc),
+	     TP_ARGS(portnum, portsc)
+);
+
+DECLARE_EVENT_CLASS(xhci_log_doorbell,
+	TP_PROTO(u32 slot, u32 doorbell),
+	TP_ARGS(slot, doorbell),
+	TP_STRUCT__entry(
+		__field(u32, slot)
+		__field(u32, doorbell)
+	),
+	TP_fast_assign(
+		__entry->slot = slot;
+		__entry->doorbell = doorbell;
+	),
+	TP_printk("Ring doorbell for %s",
+		xhci_decode_doorbell(__entry->slot, __entry->doorbell)
+	)
+);
+
+DEFINE_EVENT(xhci_log_doorbell, xhci_ring_ep_doorbell,
+	     TP_PROTO(u32 slot, u32 doorbell),
+	     TP_ARGS(slot, doorbell)
+);
+
+DEFINE_EVENT(xhci_log_doorbell, xhci_ring_host_doorbell,
+	     TP_PROTO(u32 slot, u32 doorbell),
+	     TP_ARGS(slot, doorbell)
+);
+
+DECLARE_EVENT_CLASS(xhci_dbc_log_request,
+	TP_PROTO(struct dbc_request *req),
+	TP_ARGS(req),
+	TP_STRUCT__entry(
+		__field(struct dbc_request *, req)
+		__field(bool, dir)
+		__field(unsigned int, actual)
+		__field(unsigned int, length)
+		__field(int, status)
+	),
+	TP_fast_assign(
+		__entry->req = req;
+		__entry->dir = req->direction;
+		__entry->actual = req->actual;
+		__entry->length = req->length;
+		__entry->status = req->status;
+	),
+	TP_printk("%s: req %p length %u/%u ==> %d",
+		__entry->dir ? "bulk-in" : "bulk-out",
+		__entry->req, __entry->actual,
+		__entry->length, __entry->status
+	)
+);
+
+DEFINE_EVENT(xhci_dbc_log_request, xhci_dbc_alloc_request,
+	TP_PROTO(struct dbc_request *req),
+	TP_ARGS(req)
+);
+
+DEFINE_EVENT(xhci_dbc_log_request, xhci_dbc_free_request,
+	TP_PROTO(struct dbc_request *req),
+	TP_ARGS(req)
+);
+
+DEFINE_EVENT(xhci_dbc_log_request, xhci_dbc_queue_request,
+	TP_PROTO(struct dbc_request *req),
+	TP_ARGS(req)
+);
+
+DEFINE_EVENT(xhci_dbc_log_request, xhci_dbc_giveback_request,
+	TP_PROTO(struct dbc_request *req),
+	TP_ARGS(req)
+);
 #endif /* __XHCI_TRACE_H */
 
 /* this part must be outside header guard */
