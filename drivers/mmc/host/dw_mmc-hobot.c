@@ -248,6 +248,7 @@ static int hb_mmc_set_sample_phase(struct dw_mci *host,
 	}
 
 	priv->current_sample_phase = degrees;
+	pr_debug("Sample_phase set: %d\n", degrees);
 
 	disable_irq(host->irq);
 	tasklet_disable(&host->tasklet);
@@ -407,11 +408,62 @@ free:
 	return ret;
 }
 
+#ifdef CONFIG_MMC_TUNE_FROM_UBOOT
+/* check U-boot tuning data is less than or equal to 0xf */
+static int __inline__ check_uboot_tune_para(struct dw_mci *host)
+{
+	struct dw_mci_hobot_priv_data *priv = host->priv;
+
+	if( (priv->is_get_tune == MMC_UBOOT_GET_TUNE_ERR)
+		|| IS_TUNE_PHASE_ERR(priv->uboot_tune_phase))
+		return MMC_UBOOT_GET_TUNE_ERR;
+
+	dev_err(host->dev, "get mmc tune data from uboot:%d.\n",
+			priv->uboot_tune_phase);
+	return MMC_UBOOT_GET_TUNE_OK;
+}
+
+static int dw_mci_hb_try_tuning_from_uboot(struct dw_mci_slot *slot, u32 opcode)
+{
+	int ret;
+	unsigned int middle_phase;
+	struct dw_mci *host = slot->host;
+	struct dw_mci_hobot_priv_data *priv = host->priv;
+	struct mmc_host *mmc = slot->mmc;
+
+	ret = check_uboot_tune_para(host);
+	if (ret == MMC_UBOOT_GET_TUNE_ERR) {
+		dev_err(host->dev,
+				"check uboot tune data error.\n");
+		/*get uboot tuning data error, run normal tuning*/
+		return dw_mci_hb_sample_tuning(slot, opcode);
+	}
+	middle_phase = priv->uboot_tune_phase;
+	/*using uboot stage tuning data execute tuning once*/
+	hb_mmc_set_sample_phase(host, TUNING_ITERATION_TO_PHASE(middle_phase));
+	ret = mmc_send_tuning(mmc, opcode, NULL);
+	if (ret) {
+		dev_err(host->dev, "using uboot tune data fail, middle_phase= %d\n",
+			middle_phase);
+		return dw_mci_hb_sample_tuning(slot, opcode); /*normal tuning step*/
+	}
+	dev_info(host->dev,
+			 "use sample tuning phase from uboot: %d\n", middle_phase);
+
+	return ret;
+}
+#endif /*CONFIG_MMC_TUNE_FROM_UBOOT*/
+
 static int dw_mci_hb_execute_tuning(struct dw_mci_slot *slot, u32 opcode)
 {
 	int ret = -EIO;
 
+#ifdef CONFIG_MMC_TUNE_FROM_UBOOT
+	ret = dw_mci_hb_try_tuning_from_uboot(slot, opcode);
+#else
 	ret = dw_mci_hb_sample_tuning(slot, opcode);
+#endif
+
 	return ret;
 }
 
@@ -538,6 +590,10 @@ static int dw_mci_hb_parse_dt(struct dw_mci *host)
 	struct device_node *np = host->dev->of_node;
 	struct dw_mci_hobot_priv_data *priv;
 	unsigned int of_val = 0;
+#ifdef CONFIG_MMC_TUNE_FROM_UBOOT
+	const char *of_tune_middle;
+#endif /*CONFIG_MMC_TUNE_FROM_UBOOT*/
+
 
 	priv = devm_kzalloc(host->dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv)
@@ -627,6 +683,18 @@ static int dw_mci_hb_parse_dt(struct dw_mci *host)
     if (IS_ERR(priv->pin_state_3_3v)) {
         priv->pin_state_3_3v = NULL;
     }
+
+#ifdef CONFIG_MMC_TUNE_FROM_UBOOT
+	/*The device tree is analyzed to obtain the tuning phase passed in the U-Boot*/
+	if(device_property_read_string(host->dev,
+			"uboot-tuning-middle-phase", &of_tune_middle)) {
+		dev_info(host->dev, "cannot get uboot tune data.\n");
+		priv->is_get_tune = MMC_UBOOT_GET_TUNE_ERR;
+	} else {
+		priv->is_get_tune = MMC_UBOOT_GET_TUNE_OK;
+		priv->uboot_tune_phase = simple_strtoul(of_tune_middle, NULL, 16);
+	}
+#endif /* CONFIG_MMC_TUNE_FROM_UBOOT */
 
 	host->priv = priv;
 

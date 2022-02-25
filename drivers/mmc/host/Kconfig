@@ -749,7 +749,15 @@ config MMC_DW_HOBOT
 	  Synopsys DesignWare Memory Card Interface driver. Select this option
 	  for platforms based on HOBOT SoC's.
 
-
+config MMC_TUNE_FROM_UBOOT
+	bool "Using UBoot stage MMC tuning data"
+	depends on MMC_DW_HOBOT
+	depends on HOBOT_XJ3
+	default y if HOBOT_QUICK_BOOT
+	help
+	  This selects support for mmc get tuning data form uboot,NOT need execute
+	  tuning when mmc driver probe. Speed up system startup time.Select this option
+	  for platforms based on HOBOT SoC's.
 
 
 config MMC_SH_MMCIF

@@ -34,7 +34,19 @@ struct dw_mci_hobot_priv_data {
 	struct pinctrl_state *pin_state_1_8v;
 	struct pinctrl_state *pin_state_3_3v;
 	int mmc_fixed_voltage;
+/*using U-boot stage tuning result*/
+#ifdef CONFIG_MMC_TUNE_FROM_UBOOT
+	bool is_get_tune;
+	u32 uboot_tune_phase;
+#endif /*CONFIG_MMC_TUNE_FROM_UBOOT*/
 };
+
+#ifdef CONFIG_MMC_TUNE_FROM_UBOOT
+#define MMC_UBOOT_GET_TUNE_OK	0
+#define MMC_UBOOT_GET_TUNE_ERR	1
+#define IS_TUNE_PHASE_ERR(x) \
+	(((x) > 0xf) ? MMC_UBOOT_GET_TUNE_ERR : MMC_UBOOT_GET_TUNE_OK)
+#endif /*CONFIG_MMC_TUNE_FROM_UBOOT*/
 
 int hb_mmc_disable_clk(struct dw_mci *host);
 int hb_mmc_enable_clk(struct dw_mci *host);
