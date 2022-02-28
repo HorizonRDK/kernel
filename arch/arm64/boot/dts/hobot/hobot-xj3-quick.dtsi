@@ -1004,7 +1004,7 @@
 			interrupt-controller;
 			#interrupt-cells = <2>;
 			};
-
+/*
 		nand_flash: nand@0xB0000000 {
 			compatible = "hobot,hb-qspi";
 			status = "disabled";
@@ -1018,7 +1018,8 @@
 			pinctrl-0 = <&qspi_func>;
 
 		};
-
+*/
+/*
 		nor_flash: nor@0xB0000000 {
 			compatible = "hobot,hb-qspi";
 			status = "disabled";
@@ -1030,6 +1031,7 @@
 			pinctrl-names = "default";
 			pinctrl-0 = <&qspi_func>;
 		};
+*/
 
 		ethernet: ethernet@A5014000 {
 			compatible = "snps,dwc-qos-ethernet-4.10a";

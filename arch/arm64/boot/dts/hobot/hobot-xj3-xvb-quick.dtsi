@@ -396,11 +396,12 @@
 	status = "disabled";
 };
 
+/*
 &nor_flash {
 	status = "disabled";
 	#address-cells = <1>;
 	#size-cells = <0>;
-	spi-mode = <0>;		/* CPOL/CPHA mode */
+	spi-mode = <0>;
 	bus-width = <4>;
 	device-name = "hr_nor";
 
@@ -409,15 +410,17 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 		reg = <0x0>;
-		spi-max-frequency = <62500000>; /* For FPGA max clk is 20Mhz */
+		spi-max-frequency = <62500000>;
 	};
 };
+*/
 
+/*
 &nand_flash {
 	status = "disabled";
 	#address-cells = <1>;
 	#size-cells = <0>;
-	spi-mode = <0>;		/* CPOL/CPHA mode */
+	spi-mode = <0>;
 	bus-width = <4>;
 	device-name = "hr_nand";
 
@@ -426,9 +429,10 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 		reg = <0x0>;
-		spi-max-frequency = <62500000>; /* For FPGA max clk is 20Mhz */
+		spi-max-frequency = <62500000>;
 	};
 };
+*/
 
 &sdio0 {
 	status = "okay";
