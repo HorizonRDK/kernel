@@ -117,12 +117,12 @@ suffix_$(CONFIG_KERNEL_COMPRESS_WITH_LZ4)  = lz4
 
 # Default target when executing plain make
 boot		:= arch/arm64/boot
-KBUILD_IMAGE	:= Image.$(suffix_y)
+KBUILD_IMAGE	:= $(boot)/Image.$(suffix_y)
 KBUILD_DTBS	:= dtbs
 
-all:	$(KBUILD_IMAGE) $(KBUILD_DTBS)
+all:	$(KERNEL_IMAGE_NAME) $(KBUILD_DTBS)
 
-uImage: $(KBUILD_IMAGE)
+uImage: $(KERNEL_IMAGE_NAME)
 	$(Q)$(MAKE) $(build)=$(boot) $(boot)/$@
 
 Image: vmlinux
