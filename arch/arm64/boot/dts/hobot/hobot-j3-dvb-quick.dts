@@ -158,11 +158,13 @@
 &cnn0 {
 	cnn-supply = <&cnn0_pd_reg>;
 	governor = "performance";
+	max_freq = /bits/ 64 <950000000>;
 };
 
 &cnn1 {
 	cnn-supply = <&cnn1_pd_reg>;
 	governor = "performance";
+	max_freq = /bits/ 64 <950000000>;
 };
 
 &sdio1 {

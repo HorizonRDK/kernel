@@ -253,6 +253,7 @@
     operating-points-v2-lite = <&cnn_opp_table_lite>;
     operating-points-v2-dc-lite = <&cnn_opp_table_dc_lite>;
     governor = "userspace";
+	max_freq = /bits/ 64 <1000000000>;
 };
 
 &cnn1 {
@@ -262,6 +263,7 @@
     operating-points-v2-lite = <&cnn_opp_table_lite>;
     operating-points-v2-dc-lite = <&cnn_opp_table_dc_lite>;
 	governor = "userspace";
+	max_freq = /bits/ 64 <1000000000>;
 };
 
 &sdio1 {

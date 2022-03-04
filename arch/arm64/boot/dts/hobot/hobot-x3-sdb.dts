@@ -534,11 +534,13 @@
 &cnn0 {
 	cnn-supply = <&cnn0_pd_reg>;
 	governor = "userspace";
+	max_freq = /bits/ 64 <1000000000>;
 };
 
 &cnn1 {
 	cnn-supply = <&cnn1_pd_reg>;
 	governor = "userspace";
+	max_freq = /bits/ 64 <1000000000>;
 };
 
 &snd4 {

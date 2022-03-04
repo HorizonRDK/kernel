@@ -701,6 +701,7 @@ int32_t bpu_core_dvfs_register(struct bpu_core *core, const char *name)
 	struct dev_pm_opp *opp;
 	const char *gov_name;
 	uint32_t tmp_state;
+	u64 max_freq;
 	int32_t ret;
 
 	if (core == NULL) {
@@ -773,8 +774,14 @@ int32_t bpu_core_dvfs_register(struct bpu_core *core, const char *name)
 		tmp_state = 0;
 	}
 	core->dvfs->devfreq->min_freq = core->dvfs->profile.freq_table[0];
-	core->dvfs->devfreq->max_freq =
-		core->dvfs->profile.freq_table[tmp_state];
+
+	ret = of_property_read_u64(core->dev->of_node, "max_freq", &max_freq);
+	if (ret) {
+		pr_err("max_freq decode failed\n");
+		return ret;
+	}
+	core->dvfs->devfreq->max_freq = max_freq;
+
 	core->dvfs->level_num = core->dvfs->profile.max_state;
 
 	ret = devm_devfreq_register_opp_notifier(core->dev, core->dvfs->devfreq);
