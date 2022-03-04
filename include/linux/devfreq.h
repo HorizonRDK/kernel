@@ -101,6 +101,12 @@ struct devfreq_dev_profile {
 	unsigned int max_state;
 };
 
+#ifdef CONFIG_HOBOT_XJ3
+#define THERMALSTOP		0
+#define THERMALSATRT		1
+#define THERMALWORKING		2
+#endif
+
 /**
  * struct devfreq - Device devfreq structure
  * @node:	list node - contains the devices with devfreq that have been
@@ -160,6 +166,10 @@ struct devfreq {
 	unsigned int *trans_table;
 	unsigned long *time_in_state;
 	unsigned long last_stat_updated;
+
+#ifdef CONFIG_HOBOT_XJ3
+	unsigned char thermal_core_state;
+#endif
 
 	struct srcu_notifier_head transition_notifier_list;
 };

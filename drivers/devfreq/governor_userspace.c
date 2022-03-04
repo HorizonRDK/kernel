@@ -22,6 +22,35 @@ struct userspace_data {
 	bool valid;
 };
 
+#ifdef CONFIG_HOBOT_XJ3
+static unsigned long restore_freq;
+
+static int devfreq_userspace_func(struct devfreq *df, unsigned long *freq)
+{
+	struct userspace_data *data = df->data;
+
+	// Storing the freq value if thermal-core was triggered .
+	if (df->thermal_core_state == THERMALSATRT)
+		restore_freq = df->previous_freq;
+
+	if (data->valid) { // User freq specified .
+		unsigned long adjusted_freq = data->user_frequency;
+
+		if (df->max_freq && adjusted_freq > df->max_freq)
+			adjusted_freq = df->max_freq;
+
+		if (df->min_freq && adjusted_freq < df->min_freq)
+			adjusted_freq = df->min_freq;
+
+		*freq = adjusted_freq;
+	} else if (df->thermal_core_state == THERMALSTOP) {
+		*freq = restore_freq; // Restoring freq when thermal rollback .
+	} else {
+		*freq = df->previous_freq;
+	}
+	return 0;
+}
+#else
 static int devfreq_userspace_func(struct devfreq *df, unsigned long *freq)
 {
 	struct userspace_data *data = df->data;
@@ -41,7 +70,7 @@ static int devfreq_userspace_func(struct devfreq *df, unsigned long *freq)
 	}
 	return 0;
 }
-
+#endif
 static ssize_t store_freq(struct device *dev, struct device_attribute *attr,
 			  const char *buf, size_t count)
 {

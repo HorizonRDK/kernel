@@ -136,6 +136,16 @@ static int devfreq_cooling_set_cur_state(struct thermal_cooling_device *cdev,
 	struct device *dev = df->dev.parent;
 	int ret;
 
+#ifdef CONFIG_HOBOT_XJ3
+	// recording the cooling device state .
+	unsigned long ori_sate = dfc->cooling_state;
+	if (ori_sate == 0 && state != 0)
+		df->thermal_core_state = THERMALSATRT;
+	else if (ori_sate != 0 && state == 0)
+		df->thermal_core_state = THERMALSTOP;
+	else
+		df->thermal_core_state = THERMALWORKING;
+#endif
 	if (state == dfc->cooling_state)
 		return 0;
 
