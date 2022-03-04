@@ -69,6 +69,129 @@ static struct devfreq *find_device_devfreq(struct device *dev)
 	return ERR_PTR(-ENODEV);
 }
 
+#ifdef CONFIG_HOBOT_XJ3
+
+/*
+ * The three interfaces just for the platforms
+ * which bpu cores' frequency can not be adjusted separately .
+ * so for those platforms, we add below three interfaces
+ * to make the governor of two bpus same .
+ */
+#define CNN_CORE_NUM	2
+static struct device *cnn_dev[CNN_CORE_NUM] = {NULL};
+
+/* Overwrite the governor of the frist one with the second */
+static int bpu_init_same_gov(struct device *dev,
+	struct devfreq_governor *governor)
+{
+    struct devfreq *tmp_devfreq = NULL;
+	int err = 0;
+
+	/* Record the dev information */
+	if (!strcmp(dev->kobj.name, "a3000000.cnn")) {
+        cnn_dev[0] = dev;
+    } else if (!strcmp(dev->kobj.name, "a3001000.cnn")) {
+        cnn_dev[1] = dev;
+    } else {
+		return err;
+	}
+
+    /* Get the first initialized bpu's devfreq */
+    if ((cnn_dev[0] == dev) && (cnn_dev[1] != NULL)) {
+        tmp_devfreq = find_device_devfreq(cnn_dev[1]);
+    } else if (cnn_dev[0] != NULL) {
+        tmp_devfreq = find_device_devfreq(cnn_dev[0]);
+    }
+
+	/* Overwrite the governor of the frist one with the second */
+    if (tmp_devfreq != NULL) {
+        err = tmp_devfreq->governor->event_handler(tmp_devfreq,
+			DEVFREQ_GOV_STOP, NULL);
+		if (err) {
+			dev_err(dev, "%s: Unable to stop governor for the device\n",
+					__func__);
+			return err;
+		}
+
+        tmp_devfreq->governor = governor;
+
+        err = tmp_devfreq->governor->event_handler(tmp_devfreq,
+			DEVFREQ_GOV_START, NULL);
+		if (err) {
+			dev_err(dev, "%s: Unable to start governor for the device\n",
+					__func__);
+			return err;
+		}
+	}
+
+	return err;
+}
+
+static void bpu_remove(struct devfreq *devfreq)
+{
+	if (!strcmp(devfreq->dev.parent->kobj.name, "a3000000.cnn")) {
+		cnn_dev[0] = NULL;
+	}
+
+	if (!strcmp(devfreq->dev.parent->kobj.name, "a3001000.cnn")) {
+		cnn_dev[1] = NULL;
+	}
+}
+
+/* Set the same value for two bpu'governor */
+static void bpus_set_same_gov(struct devfreq *df,
+		struct devfreq_governor *governor)
+{
+	struct devfreq *tmp_devfreq = NULL;
+	int ret = 0;
+
+	if ((strcmp(df->dev.parent->kobj.name, "a3001000.cnn"))
+			&& (strcmp(df->dev.parent->kobj.name, "a3000000.cnn")))
+		return;
+	/* Get the other one bpu devfreq when set one bpu's governor */
+	if ((df->dev.parent == cnn_dev[0]) && (cnn_dev[1] != NULL)) {
+		tmp_devfreq = find_device_devfreq(cnn_dev[1]);
+	} else if (cnn_dev[0] != NULL) {
+		tmp_devfreq = find_device_devfreq(cnn_dev[0]);
+	}
+
+	if ((tmp_devfreq != NULL) && (tmp_devfreq->governor)) {
+		ret = tmp_devfreq->governor->event_handler(tmp_devfreq,
+			DEVFREQ_GOV_STOP, NULL);
+		if (ret) {
+			dev_err(&(df->dev), "%s: Governor %s not stopped(%d)\n",
+					__func__, df->governor->name, ret);
+		}
+	}
+
+	tmp_devfreq->governor = governor;
+	strncpy(tmp_devfreq->governor_name, governor->name, DEVFREQ_NAME_LEN);
+
+	ret = tmp_devfreq->governor->event_handler(tmp_devfreq,
+		DEVFREQ_GOV_START, NULL);
+	if (ret) {
+		dev_err(&(df->dev), "%s: Governor %s not started(%d)\n",
+				__func__, tmp_devfreq->governor->name, ret);
+	}
+}
+#else
+static int bpu_init_same_gov(struct device *dev)
+{
+	return 0;
+}
+
+static void bpu_remove(struct devfreq *devfreq)
+{
+	return;
+}
+
+static void bpus_set_same_gov(struct devfreq *df,
+		struct devfreq_governor *governor)
+{
+	return;
+}
+#endif /* CONFIG_HOBOT_XJ3 */
+
 /**
  * devfreq_get_freq_level() - Lookup freq_table for the frequency
  * @devfreq:	the devfreq instance
@@ -611,6 +734,14 @@ struct devfreq *devfreq_add_device(struct device *dev,
 			__func__);
 		goto err_init;
 	}
+
+	err = bpu_init_same_gov(dev, governor);
+	if (err) {
+		dev_err(dev, "%s: bpu_init_same_gov failed \n",
+				__func__);
+		goto err_init;
+	}
+
 	mutex_unlock(&devfreq_list_lock);
 
 	return devfreq;
@@ -638,6 +769,8 @@ int devfreq_remove_device(struct devfreq *devfreq)
 {
 	if (!devfreq)
 		return -EINVAL;
+
+	bpu_remove(devfreq);
 
 	device_unregister(&devfreq->dev);
 	atomic_dec(&devfreq_no);
@@ -965,6 +1098,9 @@ static ssize_t governor_store(struct device *dev, struct device_attribute *attr,
 	if (ret)
 		dev_warn(dev, "%s: Governor %s not started(%d)\n",
 			 __func__, df->governor->name, ret);
+
+	bpus_set_same_gov(df, governor);
+
 out:
 	mutex_unlock(&devfreq_list_lock);
 
