@@ -430,6 +430,7 @@ struct plat_config_data {
 	int has_gmac4;
 	int pmt;
 	int maxmtu;
+	int phy_reset_extra_us;
 	struct xj3_axi *axi;
 
 	u32 use_riwt;

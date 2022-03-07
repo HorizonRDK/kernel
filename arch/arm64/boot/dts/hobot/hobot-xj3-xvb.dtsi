@@ -340,6 +340,10 @@
 	mdio {
 		#address-cells = <0x1>;
 		#size-cells = <0x0>;
+		/* EPHY_CLK(gpio2.6) is in gpio mode and use it as RESET for PHY */
+		reset-gpios = <&gpios 38 GPIO_ACTIVE_LOW>;
+		/* reset pin must assert at least 10ms for MARVELL 88Exx */
+		reset-delay-us = <20000>;
 		phy1: phy@e {
 			compatible = "marvell,88E1111","ethernet-phy-ieee802.3-c22";
 			reg = <0xe>;

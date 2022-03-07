@@ -387,6 +387,12 @@
 	mdio {
 		#address-cells = <0x1>;
 		#size-cells = <0x0>;
+		/* use GPIO 1.8 as RESET PIN for phy */
+		reset-gpios = <&gpios 24 GPIO_ACTIVE_HIGH>;
+		/* reset pin must assert at least 10ms for RTL8211F */
+		reset-delay-us = <20000>;
+		/* regs of RTL8211F cannot be accessed until at least 30ms after the reset */
+		reset_extra_us = <50000>;
 		eth_phy0: ethernet-phy@0 {
 			reg = <0x0>;
 			max-speed = <1000>;

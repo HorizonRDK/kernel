@@ -175,6 +175,9 @@ static int xj3_dt_phy(struct plat_config_data *plat, struct device_node *np,
 
     if (plat->mdio_node) {
         mdio = true;
+        plat->phy_reset_extra_us = 0;
+        of_property_read_u32(plat->mdio_node, "reset_extra_us",
+                             &plat->phy_reset_extra_us);
     }
     if (mdio)
         plat->mdio_bus_data =
@@ -647,6 +650,16 @@ static void xj3_mdio_set_csr(struct xj3_priv *priv) {
         priv->csr_val = 7;
 }
 
+static int xj3_mdio_reset(struct mii_bus *bus)
+{
+    struct net_device *ndev = bus->priv;
+    struct xj3_priv *priv = netdev_priv(ndev);
+    if (priv->plat->phy_reset_extra_us > 0) {
+        udelay(priv->plat->phy_reset_extra_us);
+    }
+    return 0;
+}
+
 static int xj3_mdio_register(struct xj3_priv *priv) {
     int err = 0;
     struct net_device *ndev = priv->dev;
@@ -664,6 +677,7 @@ static int xj3_mdio_register(struct xj3_priv *priv) {
     new_bus->name = "hobot-mac-mdio";
     new_bus->read = &xj3_mdio_read;
     new_bus->write = &xj3_mdio_write;
+    new_bus->reset = &xj3_mdio_reset;
 
     of_address_to_resource(dev->of_node, 0, &res);
     snprintf(new_bus->id, MII_BUS_ID_SIZE, "%s-%llx", new_bus->name,
