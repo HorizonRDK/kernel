@@ -3069,8 +3069,7 @@ int ipu_alloc_ion_bufffer(struct ipu_video_ctx *ipu_ctx,
 	unsigned int ion_flag;
 	size_t frame_total_size = 0;
 
-	// ion cached
-	ion_flag = ION_FLAG_CACHED | ION_FLAG_CACHED_NEEDS_SYNC;
+	ion_flag = ion_buffer->flag;
 	switch (ipu_ctx->id) {
 	case 1:
 		ion_flag |= (ipu_ctx->id + 4) << 16;

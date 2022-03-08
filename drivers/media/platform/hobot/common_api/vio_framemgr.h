@@ -265,6 +265,7 @@ typedef struct kernel_ion_one {
 
 typedef struct kernel_ion {
 	int buf_num;
+	uint32_t flag;
 	struct kernel_ion_one one[HB_VIO_BUFFER_MAX_MP];
 }kernel_ion_t;
 

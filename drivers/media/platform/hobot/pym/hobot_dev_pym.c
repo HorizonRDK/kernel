@@ -1694,7 +1694,7 @@ int pym_alloc_ion_bufffer(struct pym_video_ctx *pym_ctx,
 	unsigned long flags;
 	unsigned int ion_flag;
 
-	ion_flag = ION_FLAG_CACHED | ION_FLAG_CACHED_NEEDS_SYNC;
+	ion_flag = ion_buffer->flag;
 	ion_flag |= (pym_ctx->id + 7) << 16;
 
 	if (!(pym_ctx->state & (BIT(VIO_VIDEO_S_INPUT) | BIT(VIO_VIDEO_REBUFS)))) {
