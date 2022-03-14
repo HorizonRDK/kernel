@@ -2164,6 +2164,10 @@ snd_pcm_sframes_t __snd_pcm_lib_xfer(struct snd_pcm_substream *substream,
 				default_write_copy : default_read_copy;
 	}
 
+#ifdef CONFIG_HOBOT_XJ3
+	substream->buf = data;
+#endif
+
 	if (size == 0)
 		return 0;
 

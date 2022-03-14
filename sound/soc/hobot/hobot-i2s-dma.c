@@ -259,6 +259,7 @@ static int hobot_copy_usr(struct snd_pcm_substream *substream,
 	unsigned long period_bytes;
 	uint8_t period_count;
 	int8_t ret;
+	snd_pcm_uframes_t xfer_off;
 
 	channel_buf_offset = (dma_ctrl->periodsz) / (dma_ctrl->ch_num);
 
@@ -270,15 +271,17 @@ static int hobot_copy_usr(struct snd_pcm_substream *substream,
 	}
 	period_count = bytes / period_bytes;
 
+	xfer_off = (buf - substream->buf) / dma_ctrl->periodsz;
+
 	for (i = 0; i < period_count; i++) {
 		if (runtime->access == SNDRV_PCM_ACCESS_RW_INTERLEAVED) {
 			if (tstamp_mode == 1 && substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
-				if (copy_to_user((void __user *)buf + (count+i)*sizeof(struct timespec)
+				if (copy_to_user((void __user *)buf + (xfer_off+i)*sizeof(struct timespec)
 						+ i*dma_ctrl->periodsz,
 						&dma_ctrl->tstamp[count+i], sizeof(struct timespec)))
 						return -EFAULT;
 				ret = copy_usr_interleaved(substream, channel, hwoff+i*period_bytes,
-					buf+(count+i+1)*sizeof(struct timespec)+i*period_bytes,
+					buf+(xfer_off+i+1)*sizeof(struct timespec)+i*period_bytes,
 					period_bytes);
 				if (ret < 0)
 					break;

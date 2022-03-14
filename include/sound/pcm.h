@@ -485,6 +485,9 @@ struct snd_pcm_substream {
 #endif /* CONFIG_SND_VERBOSE_PROCFS */
 	/* misc flags */
 	unsigned int hw_opened: 1;
+#ifdef CONFIG_HOBOT_XJ3
+	void *buf;
+#endif
 };
 
 #define SUBSTREAM_BUSY(substream) ((substream)->ref_count > 0)
