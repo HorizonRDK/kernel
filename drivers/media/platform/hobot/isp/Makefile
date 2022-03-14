@@ -1,6 +1,9 @@
 src_v4l2 := drivers/media/platform/hobot/isp/v4l2_dev
 src_subdev := drivers/media/platform/hobot/isp/subdev
-export src_v4l2 src_subdev
+ifeq ($(KBUILD_SRC),)
+	KBUILD_SRC := .
+endif
+export src_v4l2 src_subdev KBUILD_SRC
 ifeq ($(CONFIG_VIDEO_HOBOT_ISP), m)
 	subdir-ccflags-y += -DBUILD_MODULE
 endif

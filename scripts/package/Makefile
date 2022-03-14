@@ -88,7 +88,7 @@ deb-pkg: FORCE
 	+$(call cmd,builddeb)
 
 bindeb-pkg: FORCE
-	$(MAKE) KBUILD_SRC=
+	$(MAKE)
 	+$(call cmd,builddeb)
 
 clean-dirs += $(objtree)/debian/
