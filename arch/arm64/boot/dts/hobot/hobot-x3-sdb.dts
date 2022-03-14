@@ -82,7 +82,7 @@
 	};
 
 	chosen {
-		bootargs = "earlycon loglevel=8 kgdboc=ttyS0 video=hobot:hdmi ";
+		bootargs = "earlycon loglevel=8 kgdboc=ttyS0 video=hobot:x3sdb-hdmi ";
 		stdout-path = "serial0";
 	};
 
@@ -169,6 +169,13 @@
 		regulator-boot-on;
 		enable-active-high;
 	};
+
+	extcon_vbus {
+		compatible = "linux,extcon-vbus-gpio";
+		gpio-mode = <0x1>;
+		vbus-gpio = <&gpios 40 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
 };
 
 /*
@@ -248,11 +255,19 @@
 
 &i2c2 {
 	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	lt8618sxb@0x3b {
+		compatible = "lt,lt8618sxb";
+		reg = <0x3b>;
+		rst_pin = <64>; // shared reset with TP!
+	};
 };
 
 
 &i2c5 {
-	status = "okay";
+	status = "disable";
 	#address-cells = <1>;
 	#size-cells = <0>;
 
@@ -273,6 +288,14 @@
 	pinctrl-0 = <&uart1_func_rtscts>; /* <&uart1_func>;  uart 1 connect to bt with rtscts*/
 };
 
+&uart3 {
+	status = "okay";
+};
+
+&spi0 {
+	status = "okay";
+};
+
 &usbdrd3_0 {
 	status = "okay";
 };
@@ -287,7 +310,8 @@
 	/* vbus-gpio = <>; */
 	id-gpio = <&gpios 65 GPIO_ACTIVE_HIGH>;
 	host-rst-gpio = <&gpios 115 GPIO_ACTIVE_HIGH>;
-	host-exrst-gpio = <&gpios 4 GPIO_ACTIVE_LOW>;
+	/*host-exrst-gpio = <&gpios 4 GPIO_ACTIVE_LOW>;*/
+	host-exrst-gpio = <&gpios 38 GPIO_ACTIVE_LOW>;
 };
 
 &extcon_vbus {
@@ -404,6 +428,7 @@
 		reset-delay-us = <20000>;
 		/* regs of RTL8211F cannot be accessed until at least 72ms after the reset */
 		reset_extra_us = <100000>;
+
 		eth_phy0: ethernet-phy@0 {
 			reg = <0x0>;
 			max-speed = <1000>;
