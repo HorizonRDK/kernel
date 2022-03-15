@@ -208,6 +208,8 @@ function all()
         exit 1
     }
     if [ "x$UBUNTU_ROOT" = "xtrue" ]; then
+        rm -rf ${BUILD_OUTPUT_PATH}/../linux-*.deb
+        rm -rf ${BUILD_OUTPUT_PATH}/../linux-*.changes
         make ARCH=${ARCH_KERNEL} -j${N} O=${BUILD_OUTPUT_PATH} bindeb-pkg || {
             echo "make failed"
             exit 1
