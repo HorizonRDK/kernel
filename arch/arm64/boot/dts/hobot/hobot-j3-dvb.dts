@@ -207,7 +207,7 @@
 };
 
 &soc_crit {
-	temperature = <120000>;
+	temperature = <130000>;
 };
 
 &camera_check {

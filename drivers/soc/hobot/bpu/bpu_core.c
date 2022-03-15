@@ -20,6 +20,7 @@
 #include <linux/device.h>
 #include <asm/irq.h>
 #include <linux/platform_device.h>
+#include <linux/reboot.h>
 #include "bpu.h"
 #include "bpu_core.h"
 #include "bpu_ctrl.h"
@@ -654,6 +655,22 @@ static void bpu_core_free_fifos(struct bpu_core *core)
 	}
 }
 
+static int bpu_core_pd_notifier(struct notifier_block *nb,
+			unsigned long action, void *data)
+{
+	int ret = 0;
+
+	struct bpu_core *core =
+		(struct bpu_core *)container_of(nb, struct bpu_core, bpu_pm_notifier);
+
+	ret = bpu_core_disable(core);
+	if (ret < 0) {
+		dev_err(core->dev, "bpu core[%d] power disable failed\n", core->index);
+	}
+
+	return ret;
+}
+
 static int bpu_core_probe(struct platform_device *pdev)/*PRQA S ALL*/
 {
 	struct bpu_core *core;
@@ -766,6 +783,9 @@ static int bpu_core_probe(struct platform_device *pdev)/*PRQA S ALL*/
 		dev_err(&pdev->dev, "BPU core registe dvfs failed\n");
 	}
 
+	core->bpu_pm_notifier.notifier_call = bpu_core_pd_notifier;
+	register_reboot_notifier(&core->bpu_pm_notifier);
+
 	return 0;
 }
 
@@ -773,6 +793,7 @@ static int bpu_core_remove(struct platform_device *pdev)/*PRQA S ALL*/
 {
 	struct bpu_core *core = (struct bpu_core *)dev_get_drvdata(&pdev->dev);/*PRQA S ALL*/
 
+	unregister_reboot_notifier(&core->bpu_pm_notifier);
 	bpu_core_dvfs_unregister(core);
 	bpu_core_discard_sys(core);
 

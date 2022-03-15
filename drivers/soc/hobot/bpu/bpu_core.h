@@ -156,6 +156,7 @@ struct bpu_core {
 	uint32_t ratio;
 
 	uint64_t reserved[2];
+	struct notifier_block bpu_pm_notifier;
 };
 
 struct bpu_core_hw_ops {
