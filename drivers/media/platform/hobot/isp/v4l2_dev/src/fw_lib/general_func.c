@@ -1140,6 +1140,11 @@ int isp_temper_set_addr(general_fsm_ptr_t p_fsm)
     aframe_t *lsb_frame = NULL;
     aframe_t *msb_frame = NULL;
 
+    if (p_fsm->temper_mode == NOTHING) {
+        pr_debug("temper is disabled.\n");
+        return 0;
+    }
+
     lsb_frame = &p_fsm->temper_frames[0];
     msb_frame = &p_fsm->temper_frames[1];
 
