@@ -167,6 +167,17 @@ struct ion_share_handle_data {
 };
 
 /**
+ * struct ion_share_info_data - a handle passed to/from the kernel
+ * @handle:	a handle
+ */
+struct ion_share_info_data {
+	ion_user_handle_t handle;
+	int64_t timeout;
+	int32_t target_client_cnt;
+	int32_t cur_client_cnt;
+};
+
+/**
  * struct ion_custom_data - metadata passed to/from userspace for a custom ioctl
  * @cmd:	the custom ioctl function to call
  * @arg:	additional data to pass to the custom ioctl, typically a user
@@ -255,5 +266,9 @@ struct ion_custom_data {
 					struct ion_heap_query)
 
 #define ION_IOC_IMPORT_SHARE_ID  _IOWR(ION_IOC_MAGIC, 9, struct ion_share_handle_data)
+
+#define ION_IOC_GET_SHARE_INFO  _IOWR(ION_IOC_MAGIC, 10, struct ion_share_info_data)
+
+#define ION_IOC_WAIT_SHARE_ID  _IOWR(ION_IOC_MAGIC, 11, struct ion_share_info_data)
 
 #endif /* _UAPI_LINUX_ION_H */

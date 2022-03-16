@@ -198,6 +198,8 @@ struct ion_handle {
 	unsigned int kmap_cnt;
 	int id;
 	int share_id;
+	int import_cnt;
+	struct ion_share_handle * sh_hd;
 };
 
 void ion_buffer_destroy(struct ion_buffer *buffer);
