@@ -56,7 +56,6 @@ typedef struct gdc_settings {
 } gdc_settings_t;
 
 struct gdc_video_ctx{
-	wait_queue_head_t		done_wq;
 	struct x3_gdc_dev 		*gdc_dev;
 	struct gdc_group		*group;
 	u32 event;
@@ -104,7 +103,7 @@ struct x3_gdc_dev {
 	resource_size_t			regs_end;
 	int				irq;
 	unsigned long			state;
-	spinlock_t shared_slock; // protect gdc hardware process
+	atomic_t open_cnt;
 
 	struct class *class;
 	struct cdev cdev;
@@ -117,6 +116,7 @@ struct x3_gdc_dev {
 
 	struct gdc_group group[VIO_MAX_STREAM];
 	struct semaphore smp_gdc_enable;
+	struct semaphore gdc_done_resource;
 	struct mutex gdc_mutex; // protect gdc enable/disable clock and set register
 
 #ifdef CONFIG_HOBOT_DIAG

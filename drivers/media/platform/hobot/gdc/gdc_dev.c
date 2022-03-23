@@ -89,20 +89,16 @@ static int x3_gdc_open(struct inode *inode, struct file *file)
 	gdc_ctx->group = group;
 	set_bit(GDC_GROUP_OPEN, &group->state);
 
-	init_waitqueue_head(&gdc_ctx->done_wq);
-
 	gdc_ctx->gdc_dev = gdc;
 	file->private_data = gdc_ctx;
 
-	ret = mutex_lock_interruptible(&gdc->gdc_mutex);
-	if (ret) {
-		vio_err("gdc mutex lock error\n");
-		goto p_err_free;
+	if (atomic_inc_return(&gdc->open_cnt) == 1) {
+		mutex_lock(&gdc->gdc_mutex);
+		vio_dwe_clk_enable();
+		vio_gdc_clk_enable(gdc->hw_id);
+		write_gdc_mask(gdc->hw_id, &enbale);
+		mutex_unlock(&gdc->gdc_mutex);
 	}
-	vio_dwe_clk_enable();
-	vio_gdc_clk_enable(gdc->hw_id);
-	mutex_unlock(&gdc->gdc_mutex);
-	write_gdc_mask(gdc->hw_id, &enbale);
 
 	vio_info("GDC%d open node\n", gdc->hw_id);
 
@@ -145,11 +141,13 @@ static int x3_gdc_close(struct inode *inode, struct file *file)
 
 	gdc = gdc_ctx->gdc_dev;
 
-	write_gdc_mask(gdc->hw_id, &enbale);
-	mutex_lock(&gdc->gdc_mutex);
-	vio_gdc_clk_disable(gdc->hw_id);
-	vio_dwe_clk_disable();
-	mutex_unlock(&gdc->gdc_mutex);
+	if (atomic_dec_return(&gdc->open_cnt) == 0) {
+		mutex_lock(&gdc->gdc_mutex);
+		write_gdc_mask(gdc->hw_id, &enbale);
+		vio_gdc_clk_disable(gdc->hw_id);
+		vio_dwe_clk_disable();
+		mutex_unlock(&gdc->gdc_mutex);
+	}
 
 p_err:
 	if (gdc_ctx) {
@@ -162,23 +160,9 @@ p_err:
 
 void dwe0_reset_control(void)
 {
-	u32 cnt = 20;
-
-	spin_lock(&g_gdc_dev->shared_slock);
-	while (1) {
-		if (g_gdc_dev->state != GDC_DEV_PROCESS) {
-			ips_set_module_reset(DWE0_RST);
-			break;
-		}
-
-		mdelay(1);/*PRQA S ALL*/
-		cnt--;
-		if (cnt == 0) {
-			vio_err("%s timeout\n", __func__);
-			break;
-		}
-	}
-	spin_unlock(&g_gdc_dev->shared_slock);
+	mutex_lock(&g_gdc_dev->gdc_mutex);
+	ips_set_module_reset(DWE0_RST);
+	mutex_unlock(&g_gdc_dev->gdc_mutex);
 }
 
 /**
@@ -191,10 +175,8 @@ void dwe0_reset_control(void)
  */
 void gdc_start(struct x3_gdc_dev *gdc_dev)
 {
-	mutex_lock(&gdc_dev->gdc_mutex);
 	gdc_process_enable(gdc_dev->base_reg, 0);
 	gdc_process_enable(gdc_dev->base_reg, 1);
-	mutex_unlock(&gdc_dev->gdc_mutex);
 	// vio_set_stat_info(0, GDC_FS, 0);
 	vio_dbg("%s\n", __func__);/*PRQA S ALL*/
 }
@@ -214,11 +196,9 @@ void gdc_init(struct x3_gdc_dev *gdc_dev, gdc_settings_t *gdc_settings)
 
 	base_addr = gdc_dev->base_reg;
 
-	mutex_lock(&gdc_dev->gdc_mutex);
 	gdc_process_enable(base_addr, 0);
 	gdc_process_reset(base_addr, 1);
 	gdc_process_reset(base_addr, 0);
-	mutex_unlock(&gdc_dev->gdc_mutex);
 	gdc_set_config_addr(base_addr, gdc_settings->gdc_config.config_addr);
 	gdc_set_config_size(base_addr,
 			    gdc_settings->gdc_config.config_size / 4);
@@ -478,9 +458,8 @@ int gdc_video_process(struct gdc_video_ctx *gdc_ctx, unsigned long arg)
 		goto p_err_ignore;
 	}
 
-	spin_lock(&gdc_dev->shared_slock);
+	mutex_lock(&gdc_dev->gdc_mutex);
 	gdc_dev->state = GDC_DEV_PROCESS;
-	spin_unlock(&gdc_dev->shared_slock);
 	gdc_dev->isr_err = 0;
 	gdc_ctx->event = 0;
 	atomic_set(&gdc_dev->instance, gdc_ctx->group->instance);
@@ -492,12 +471,13 @@ int gdc_video_process(struct gdc_video_ctx *gdc_ctx, unsigned long arg)
 	vio_set_stat_info(gdc_ctx->group->instance,
 		GDC_MOD, event_gdc_fs,  0, 0, NULL);
 
-	timeout = wait_event_interruptible_timeout(gdc_ctx->done_wq,/*PRQA S ALL*/
-				gdc_ctx->event,
+	timeout = down_timeout(&gdc_dev->gdc_done_resource,/*PRQA S ALL*/
 				msecs_to_jiffies(GDC_PROCESS_TIMEOUT));
-	if (timeout == 0) {
+	if (timeout < 0) {
+		mutex_unlock(&gdc_dev->gdc_mutex);
 		up(&gdc_dev->smp_gdc_enable);
-		vio_err("GDC process timeout %d ms;\n", GDC_PROCESS_TIMEOUT);
+		vio_err("[S%d]%s timeout or Abnormal interrupt, ;\n",
+			gdc_ctx->group->instance, __func__);
 		return -ETIMEDOUT;
 	}
 	gdc_dev->state = GDC_DEV_FREE;
@@ -522,6 +502,8 @@ int gdc_video_process(struct gdc_video_ctx *gdc_ctx, unsigned long arg)
 		g_gdc_idx[gdc_dev->hw_id][gdc_ctx->group->instance] = 0;
 	}
 
+	mutex_unlock(&gdc_dev->gdc_mutex);
+	up(&gdc_dev->smp_gdc_enable);
 	vio_dbg("%s done: ret(%d), timeout %d\n",/*PRQA S ALL*/
 		__func__, ret, timeout);
 p_err_ignore:
@@ -663,8 +645,7 @@ static irqreturn_t gdc_isr(int irq, void *data)
 	}
 
 	if (gdc_ctx->event) {
-		up(&gdc->smp_gdc_enable);
-		wake_up(&gdc_ctx->done_wq);
+		up(&gdc->gdc_done_resource);
 	}
 
 	return IRQ_HANDLED;
@@ -880,8 +861,9 @@ static int x3_gdc_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, gdc);
 
 	sema_init(&gdc->smp_gdc_enable, 1);
-	spin_lock_init(&gdc->shared_slock);
+	sema_init(&gdc->gdc_done_resource, 0);
 	mutex_init(&gdc->gdc_mutex);
+	atomic_set(&gdc->open_cnt, 0);
 
 	if (gdc->hw_id == 0)
 		g_gdc_dev = gdc;
