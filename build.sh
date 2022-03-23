@@ -124,12 +124,20 @@ function build_boot_image()
     local path_mkbootimg="$SRC_BUILD_DIR/tools/mkbootimg"
     local kernel_path=$SRC_KERNEL_DIR
 
+    # clean old images
+    echo "Cleaning old images!"
+    runcmd "rm -f ${TARGET_DEPLOY_DIR}/kernel.img"
+    runcmd "rm -f ${TARGET_DEPLOY_DIR}/${VBMETA_PARTITION_NAME}.img"
+    runcmd "rm -f ${TARGET_DEPLOY_DIR}/${KERNEL_PARTITION_NAME}.img"
+    runcmd "rm -f ${TARGET_DEPLOY_DIR}/${VBMETA_PARTITION_NAME}/${VBMETA_PARTITION_NAME}.img"
+    runcmd "rm -f ${TARGET_DEPLOY_DIR}/${KERNEL_PARTITION_NAME}/${KERNEL_PARTITION_NAME}.img"
+
     # build boot.img
     echo "begin to compile boot.img"
     cd $path_mkbootimg
     bash build_bootimg.sh || {
-	echo "$path_mkbootimg/build_bootimg.sh failed"
-	exit 1
+        echo "$path_mkbootimg/build_bootimg.sh failed"
+        exit 1
     }
     cd -
 
@@ -149,22 +157,23 @@ function build_boot_image()
     bash build_vbmeta.sh boot $system_id
     cd -
 
-    cpfiles "$path_avbtool/out/vbmeta.img" "$TARGET_DEPLOY_DIR"
-    cpfiles "$path_avbtool/images/boot.img" "$TARGET_DEPLOY_DIR"
-    [ -f "$TARGET_DEPLOY_DIR/kernel.img" ] && { runcmd "rm $TARGET_DEPLOY_DIR/kernel.img"; }
-    # calculate vbmeta partition size
-    line=`sed -n '/vbmeta/p' ${GPT_CONFIG}`
-    arg=(${line//:/ })
-    vbmeta_size=$(( ${arg[4]%?} - ${arg[3]%?} + 1 ))
-    # create kernel.img
-    dd if=$TARGET_DEPLOY_DIR/vbmeta.img of=$TARGET_DEPLOY_DIR/kernel.img bs=512 conv=sync,notrunc > /dev/null 2>&1
-    dd if=$TARGET_DEPLOY_DIR/boot.img of=$TARGET_DEPLOY_DIR/kernel.img bs=512 seek=${vbmeta_size} conv=sync,notrunc > /dev/null 2>&1
-    # build boot.zip
-    cd $path_otatool
-    bash build_kernel_update_package.sh emmc
-    cd -
+    blk_sz=512
+    vbmeta_size=$(get_partition_size $blk_sz "vbmeta")
+    if [ -f "${TARGET_DEPLOY_DIR}/${VBMETA_PARTITION_NAME}/${VBMETA_PARTITION_NAME}.img" ];then
+        runcmd "dd if=/dev/zero of=${TARGET_DEPLOY_DIR}/${VBMETA_PARTITION_NAME}.img bs=${blk_sz} count=${vbmeta_size} conv=sync,notrunc status=none"
+        runcmd "dd if=${TARGET_DEPLOY_DIR}/${VBMETA_PARTITION_NAME}/${VBMETA_PARTITION_NAME}.img of=${TARGET_DEPLOY_DIR}/${VBMETA_PARTITION_NAME}.img conv=sync,notrunc status=none"
+    else
+        echo "vbmeta not created! Skip rest of packaging!"
+        exit 1
+    fi
+    cpfiles "${TARGET_DEPLOY_DIR}/${KERNEL_PARTITION_NAME}/${KERNEL_PARTITION_NAME}.img" "${TARGET_DEPLOY_DIR}"
 
-    cpfiles "$path_otatool/boot.zip" "$TARGET_DEPLOY_DIR/ota"
+    # create kernel.img
+    output_file=${TARGET_DEPLOY_DIR}/kernel.img
+    runcmd "dd if=${TARGET_DEPLOY_DIR}/${VBMETA_PARTITION_NAME}.img of=${output_file} bs=${blk_sz} conv=sync,notrunc status=none"
+    runcmd "dd if=${TARGET_DEPLOY_DIR}/${KERNEL_PARTITION_NAME}.img of=${output_file} bs=${blk_sz} seek=${vbmeta_size} conv=sync,notrunc status=none"
+    # build boot.zip
+    bash ${path_otatool}/build_kernel_update_package.sh emmc
 }
 
 function pre_pkg_preinst() {
