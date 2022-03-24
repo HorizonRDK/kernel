@@ -167,16 +167,20 @@
 	max_freq = /bits/ 64 <950000000>;
 };
 
+/*
 &sdio1 {
 	no-sdio;
-	powerup-gpio = <1>;	/* j3-dvb EN_VDD_CNN0/GPIO0[1] */
+	powerup-gpio = <1>;	
 	powerup-logic = <1>;
 };
+*/
 
+/*
 &sdio2 {
 	no-sd;
-	powerup-gpio = <4>;	/* j3-dvb JTG_TRSTN/GPIO0[4] */
+	powerup-gpio = <4>;	
 };
+*/
 
 &spi2 {
 	status = "okay";

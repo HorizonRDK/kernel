@@ -1283,6 +1283,7 @@
 			pinctrl-0 = <&sdio0_func>;
 		};
 
+/*
 		sdio1: dwmmc@A5011000 {
 			compatible = "hobot,hb-dw-mmc";
 			reg = <0x0 0xA5011000 0x0 0x1000>;
@@ -1302,7 +1303,9 @@
 			pinctrl-names = "default";
 			pinctrl-0 = <&sdio1_func>;
 		};
+/*
 
+/*
 		sdio2: dwmmc@A5012000 {
 			compatible = "hobot,hb-dw-mmc";
 			reg = <0x0 0xA5012000 0x0 0x1000>;
@@ -1322,7 +1325,7 @@
 			pinctrl-names = "default";
 			pinctrl-0 = <&sdio2_func>;
 		};
-
+*/
 		bifbase: bifbase {
 			compatible = "hobot,bifbase";
 			status = "disabled";

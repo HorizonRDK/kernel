@@ -49,8 +49,8 @@
 		bifspi	= &bifspi;
 		bifsd   = &bifsd;
 		mmc1	= &sdio0;
-		mmc2	= &sdio1;
-		mmc3	= &sdio2;
+		/*mmc2	= &sdio1;*/
+		/*mmc3	= &sdio2;*/
 		dma	= &dma;
 		dmatest = &dmatest;
 		mipihost0 = &mipi_host0;
@@ -447,6 +447,7 @@
 	disable-wp;
 };
 
+/*
 &sdio1 {
 	status = "okay";
 	bus-width = <4>;
@@ -456,17 +457,18 @@
 	sd-uhs-sdr25;
 	sd-uhs-sdr50;
 	sd-uhs-sdr104;
-	uhs-180v-gpio = <120>; /* QSPI_CSN1/GPIO7[8] */
+	uhs-180v-gpio = <120>;
 	uhs-180v-logic = <1>;
-	cd-gpios = <&gpios 64 GPIO_ACTIVE_HIGH>;  /* SD0_DET_N /GPIO4[0] */
-	/* broken-cd; */
+	cd-gpios = <&gpios 64 GPIO_ACTIVE_HIGH>;
 	disable-wp;
 	pinctrl-names = "default","voltage_1_8v","voltage_3_3v";
 	pinctrl-0 = <&sdio1_func>;
 	pinctrl-1 = <&sd1_1_8v_func>;
 	pinctrl-2 = <&sd1_3_3v_func>;
 };
+*/
 
+/*
 &sdio2 {
 	status = "disabled";
 	bus-width = <4>;
@@ -480,6 +482,7 @@
 	broken-cd;
 	disable-wp;
 };
+*/
 
 &watchdog {
 	status = "okay";
