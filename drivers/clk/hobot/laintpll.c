@@ -58,6 +58,7 @@ struct clk_laintpll_reg {
 	void __iomem *status;
 	void __iomem *pllclk_sel;
 	unsigned int sel_bit;
+	unsigned int reverse;
 };
 
 struct laintpll_bestdiv {
@@ -354,7 +355,10 @@ int laintpll_clk_enable(struct clk_hw *hw)
 	if (clk->reg.sel_bit != 0) {
 		val = readl(clk->reg.pllclk_sel);
 		pr_debug("%d,val:0x%x\n", __LINE__, val);
-		val &= ~BIT(clk->reg.sel_bit);
+		if (clk->reg.reverse)
+			val |= BIT(clk->reg.sel_bit);
+		else
+			val &= ~BIT(clk->reg.sel_bit);
 		pr_debug("%d,val:0x%x\n", __LINE__, val);
 		writel(val, clk->reg.pllclk_sel);
 	}
@@ -372,7 +376,10 @@ int laintpll_clk_enable(struct clk_hw *hw)
 
 	if (clk->reg.sel_bit != 0) {
 		val = readl(clk->reg.pllclk_sel);
-		val |= BIT(clk->reg.sel_bit);
+		if (clk->reg.reverse)
+			val &= ~BIT(clk->reg.sel_bit);
+		else
+			val |= BIT(clk->reg.sel_bit);
 		pr_debug("%d,val:0x%x\n", __LINE__, val);
 		writel(val, clk->reg.pllclk_sel);
 	}
@@ -397,7 +404,10 @@ static void laintpll_clk_disable(struct clk_hw *hw)
 	if (clk->reg.sel_bit != 0) {
 		val = readl(clk->reg.pllclk_sel);
 		pr_debug("%d,val:0x%x\n", __LINE__, val);
-		val &= ~BIT(clk->reg.sel_bit);
+		if (clk->reg.reverse)
+			val |= BIT(clk->reg.sel_bit);
+		else
+			val &= ~BIT(clk->reg.sel_bit);
 		pr_debug("%d,val:0x%x\n", __LINE__, val);
 		writel(val, clk->reg.pllclk_sel);
 	}
@@ -520,6 +530,13 @@ static void __init _of_hobot_laintpll_clk_setup(struct device_node *node,
 	}
 	reg.sel_bit = val;
 
+	ret = of_property_read_u32(node, "reverse", &val);
+	if(ret) {
+		pr_debug("%s: %s missing reverse property!\n", __func__, node->name);
+		reg.reverse = 0;
+	} else {
+		reg.reverse = 1;
+	}
 	clk = laintpll_clk_register(NULL, node->name, parent_name, flags, &reg,
 			clk_laintpll_flags, ops);
 

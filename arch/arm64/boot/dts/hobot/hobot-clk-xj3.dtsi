@@ -302,6 +302,7 @@
 			clocks = <&osc_clk>;
 			offset = <0x20 0x24 0x28 0x300>;
 			bits = <9>;
+			reverse = <1>;
 		};
 
 		cnn_src_clk: cnn_src_clk {
