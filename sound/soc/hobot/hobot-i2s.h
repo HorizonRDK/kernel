@@ -210,6 +210,8 @@ struct hobot_i2s {
 #if IS_ENABLED(CONFIG_HOBOT_DMC_CLK)
 	struct hobot_dpm dpm;
 #endif
+
+	u32 work_mode;
 };
 
 #define INT_BUF1_DONE   (1 << 3)

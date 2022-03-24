@@ -512,7 +512,8 @@ static int i2s_trigger(struct snd_pcm_substream *substream,
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
 		spin_lock_irqsave(&i2s->lock, flags);
-		//i2s_transfer_ctl(i2s, 0);
+		if (i2s->work_mode == 0)
+			i2s_transfer_ctl(i2s, 0);
 		if (i2s->streamflag == 0) {
 			writel(0x0, i2s->regaddr_rx + I2S_BUF0_RDY);
 			writel(0x0, i2s->regaddr_rx + I2S_BUF1_RDY);

@@ -12,6 +12,8 @@
 
 #include <linux/module.h>
 #include <sound/soc.h>
+#include <sound/dmaengine_pcm.h>
+#include "./hobot-i2s.h"
 
 /*pll source*/
 #define AC101_MCLK1 1
@@ -29,14 +31,22 @@ enum adau1977_sysclk_src {
         ADAU1977_SYSCLK_SRC_MCLK,
         ADAU1977_SYSCLK_SRC_LRCLK,
 };
+struct hobot_snd {
+    uint32_t work_mode;
+};
 
 static int hobot_snd_hw_params(struct snd_pcm_substream *substream,
 			     struct snd_pcm_hw_params *params)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	unsigned long sample_rate = params_rate(params);
+	struct hobot_i2s *i2s = snd_soc_dai_get_drvdata(rtd->cpu_dai);
+	struct hobot_snd *snd_data = snd_soc_card_get_drvdata(rtd->card);
 	int ret = 0;
 
+	if (!i2s || !snd_data)
+		return -ENOMEM;
+	i2s->work_mode = snd_data->work_mode;
 	if(rtd->dai_link){
 		if(rtd->dai_link->dai_fmt){
 			ret = snd_soc_runtime_set_dai_fmt(rtd, rtd->dai_link->dai_fmt);
@@ -84,6 +94,7 @@ static int hobot_snd_probe(struct platform_device *pdev)
 	struct snd_soc_dai_link *link = NULL, *links = NULL;
 	struct device *dev = &pdev->dev;
 	struct device_node *np, *codec, *cpu, *platform, *node = dev->of_node;
+	struct hobot_snd *snd_data;
 
 	card = devm_kzalloc(dev, sizeof(*card), GFP_KERNEL);
 	if (!card) {
@@ -120,6 +131,15 @@ static int hobot_snd_probe(struct platform_device *pdev)
 		if (!strcmp(card->name, "hobotsnd1"))
 			id = 1;
 	}
+	snd_data = devm_kzalloc(dev, sizeof(*snd_data), GFP_KERNEL);
+	if (!snd_data)
+			return -ENOMEM;
+	ret = of_property_read_u32(pdev->dev.of_node, "work_mode",
+		&snd_data->work_mode);
+	if (ret < 0) {
+			pr_err("failed get work_mode %d\n", ret);
+			return ret;
+    }
 		for_each_child_of_node(node, np) {
 			link = links + idx;
 			link->ops = &hobot_snd_ops;
@@ -170,6 +190,7 @@ static int hobot_snd_probe(struct platform_device *pdev)
 			idx++;
 		}
 
+	snd_soc_card_set_drvdata(card, snd_data);
 	ret = snd_soc_register_card(card);
 	if (ret) {
  		dev_err(dev, "snd_soc_register_card() failed: %d\n", ret);

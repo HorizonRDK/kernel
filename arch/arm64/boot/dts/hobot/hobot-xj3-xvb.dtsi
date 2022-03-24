@@ -620,6 +620,7 @@
 
 &snd0 {
         model = "hobotsnd0";
+        work_mode = <0>; /*0:simple mode; 1:duplex mode*/
         dai-link@0 {
                 dai-format = "dsp_a";
                 //dai-format = "i2s";   //duplex
@@ -658,6 +659,7 @@
 };
 &snd1 {
         model = "hobotsnd1";
+        work_mode = <0>; /*0:simple mode; 1:duplex mode*/
         dai-link@1 {
                 dai-format = "i2s";
                 bitclock-master;
@@ -677,6 +679,7 @@
 };
 &snd2 {
         model = "hobotsnd2";
+        work_mode = <1>; /*0:simple mode; 1:duplex mode*/
         dai-link@0 {
                 dai-format = "i2s";   //duplex
                 //bitclock-master;
@@ -713,6 +716,7 @@
 
 &snd3 {
         model = "hobotsnd3";
+        work_mode = <0>; /*0:simple mode; 1:duplex mode*/
         dai-link@0 {
                 dai-format = "dsp_a";
                 //dai-format = "i2s";   //duplex
@@ -734,6 +738,7 @@
 
 &snd4 { //dummy-codec
         model = "hobotsnd4";
+        work_mode = <1>; /*0:simple mode; 1:duplex mode*/
         dai-link@0 {
                 dai-format = "i2s";
                 //bitclock-master;
@@ -770,6 +775,7 @@
 
 &snd5 { //dummy-codec
         model = "hobotsnd5";
+        work_mode = <0>; /*0:simple mode; 1:duplex mode*/
         dai-link@0 {
                 dai-format = "dsp";
                 bitclock-master;
