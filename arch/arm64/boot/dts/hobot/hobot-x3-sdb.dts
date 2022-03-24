@@ -294,6 +294,11 @@
 
 &spi0 {
 	status = "okay";
+	spidev@0x00 {
+		compatible = "rohm,dh2228fv";
+		spi-max-frequency = <48000000>;
+		reg = <0>;
+	};
 };
 
 &usbdrd3_0 {
