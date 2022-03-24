@@ -494,11 +494,11 @@ static int hobot_i2c_xfer_msg(struct hobot_i2c_dev *dev, struct i2c_msg *msg)
 	if(dev->msg_err & HOBOT_I2C_STAT_NACK) {
 		if (msg->flags & I2C_M_IGNORE_NAK)
 			return 0;
-		dev_warn(dev->dev, "i2c transfer failed: %x\n", dev->msg_err);
+		dev_dbg(dev->dev, "i2c transfer failed: %x\n", dev->msg_err);
 		return -EREMOTEIO;
 	}
 
-	dev_err(dev->dev, "i2c transfer failed: %x\n", dev->msg_err);
+	dev_dbg(dev->dev, "i2c transfer failed: %x\n", dev->msg_err);
 	return -EIO;
 }
 
@@ -517,7 +517,7 @@ static void recal_clk_div(struct hobot_i2c_dev *dev)
 	}
 	dev->clkdiv = DIV_ROUND_UP(temp_div, 8) - 1;
 	if (dev->clkdiv > I2C_MAX_DIV) {
-		dev_warn(dev->dev, "clkdiv too large, set to 255");
+		dev_dbg(dev->dev, "clkdiv too large, set to 255");
 		dev->clkdiv = I2C_MAX_DIV;
 	}
 }
@@ -649,11 +649,11 @@ static int hobot_i2c_doxfer_smbus(struct hobot_i2c_dev *dev, u16 addr, bool writ
 
 	if (!time_left) {
 		hobot_i2c_reset(dev);
-		dev_err(dev->dev, "i2c sbus transfer timed out\n");
+		dev_dbg(dev->dev, "i2c sbus transfer timed out\n");
 		return -ETIMEDOUT;
 	}
 	if (dev->rx_remaining || dev->tx_remaining) {
-		dev_err(dev->dev, "i2c sbus transfer not complete\n");
+		dev_dbg(dev->dev, "i2c sbus transfer not complete\n");
 	}
 	if (likely(!dev->msg_err))
 		return 0;
@@ -662,11 +662,11 @@ static int hobot_i2c_doxfer_smbus(struct hobot_i2c_dev *dev, u16 addr, bool writ
 	hobot_i2c_reset(dev);
 
 	if(dev->msg_err & HOBOT_I2C_STAT_NACK) {
-		dev_warn(dev->dev, "i2c transfer failed: %x\n", dev->msg_err);
+		dev_dbg(dev->dev, "i2c transfer failed: %x\n", dev->msg_err);
 		return -EREMOTEIO;
 	}
 
-	dev_err(dev->dev, "i2c sbus transfer failed: %x\n", dev->msg_err);
+	dev_dbg(dev->dev, "i2c sbus transfer failed: %x\n", dev->msg_err);
 	return -EIO;
 }
 
