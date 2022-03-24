@@ -326,17 +326,6 @@ static int i2sidma_enqueue(struct snd_pcm_substream *substream)
 	/* struct snd_pcm_runtime *runtime = substream->runtime; */
 	struct idma_ctrl_s *dma_ctrl = substream->runtime->private_data;
 	u32 val;
-	unsigned long flags;
-
-	spin_lock_irqsave(&dma_ctrl->lock, flags);
-	dma_ctrl->token = (void *)substream;
-	dev_dbg(hobot_i2sidma[dma_ctrl->id].dev,
-		"addr(dma_ctrl->token)=%p\n", dma_ctrl->token);
-	spin_unlock_irqrestore(&dma_ctrl->lock, flags);
-
-	if (global_info[dma_ctrl->id].trigger_flag == 1 &&
-			substream->stream == SNDRV_PCM_STREAM_CAPTURE)
-		return 0;
 
 	/* set buf0 ready */
 	val = dma_ctrl->start;
@@ -385,13 +374,6 @@ static void i2sidma_setcallbk(struct snd_pcm_substream *substream,
 static void i2sidma_control(int op, int stream, struct idma_ctrl_s *dma_ctrl)
 {
 	u32 val = 0;
-
-		dev_dbg(hobot_i2sidma[dma_ctrl->id].dev,
-			"%s:%d  trigger_flag=%d\n", __func__, __LINE__,
-			global_info[dma_ctrl->id].trigger_flag);
-		if (global_info[dma_ctrl->id].trigger_flag == 1 &&
-				stream == SNDRV_PCM_STREAM_CAPTURE)
-			return;
 
 		if (stream == SNDRV_PCM_STREAM_CAPTURE)
 			val = readl(hobot_i2sidma[dma_ctrl->id].regaddr_rx +
@@ -531,18 +513,28 @@ static int i2sidma_hw_free(struct snd_pcm_substream *substream)
 static int i2sidma_prepare(struct snd_pcm_substream *substream)
 {
 	unsigned int reg_val;
+	unsigned long flags;
 
 	struct idma_ctrl_s *dma_ctrl = substream->runtime->private_data;
+	struct snd_soc_pcm_runtime *soc_runtime = substream->private_data;
+	struct idma_info_s *hobot_dma =
+		snd_soc_platform_get_drvdata(soc_runtime->platform);
+	if (hobot_dma == NULL) {
+		return -ENOMEM;
+	}
 
+	spin_lock_irqsave(&dma_ctrl->lock, flags);
 	dma_ctrl->pos = dma_ctrl->start;
+	dma_ctrl->token = (void *)substream;
+	spin_unlock_irqrestore(&dma_ctrl->lock, flags);
+
+	if (hobot_dma->dummy_node == 1 &&
+			substream->stream == SNDRV_PCM_STREAM_CAPTURE)
+		return 0;
 	/* disable iram */
 	i2sidma_control(DMA_STOP, substream->stream, dma_ctrl);
 	/* setting bufer base/size/reday register */
 	i2sidma_enqueue(substream);
-
-	if (global_info[dma_ctrl->id].trigger_flag == 1 &&
-			substream->stream == SNDRV_PCM_STREAM_CAPTURE)
-		return 0;
 
 	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
 		writel(0xf, hobot_i2sidma[dma_ctrl->id].regaddr_rx + I2S_UNMASK);
@@ -608,21 +600,18 @@ static int i2sidma_trigger(struct snd_pcm_substream *substream, int cmd)
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
 		dma_ctrl->state |= ST_RUNNING;
 		/* enable iram, clear iram */
-		i2sidma_control(DMA_START, substream->stream, dma_ctrl);
-
-		if (substream->stream == SNDRV_PCM_STREAM_CAPTURE)
-			global_info[dma_ctrl->id].trigger_flag = 1;
+		if (hobot_dma->dummy_node == 0)
+			i2sidma_control(DMA_START, substream->stream, dma_ctrl);
 		break;
 
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
 		dma_ctrl->state &= ~ST_RUNNING;
-		if (global_info[dma_ctrl->id].capture_process_num == 1)
-			global_info[dma_ctrl->id].trigger_flag = 0;
-		i2sidma_control(DMA_STOP, substream->stream, dma_ctrl);
+		if (hobot_dma->dummy_node == 0)
+			i2sidma_control(DMA_STOP, substream->stream, dma_ctrl);
 		if (substream->stream == SNDRV_PCM_STREAM_CAPTURE &&
-				global_info[dma_ctrl->id].capture_process_num == 1) {
+				hobot_dma->dummy_node == 0) {
 			writel(0x0, hobot_i2sidma[dma_ctrl->id].regaddr_rx + I2S_UNMASK);
 		} else {
 			writel(0x0, hobot_i2sidma[dma_ctrl->id].regaddr_tx + I2S_UNMASK);
