@@ -329,6 +329,7 @@ static int i2sidma_enqueue(struct snd_pcm_substream *substream)
 
 	/* set buf0 ready */
 	val = dma_ctrl->start;
+	dma_ctrl->lastset = dma_ctrl->start;
 	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
 		writel(val, hobot_i2sidma[dma_ctrl->id].regaddr_rx +
 			I2S_BUF0_ADDR);
