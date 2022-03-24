@@ -602,6 +602,14 @@ static int i2sidma_trigger(struct snd_pcm_substream *substream, int cmd)
 		/* enable iram, clear iram */
 		if (hobot_dma->dummy_node == 0)
 			i2sidma_control(DMA_START, substream->stream, dma_ctrl);
+		if (substream->stream == SNDRV_PCM_STREAM_CAPTURE &&
+				hobot_dma->dummy_node == 0) {
+			writel(0xf, hobot_i2sidma[dma_ctrl->id].regaddr_rx +
+				I2S_UNMASK);
+		} else {
+			writel(0xf, hobot_i2sidma[dma_ctrl->id].regaddr_tx +
+				I2S_UNMASK);
+		}
 		break;
 
 	case SNDRV_PCM_TRIGGER_SUSPEND:
@@ -612,9 +620,9 @@ static int i2sidma_trigger(struct snd_pcm_substream *substream, int cmd)
 			i2sidma_control(DMA_STOP, substream->stream, dma_ctrl);
 		if (substream->stream == SNDRV_PCM_STREAM_CAPTURE &&
 				hobot_dma->dummy_node == 0) {
-			writel(0x0, hobot_i2sidma[dma_ctrl->id].regaddr_rx + I2S_UNMASK);
+			writel(0xf, hobot_i2sidma[dma_ctrl->id].regaddr_rx + I2S_SETMASK);
 		} else {
-			writel(0x0, hobot_i2sidma[dma_ctrl->id].regaddr_tx + I2S_UNMASK);
+			writel(0xf, hobot_i2sidma[dma_ctrl->id].regaddr_tx + I2S_SETMASK);
 		}
 		break;
 
