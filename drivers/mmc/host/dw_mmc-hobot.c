@@ -784,14 +784,14 @@ static int dw_mci_hb_switch_voltage(struct mmc_host *mmc, struct mmc_ios *ios)
 		return 0;
 
 	if (priv->not_mmc) {
-		if (priv->mmc_fixed_voltage == 3300 ||
-			ios->signal_voltage == MMC_SIGNAL_VOLTAGE_330) {
-			ios->signal_voltage = MMC_SIGNAL_VOLTAGE_330;
-			ret = dw_mci_set_sel18(host, 0);
-		} else if (priv->mmc_fixed_voltage == 1800 ||
+		if (priv->mmc_fixed_voltage == 1800 ||
 				   ios->signal_voltage == MMC_SIGNAL_VOLTAGE_180) {
 			ios->signal_voltage = MMC_SIGNAL_VOLTAGE_180;
 			ret = dw_mci_set_sel18(host, 1);
+		} else if (priv->mmc_fixed_voltage == 3300 ||
+			ios->signal_voltage == MMC_SIGNAL_VOLTAGE_330) {
+			ios->signal_voltage = MMC_SIGNAL_VOLTAGE_330;
+			ret = dw_mci_set_sel18(host, 0);
 		} else {
 			dev_dbg(host->dev, "voltage not supported\n");
 			return -EINVAL;

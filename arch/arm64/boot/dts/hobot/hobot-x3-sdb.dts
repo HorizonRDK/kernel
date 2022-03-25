@@ -473,15 +473,17 @@
 	no-mmc;
 	no-sd;
 	cap-sdio-irq;
+	cap-sd-highspeed;
 	broken-cd;
 	disable-wp;
-	max-frequency = <20000000>;
+	keep-power-in-suspend;
+	clock-freq-min-max = <100000 50000000>;
+	max-frequency = <50000000>;
 	mmc-fixed-voltage = <1800>;
 	non-removable;
-	pinctrl-names = "default","voltage_1_8v","voltage_3_3v";
+	pinctrl-names = "default","voltage_1_8v";
 	pinctrl-0 = <&sdio1_func>;
 	pinctrl-1 = <&sd1_1_8v_func>;
-	pinctrl-2 = <&sd1_3_3v_func>;
 };
 
 &sdio2 {
