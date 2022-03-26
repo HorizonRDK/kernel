@@ -526,9 +526,6 @@
 	#sound-dai-cells = <0>;
 };
 
-&snd4 {
-        status = "disabled";
-};
 
 &jpu {
 	status = "okay";
@@ -582,40 +579,4 @@
 	cnn-supply = <&cnn1_pd_reg>;
 	governor = "userspace";
 	max_freq = /bits/ 64 <1000000000>;
-};
-
-&snd4 {
-        model = "hobotsnd4";
-        dai-link@0 {
-                dai-format = "i2s";
-                bitclock-master;
-                frame-master;
-                frame-inversion;
-                link-name = "hobotdailink0";
-                cpu {
-                        sound-dai = <&i2s0>;
-                };
-                codec {
-                        sound-dai = <&es8311>;
-                };
-                platform {
-                        sound-dai = <&i2sidma0>;
-                };
-        };
-		dai-link@1 {
-                dai-format = "dsp_a";
-                bitclock-master;
-                frame-master;
-                frame-inversion;
-                link-name = "hobotdailink1";
-                cpu {
-                        sound-dai = <&i2s1>;
-                };
-                codec {
-                        sound-dai = <&codec0>;
-                };
-                platform {
-                        sound-dai = <&i2sidma1>;
-                };
-        };
 };
