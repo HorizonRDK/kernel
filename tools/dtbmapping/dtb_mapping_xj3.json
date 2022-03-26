@@ -32,5 +32,17 @@
     "203": {
         "dtb_name"  :  "hobot-xj3-cvb.dtb",
         "gpio_id"   :   "0"
+    },
+
+    "304": {
+        "Describe" :    "baseboard for sdb v3, v2 and v1",
+        "dtb_name"  :   "hobot-x3-sdb.dtb",
+        "gpio_id"   :   "0"
+    },
+
+    "404": {
+        "Describe" :    "baseboard for sdb_v4",
+        "dtb_name"  :   "hobot-x3-sdb_v4.dtb",
+        "gpio_id"   :   "0"
     }
 }

@@ -75,10 +75,11 @@
 
 		gpios = &gpios;
 		usb_id = &usb_id;
-		extcon_vbus = &extcon_vbus;
+
+		pwm_c0 = &pwm_c0;
+		pwm_c1 = &pwm_c1;
 
 		power = &power;
-		pwm_c2 = &pwm_c2;
 	};
 
 	chosen {
@@ -245,12 +246,6 @@
 	status = "okay";
 	#address-cells = <1>;
 	#size-cells = <0>;
-
-	lt8618sxb@0x3b {
-		compatible = "lt,lt8618sxb";
-		reg = <0x3b>;
-		rst_pin = <64>; // shared reset with TP!
-	};
 };
 
 &i2c2 {
@@ -258,18 +253,10 @@
 	#address-cells = <1>;
 	#size-cells = <0>;
 
-};
-
-
-&i2c5 {
-	status = "disable";
-	#address-cells = <1>;
-	#size-cells = <0>;
-
-	es8311: es8311@0x18 {
-		compatible = "ambarella,es8311";
-		reg = <0x18>;
-		#sound-dai-cells = <0>;
+	lt8618sxb@0x3b {
+		compatible = "lt,lt8618sxb";
+		reg = <0x3b>;
+		rst_pin = <64>; // shared reset with TP!
 	};
 };
 
@@ -281,6 +268,10 @@
 &uart1 {
 	status = "okay"; /* 4 wire uart for bt */
 	pinctrl-0 = <&uart1_func_rtscts>; /* <&uart1_func>;  uart 1 connect to bt with rtscts*/
+};
+
+&uart3 {
+	status = "okay";
 };
 
 &spi0 {
@@ -316,16 +307,6 @@
 	host-rst-gpio = <&gpios 115 GPIO_ACTIVE_HIGH>;
 	/*host-exrst-gpio = <&gpios 4 GPIO_ACTIVE_LOW>;*/
 	host-exrst-gpio = <&gpios 38 GPIO_ACTIVE_LOW>;
-};
-
-&extcon_vbus {
-	status = "disabled";
-
-	pinctrl-names = "default";
-	pinctrl-0 = <&vbus_detect_function>;
-
-	gpio-mode = <0x1>;	/* 1: poll mode, 2: interrupt mode */
-	vbus-gpio = <&gpios 22 GPIO_ACTIVE_HIGH>;
 };
 
 &gpios {
@@ -409,12 +390,18 @@
 	status = "okay";
 };
 
-&pwm_c2 {
+&pwm_c0 {
 	status = "okay";
-	pinctrl-names = "pwm0", "pwm1","pwm2";
+	pinctrl-0 = <&pwm0_func>;
+	pinctrl-1 = <>;
+	pinctrl-2 = <>;
+};
+
+&pwm_c1 {
+	status = "okay";
 	pinctrl-0 = <>;
-	pinctrl-1 = <&pwm7_func>;
-	pinctrl-2 = <&pwm8_func>;
+	pinctrl-1 = <&pwm4_func>;
+	pinctrl-2 = <>;
 };
 
 &ethernet {
