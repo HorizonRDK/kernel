@@ -176,7 +176,7 @@ static void sif_config_bypass(u32 __iomem *base_reg, u32 bypass_channels)
 	u32 bypass_mask = (bypass_channels % 1000) / 10;
 	u32 bypass_nsel = bypass_channels / 1000;
 
-	if (bypass_sel > 4)
+	if (bypass_sel < 0 || bypass_sel > 4)
 		return;
 
 	if (!bypass_nsel) {
@@ -358,6 +358,8 @@ void sif_start_pattern_gen(u32 __iomem *base_reg, u32 pat_index)
 				vio_hw_set_field(base_reg, &sif_regs[SIF_PAT_GEN_ENABLE],
 						&sif_fields[SW_PAT_GEN4_ENABLE], 1);
 				break;
+			default:
+				vio_err("wrong pat index %d\n", s_enable_pattern_gen);
 		}
     }
 }
@@ -1743,7 +1745,7 @@ void sif_get_frameid_timestamps(u32 __iomem *base_reg, u32 mux, u32 ipi_index,
 
 u32 sif_get_current_bufindex(u32 __iomem *base_reg, u32 mux)
 {
-	u32 value = 0xffff;
+	u32 value = 0;
 	value = vio_hw_get_field(base_reg, &sif_regs[SIF_AXI_BUF_STATUS],
 			&sif_fields[SIF_OUT_FRM0_BUF_IDX_REPORT - mux]);
 

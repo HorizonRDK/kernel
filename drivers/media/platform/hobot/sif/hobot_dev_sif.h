@@ -24,6 +24,8 @@
 
 #define MAX_DEVICE  2
 #define SIF_ERR_COUNT  10
+#define SIF_MUX_BUFF_CNT 4
+#define SIF_SPLICE_ENWDMA_BOTH 0x3
 
 #define SIF_SEQ_TASK_PRIORITY  39
 
@@ -69,6 +71,16 @@ struct sif_irq_src {
 	u32 sif_out_int; 	 // sif to isp irq status
 	u32 sif_err_status;
 	u32 sif_in_buf_overflow; 	 // overflow irq status
+};
+
+enum sif_frame_state {
+	SIF_YUV_MODE,  /*for yuv*/
+};
+
+/*recover buff state*/
+enum sif_hwidx_process_state {
+	SIF_OWNERBIT_RELEASE = 1,
+	SIF_RECOVER_BUFF,
 };
 
 struct sif_multi_frame {
@@ -261,6 +273,13 @@ struct sif_subdev {
 	u32 ipi_channels;
 	u32 mux_nums;
 	u32 overflow;
+	/*Save the hardware idx difference of two mux in yuv or splicing scene*/
+	u32 hw_gap;
+	/*Save last hardware idx*/
+	u32 last_hwidx;
+	/*recover buff in yuv or splicing scene*/
+	u32 frame_drop;
+	u32	fdone;  	/*y/uv done*/
 	u32 arbit_dead;	 /*arbit deadlock happens*/
 	u32 splice_flow_clr;   /*close wdma for splice*/
 	sif_data_desc_t ddrin_fmt;
@@ -334,6 +353,7 @@ struct x3_sif_dev {
 	u32 mismatch_cnt;
 
 	unsigned long		state;
+	unsigned long 		frame_state; /*used for yuv intr*/
 	unsigned long		yuv_multiplex_a_state;
 	unsigned long		yuv_multiplex_b_state;
 	atomic_t			instance;
@@ -347,10 +367,11 @@ struct x3_sif_dev {
 	struct mutex			shared_mutex;
 	u32 				error_count;
 	u64 				buff_count[SIF_MUX_MAX];
+	u64 				buff_count1[SIF_MUX_MAX];
 	u32				hblank;
 	u32				ovflow_cnt;	/*Count of overflow occurrences*/
 	u32				owner_value; 	/*Ownerbit value in case of DDR deadlock*/
-	u32				wdma_used_cnt; 	/*Number of disabled wdma*/
+	atomic_t			wdma_used_cnt; 	/*Number of disabled wdma*/
 	unsigned long			mux_mask;
 	unsigned long			yuv422_mux_mask_a;
 	unsigned long			yuv422_mux_mask_b;
