@@ -60,7 +60,7 @@ static void zoom_null_drv_move(void *ctx, uint16_t position)
 
 	LOG(LOG_INFO, "IE&E %s, position %d ", __func__, position);
 	set_sensor_zoom_pos_info(p_ctx->port, position);
-	ret = lens_api_zoom_move(p_ctx->port, position);
+	ret = lens_api_zoom_move((uint16_t)p_ctx->port, position);
 }
 
 extern void set_sensor_af_pos_info(uint32_t port, uint32_t af_pos);
@@ -73,7 +73,7 @@ static void vcm_null_drv_move( void *ctx, uint16_t position )
 	LOG( LOG_INFO, "IE&E %s, position %d ", __func__, position );
 	pos = position / 16;
 	set_sensor_af_pos_info(p_ctx->port, pos);
-	ret = lens_api_af_move(p_ctx->port, pos);
+	ret = lens_api_af_move((uint16_t)p_ctx->port, pos);
 }
 
 static uint8_t vcm_null_drv_is_moving( void *ctx )
@@ -86,7 +86,7 @@ static uint8_t vcm_null_drv_is_moving( void *ctx )
 static void vcm_null_write_register( void *ctx, uint32_t address, uint32_t data )
 {
 	lens_context_t *p_ctx = (lens_context_t *)ctx;
-	lens_api_af_write_reg(p_ctx->port, address, data);
+	lens_api_af_write_reg((uint16_t)p_ctx->port, address, data);
 }
 
 static uint32_t vcm_null_read_register( void *ctx, uint32_t address )
@@ -94,7 +94,7 @@ static uint32_t vcm_null_read_register( void *ctx, uint32_t address )
 	uint32_t data = 0;
 
 	lens_context_t *p_ctx = (lens_context_t *)ctx;
-	lens_api_af_read_reg(p_ctx->port, address, &data);
+	lens_api_af_read_reg((uint16_t)p_ctx->port, address, &data);
 	return data;
 }
 

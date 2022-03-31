@@ -285,8 +285,7 @@ struct _acamera_firmware_t {
 
 void acamera_load_isp_sequence( uintptr_t isp_base, const acam_reg_t **sequence, uint8_t num );
 void acamera_load_sw_sequence( uintptr_t isp_base, const acam_reg_t **sequence, uint8_t num );
-void load_sensor_sequence( uint8_t num );
-void acamera_load_array_sequence( acamera_sbus_ptr_t p_sbus, uintptr_t isp_offset, char size, const acam_reg_t **sequence, int group );
+void acamera_load_array_sequence( acamera_sbus_ptr_t p_sbus, uintptr_t isp_offset, uint32_t size, const acam_reg_t **sequence, int group );
 
 
 static __inline void acamera_fw_interrupts_enable( acamera_context_ptr_t p_ctx )

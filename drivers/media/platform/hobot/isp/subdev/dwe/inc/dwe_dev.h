@@ -26,7 +26,7 @@ typedef struct _dwe_subdev_s {
         phys_addr_t io_paddr;
         char __iomem *io_vaddr;
         size_t io_memsize;
-        int irq_num;
+        unsigned int irq_num;
 } dwe_subdev_s;
 
 struct dwe_dev_s {

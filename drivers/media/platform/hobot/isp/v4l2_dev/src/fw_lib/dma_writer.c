@@ -258,17 +258,17 @@ static int dma_writer_configure_frame_writer( dma_pipe *pipe,
             line_offset = -aframe->line_offset;
         }
 
-        reg_ops->format_write( pipe->settings.isp_base, aframe->type );
-        reg_ops->active_width_write( pipe->settings.isp_base, aframe->width );
-        reg_ops->active_height_write( pipe->settings.isp_base, aframe->height );
+        reg_ops->format_write( pipe->settings.isp_base, (uint8_t)aframe->type );
+        reg_ops->active_width_write( pipe->settings.isp_base, (uint16_t)aframe->width );
+        reg_ops->active_height_write( pipe->settings.isp_base, (uint16_t)aframe->height );
         reg_ops->line_offset_write( pipe->settings.isp_base, line_offset );
         reg_ops->bank0_base_write( pipe->settings.isp_base, addr );
         reg_ops->write_on_write( pipe->settings.isp_base, 1 );
 
         if (p_ctx->p_gfw->sif_isp_offline == 0) {
-            reg_ops->format_write_hw( base, aframe->type );
-            reg_ops->active_width_write_hw( base, aframe->width );
-            reg_ops->active_height_write_hw( base, aframe->height );
+            reg_ops->format_write_hw( base, (uint8_t)aframe->type );
+            reg_ops->active_width_write_hw( base, (uint16_t)aframe->width );
+            reg_ops->active_height_write_hw( base, (uint16_t)aframe->height );
             reg_ops->line_offset_write_hw( base, line_offset );
             reg_ops->bank0_base_write_hw( base, addr );
             reg_ops->write_on_write_hw( base, 1 );
@@ -439,8 +439,8 @@ dma_error dma_writer_update_state( dma_pipe *pipe )
             result = edma_invalid_settings;
             pipe->settings.enabled = 0;
             LOG( LOG_ERR, "stop dma writter: %dx%d, enable=%d\n", (int)pipe->settings.width, (int)pipe->settings.height, pipe->settings.enabled );
-            pipe->api[0].p_acamera_isp_dma_writer_frame_write_on_write( pipe->settings.isp_base, pipe->settings.enabled ); //disable pipe on invalid settings
-            pipe->api[0].p_acamera_isp_dma_writer_frame_write_on_write_uv( pipe->settings.isp_base, pipe->settings.enabled );
+            pipe->api[0].p_acamera_isp_dma_writer_frame_write_on_write( pipe->settings.isp_base, (uint8_t)pipe->settings.enabled ); //disable pipe on invalid settings
+            pipe->api[0].p_acamera_isp_dma_writer_frame_write_on_write_uv( pipe->settings.isp_base, (uint8_t)pipe->settings.enabled );
             return result;
         }
 
@@ -450,11 +450,11 @@ dma_error dma_writer_update_state( dma_pipe *pipe )
 
         //set default settings here
         pipe->api[0].p_acamera_isp_dma_writer_max_bank_write( pipe->settings.isp_base, 0 );
-        pipe->api[0].p_acamera_isp_dma_writer_active_width_write( pipe->settings.isp_base, pipe->settings.width );
-        pipe->api[0].p_acamera_isp_dma_writer_active_height_write( pipe->settings.isp_base, pipe->settings.height );
+        pipe->api[0].p_acamera_isp_dma_writer_active_width_write( pipe->settings.isp_base, (uint16_t)pipe->settings.width );
+        pipe->api[0].p_acamera_isp_dma_writer_active_height_write( pipe->settings.isp_base, (uint16_t)pipe->settings.height );
         pipe->api[0].p_acamera_isp_dma_writer_max_bank_write_uv( pipe->settings.isp_base, 0 );
-        pipe->api[0].p_acamera_isp_dma_writer_active_width_write_uv( pipe->settings.isp_base, pipe->settings.width );
-        pipe->api[0].p_acamera_isp_dma_writer_active_height_write_uv( pipe->settings.isp_base, pipe->settings.height );
+        pipe->api[0].p_acamera_isp_dma_writer_active_width_write_uv( pipe->settings.isp_base, (uint16_t)pipe->settings.width );
+        pipe->api[0].p_acamera_isp_dma_writer_active_height_write_uv( pipe->settings.isp_base, (uint16_t)pipe->settings.height );
     } else {
         result = edma_fail;
     }

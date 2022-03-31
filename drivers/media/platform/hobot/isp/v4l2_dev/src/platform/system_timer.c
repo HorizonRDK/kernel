@@ -26,7 +26,7 @@
 // timer functions (for FPS calculation)
 uint32_t system_timer_timestamp( void )
 {
-    uint32_t result = jiffies;
+    uint32_t result = (uint32_t)jiffies;
     return result;
 }
 
@@ -50,5 +50,4 @@ int32_t system_timer_usleep( uint32_t usec )
         usleep_range( usec, usec + 100 );
     return 0;
 }
-
 //================================================================================

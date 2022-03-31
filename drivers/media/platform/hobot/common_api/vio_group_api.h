@@ -204,7 +204,7 @@ struct vio_video_ctx {
 };
 
 struct statinfo {
-	int framid;
+	u32 framid;
 	int event;
 	struct timeval g_tv;
 	u32 addr;
@@ -272,7 +272,7 @@ void vio_dwe_clk_enable(void);
 void vio_dwe_clk_disable(void);
 void vio_gdc_clk_enable(u32 hw_id);
 void vio_gdc_clk_disable(u32 hw_id);
-void vio_set_stat_info(u32 instance, u32 stat_type, u32 event, u16 frameid,
+void vio_set_stat_info(u32 instance, u32 stat_type, u32 event, u32 frameid,
 	u32 addr, u32 *queued_count);
 void vio_print_stat_info(u32 instance);
 int vio_print_delay(s32 instance, u8* buf, u32 size);

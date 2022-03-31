@@ -46,7 +46,7 @@ int camera_spi_open(uint32_t port, uint32_t spi_bus, uint32_t cs,
 	struct spi_master *master;
 	struct spi_board_info spi_board = { {0} };
 
-	master = spi_busnum_to_master(spi_bus);
+	master = spi_busnum_to_master((u16)spi_bus);
 	if(master) {
 		return -ENODEV;
 	}
@@ -54,8 +54,8 @@ int camera_spi_open(uint32_t port, uint32_t spi_bus, uint32_t cs,
 			sizeof(spi_board.modalias));
 
 	spi_board.mode		= mode;
-	spi_board.bus_num	= spi_bus;
-	spi_board.chip_select	= cs;
+	spi_board.bus_num	= (u16)spi_bus;
+	spi_board.chip_select	= (u16)cs;
 	spi_board.max_speed_hz	= speed;
 
 	if(camera_mod[port]->spidev) {
@@ -79,7 +79,7 @@ int camera_spi_reg16_write(uint32_t port, uint32_t chip_id,
 
 	senbuf = kmalloc(length + 3, GFP_KERNEL);
 	memset(senbuf, 0, length + 3);
-	senbuf[0] = chip_id | 0x0;
+	senbuf[0] = (char)chip_id;
 	senbuf[1] = (reg_addr >> 8) & 0x00ff;
 	senbuf[2] = reg_addr & 0xff;
 	memcpy(&senbuf[3], buf, length);
@@ -104,7 +104,7 @@ int camera_spi_reg8_write(uint32_t port, uint32_t chip_id,
 
 	senbuf = kmalloc(length + 2, GFP_KERNEL);
 	memset(senbuf, 0, length + 2);
-	senbuf[0] = chip_id | 0x0;
+	senbuf[0] = (char)chip_id;
 	senbuf[1] = reg_addr & 0xff;
 	memcpy(&senbuf[2], buf, length);
 
@@ -145,7 +145,7 @@ int camera_spi_reg8_read(uint32_t port, uint32_t chip_id,
 
 	recvbuf = kmalloc(length + 2, GFP_KERNEL);
 	memset(recvbuf, 0, length + 2);
-	recvbuf[0] = chip_id | 0x80;
+	recvbuf[0] = (char)(chip_id | 0x80);
 	recvbuf[1] = reg_addr & 0xff;
 	memcpy(&recvbuf[2], buf, length);
 
@@ -170,7 +170,7 @@ int camera_spi_reg16_read(uint32_t port, uint32_t chip_id,
 
 	recvbuf = kmalloc(length + 3, GFP_KERNEL);
 	memset(recvbuf, 0, length + 3);
-	recvbuf[0] = chip_id | 0x80;
+	recvbuf[0] = (char)(chip_id | 0x80);
 	recvbuf[1] = (reg_addr >> 8) & 0x00ff;
 	recvbuf[2] = reg_addr & 0xff;
 	memcpy(&recvbuf[3], buf, length);

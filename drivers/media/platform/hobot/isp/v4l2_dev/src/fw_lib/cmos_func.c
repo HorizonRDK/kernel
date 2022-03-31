@@ -238,7 +238,7 @@ void cmos_alloc_integration_time( cmos_fsm_ptr_t p_fsm, int32_t int_time )
 #endif
 
     p_fsm->prev_integration_time_short = p_fsm->integration_time_short;
-    p_fsm->integration_time_short = new_integration_time_short;
+    p_fsm->integration_time_short = (uint16_t)new_integration_time_short;
 }
 
 int32_t cmos_alloc_sensor_analog_gain( cmos_fsm_ptr_t p_fsm, int32_t *gain_ptr, uint32_t gain_num)
@@ -367,10 +367,10 @@ exposure_set_t *cmos_get_frame_exposure_set( cmos_fsm_ptr_t p_fsm, int i_frame )
 {
     int pos = p_fsm->exposure_hist_pos + i_frame;
     if ( pos < 0 ) {
-        pos += ( sizeof( p_fsm->exposure_hist ) / sizeof( p_fsm->exposure_hist[0] ) );          // division by zero is checked
+        pos = pos + (int)( sizeof( p_fsm->exposure_hist ) / sizeof( p_fsm->exposure_hist[0] ) );          // division by zero is checked
     } else if ( pos >= ( sizeof( p_fsm->exposure_hist ) / sizeof( p_fsm->exposure_hist[0] ) ) ) // division by zero is checked
     {
-        pos -= ( sizeof( p_fsm->exposure_hist ) / sizeof( p_fsm->exposure_hist[0] ) ); // division by zero is checked
+        pos = pos - (int)( sizeof( p_fsm->exposure_hist ) / sizeof( p_fsm->exposure_hist[0] ) ); // division by zero is checked
     }
     return p_fsm->exposure_hist + pos;
 }
@@ -705,7 +705,7 @@ void cmos_fsm_process_interrupt( cmos_fsm_const_ptr_t p_fsm, uint8_t irq_event )
                 flicker_freq = 0;
             }
             if ( flicker_freq != p_fsm->flicker_freq ) {
-                ( (cmos_fsm_ptr_t)p_fsm )->flicker_freq = flicker_freq;
+                ( (cmos_fsm_ptr_t)p_fsm )->flicker_freq = (uint16_t)flicker_freq;
                 fsm_raise_event( p_fsm, event_id_antiflicker_changed );
             }
         }
@@ -722,9 +722,9 @@ void cmos_fsm_process_interrupt( cmos_fsm_const_ptr_t p_fsm, uint8_t irq_event )
         if ( ( wdr_mode == WDR_MODE_FS_LIN ) && ( ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_manual_frame_stitch == 0 ) ) {
 
             if ( sensor_info.sensor_exp_number == 4 ) {
-                acamera_isp_frame_stitch_svs_exposure_ratio_write( p_fsm->cmn.isp_base, p_fsm->exp_write_set.exposure_ratio_short );
-                acamera_isp_frame_stitch_ms_exposure_ratio_write( p_fsm->cmn.isp_base, p_fsm->exp_write_set.exposure_ratio_medium );
-                acamera_isp_frame_stitch_lm_exposure_ratio_write( p_fsm->cmn.isp_base, p_fsm->exp_write_set.exposure_ratio_medium2 );
+                acamera_isp_frame_stitch_svs_exposure_ratio_write( p_fsm->cmn.isp_base, (uint16_t)p_fsm->exp_write_set.exposure_ratio_short );
+                acamera_isp_frame_stitch_ms_exposure_ratio_write( p_fsm->cmn.isp_base, (uint16_t)p_fsm->exp_write_set.exposure_ratio_medium );
+                acamera_isp_frame_stitch_lm_exposure_ratio_write( p_fsm->cmn.isp_base, (uint16_t)p_fsm->exp_write_set.exposure_ratio_medium2 );
 
                 int32_t R12 = p_fsm->exp_write_set.exposure_ratio_medium2;                        //long/medium ratio
                 int32_t R13 = ( R12 * (int32_t)p_fsm->exp_write_set.exposure_ratio_medium ) >> 6; //long/short ratio
@@ -750,8 +750,8 @@ void cmos_fsm_process_interrupt( cmos_fsm_const_ptr_t p_fsm, uint8_t irq_event )
 
             } else if ( sensor_info.sensor_exp_number == 3 ) {
 
-                acamera_isp_frame_stitch_ms_exposure_ratio_write( p_fsm->cmn.isp_base, p_fsm->exp_write_set.exposure_ratio_short );
-                acamera_isp_frame_stitch_lm_exposure_ratio_write( p_fsm->cmn.isp_base, p_fsm->exp_write_set.exposure_ratio_medium );
+                acamera_isp_frame_stitch_ms_exposure_ratio_write( p_fsm->cmn.isp_base, (uint16_t)p_fsm->exp_write_set.exposure_ratio_short );
+                acamera_isp_frame_stitch_lm_exposure_ratio_write( p_fsm->cmn.isp_base, (uint16_t)p_fsm->exp_write_set.exposure_ratio_medium );
                 // mc off
                 // if(Exp == 2)
                 //     param.SF2 = 1/(1 + R12);
@@ -784,13 +784,13 @@ void cmos_fsm_process_interrupt( cmos_fsm_const_ptr_t p_fsm, uint8_t irq_event )
                 int32_t SF2, R12; //U0.11 registers
                 R12 = p_fsm->exp_write_set.exposure_ratio;
                 SF2 = 262144 / ( 2048 + R12 );
-                acamera_isp_frame_stitch_lm_exposure_ratio_write( p_fsm->cmn.isp_base, p_fsm->exp_write_set.exposure_ratio );
+                acamera_isp_frame_stitch_lm_exposure_ratio_write( p_fsm->cmn.isp_base, (uint16_t)p_fsm->exp_write_set.exposure_ratio );
 
                 acamera_isp_frame_stitch_mcoff_l_scaler_write( p_fsm->cmn.isp_base, (uint16_t)SF2 );
                 acamera_isp_frame_stitch_mcoff_lm_scaler_write( p_fsm->cmn.isp_base, (uint16_t)0 );
                 acamera_isp_frame_stitch_mcoff_lms_scaler_write( p_fsm->cmn.isp_base, (uint16_t)0 );
             } else {
-                acamera_isp_frame_stitch_lm_exposure_ratio_write( p_fsm->cmn.isp_base, p_fsm->exp_write_set.exposure_ratio );
+                acamera_isp_frame_stitch_lm_exposure_ratio_write( p_fsm->cmn.isp_base, (uint16_t)p_fsm->exp_write_set.exposure_ratio );
             }
         }
 
@@ -805,7 +805,7 @@ void cmos_fsm_process_interrupt( cmos_fsm_const_ptr_t p_fsm, uint8_t irq_event )
 
         gain = acamera_math_exp2( isp_dgain_log2, LOG2_GAIN_SHIFT, 8 );
         //gain = 0x100;   // need to fixed : force digital gain to default value
-        acamera_isp_digital_gain_gain_write( p_fsm->cmn.isp_base, gain );
+        acamera_isp_digital_gain_gain_write( p_fsm->cmn.isp_base, (uint16_t)gain );
 
         for ( i = 0; i < 4; ++i ) {
             gain = acamera_math_exp2( wb_info.wb_log2[i], LOG2_GAIN_SHIFT, 8 );
@@ -819,7 +819,7 @@ void cmos_fsm_process_interrupt( cmos_fsm_const_ptr_t p_fsm, uint8_t irq_event )
                           acamera_isp_sensor_offset_pre_shading_offset_11_read( p_fsm->cmn.isp_base )};
         for ( i = 0; i < 4; ++i ) {
             uint32_t mult = ( 256 * ( ( (uint32_t)1 << ACAMERA_ISP_SENSOR_OFFSET_PRE_SHADING_OFFSET_00_DATASIZE ) - 1 ) ) / ( ( ( (uint32_t)1 << ACAMERA_ISP_SENSOR_OFFSET_PRE_SHADING_OFFSET_00_DATASIZE ) - 1 ) - bl[i] );
-            ( (cmos_fsm_ptr_t)p_fsm )->wb[i] = ( ( ( uint32_t )( (cmos_fsm_ptr_t)p_fsm )->wb[i] ) * mult ) / 256;
+            ( (cmos_fsm_ptr_t)p_fsm )->wb[i] = (int16_t)(((cmos_fsm_ptr_t)p_fsm)->wb[i] * mult / 256);
         }
 
         acamera_isp_white_balance_gain_00_write( p_fsm->cmn.isp_base, ( (cmos_fsm_ptr_t)p_fsm )->wb[0] );
@@ -833,8 +833,8 @@ void cmos_fsm_process_interrupt( cmos_fsm_const_ptr_t p_fsm, uint8_t irq_event )
             acamera_isp_frame_stitch_gain_b_write( p_fsm->cmn.isp_base, ( (cmos_fsm_ptr_t)p_fsm )->wb[3] );
 
             if ( acamera_isp_frame_stitch_mcoff_mode_enable_read( p_fsm->cmn.isp_base ) == 1 ) {
-                acamera_isp_frame_stitch_gain_r_write( p_fsm->cmn.isp_base, 65536 / ( ( (cmos_fsm_ptr_t)p_fsm )->wb[0] ) );
-                acamera_isp_frame_stitch_gain_b_write( p_fsm->cmn.isp_base, 65536 / ( ( (cmos_fsm_ptr_t)p_fsm )->wb[3] ) );
+                acamera_isp_frame_stitch_gain_r_write( p_fsm->cmn.isp_base, (uint16_t)(65536 / ( ( (cmos_fsm_ptr_t)p_fsm )->wb[0] )) );
+                acamera_isp_frame_stitch_gain_b_write( p_fsm->cmn.isp_base, (uint16_t)(65536 / ( ( (cmos_fsm_ptr_t)p_fsm )->wb[3] )) );
             }
         }
 
@@ -1025,10 +1025,10 @@ void cmos_exposure_update_extern_ae( cmos_fsm_ptr_t p_fsm )
 
         if ( sensor_info.sensor_exp_number == 4 ) {
 
-            time.int_time = p_fsm->ae_out_info.line[0];
-            time.int_time_M = p_fsm->ae_out_info.line[1];
-            time.int_time_M2 = p_fsm->ae_out_info.line[2];
-            time.int_time_L = p_fsm->ae_out_info.line[3];
+            time.int_time = (uint16_t)p_fsm->ae_out_info.line[0];
+            time.int_time_M = (uint16_t)p_fsm->ae_out_info.line[1];
+            time.int_time_M2 = (uint16_t)p_fsm->ae_out_info.line[2];
+            time.int_time_L = (uint16_t)p_fsm->ae_out_info.line[3];
 
             acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_SENSOR_ALLOC_INTEGRATION_TIME, &time, sizeof( time ) );
 
@@ -1040,9 +1040,9 @@ void cmos_exposure_update_extern_ae( cmos_fsm_ptr_t p_fsm )
 
         } else if ( sensor_info.sensor_exp_number == 3 ) {
 
-            time.int_time = p_fsm->ae_out_info.line[0];
-            time.int_time_M = p_fsm->ae_out_info.line[1];
-            time.int_time_L = p_fsm->ae_out_info.line[2];
+            time.int_time = (uint16_t)p_fsm->ae_out_info.line[0];
+            time.int_time_M = (uint16_t)p_fsm->ae_out_info.line[1];
+            time.int_time_L = (uint16_t)p_fsm->ae_out_info.line[2];
             pr_debug(" short %d medium %d long %d", p_fsm->integration_time_short, p_fsm->integration_time_medium, p_fsm->integration_time_long );
 
             acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_SENSOR_ALLOC_INTEGRATION_TIME, &time, sizeof( time ) );
@@ -1053,8 +1053,8 @@ void cmos_exposure_update_extern_ae( cmos_fsm_ptr_t p_fsm )
             p_fsm->integration_time_long = time.int_time_L;
 
         } else if ( sensor_info.sensor_exp_number == 2 ) {
-            time.int_time = p_fsm->ae_out_info.line[0];
-            time.int_time_L = p_fsm->ae_out_info.line[1];
+            time.int_time = (uint16_t)p_fsm->ae_out_info.line[0];
+            time.int_time_L = (uint16_t)p_fsm->ae_out_info.line[1];
 
             acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_SENSOR_ALLOC_INTEGRATION_TIME, &time, sizeof( time ) );
 
@@ -1063,7 +1063,7 @@ void cmos_exposure_update_extern_ae( cmos_fsm_ptr_t p_fsm )
             p_fsm->integration_time_long = time.int_time_L;
 
         } else {
-            time.int_time = p_fsm->ae_out_info.line[0];
+            time.int_time = (uint16_t)p_fsm->ae_out_info.line[0];
 
             LOG(LOG_DEBUG, " short %d limit short %d", time.int_time, p_fsm->integration_time_short);
             acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_SENSOR_ALLOC_INTEGRATION_TIME, &time, sizeof( time ) );
@@ -1524,7 +1524,7 @@ void cmos_antiflicker_update( cmos_fsm_ptr_t p_fsm )
     uint32_t integration_time_short = get_quantised_integration_time( p_fsm, p_fsm->integration_time_short );
 
     if ( integration_time_short <= p_fsm->integration_time_short ) {
-        p_fsm->integration_time_short = integration_time_short;
+        p_fsm->integration_time_short = (uint16_t)integration_time_short;
     } else {
 // Very bright scene
 #if OVEREXPOSE_TO_KEEP_ANTIFLICKER
@@ -1606,7 +1606,7 @@ void cmos_long_exposure_update( cmos_fsm_ptr_t p_fsm )
         integration_time_long_quant = p_fsm->long_it_hist.sum / FILTER_LONG_INT_TIME; // division by zero is checked
 #endif
 
-        p_fsm->integration_time_long = integration_time_long_quant;
+        p_fsm->integration_time_long = (uint16_t)integration_time_long_quant;
         if ( sensor_info.sensor_exp_number == 4 ) {
 
             const uint32_t exposure_ratio_thresholded = exposure_ratio > 256 ? exposure_ratio / 2 : exposure_ratio;
@@ -1627,8 +1627,8 @@ void cmos_long_exposure_update( cmos_fsm_ptr_t p_fsm )
             }
 
             time.int_time = p_fsm->integration_time_short;
-            time.int_time_M = integration_time_medium1;
-            time.int_time_M2 = integration_time_medium2;
+            time.int_time_M = (uint16_t)integration_time_medium1;
+            time.int_time_M2 = (uint16_t)integration_time_medium2;
             time.int_time_L = p_fsm->integration_time_long;
 
             acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_SENSOR_ALLOC_INTEGRATION_TIME, &time, sizeof( time ) );

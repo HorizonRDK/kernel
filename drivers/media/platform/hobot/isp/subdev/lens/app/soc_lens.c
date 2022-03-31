@@ -110,7 +110,7 @@ static long soc_lens_ioctl( struct v4l2_subdev *sd, unsigned int cmd, void *arg 
 
     switch ( cmd ) {
     case SOC_LENS_MOVE:
-        ctx->lens_control.move( ctx->lens_context, ARGS_TO_PTR( arg )->args.general.val_in );
+        ctx->lens_control.move( ctx->lens_context, (uint16_t)(ARGS_TO_PTR( arg )->args.general.val_in) );
         break;
     case SOC_LENS_STOP:
         ctx->lens_control.stop( ctx->lens_context );
@@ -124,7 +124,7 @@ static long soc_lens_ioctl( struct v4l2_subdev *sd, unsigned int cmd, void *arg 
             ->args.general.val_out = ctx->lens_control.is_moving( ctx->lens_context );
         break;
     case SOC_LENS_MOVE_ZOOM:
-        ctx->lens_control.move_zoom( ctx->lens_context, ARGS_TO_PTR( arg )->args.general.val_in );
+        ctx->lens_control.move_zoom( ctx->lens_context, (uint16_t)(ARGS_TO_PTR( arg )->args.general.val_in) );
         break;
     case SOC_LENS_IS_ZOOMING:
         ARGS_TO_PTR( arg )

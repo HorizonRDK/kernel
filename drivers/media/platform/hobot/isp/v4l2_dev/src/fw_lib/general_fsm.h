@@ -71,7 +71,7 @@ struct _general_fsm_t {
 #if GENERAL_TEMPER_ENABLED
     aframe_t temper_frames[TEMPER_FRAMES_NO];
     uint32_t temper_mode;
-    uint32_t temper_dw;
+    uint8_t temper_dw;
     uint32_t cnt_for_temper;
 #endif
 };

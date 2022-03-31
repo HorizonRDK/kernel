@@ -103,7 +103,7 @@ uint16_t color_matrix_complement_to_direct( int16_t v )
     if ( v >= 0 )
         result = v;
     else {
-        result = -v;
+        result = (uint16_t)(-v);
         result |= ( 1 << 12 );
     }
     return result;
@@ -112,9 +112,9 @@ uint16_t color_matrix_complement_to_direct( int16_t v )
 int16_t color_matrix_direct_to_complement( uint16_t v )
 {
     int16_t result;
-    result = v & ( ~( 1 << 15 ) );
+    result = (int16_t)(v & ( ~( 1 << 15 ) ));
     if ( v & ( 1 << 15 ) )
-        result = -result;
+        result = (int16_t)(-result);
 
     return result;
 }
@@ -128,13 +128,13 @@ void saturation_modulate_strength( color_matrix_fsm_ptr_t p_fsm )
 
     acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_CMOS_TOTAL_GAIN, NULL, 0, &total_gain, sizeof( total_gain ) );
 
-    uint16_t log2_gain = total_gain >> ( LOG2_GAIN_SHIFT - 8 );
+    uint16_t log2_gain = (uint16_t)(total_gain >> ( LOG2_GAIN_SHIFT - 8 ));
     uint32_t ccm_saturation_table_idx = CALIBRATION_SATURATION_STRENGTH;
     modulation_entry_t *ccm_saturation_table = _GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), ccm_saturation_table_idx );
     uint32_t ccm_saturation_table_len = _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), ccm_saturation_table_idx );
     strength = acamera_calc_modulation_u16( log2_gain, ccm_saturation_table, ccm_saturation_table_len );
     ACAMERA_FSM2CTX_PTR( p_fsm )
-        ->stab.global_saturation_target = ( strength );
+        ->stab.global_saturation_target = (uint8_t)( strength );
 }
 
 
@@ -145,14 +145,14 @@ static void color_mat_calculate_saturation_matrix( int16_t *saturation_matrix, u
     int i;
     int16_t alpha;
     // (1 - saturation)
-    alpha = (int16_t)0x100 - ( (uint16_t)saturation << 1 );
+    alpha = (int16_t)((int16_t)0x100 - ( (uint16_t)saturation << 1 ));
 
     for ( i = 0; i < 9; ++i ) {
         int16_t result;
         // (1. - saturation) * _black_white
-        result = ( (int32_t)alpha * black_white[i] + 0x80 ) >> 8;
+        result = (int16_t)(( (int32_t)alpha * black_white[i] + 0x80 ) >> 8);
         // += (saturation * _identity)
-        result = result + ( ( (int32_t)identity[i] * ( (uint16_t)saturation << 1 ) + 0x80 ) >> 8 );
+        result = (int16_t)(result + ( ( (int32_t)identity[i] * ( (uint16_t)saturation << 1 ) + 0x80 ) >> 8 ));
         saturation_matrix[i] = result;
     }
 }
@@ -165,12 +165,12 @@ static void mesh_shading_modulate_strength( color_matrix_fsm_ptr_t p_fsm )
 
     if ( ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_manual_shading == 0 ) {
         acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_CMOS_TOTAL_GAIN, NULL, 0, &total_gain, sizeof( total_gain ) );
-        uint16_t log2_gain = total_gain >> ( LOG2_GAIN_SHIFT - 8 );
+        uint16_t log2_gain = (uint16_t)(total_gain >> ( LOG2_GAIN_SHIFT - 8 ));
         uint16_t strength = acamera_calc_modulation_u16( log2_gain, _GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_MESH_SHADING_STRENGTH ), _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_MESH_SHADING_STRENGTH ) );
         acamera_isp_mesh_shading_mesh_strength_write( p_fsm->cmn.isp_base, strength );
 	p_fsm->shading_mesh_strength = strength;
     } else {
-	acamera_isp_mesh_shading_mesh_strength_write( p_fsm->cmn.isp_base, p_fsm->manual_shading_mesh_strength );
+	acamera_isp_mesh_shading_mesh_strength_write( p_fsm->cmn.isp_base, (uint16_t)p_fsm->manual_shading_mesh_strength );
 	p_fsm->shading_mesh_strength = p_fsm->manual_shading_mesh_strength;
     }
 }
@@ -199,8 +199,8 @@ void color_matrix_shading_mesh_reload( color_matrix_fsm_ptr_t p_fsm )
     acamera_isp_mesh_shading_mesh_page_r_write( p_fsm->cmn.isp_base, 0x0 );
     acamera_isp_mesh_shading_mesh_page_g_write( p_fsm->cmn.isp_base, 0x1 );
     acamera_isp_mesh_shading_mesh_page_b_write( p_fsm->cmn.isp_base, 0x2 );
-    acamera_isp_mesh_shading_mesh_width_write( p_fsm->cmn.isp_base, dim-1 );
-    acamera_isp_mesh_shading_mesh_height_write( p_fsm->cmn.isp_base, dim-1 );
+    acamera_isp_mesh_shading_mesh_width_write( p_fsm->cmn.isp_base, (uint8_t)(dim-1) );
+    acamera_isp_mesh_shading_mesh_height_write( p_fsm->cmn.isp_base, (uint8_t)(dim-1) );
     acamera_isp_mesh_shading_mesh_scale_write( p_fsm->cmn.isp_base, 1 );
     acamera_isp_mesh_shading_mesh_alpha_mode_write( p_fsm->cmn.isp_base, 2 );
 
@@ -307,7 +307,7 @@ static void write_CCM_to_purple_fringe( color_matrix_fsm_t *p_fsm )
     int i;
     for ( i = 0; i < 9; ++i ) {
         if ( pf_ccm[i] < 0 ) {
-            ccm_coeff[i] = 4096 - ( pf_ccm[i] );
+            ccm_coeff[i] = (int16_t)(4096 - ( pf_ccm[i] ));
         } else {
             ccm_coeff[i] = pf_ccm[i];
         }
@@ -516,8 +516,8 @@ void color_matrix_update( color_matrix_fsm_t *p_fsm )
             // using curr += (target - curr)/frames_left causes no movement in first half
             // for small movements
             if ( p_fsm->light_source_change_frames > 1 ) {
-                delta = ( ( p_ccm_target[i] - p_ccm_prev[i] ) * ( p_fsm->light_source_change_frames - p_fsm->light_source_change_frames_left ) ) / ( p_fsm->light_source_change_frames - 1 ); // division by zero is checked
-                p_ccm_cur[i] = p_ccm_prev[i] + delta;
+                delta = (int16_t)(( ( p_ccm_target[i] - p_ccm_prev[i] ) * ( p_fsm->light_source_change_frames - p_fsm->light_source_change_frames_left ) ) / ( p_fsm->light_source_change_frames - 1 )); // division by zero is checked
+                p_ccm_cur[i] = (int16_t)(p_ccm_prev[i] + delta);
             }
         }
     }
@@ -566,7 +566,7 @@ void color_matrix_update( color_matrix_fsm_t *p_fsm )
                 acamera_isp_mesh_shading_mesh_alpha_bank_g_write( p_fsm->cmn.isp_base, MESH_SHADING_LS_A_BANK );
                 acamera_isp_mesh_shading_mesh_alpha_bank_b_write( p_fsm->cmn.isp_base, MESH_SHADING_LS_A_BANK );
                 if ( p_fsm->temperature_threshold[0] != p_fsm->temperature_threshold[1] )
-                    p_fsm->shading_alpha = ( 255 * ( wb_info.temperature_detected - p_fsm->temperature_threshold[0] ) ) / ( p_fsm->temperature_threshold[1] - p_fsm->temperature_threshold[0] );
+                    p_fsm->shading_alpha = (int16_t)(( 255 * ( wb_info.temperature_detected - p_fsm->temperature_threshold[0] ) ) / ( p_fsm->temperature_threshold[1] - p_fsm->temperature_threshold[0] ));
                     pr_debug("temp between %d and %d\n", p_fsm->temperature_threshold[0], p_fsm->temperature_threshold[1]);
             }
             // if current temp between 3100 and 3400 go to u30
@@ -585,7 +585,7 @@ void color_matrix_update( color_matrix_fsm_t *p_fsm )
                 acamera_isp_mesh_shading_mesh_alpha_bank_g_write( p_fsm->cmn.isp_base, MESH_SHADING_LS_U30_BANK );
                 acamera_isp_mesh_shading_mesh_alpha_bank_b_write( p_fsm->cmn.isp_base, MESH_SHADING_LS_U30_BANK );
                 if ( p_fsm->temperature_threshold[2] != p_fsm->temperature_threshold[3] )
-                    p_fsm->shading_alpha = ( 255 * ( wb_info.temperature_detected - p_fsm->temperature_threshold[2] ) ) / ( p_fsm->temperature_threshold[3] - p_fsm->temperature_threshold[2] );
+                    p_fsm->shading_alpha = (int16_t)(( 255 * ( wb_info.temperature_detected - p_fsm->temperature_threshold[2] ) ) / ( p_fsm->temperature_threshold[3] - p_fsm->temperature_threshold[2] ));
                     pr_debug("temp between %d and %d\n", p_fsm->temperature_threshold[2], p_fsm->temperature_threshold[3]);
             }
             // if current temp between 3600 and 4100 go to tl84
@@ -604,7 +604,7 @@ void color_matrix_update( color_matrix_fsm_t *p_fsm )
                 acamera_isp_mesh_shading_mesh_alpha_bank_g_write( p_fsm->cmn.isp_base, MESH_SHADING_LS_TL84_BANK );
                 acamera_isp_mesh_shading_mesh_alpha_bank_b_write( p_fsm->cmn.isp_base, MESH_SHADING_LS_TL84_BANK );
                 if ( p_fsm->temperature_threshold[4] != p_fsm->temperature_threshold[5] )
-                    p_fsm->shading_alpha = ( 255 * ( wb_info.temperature_detected - p_fsm->temperature_threshold[4] ) ) / ( p_fsm->temperature_threshold[5] - p_fsm->temperature_threshold[4] );
+                    p_fsm->shading_alpha = (int16_t)(( 255 * ( wb_info.temperature_detected - p_fsm->temperature_threshold[4] ) ) / ( p_fsm->temperature_threshold[5] - p_fsm->temperature_threshold[4] ));
                     pr_debug("temp between %d and %d\n", p_fsm->temperature_threshold[4], p_fsm->temperature_threshold[5]);
             }
             // if current temp > 4500 go to d50
@@ -661,7 +661,7 @@ void color_matrix_update( color_matrix_fsm_t *p_fsm )
                 acamera_isp_mesh_shading_mesh_alpha_bank_b_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_A_BANK );
 
                 if ( p_fsm->temperature_threshold[5] != p_fsm->temperature_threshold[4] )
-                    p_fsm->shading_alpha = ( 255 * ( wb_info.temperature_detected - p_fsm->temperature_threshold[4] ) ) / ( p_fsm->temperature_threshold[5] - p_fsm->temperature_threshold[4] ); // division by zero is checked
+                    p_fsm->shading_alpha = (int16_t)(( 255 * ( wb_info.temperature_detected - p_fsm->temperature_threshold[4] ) ) / ( p_fsm->temperature_threshold[5] - p_fsm->temperature_threshold[4] )); // division by zero is checked
                                                                                                                                                                                                 //p_fsm->shading_source_previous = AWB_LIGHT_SOURCE_D40;
 
             }
@@ -673,14 +673,14 @@ void color_matrix_update( color_matrix_fsm_t *p_fsm )
                 acamera_isp_mesh_shading_mesh_alpha_bank_b_write( p_fsm->cmn.isp_base, OV_08835_MESH_SHADING_LS_D40_BANK );
 
                 if ( p_fsm->temperature_threshold[7] != p_fsm->temperature_threshold[6] )
-                    p_fsm->shading_alpha = ( 255 * ( wb_info.temperature_detected - p_fsm->temperature_threshold[6] ) ) / ( p_fsm->temperature_threshold[7] - p_fsm->temperature_threshold[6] ); // division by zero is checked
+                    p_fsm->shading_alpha = (int16_t)(( 255 * ( wb_info.temperature_detected - p_fsm->temperature_threshold[6] ) ) / ( p_fsm->temperature_threshold[7] - p_fsm->temperature_threshold[6] )); // division by zero is checked
                                                                                                                                                                                                 //p_fsm->shading_source_previous = AWB_LIGHT_SOURCE_D50;
             }
         }
 
-        acamera_isp_mesh_shading_mesh_alpha_r_write( p_fsm->cmn.isp_base, p_fsm->shading_alpha );
-        acamera_isp_mesh_shading_mesh_alpha_g_write( p_fsm->cmn.isp_base, p_fsm->shading_alpha );
-        acamera_isp_mesh_shading_mesh_alpha_b_write( p_fsm->cmn.isp_base, p_fsm->shading_alpha );
+        acamera_isp_mesh_shading_mesh_alpha_r_write( p_fsm->cmn.isp_base, (uint8_t)(p_fsm->shading_alpha) );
+        acamera_isp_mesh_shading_mesh_alpha_g_write( p_fsm->cmn.isp_base, (uint8_t)(p_fsm->shading_alpha) );
+        acamera_isp_mesh_shading_mesh_alpha_b_write( p_fsm->cmn.isp_base, (uint8_t)(p_fsm->shading_alpha) );
     }
 
     //this will put the ccm into the right format used in purple fringe and write to registers

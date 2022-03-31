@@ -29,6 +29,7 @@
 #include <linux/slab.h>
 #include <linux/device.h>
 #include <linux/module.h>
+
 #include "acamera_logger.h"
 
 #include "dwe_dev.h"
@@ -82,7 +83,7 @@ static int dwe_register(struct platform_device *pdev, struct resource *pres, dwe
 		//ret = -ENODEV;
 		//goto irq_err;
         } else {
-		ptr->irq_num = irqs->start;
+		ptr->irq_num = (unsigned int)irqs->start;
 	}
 	
 	*psdev = ptr;

@@ -9,7 +9,8 @@ subdir-ccflags-y += -Wno-declaration-after-statement	\
 	-Idrivers/media/platform/hobot/common_api/	\
 	-I$(src_v4l2)/inc/		\
 	-I$(src_v4l2)/inc/api/	\
-	-I$(src_v4l2)/inc/sys/
+	-I$(src_v4l2)/inc/sys/	\
+	-I$(src_v4l2)/src/fw/
 
 obj-$(CONFIG_VIDEO_HOBOT_ISP) += subdev/log_list/
 obj-$(CONFIG_VIDEO_HOBOT_ISP) += subdev/iq/

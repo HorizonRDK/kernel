@@ -538,7 +538,7 @@ int32_t system_dma_sg_fwmem_setup( void *ctx, int32_t buff_loc, fwmem_addr_pair_
     sg = table->sgl;
     for ( i = 0; i < addr_pairs; i++ ) {
         sg_dma_address( sg ) = fwmem_pair[i].phy_addr;
-        sg_dma_len( sg ) = fwmem_pair[i].size;
+        sg_dma_len( sg ) = (uint32_t)fwmem_pair[i].size;
         sg = sg_next( sg );
     }
 #endif

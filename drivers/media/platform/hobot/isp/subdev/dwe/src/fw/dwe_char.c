@@ -42,6 +42,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/delay.h>
 #include <linux/atomic.h>
+
 #include "dwe_char.h"
 #include "acamera_logger.h"
 #include "system_dwe_api.h"
@@ -178,12 +179,12 @@ static int dwe_fop_release(struct inode *pinode, struct file *pfile)
 static ssize_t dwe_fop_read(struct file *pfile, char *puser_buf,
 	size_t len, loff_t *poff)
 {
-	int ret = 0;
+	ssize_t ret = 0;
 
 	dwe_charmod_s *dwe_cdev = pfile->private_data;
 
 	ret = vb2_read(&dwe_cdev->vb2_q, puser_buf, len, poff,
-		pfile->f_flags & O_NONBLOCK);
+		(int)(pfile->f_flags & O_NONBLOCK));
 
 	return ret;
 }

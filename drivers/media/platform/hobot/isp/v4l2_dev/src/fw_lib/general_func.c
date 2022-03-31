@@ -113,7 +113,7 @@ static void general_cac_memory_lut_reload( general_fsm_ptr_t p_fsm )
     uint8_t cfa_pattern = acamera_isp_top_cfa_pattern_read( p_fsm->cmn.isp_base );
 
     uint8_t line_offset = calibration_ca_mesh_width;
-    uint16_t plane_offset = calibration_ca_mesh_width * calibration_ca_mesh_height;
+    uint16_t plane_offset = (uint16_t)(calibration_ca_mesh_width * calibration_ca_mesh_height);
 
     int32_t ca_model[10] = {0};
     int32_t mesh_vars[9] = {0};
@@ -132,10 +132,10 @@ static void general_cac_memory_lut_reload( general_fsm_ptr_t p_fsm )
     }
 
     // configure mesh size and reset the table
-    acamera_isp_ca_correction_mesh_width_write( p_fsm->cmn.isp_base, calibration_ca_mesh_width );
-    acamera_isp_ca_correction_mesh_height_write( p_fsm->cmn.isp_base, calibration_ca_mesh_height );
+    acamera_isp_ca_correction_mesh_width_write( p_fsm->cmn.isp_base, (uint8_t)calibration_ca_mesh_width );
+    acamera_isp_ca_correction_mesh_height_write( p_fsm->cmn.isp_base, (uint8_t)calibration_ca_mesh_height );
     acamera_isp_ca_correction_line_offset_write( p_fsm->cmn.isp_base, calibration_ca_mesh_width );
-    acamera_isp_ca_correction_plane_offset_write( p_fsm->cmn.isp_base, calibration_ca_mesh_width * calibration_ca_mesh_height );
+    acamera_isp_ca_correction_plane_offset_write( p_fsm->cmn.isp_base, (uint16_t)(calibration_ca_mesh_width * calibration_ca_mesh_height) );
 
     // reset to 0
     for ( lut_index = 0; lut_index < CAC_MEM_LUT_LEN; lut_index++ ) {
@@ -166,7 +166,7 @@ static void general_cac_memory_lut_reload( general_fsm_ptr_t p_fsm )
         }
 
         plane_offset_val = plane_offset * ( component >> 1 );
-        vh_shift = ( component % 2 ) * 8;
+        vh_shift = (uint16_t)(( component % 2 ) * 8);
 
         for ( x = 0; x < calibration_ca_mesh_width; x++ ) {
             for ( y = 0; y < calibration_ca_mesh_height; y++ ) {
@@ -238,23 +238,23 @@ static void general_cac_memory_lut_reload( general_fsm_ptr_t p_fsm )
 
                 // z_norm is equivalent position of z within linear range of +/-0.5
                 if ( ( z16 + 128 ) < 0 ) {
-                    z_norm = ( ( z16 + 128 ) % 256 ) - 128;
-                    z_norm = 256 + z_norm;
+                    z_norm = (int16_t)(( ( z16 + 128 ) % 256 ) - 128);
+                    z_norm = (int16_t)(256 + z_norm);
                 } else {
-                    z_norm = ( ( z16 + 128 ) % 256 ) - 128;
+                    z_norm = (int16_t)(( ( z16 + 128 ) % 256 ) - 128);
                 }
 
                 if ( z_norm < -64 ) {
-                    z_norm = -128 - z_norm;
+                    z_norm = (int16_t)(-128 - z_norm);
                 } else if ( z_norm > 64 ) {
-                    z_norm = 128 - z_norm;
+                    z_norm = (int16_t)(128 - z_norm);
                 }
 
                 // Shift by -2 is like multiplying by 0.25z_norm
-                z_norm = signed_bitshift( z_norm, -2 );
-                z16 = z16 - z_norm;
+                z_norm = (int16_t)signed_bitshift( z_norm, -2 );
+                z16 = (int16_t)(z16 - z_norm);
 
-                z16 = signed_bitshift( z16, -2 );
+                z16 = (int16_t)signed_bitshift( z16, -2 );
 
                 // Now manipulate z to the format of the mesh (u4.4, 2s complement)
 
@@ -262,7 +262,7 @@ static void general_cac_memory_lut_reload( general_fsm_ptr_t p_fsm )
 
                 // Round z to 4 bits precision
                 z16 = ( z16 > 0 ) ? z16 : -z16;
-                z16 = ( z16 % 2 ) + ( z16 >> 1 );
+                z16 = (int16_t)(( z16 % 2 ) + ( z16 >> 1 ));
 
                 // Apply ca_min_correction (clip small corrections to 0)
                 if ( z16 <= calibration_ca_min_correction ) {
@@ -276,17 +276,17 @@ static void general_cac_memory_lut_reload( general_fsm_ptr_t p_fsm )
 
                 // Convert to 2s complement
                 if ( z_sign ) {
-                    z16 = 256 - z16;
+                    z16 = (int16_t)(256 - z16);
                 }
 
                 // Cast z from int16 to uint32 here
                 zu32 = (uint32_t)z16;
 
                 // Work out which LUT entry this z value should be placed in
-                lut_index = plane_offset_val + y * line_offset + x;
+                lut_index = (uint16_t)(plane_offset_val + y * line_offset + x);
 
                 // Shift increases by 16 bits for odd entries
-                lut_shift = vh_shift + ( lut_index % 2 ) * 16;
+                lut_shift = (uint8_t)(vh_shift + ( lut_index % 2 ) * 16);
 
                 // Find location within half sized array (2 blocks per register)
                 lut_index = ( lut_index >> 1 );
@@ -375,7 +375,7 @@ void acamera_reload_isp_calibratons( general_fsm_ptr_t p_fsm )
     // Load purple fringe
     const uint8_t *lut_pf = _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_PF_RADIAL_LUT );
     for ( i = 0; i < _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_PF_RADIAL_LUT ); i++ ) {
-        acamera_isp_pf_correction_shading_shading_lut_write( p_fsm->cmn.isp_base, i, lut_pf[i] );
+        acamera_isp_pf_correction_shading_shading_lut_write( p_fsm->cmn.isp_base, (uint8_t)i, lut_pf[i] );
     }
 
 	// Load temper noise lut
@@ -672,7 +672,7 @@ static void general_dynamic_gamma_update( general_fsm_ptr_t p_fsm )
             p_table[0].y = gamma_ev1[i];
             p_table[1].y = gamma_ev2[i];
             // do alpha blending between two gammas for bin [i]
-            uint16_t gamma_bin = acamera_calc_modulation_u32( exposure_log2, p_table, 2 );
+            uint16_t gamma_bin = (uint16_t)acamera_calc_modulation_u32( exposure_log2, p_table, 2 );
             LOG( LOG_DEBUG, "Gamma update: ev %d, ev1 %d, ev2 %d, ref_gamma_ev1 %d, ref_gamma_ev2 %d, result %d", exposure_log2, ev1_thresh, ev2_thresh, gamma_ev1[i], gamma_ev2[i], gamma_bin );
             // update the hardware gamma curve for fr and ds
             acamera_fr_gamma_rgb_mem_array_data_write( p_fsm->cmn.isp_base, i, gamma_bin );

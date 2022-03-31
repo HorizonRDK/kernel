@@ -38,7 +38,7 @@
 
 static int g_pym_fps[VIO_MAX_STREAM] = {0, };
 static int g_pym_idx[VIO_MAX_STREAM] = {0, };
-static int g_pym_fps_lasttime[VIO_MAX_STREAM] = {0, };
+static __kernel_time_t g_pym_fps_lasttime[VIO_MAX_STREAM] = {0, };
 
 void pym_update_param(struct pym_subdev *subdev);
 void pym_update_param_ch(struct pym_subdev *subdev);
@@ -399,7 +399,7 @@ int pym_check_phyaddr(u32 addr)
 void pym_set_buffers(struct pym_subdev *subdev, struct vio_frame *frame)
 {
 	int i = 0;
-	u32 shadow_index = 0;
+	u8 shadow_index = 0;
 	u32 base_layer_nums = 0;
 	u32 y_addr, uv_addr;
 	pym_cfg_t *pym_config;
@@ -410,7 +410,7 @@ void pym_set_buffers(struct pym_subdev *subdev, struct vio_frame *frame)
 	pym = subdev->pym_dev;
 	pym_config = &subdev->pym_cfg;
 	if (group->instance < MAX_SHADOW_NUM)
-		shadow_index = group->instance;
+		shadow_index = (u8)group->instance;
 
 	for (i = 0; i < MAX_PYM_DS_COUNT; i++) {
 		y_addr = frame->frameinfo.spec.ds_y_addr[i];
@@ -439,7 +439,7 @@ void pym_set_buffers(struct pym_subdev *subdev, struct vio_frame *frame)
 static void pym_disable_layer(struct pym_subdev *subdev)
 {
 	int i = 0;
-	u32 shadow_index = 0;
+	u8 shadow_index = 0;
 	pym_cfg_t *pym_config;
 	struct vio_group *group;
 	struct x3_pym_dev *pym;
@@ -448,7 +448,7 @@ static void pym_disable_layer(struct pym_subdev *subdev)
 	pym = subdev->pym_dev;
 	pym_config = &subdev->pym_cfg;
 	if (group->instance < MAX_SHADOW_NUM)
-		shadow_index = group->instance;
+		shadow_index = (u8)group->instance;
 
 	for (i = 0; i < MAX_PYM_DS_COUNT; i++) {
 		pym_ds_config_factor(pym->base_reg, shadow_index, i, 0);
@@ -484,7 +484,7 @@ static void pym_frame_work(struct vio_group *group)
 	pym = subdev->pym_dev;
 
 	if (instance < MAX_SHADOW_NUM)
-		shadow_index = instance;
+		shadow_index = (u8)instance;
 
 	atomic_inc(&pym->backup_fcount);
 	/* different instance time-sharing PYM */
@@ -601,7 +601,7 @@ end_req_to_pro:
 void pym_update_param(struct pym_subdev *subdev)
 {
 	u16 src_width, src_height, roi_width;
-	u32 shadow_index = 0;
+	u8 shadow_index = 0;
 	int i = 0;
 	u32 ds_bapass_uv = 0;
 	pym_cfg_t *pym_config;
@@ -613,7 +613,7 @@ void pym_update_param(struct pym_subdev *subdev)
 	pym = subdev->pym_dev;
 	pym_config = &subdev->pym_cfg;
 	if (group->instance < MAX_SHADOW_NUM)
-		shadow_index = group->instance;
+		shadow_index = (u8)group->instance;
 
 	//config src size
 	src_width = pym_config->img_width;
@@ -670,7 +670,7 @@ void pym_update_param(struct pym_subdev *subdev)
 void pym_update_param_ch(struct pym_subdev *subdev)
 {
 	u16 roi_width;
-	u32 shadow_index = 0;
+	u8 shadow_index = 0;
 	pym_cfg_t *pym_config;
 	struct vio_group *group;
 	struct x3_pym_dev *pym;
@@ -683,7 +683,7 @@ void pym_update_param_ch(struct pym_subdev *subdev)
 	pym_config = &subdev->pym_cfg;
 	pym_scale_ch = &subdev->pym_cfg_ch;
 	if (group->instance < MAX_SHADOW_NUM)
-		shadow_index = group->instance;
+		shadow_index = (u8)group->instance;
 	else
 		set_bit(PYM_REUSE_SHADOW0, &pym->state);
 
@@ -854,7 +854,7 @@ int pym_video_init(struct pym_video_ctx *pym_ctx, unsigned long arg)
 
 	subdev = pym_ctx->subdev;
 	if (test_and_set_bit(PYM_SUBDEV_INIT, &subdev->state)) {
-		ret = copy_from_user((char *)&tmp_config,
+		ret = (s32)copy_from_user((char *)&tmp_config,
 					(u32 __user *) arg, sizeof(pym_cfg_t));
 		if (ret == 0) {
 			ret = pym_cfg_compare(pym_config, &tmp_config);
@@ -870,7 +870,7 @@ int pym_video_init(struct pym_video_ctx *pym_ctx, unsigned long arg)
 	}
 
 	if (pym_ctx->id == SUBDEV_ID_OUT) {
-		ret = copy_from_user((char *)pym_config,
+		ret = (s32)copy_from_user((char *)pym_config,
 					(u32 __user *) arg, sizeof(pym_cfg_t));
 		if (ret)
 			goto err;
@@ -1182,7 +1182,7 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 	struct x3_pym_dev *pym;
 	struct mp_vio_frame  *frame_array_addr[VIO_MP_MAX_FRAMES];
 	int i = 0, first_index, frame_num;
-	u16 mask = 0x00;
+	u32 mask = 0x00;
 	int tmp_num = 0;
 	struct mp_vio_frame *mp_frame;
 	struct vio_frame *release_frame;
@@ -1603,7 +1603,7 @@ int pym_update_scale_info(struct pym_video_ctx *pym_ctx, unsigned long arg)
 	}
 	framemgr = &subdev->framemgr;
 	pym_config = &subdev->pym_cfg;
-	ret = copy_from_user((char *)&pym_new_config,
+	ret = (s32)copy_from_user((char *)&pym_new_config,
 				(u32 __user *) arg, sizeof(pym_cfg_t));
 	if (ret == 0) {
 		framemgr_e_barrier_irqs(framemgr, 0UL, flags);
@@ -1632,7 +1632,7 @@ int pym_update_ch_scale_info(struct pym_video_ctx *pym_ctx, unsigned long arg)
 	}
 
 	pym_config_ch = &subdev->pym_cfg_ch; /*PRQA S ALL*/
-	ret = copy_from_user((char *)pym_config_ch,
+	ret = (s32)copy_from_user((char *)pym_config_ch,
 				(u32 __user *) arg, sizeof(pym_scale_ch_t));
 	if (ret)
 		return -EFAULT;
@@ -1814,13 +1814,13 @@ static long x3_pym_ioctl(struct file *file, unsigned int cmd,
 		ret = pym_video_dqbuf(pym_ctx, &frameinfo);
 		if (ret)
 			return ret;
-		ret = copy_to_user((void __user *) arg, (char *) &frameinfo,
+		ret = (s32)copy_to_user((void __user *) arg, (char *) &frameinfo,
 				 sizeof(struct frame_info));
 		if (ret)
 			return -EFAULT;
 		break;
 	case PYM_IOC_QBUF:
-		ret = copy_from_user((char *) &frameinfo, (u32 __user *) arg,
+		ret = (s32)copy_from_user((char *) &frameinfo, (u32 __user *) arg,
 				   sizeof(struct frame_info));
 		if (ret)
 			return -EFAULT;
@@ -1858,7 +1858,7 @@ static long x3_pym_ioctl(struct file *file, unsigned int cmd,
 			return -EFAULT;
 		break;
 	case PYM_IOC_USER_STATS:
-		ret = copy_from_user((char *) &stats, (u32 __user *) arg,
+		ret = (s32)copy_from_user((char *) &stats, (u32 __user *) arg,
 				   sizeof(struct user_statistic));
 		if (ret)
 			return -EFAULT;
@@ -1876,7 +1876,8 @@ static long x3_pym_ioctl(struct file *file, unsigned int cmd,
 			vio_err("alloc pym ion struct faild");
 			return -ENOMEM;
 		}
-		ret = copy_from_user(pym_ion, (u32 __user *) arg, sizeof(struct kernel_ion));
+		ret = (s32)copy_from_user(pym_ion, (u32 __user *) arg,
+												sizeof(struct kernel_ion));
 		if (ret) {
 			vfree(pym_ion);
 			return -EFAULT;
@@ -1887,7 +1888,8 @@ static long x3_pym_ioctl(struct file *file, unsigned int cmd,
 			vio_err("alloc ion buffer failed");
 			return -EFAULT;
 		}
-		ret = copy_to_user((u32 __user *) arg, pym_ion, sizeof(struct kernel_ion));
+		ret = (s32)copy_to_user((u32 __user *) arg, pym_ion,
+												sizeof(struct kernel_ion));
 		if (ret) {
 			vfree(pym_ion);
 			vio_err("copy to user failed");
@@ -1910,8 +1912,8 @@ int x3_pym_mmap(struct file *file, struct vm_area_struct *vma)
 	struct pym_video_ctx *pym_ctx;
 	struct vio_framemgr *framemgr;
 	struct mp_vio_frame *frame;
-	int buffer_index;
-	u32 paddr = 0;
+	int32_t buffer_index;
+	uint64_t paddr = 0;
 	unsigned long flags;
 
 	pym_ctx = file->private_data;
@@ -1922,7 +1924,7 @@ int x3_pym_mmap(struct file *file, struct vm_area_struct *vma)
 	}
 
 	framemgr = pym_ctx->framemgr;
-	buffer_index = vma->vm_pgoff;
+	buffer_index = (int32_t)vma->vm_pgoff;
 	/*ret = pym_index_owner(pym_ctx, buffer_index);
 	if( ret != VIO_BUFFER_OTHER ) {
 		vio_err("[S%d][V%d] %s proc %d error,index %d not other's",
@@ -1946,7 +1948,7 @@ int x3_pym_mmap(struct file *file, struct vm_area_struct *vma)
 	}
 	framemgr_x_barrier_irqr(framemgr, 0UL, flags);
 	if (paddr == 0) {
-		vio_err("[S%d][V%d] %s proc %d error,paddr %x.",
+		vio_err("[S%d][V%d] %s proc %d error,paddr %llx.",
 			pym_ctx->group->instance, pym_ctx->id, __func__,
 			pym_ctx->ctx_index, paddr);
 		ret = -EAGAIN;
@@ -1963,7 +1965,7 @@ int x3_pym_mmap(struct file *file, struct vm_area_struct *vma)
 		goto err;
 	}
 
-	vio_dbg("[S%d][V%d] %s map success, proc %d index %d paddr %x.",
+	vio_dbg("[S%d][V%d] %s map success, proc %d index %d paddr %llx.",
 		pym_ctx->group->instance, pym_ctx->id, __func__,
 		pym_ctx->ctx_index, buffer_index, paddr);
 	return 0;
@@ -2481,7 +2483,7 @@ static ssize_t pym_stat_show(struct device *dev,
 				struct device_attribute *attr, char* buf)
 {
 	struct x3_pym_dev *pym;
-	u32 offset = 0;
+	ssize_t offset = 0;
 	int instance = 0;
 	ssize_t len = 0;
 	int output = 0;

@@ -9,7 +9,6 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  */
-
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/device.h>
@@ -19,7 +18,6 @@
 #include <linux/platform_device.h>
 #include <linux/cdev.h>
 #include <linux/uaccess.h>
-
 #include <soc/hobot/hobot_mipi_dphy.h>
 
 #include "hobot_mipi_host_regs.h"
@@ -28,6 +26,20 @@
 #include "hobot_mipi_utils.h"
 
 #define MIPI_DPHY_DNAME		"mipi_dphy"
+
+#define MIPICLK_FREQ_MHZ_2_MBPS		(2U)
+#define OSC_FREQ_DEFAULT_1P4		(460U)
+#define OSC_FREQ_DEFAULT_1P3		(438U)
+#define TXOUT_FREQ_GAIN_DEFAULT		(5U)
+#define TXOUT_FREQ_GAIN_PERCENT		(100U)
+#define TXOUT_FREQ_FORCE_MIN_MHZ	(40U)
+#define TXOUT_FREQ_SLEWRATE_MBPS	(1500U)
+#define TXOUT_FREQ_CHGPUMP_MBPS		(2300U)
+#define RXPHY_MERGE_LANE_MIN		(2U)
+#define RXPHY_VREFCD_LPRX_DEFFAULT	(1U)
+#define RXPHY_V400_PROG_DEFFAULT	(4U)
+#define RXPHY_DESKEW_DEFFAULT		(0U)
+
 #ifdef CONFIG_HOBOT_MIPI_HOST_MAX_NUM
 #define MIPI_HOST_MAX_NUM	CONFIG_HOBOT_MIPI_HOST_MAX_NUM
 #else
@@ -160,13 +172,34 @@ module_param(rxdphy_deskew_cfg, uint, 0644);
 #define RX_CLK_SETTLE_EN         (0x01)
 #define RX_CLK_SETTLE            (0x1 << 4)
 #define RX_CLK_200MODE           (0x1 << 4)
-#define RX_HS_SETTLE(s)          (0x80 | ((s) & 0x7F))
+#define RX_HS_SETTLE_DFT         (0x80U)
+#define RX_HS_SETTLE_MASK        (0x7FU)
+static inline uint8_t RX_HS_SETTLE(uint16_t settle) {
+	return (uint8_t)(RX_HS_SETTLE_DFT | ((settle) & RX_HS_SETTLE_MASK));
+}
 #define RX_SYSTEM_CONFIG         (0x38)
 #define RX_CB_BIAS_ATB           (0x4D)
-#define RX_CB_VREF_CB(lp, v4)    ((((lp) & 0x3) << 5) | (((v4) & 0x7) << 2) | 0x03)
+#define RX_CB_VREF_DFT           (0x3U)
+#define RX_CB_VREF_LP_MASK       (0x3U)
+#define RX_CB_VREF_LP_OFFS       (5)
+#define RX_CB_VREF_V4_MASK       (0x7U)
+#define RX_CB_VREF_V4_OFFS       (2)
+static inline uint8_t RX_CB_VREF_CB(uint32_t lp, uint32_t v4) {
+	return (uint8_t)((((lp) & RX_CB_VREF_LP_MASK) << RX_CB_VREF_LP_OFFS) |
+					 (((v4) & RX_CB_VREF_V4_MASK) << RX_CB_VREF_V4_OFFS) |
+					 RX_CB_VREF_DFT);
+}
 #define RX_CLKLANE_PULLLONG      (0x80)
-#define RX_OSCFREQ_HIGH(f)       (((f) & 0xF00) >> 8)
-#define RX_OSCFREQ_LOW(f)        ((f) & 0xFF)
+#define RX_OSCFREQ_HIGH_MASK     (0xFU)
+#define RX_OSCFREQ_HIGH_OFFS     (8)
+#define RX_OSCFREQ_LOW_MASK      (0xFFU)
+#define RX_OSCFREQ_LOW_OFFS      (0x0)
+static inline uint8_t RX_OSCFREQ_HIGH(uint16_t freq) {
+	return (uint8_t)(((freq) >> RX_OSCFREQ_HIGH_OFFS) & RX_OSCFREQ_HIGH_MASK);
+}
+static inline uint8_t RX_OSCFREQ_LOW(uint16_t freq) {
+	return (uint8_t)(((freq) >> RX_OSCFREQ_LOW_OFFS) & RX_OSCFREQ_LOW_MASK);
+}
 #define RX_OSCFREQ_EN            (0x1)
 
 #define TX_PLL_ANALOG_PROG_CTL   (0x1)
@@ -180,13 +213,32 @@ module_param(rxdphy_deskew_cfg, uint, 0644);
 #define TX_SLEWRATE_FSM_OVR_EN   (0x2)
 #define TX_SLEWRATE_DDL_CFG_SEL  (0x0)
 #define TX_BANDGA_CNTRL_VAL      (0x7C)
-#define TX_HS_ZERO(s)            (0x80 | ((s) & 0x7F))
+static inline uint8_t TX_HS_ZERO(uint16_t settle) {
+	return (uint8_t)(RX_HS_SETTLE_DFT | ((settle) & RX_HS_SETTLE_MASK));
+}
 #define TX_SLEW_RATE_CAL         (0x5E)
 #define TX_SLEW_RATE_CTL         (0x11)
-#define TX_PLL_DIV(n)            (0x80 | ((n) << 3) | 0x2)
-#define TX_PLL_MULTI_L(m)        ((m) & 0xFF)
-#define TX_PLL_MULTI_H(m)        (((m) & 0x300) >> 8)
-#define TX_PLL_VCO(v)            (0x81 | (((v) & 0x3F) << 1))
+#define TX_PLL_DIV_DFL           (0x82U)
+#define TX_PLL_DIV_N_OFFS        (3)
+static inline uint8_t TX_PLL_DIV(uint8_t n) {
+	return (uint8_t)(TX_PLL_DIV_DFL | ((n) << TX_PLL_DIV_N_OFFS));
+}
+#define TX_PLL_MULTI_H_MASK      (0x3U)
+#define TX_PLL_MULTI_H_OFFS      (8)
+#define TX_PLL_MULTI_L_MASK      (0xFFU)
+#define TX_PLL_MULTI_L_OFFS      (0)
+static inline uint8_t TX_PLL_MULTI_H(uint16_t m) {
+	return (uint8_t)(((m) >> TX_PLL_MULTI_H_OFFS) & TX_PLL_MULTI_H_MASK);
+}
+static inline uint8_t TX_PLL_MULTI_L(uint16_t m) {
+	return (uint8_t)(((m) >> TX_PLL_MULTI_L_OFFS) & TX_PLL_MULTI_L_MASK);
+}
+#define TX_PLL_VCO_DFL           (0x81U)
+#define TX_PLL_VCO_MASK          (0x3FU)
+#define TX_PLL_VCO_OFFS          (1)
+static inline uint8_t TX_PLL_VCO(uint16_t v) {
+	return (uint8_t)(TX_PLL_VCO_DFL | (((v) & TX_PLL_VCO_MASK) << TX_PLL_VCO_OFFS));
+}
 #define TX_PLL_CPBIAS            (0x10)
 #define TX_PLL_INT_CTL           (0x4)
 #define TX_PLL_PROP_CNTRL        (0x0C)
@@ -208,6 +260,14 @@ module_param(rxdphy_deskew_cfg, uint, 0644);
 #define TX_SLEW_5_SR_OSC_FREQ2L  (0xE2)
 #define TX_SLEW_6_SR_OSC_FREQ2H  (0x04)
 #define TX_SLEW_7_SR_ON_RANGE    (0x11)
+
+#define TX_PLL_N_BASE            (1U)
+#define TX_PLL_M_BASE            (2U)
+#define TX_PLL_VCO_DIV_MASK      (0x3U)
+#define TX_PLL_VCO_DIV_OFFS      (4)
+static inline uint16_t TX_PLL_VCO_DIV(uint32_t vco) {
+	return (uint16_t)(((vco) >> TX_PLL_VCO_DIV_OFFS) & TX_PLL_VCO_DIV_MASK);
+}
 
 #ifdef CONFIG_HOBOT_MIPI_REG_OPERATE
 typedef struct _reg_s {
@@ -563,7 +623,7 @@ int32_t mipi_host_dphy_initialize(uint16_t mipiclk, uint16_t lane, uint16_t sett
 	mipi_dphy_set_freqrange(MIPI_DPHY_TYPE_HOST, (phy) ? (phy->sub.port) : 0,
 		MIPI_HSFREQRANGE, mipi_dphy_clk_range(phy, mipiclk / lane, &osc_freq));
 	if (rxdphy_deskew_cfg != 0) {
-		mipi_host_dphy_testdata(phy, iomem, REGS_RX_SYS_7, rxdphy_deskew_cfg);
+		mipi_host_dphy_testdata(phy, iomem, REGS_RX_SYS_7, (uint8_t)rxdphy_deskew_cfg);
 	} else {
 		if (mipiclk < (lane * 1500))
 			mipi_host_dphy_testdata(phy, iomem, REGS_RX_SYS_7, RX_SYSTEM_CONFIG);
@@ -700,7 +760,7 @@ static uint32_t mipi_tx_vco_range(mipi_phy_t *phy, uint16_t outclk, uint16_t *ou
 	return 0;
 }
 
-static int32_t mipi_tx_pll_div(mipi_phy_t *phy, uint16_t refsclk, uint16_t laneclk, uint8_t *n, uint16_t *m, uint16_t *vco)
+static uint16_t mipi_tx_pll_div(mipi_phy_t *phy, uint16_t refsclk, uint16_t laneclk, uint8_t *n, uint16_t *m, uint16_t *vco)
 {
 	struct device *dev = (phy) ? phy->sub.dev : g_pdev.dev;
 	mipi_dphy_tx_param_t *ptx = (phy) ? phy->sub.param : NULL;
@@ -722,7 +782,7 @@ static int32_t mipi_tx_pll_div(mipi_phy_t *phy, uint16_t refsclk, uint16_t lanec
 		mipierr("pll input error!!!");
 		return 0;
 	}
-	fout = laneclk >> 1; /* data rate(Gbps) = PLL Fout(GHz)*2 */
+	fout = (uint16_t)(laneclk / MIPICLK_FREQ_MHZ_2_MBPS); /* data rate(Gbps) = PLL Fout(GHz)*2 */
 	vco_tmp = mipi_tx_vco_range(phy, fout, &fout_max);
 	if (vco_tmp == 0) {
 		mipierr("pll output clk error!!! laneclk: %d", laneclk);
@@ -731,10 +791,10 @@ static int32_t mipi_tx_pll_div(mipi_phy_t *phy, uint16_t refsclk, uint16_t lanec
 	if (s_txout_freq_autolarge_enbale) {
 		mipidbg("txout freq autolarge to %dMHz", fout_max);
 		fout = fout_max;
-		laneclk = fout << 1;
+		laneclk = (uint16_t)(fout * MIPICLK_FREQ_MHZ_2_MBPS);
 	}
-	vco_div = (vco_tmp >> 4) & 0x3;
-	fvco = fout << vco_div;
+	vco_div = TX_PLL_VCO_DIV(vco_tmp);
+	fvco = (uint16_t)(fout << vco_div);
 	if ((TX_PLL_INPUT_FEQ_MIN > refsclk / TX_PLL_INPUT_DIV_MIN) ||
 		(TX_PLL_INPUT_FEQ_MAX < refsclk / TX_PLL_INPUT_DIV_MAX)) {
 		mipierr("pll parameter error!!! refsclk: %d, laneclk: %d", refsclk, laneclk);
@@ -745,7 +805,7 @@ static int32_t mipi_tx_pll_div(mipi_phy_t *phy, uint16_t refsclk, uint16_t lanec
 			n_tmp--;
 			continue;
 		}
-		m_tmp = fvco * n_tmp / refsclk;
+		m_tmp = (uint16_t)(fvco * n_tmp / refsclk);
 		if (m_tmp >= TX_PLL_FB_MULTI_MIN &&
 			m_tmp < TX_PLL_FB_MULTI_MAX) {
 			m_tmp++;
@@ -758,12 +818,12 @@ static int32_t mipi_tx_pll_div(mipi_phy_t *phy, uint16_t refsclk, uint16_t lanec
 			fvco, refsclk);
 		return 0;
 	}
-	*vco = vco_tmp;
-	*n = n_tmp - 1;
-	*m = m_tmp - 2;
-	fvco = (refsclk * (*m + 2)) / (*n + 1);
-	fout = fvco >> vco_div;
-	outclk = fout << 1;
+	*vco = (uint16_t)vco_tmp;
+	*n = (uint8_t)(n_tmp - TX_PLL_N_BASE);
+	*m = (uint16_t)(m_tmp - TX_PLL_M_BASE);
+	fvco = (uint16_t)((refsclk * (*m + TX_PLL_M_BASE)) / (*n + TX_PLL_N_BASE));
+	fout = (uint16_t)(fvco >> vco_div);
+	outclk = (uint16_t)(fout * MIPICLK_FREQ_MHZ_2_MBPS);
 	mipidbg("pll div refsclk: %d, laneclk: %dMbps, n: %d, m: %d",
 			 refsclk, laneclk, *n, *m);
 	mipidbg("pll vco: %d, outclk: %dMbps(%dMHz)",
@@ -805,9 +865,9 @@ int32_t mipi_dev_dphy_initialize(void __iomem *iomem, uint16_t mipiclk, uint16_t
 
 	if (s_txout_freq_force >= 40) {
 		mipidbg("txout freq force as %dMHz", s_txout_freq_force);
-		mipiclk = s_txout_freq_force * 2 * lane;
+		mipiclk = (uint16_t)(s_txout_freq_force * 2 * lane);
 	} else if (s_txout_freq_gain_precent) {
-		outclk = mipiclk * (100 + s_txout_freq_gain_precent) / 100;
+		outclk = (uint16_t)(mipiclk * (100 + s_txout_freq_gain_precent) / 100);
 		mipidbg("txout freq %dMHz gain %d%c to %dMHz",
 			mipiclk / lane / 2,
 			s_txout_freq_gain_precent, '%',
@@ -1381,7 +1441,7 @@ static int x3vio_mipi_set_lanemode(int type, int port, int lanemode)
 #endif
 
 typedef struct _dummy_region_s {
-	uint8_t region[4];
+	int region[4];
 } dummy_region_t;
 static dummy_region_t region_host_dummy[MIPI_HOST_MAX_NUM][3];
 static dummy_region_t region_dev_dummy[MIPI_DEV_MAX_NUM][3];
@@ -1960,7 +2020,7 @@ static int hobot_mipi_dphy_class_get(void)
 		/* creat vps class for mipi devices */
 		g_mp_class = class_create(THIS_MODULE, "vps");
 		if (IS_ERR(g_mp_class)) {
-			ret = PTR_ERR(g_mp_class);
+			ret = (int32_t)PTR_ERR(g_mp_class);
 			g_mp_class = NULL;
 			pr_err("[%s] class create error %d\n", __func__,
 					ret);
@@ -2018,7 +2078,7 @@ static int hobot_mipi_dphy_probe_cdev(void)
 			pdev->devno, (void *)pdev,
 			attr_groups, MIPI_DPHY_DNAME);
 	if (IS_ERR(pdev->dev)) {
-		ret = PTR_ERR(pdev->dev);
+		ret = (int32_t)PTR_ERR(pdev->dev);
 		pdev->dev = NULL;
 		pr_err("[%s] deivce create error %d\n", __func__, ret);
 		goto err_creat;

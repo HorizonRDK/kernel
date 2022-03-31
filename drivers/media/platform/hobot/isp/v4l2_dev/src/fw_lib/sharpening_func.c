@@ -45,7 +45,7 @@ void sharpening_update( sharpening_fsm_t *p_fsm )
 
     acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_CMOS_TOTAL_GAIN, NULL, 0, &total_gain, sizeof( total_gain ) );
 
-    uint16_t log2_gain = total_gain >> ( LOG2_GAIN_SHIFT - 8 );
+    uint16_t log2_gain = (uint16_t)(total_gain >> ( LOG2_GAIN_SHIFT - 8 ));
     uint16_t alt_d, alt_ud;
     uint16_t alt_du = 0;
 
@@ -80,7 +80,7 @@ void sharpening_update( sharpening_fsm_t *p_fsm )
 #endif
 
         alt_du = acamera_calc_modulation_u16( log2_gain, sharp_alt_du_table_ptr, _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), sharp_alt_du_idx ) );
-        alt_d = ( alt_d * p_fsm->sharpening_mult ) / 128;
+        alt_d = (uint16_t)(( alt_d * p_fsm->sharpening_mult ) / 128);
         if ( alt_d >= ( 1 << ACAMERA_ISP_DEMOSAIC_RGB_SHARP_ALT_D_DATASIZE ) ) {
             alt_d = ( 1 << ACAMERA_ISP_DEMOSAIC_RGB_SHARP_ALT_D_DATASIZE ) - 1;
         }
@@ -92,18 +92,18 @@ void sharpening_update( sharpening_fsm_t *p_fsm )
         alt_ud = acamera_calc_modulation_u16( log2_gain, sharp_alt_ud_table_ptr, _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHARP_ALT_UD ) );
 #endif
 
-        alt_ud = ( alt_ud * p_fsm->sharpening_mult ) / 128;
+        alt_ud = (uint16_t)(( alt_ud * p_fsm->sharpening_mult ) / 128);
         if ( alt_ud >= ( 1 << ACAMERA_ISP_DEMOSAIC_RGB_SHARP_ALT_UD_DATASIZE ) ) {
             alt_ud = ( 1 << ACAMERA_ISP_DEMOSAIC_RGB_SHARP_ALT_UD_DATASIZE ) - 1;
         }
 
-        acamera_isp_demosaic_rgb_sharp_alt_d_write( p_fsm->cmn.isp_base, alt_d );
-        acamera_isp_demosaic_rgb_sharp_alt_ud_write( p_fsm->cmn.isp_base, alt_ud );
+        acamera_isp_demosaic_rgb_sharp_alt_d_write( p_fsm->cmn.isp_base, (uint8_t)alt_d );
+        acamera_isp_demosaic_rgb_sharp_alt_ud_write( p_fsm->cmn.isp_base, (uint8_t)alt_ud );
 
-        acamera_isp_demosaic_rgb_sharp_alt_ld_write( p_fsm->cmn.isp_base, alt_d );
-        acamera_isp_demosaic_rgb_sharp_alt_ldu_write( p_fsm->cmn.isp_base, alt_du );
+        acamera_isp_demosaic_rgb_sharp_alt_ld_write( p_fsm->cmn.isp_base, (uint8_t)alt_d );
+        acamera_isp_demosaic_rgb_sharp_alt_ldu_write( p_fsm->cmn.isp_base, (uint8_t)alt_du );
 
-        acamera_isp_demosaic_rgb_sharp_alt_lu_write( p_fsm->cmn.isp_base, alt_ud );
+        acamera_isp_demosaic_rgb_sharp_alt_lu_write( p_fsm->cmn.isp_base, (uint8_t)alt_ud );
     }
 
     if ( ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_manual_sharpen == 0 ) {

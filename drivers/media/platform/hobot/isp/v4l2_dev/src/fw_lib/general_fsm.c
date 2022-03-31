@@ -77,10 +77,10 @@ static int general_set_reg_value( general_fsm_t *p_fsm, uint32_t value )
     case ISP:
         switch ( p_fsm->api_reg_size ) {
         case 8:
-            acamera_sbus_write_u8( &( p_fsm->isp_sbus ), p_fsm->api_reg_addr, value );
+            acamera_sbus_write_u8( &( p_fsm->isp_sbus ), p_fsm->api_reg_addr, (uint8_t)value );
             break;
         case 16:
-            acamera_sbus_write_u16( &( p_fsm->isp_sbus ), p_fsm->api_reg_addr, value );
+            acamera_sbus_write_u16( &( p_fsm->isp_sbus ), p_fsm->api_reg_addr, (uint16_t)value );
             break;
         case 32:
             acamera_sbus_write_u32( &( p_fsm->isp_sbus ), p_fsm->api_reg_addr, value );

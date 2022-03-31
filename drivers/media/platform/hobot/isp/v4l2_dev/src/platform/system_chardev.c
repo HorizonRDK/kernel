@@ -465,11 +465,11 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 	switch (cmd) {
 	case ISPIOC_REG_RW:
 	{
-        	uint8_t i = 0;
+        uint8_t i = 0;
 		uint32_t s = 0;
 		struct regs_t *rg;
 
-		s = md.elem * sizeof(struct regs_t);
+		s = (uint32_t)(md.elem * sizeof(struct regs_t));
 		md.ptr = kzalloc(s, GFP_KERNEL);
 		if (md.ptr == NULL) {
 			pr_err("ctx id %d, elem alloc mem failed\n", md.chn);
@@ -607,7 +607,7 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		uint32_t s = 0;
 		struct kv_t *kv;
 
-		s = md.elem * sizeof(struct kv_t);
+		s = (uint32_t)(md.elem * sizeof(struct kv_t));
 		md.ptr = kzalloc(s, GFP_KERNEL);
 		if (md.ptr == NULL) {
 			pr_err("ctx id %d, md ptr alloc mem failed\n", md.chn);
@@ -626,11 +626,11 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 
 		for (i = 0; i < md.elem; i++) {
 			if (kv[i].v == CHECK_CODE) {
-				type = kv[i].k;
+				type = (uint8_t)kv[i].k;
 				continue;
 			}
 
-			ret = acamera_command(md.chn, type, kv[i].k, kv[i].v, md.dir, &ret_value);
+			ret = acamera_command(md.chn, type, (uint8_t)kv[i].k, kv[i].v, md.dir, &ret_value);
 			if (ret == SUCCESS && md.dir == COMMAND_GET)
 				kv[i].v = ret_value;
 
@@ -868,17 +868,17 @@ buf_free:
 			break;
 		}
 		if (ctx_ctrl.isp_ctx.type == ISP_CTX)
-			p_ctx->isp_ctxsv_on = ctx_ctrl.flag;
+			p_ctx->isp_ctxsv_on = (uint8_t)ctx_ctrl.flag;
 		else if (ctx_ctrl.isp_ctx.type == ISP_AE)
-			p_ctx->isp_ae_stats_on = ctx_ctrl.flag;
+			p_ctx->isp_ae_stats_on = (uint8_t)ctx_ctrl.flag;
 		else if (ctx_ctrl.isp_ctx.type == ISP_AWB)
-			p_ctx->isp_awb_stats_on = ctx_ctrl.flag;
+			p_ctx->isp_awb_stats_on = (uint8_t)ctx_ctrl.flag;
 		else if (ctx_ctrl.isp_ctx.type == ISP_AF)
-			p_ctx->isp_af_stats_on = ctx_ctrl.flag;
+			p_ctx->isp_af_stats_on = (uint8_t)ctx_ctrl.flag;
 		else if (ctx_ctrl.isp_ctx.type == ISP_AE_5BIN)
-			p_ctx->isp_ae_5bin_stats_on = ctx_ctrl.flag;
+			p_ctx->isp_ae_5bin_stats_on = (uint8_t)ctx_ctrl.flag;
 		else if (ctx_ctrl.isp_ctx.type == ISP_LUMVAR)
-			p_ctx->isp_lumvar_stats_on = ctx_ctrl.flag;
+			p_ctx->isp_lumvar_stats_on = (uint8_t)ctx_ctrl.flag;
 	}
 	break;
 	default:

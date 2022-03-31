@@ -164,7 +164,7 @@ static void sensor_update_parameters(void *ctx, sensor_param_t *param)
             param->dgain_log2_max = settings.args.general.val_out;
 
             rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_UPDATE_LATENCY, &settings );
-            param->integration_time_apply_delay = settings.args.general.val_out;
+            param->integration_time_apply_delay = (uint8_t)settings.args.general.val_out;
 
             rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_INTEGRATION_TIME_MIN, &settings );
             param->integration_time_min = settings.args.general.val_out;
@@ -182,10 +182,10 @@ static void sensor_update_parameters(void *ctx, sensor_param_t *param)
             param->lines_per_second = settings.args.general.val_out;
 
             rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_ACTIVE_HEIGHT, &settings );
-            param->active.height = settings.args.general.val_out;
+            param->active.height = (uint16_t)settings.args.general.val_out;
 
             rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_ACTIVE_WIDTH, &settings );
-            param->active.width = settings.args.general.val_out;
+            param->active.width = (uint16_t)settings.args.general.val_out;
 
             param->isp_exposure_channel_delay = 0;
 
@@ -193,10 +193,10 @@ static void sensor_update_parameters(void *ctx, sensor_param_t *param)
             param->modes_num = settings.args.general.val_out;
 
             rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_PRESET_CUR, &settings );
-            param->mode = settings.args.general.val_out;
+            param->mode = (uint8_t)settings.args.general.val_out;
 
             rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_PRESET_TYPE, &settings );
-            param->sensor_type = settings.args.general.val_out;
+            param->sensor_type = (uint8_t)settings.args.general.val_out;
 
 	    if ( param->modes_num > ISP_MAX_SENSOR_MODES ) {
                 param->modes_num = ISP_MAX_SENSOR_MODES;
@@ -210,22 +210,22 @@ static void sensor_update_parameters(void *ctx, sensor_param_t *param)
             for ( idx = 0; idx < param->modes_num; idx++ ) {
                 settings.args.general.val_in = idx;
                 rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_PRESET_WIDTH, &settings );
-                param->modes_table[idx].resolution.width = settings.args.general.val_out;
+                param->modes_table[idx].resolution.width = (uint16_t)settings.args.general.val_out;
 
                 rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_PRESET_HEIGHT, &settings );
-                param->modes_table[idx].resolution.height = settings.args.general.val_out;
+                param->modes_table[idx].resolution.height = (uint16_t)settings.args.general.val_out;
 
                 rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_PRESET_FPS, &settings );
                 param->modes_table[idx].fps = settings.args.general.val_out;
 
                 rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_PRESET_EXP, &settings );
-                param->modes_table[idx].exposures = settings.args.general.val_out;
+                param->modes_table[idx].exposures = (uint8_t)settings.args.general.val_out;
 
                 rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_PRESET_MODE, &settings );
-                param->modes_table[idx].wdr_mode = settings.args.general.val_out;
+                param->modes_table[idx].wdr_mode = (uint8_t)settings.args.general.val_out;
 
                 rc = v4l2_subdev_call( sd, core, ioctl, SOC_SENSOR_GET_SENSOR_BITS, &settings );
-                param->modes_table[idx].bits = settings.args.general.val_out;
+                param->modes_table[idx].bits = (uint8_t)settings.args.general.val_out;
             }
 
             param->sensor_ctx = p_ctx;
@@ -450,7 +450,7 @@ static void sensor_set_type( void *ctx, uint8_t sensor_type, uint8_t sensor_i2c_
 static void sensor_get_parameters(void *ctx, sensor_param_t *param )
 {
     sensor_context_t *p_ctx = ctx;
-    unsigned long seq;
+    uint32_t seq;
 
     if (param) {
 	//sensor_init_tuning_parameters(p_ctx);

@@ -9,7 +9,6 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  */
-
 #include <linux/delay.h>
 #include "hobot_ips_hw_reg.h"
 #include "ips_hw_api.h"
@@ -279,7 +278,7 @@ u16 ips_get_isp_frame_id(void __iomem *base_addr)
 {	
 	u16 frame_id = 0;
 
-	frame_id = vio_hw_get_reg(base_addr, &ips_regs[ISP0_FRAME_ID]);
+	frame_id = (u16)vio_hw_get_reg(base_addr, &ips_regs[ISP0_FRAME_ID]);
 
 	return frame_id;
 }

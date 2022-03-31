@@ -177,7 +177,7 @@ void isp_idma_start_transfer(hobot_dma_t *hobot_dma)
             meet_condition = (isp_stream_onoff_check() > 0);
         }
         if (meet_condition && desc->direction == HOBOT_DMA_DIR_WRITE_ISP) {
-            hobot_dma->hobot_dma_cmds[0].isp_sram_addr = sg_dma_address(desc->isp_sram_sg);
+            hobot_dma->hobot_dma_cmds[0].isp_sram_addr = (uint32_t)(sg_dma_address(desc->isp_sram_sg));
             if (hobot_dma->hobot_dma_cmds[0].isp_sram_addr == 0xb3000000 + ACAMERA_DECOMPANDER0_MEM_BASE_ADDR)
                 ppf = ISP_CONFIG_PING;
             else
@@ -588,8 +588,8 @@ int hobot_dma_submit_cmd(hobot_dma_t *hobot_dma, idma_descriptor_t *desc, int la
     dma_sram_sg = desc->dma_sram_sg;
 
     for ( i = 0; i < nents; i++ ) {
-        hobot_dma->hobot_dma_cmds[i+nents_total].isp_sram_addr = sg_dma_address( isp_sram_sg );
-        hobot_dma->hobot_dma_cmds[i+nents_total].dma_sram_addr = sg_dma_address( dma_sram_sg );
+        hobot_dma->hobot_dma_cmds[i+nents_total].isp_sram_addr = (uint32_t)(sg_dma_address( isp_sram_sg ));
+        hobot_dma->hobot_dma_cmds[i+nents_total].dma_sram_addr = (uint32_t)(sg_dma_address( dma_sram_sg ));
         hobot_dma->hobot_dma_cmds[i+nents_total].size          = sg_dma_len( isp_sram_sg );
         hobot_dma->hobot_dma_cmds[i+nents_total].direction = direction;
         isp_sram_sg = sg_next( isp_sram_sg );

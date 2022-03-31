@@ -9,7 +9,6 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  */
-
 #include <linux/delay.h>
 #include <linux/slab.h>
 #include <linux/clk.h>
@@ -78,7 +77,7 @@ void ips_set_module_reset(unsigned long module)
 	BUG_ON(!g_ips_dev);
 
 	spin_lock_irqsave(&g_ips_dev->shared_slock, flags); /*PRQA S ALL*/
-	ips_module_reset(g_ips_dev->base_reg, module);
+	ips_module_reset(g_ips_dev->base_reg, (uint32_t)module);
 	spin_unlock_irqrestore(&g_ips_dev->shared_slock, flags); /*PRQA S ALL*/
 }
 EXPORT_SYMBOL_GPL(ips_set_module_reset);
@@ -100,7 +99,7 @@ int ips_set_clk_ctrl(unsigned long module, bool enable)
 		vio_clk_enable("sif_mclk");
 
 	if (enable || clk_en)
-		ret = ips_clk_ctrl(g_ips_dev->base_reg, module, enable);
+		ret = ips_clk_ctrl(g_ips_dev->base_reg, (uint32_t)module, enable);
 
 	if (!enable)
 		vio_clk_disable("sif_mclk");
@@ -132,10 +131,10 @@ int ips_set_md_cfg(sif_output_md_t *cfg)
 	BUG_ON(!g_ips_dev);
 
 	spin_lock_irqsave(&g_ips_dev->shared_slock, flags); /*PRQA S ALL*/
-	rect.roi_height = cfg->roi_height;
-	rect.roi_width = cfg->roi_width;
-	rect.roi_x = cfg->roi_left;
-	rect.roi_y = cfg->roi_top;
+	rect.roi_height = (uint16_t)cfg->roi_height;
+	rect.roi_width = (uint16_t)cfg->roi_width;
+	rect.roi_x = (uint16_t)cfg->roi_left;
+	rect.roi_y = (uint16_t)cfg->roi_top;
 	ips_mot_set_roi(g_ips_dev->base_reg, &rect);
 	ips_mot_set_diff_thd(g_ips_dev->base_reg, cfg->grid_tolerance);
 	ips_mot_set_thresh(g_ips_dev->base_reg, cfg->threshold);

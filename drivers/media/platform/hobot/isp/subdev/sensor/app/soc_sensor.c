@@ -161,11 +161,11 @@ static long camera_ioctl( struct v4l2_subdev *sd, unsigned int cmd, void *arg )
         ctx->camera_control.stop_streaming( ctx->camera_context );
         break;
     case SOC_SENSOR_SET_PRESET:
-        ctx->camera_control.set_mode( ctx->camera_context, ARGS_TO_PTR( arg )->args.general.val_in );
+        ctx->camera_control.set_mode( ctx->camera_context, (uint8_t)(ARGS_TO_PTR( arg )->args.general.val_in) );
         break;
     case SOC_SENSOR_SET_TYPE:
-        ctx->camera_control.set_sensor_type( ctx->camera_context, ARGS_TO_PTR( arg )->args.general.val_in,
-						ARGS_TO_PTR( arg )->args.general.val_in2 );
+        ctx->camera_control.set_sensor_type( ctx->camera_context, (uint8_t)(ARGS_TO_PTR( arg )->args.general.val_in),
+						(uint8_t)(ARGS_TO_PTR( arg )->args.general.val_in2) );
         break;
     case SOC_SENSOR_ALLOC_AGAIN:
         ctx->camera_control.alloc_analog_gain( ctx->camera_context, ARGS_TO_PTR( arg )->args.gain.gain_ptr, ARGS_TO_PTR( arg )->args.gain.gain_num);

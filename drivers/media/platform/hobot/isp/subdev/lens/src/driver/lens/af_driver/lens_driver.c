@@ -145,7 +145,7 @@ int fill_ctx_param(struct basic_control_ops **ops, struct motor_param_s *param,
 	// struct motor_info ctx_p;
 
 	param->motor_type = ctx->motor_type;
-	param->max_step = ctx->max_step;
+	param->max_step = (uint16_t)ctx->max_step;
 	param->curr_pos = ctx->init_pos;
 	param->next_pos = ctx->init_pos;
 	param->init_pos = ctx->init_pos;

@@ -34,7 +34,7 @@
 #define GDC_MAX_NUM 2
 static int g_gdc_fps[GDC_MAX_NUM][VIO_MAX_STREAM] = {0, };
 static int g_gdc_idx[GDC_MAX_NUM][VIO_MAX_STREAM] = {0, };
-static int g_gdc_fps_lasttime[GDC_MAX_NUM][VIO_MAX_STREAM] = {0, };
+static __kernel_time_t g_gdc_fps_lasttime[GDC_MAX_NUM][VIO_MAX_STREAM] = {0, };
 
 static uint32_t gdc_default_color = 0x008080;
 module_param(gdc_default_color, uint, 0644);
@@ -436,7 +436,7 @@ int gdc_video_process(struct gdc_video_ctx *gdc_ctx, unsigned long arg)
 	uint32_t enbale = 1u;
 	struct timeval tmp_tv;
 
-	ret = copy_from_user(&gdc_settings, (gdc_settings_t *) arg,
+	ret = (int32_t)copy_from_user(&gdc_settings, (gdc_settings_t *) arg,
 			   sizeof(gdc_settings_t));
 	if (ret) {
 		vio_err("GDC_IOCTL_PROCESS copy from user failed (ret=%d)\n",
@@ -540,20 +540,20 @@ static void gdc_diag_report(uint8_t errsta, unsigned int status,
 	uint32_t instance, uint32_t hw_id, uint32_t err_type)
 {
 	uint8_t env_data[8];
-	env_data[0] = instance;
+	env_data[0] = (uint8_t)instance;
 	env_data[2] = 0;
 	env_data[3] = sizeof(uint32_t);
-	env_data[4] = status & 0xff;
-	env_data[5] = (status >> 8) & 0xff;
-	env_data[6] = (status >> 16) & 0xff;
-	env_data[7] = (status >> 24) & 0xff;
+	env_data[4] = (uint8_t)(status & 0xff);
+	env_data[5] = (uint8_t)((status >> 8) & 0xff);
+	env_data[6] = (uint8_t)((status >> 16) & 0xff);
+	env_data[7] = (uint8_t)((status >> 24) & 0xff);
 
 	if (errsta) {
 		env_data[1] = (uint8_t)err_type;
 		diag_send_event_stat_and_env_data(
 				DiagMsgPrioHigh,
 				ModuleDiag_VIO,
-				EventIdVioGdc0Err + hw_id,
+				(uint16_t)(EventIdVioGdc0Err + hw_id),
 				DiagEventStaFail,
 				DiagGenEnvdataWhenErr,
 				env_data,
@@ -563,7 +563,7 @@ static void gdc_diag_report(uint8_t errsta, unsigned int status,
 		diag_send_event_stat_and_env_data(
 				DiagMsgPrioMid,
 				ModuleDiag_VIO,
-				EventIdVioGdc0Err + hw_id,
+				(uint16_t)(EventIdVioGdc0Err + hw_id),
 				DiagEventStaSuccess,
 				DiagGenEnvdataWhenErr,
 				env_data,
@@ -875,7 +875,7 @@ static int x3_gdc_probe(struct platform_device *pdev)
 	vio_info("[FRT:D] %s(%d)\n", __func__, ret);
 
 #ifdef CONFIG_HOBOT_DIAG
-	if (diag_register(ModuleDiag_VIO, EventIdVioGdc0Err + gdc->hw_id,
+	if (diag_register(ModuleDiag_VIO, (uint16_t)(EventIdVioGdc0Err + gdc->hw_id),
 					4, 74, DIAG_MSG_INTERVAL_MAX, NULL) < 0) {
 		vio_err("GDC diag register fail\n");
 	}

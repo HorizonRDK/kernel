@@ -14878,7 +14878,7 @@ static __inline void acamera_isp_nonequ_gamma_srgb_lut_coeff_lut_write( uintptr_
 }
 static __inline uint16_t acamera_isp_nonequ_gamma_srgb_lut_coeff_lut_read( uintptr_t base, uint8_t index) {
     uintptr_t addr = base + 0x1b170L + (index << 2);
-    return system_sw_read_32(addr);
+    return (uint16_t)system_sw_read_32(addr);
 }
 // ------------------------------------------------------------------------------ //
 // Group: lumvar

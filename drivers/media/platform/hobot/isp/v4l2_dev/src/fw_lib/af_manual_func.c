@@ -79,7 +79,7 @@ int zoom_update_lens_position(AF_fsm_ptr_t p_fsm)
 			LOG(LOG_INFO, "zoom ctrl is out of range!");
 			return -1;
 		}
-		p_fsm->lens_ctrl.move_zoom( p_fsm->lens_ctx, zoom_param[count + 1]);
+		p_fsm->lens_ctrl.move_zoom( p_fsm->lens_ctx, (uint16_t)(zoom_param[count + 1]));
 
 		p_fsm->zoom_curr_pos = p_fsm->zoom_manual_pos;
 		acamera_api_calibration(p_fsm->cmn.ctx_id, DYNAMIC_CALIBRATIONS_ID, CALIBRATION_AF_LMS,
@@ -102,7 +102,7 @@ static void af_update_lens_position( AF_fsm_ptr_t p_fsm )
         int fw_id = p_fsm->cmn.ctx_id;
 
         LOG( LOG_INFO, "pso_min %d, pos_max %d, new_pos %d", p_fsm->pos_min, p_fsm->pos_max, p_fsm->new_pos );
-        p_fsm->lens_ctrl.move( p_fsm->lens_ctx, p_fsm->new_pos );
+        p_fsm->lens_ctrl.move( p_fsm->lens_ctx, (uint16_t)p_fsm->new_pos );
         p_fsm->frame_skip_start = 1;
         LOG( LOG_INFO, "ctx: %d, new af applied, position: %u, last_position: %u.", fw_id, p_fsm->new_pos, p_fsm->last_position );
 
@@ -243,7 +243,7 @@ void AF_fsm_process_interrupt( AF_fsm_const_ptr_t p_fsm, uint8_t irq_event )
         fsm_raise_event( p_fsm, event_id_af_stats_ready );
 	break;
     case ACAMERA_IRQ_FRAME_END: // update af status kernel
-	acamera_isp_metering_af_kernel_select_write(p_fsm->cmn.isp_base, p_fsm->af_status_kernel);
+	acamera_isp_metering_af_kernel_select_write(p_fsm->cmn.isp_base, (uint8_t)p_fsm->af_status_kernel);
         break;
     }
 }

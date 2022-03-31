@@ -61,9 +61,9 @@ void AWB_fsm_process_interrupt( const AWB_fsm_t *p_fsm, uint8_t irq_event )
 // Write matrix coefficients
 void awb_coeffs_write( const AWB_fsm_t *p_fsm )
 {
-    acamera_isp_ccm_coefft_wb_r_write( p_fsm->cmn.isp_base, p_fsm->awb_warming[0] );
-    acamera_isp_ccm_coefft_wb_g_write( p_fsm->cmn.isp_base, p_fsm->awb_warming[1] );
-    acamera_isp_ccm_coefft_wb_b_write( p_fsm->cmn.isp_base, p_fsm->awb_warming[2] );
+    acamera_isp_ccm_coefft_wb_r_write( p_fsm->cmn.isp_base, (uint16_t)p_fsm->awb_warming[0] );
+    acamera_isp_ccm_coefft_wb_g_write( p_fsm->cmn.isp_base, (uint16_t)p_fsm->awb_warming[1] );
+    acamera_isp_ccm_coefft_wb_b_write( p_fsm->cmn.isp_base, (uint16_t)p_fsm->awb_warming[2] );
 
     LOG( LOG_INFO, "awb param applied: %u-%u-%u.", (unsigned int)p_fsm->awb_warming[0], (unsigned int)p_fsm->awb_warming[1], (unsigned int)p_fsm->awb_warming[2] );
 }
@@ -87,18 +87,18 @@ void awb_roi_update( AWB_fsm_ptr_t p_fsm )
     uint8_t x_end = ( uint8_t )( ( ( ( p_fsm->roi >> 8 ) & 0xFF ) * horz_zones + 128 ) >> 8 );
     uint8_t y_start = ( uint8_t )( ( ( ( p_fsm->roi >> 16 ) & 0xFF ) * vert_zones + 128 ) >> 8 );
     uint8_t y_end = ( uint8_t )( ( ( ( p_fsm->roi >> 0 ) & 0xFF ) * vert_zones + 128 ) >> 8 );
-    uint8_t zone_size_x = x_end - x_start;
-    uint8_t zone_size_y = y_end - y_start;
+    uint8_t zone_size_x = (uint8_t)(x_end - x_start);
+    uint8_t zone_size_y = (uint8_t)(y_end - y_start);
     uint32_t middle_x = zone_size_x * 256 / 2;
     uint32_t middle_y = zone_size_y * 256 / 2;
 
     uint32_t len_zone_wght_hor = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_AWB_ZONE_WGHT_HOR );
     uint32_t len_zone_wght_ver = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_AWB_ZONE_WGHT_VER );
-    uint16_t scale_x = ( horz_zones - 1 ) / ( len_zone_wght_hor > 0 ? len_zone_wght_hor : 1 ) + 1;
-    uint16_t scale_y = ( vert_zones - 1 ) / ( len_zone_wght_ver > 0 ? len_zone_wght_ver : 1 ) + 1;
+    uint16_t scale_x = (uint16_t)(( horz_zones - 1 ) / ( len_zone_wght_hor > 0 ? len_zone_wght_hor : 1 ) + 1);
+    uint16_t scale_y = (uint16_t)(( vert_zones - 1 ) / ( len_zone_wght_ver > 0 ? len_zone_wght_ver : 1 ) + 1);
 
-    uint16_t gaus_center_x = ( len_zone_wght_hor * 256 / 2 ) * scale_x;
-    uint16_t gaus_center_y = ( len_zone_wght_ver * 256 / 2 ) * scale_y;
+    uint16_t gaus_center_x = (uint16_t)(( len_zone_wght_hor * 256 / 2 ) * scale_x);
+    uint16_t gaus_center_y = (uint16_t)(( len_zone_wght_ver * 256 / 2 ) * scale_y);
 
 
     for ( y = 0; y < vert_zones; y++ ) {
@@ -107,8 +107,8 @@ void awb_roi_update( AWB_fsm_ptr_t p_fsm )
             if ( y >= y_start && y <= y_end &&
                  x >= x_start && x <= x_end ) {
 
-                uint8_t index_y = ( y - y_start );
-                uint8_t index_x = ( x - x_start );
+                uint8_t index_y = (uint8_t)( y - y_start );
+                uint8_t index_x = (uint8_t)( x - x_start );
                 int32_t distance_x = ( index_x * 256 + 128 ) - middle_x;
                 int32_t distance_y = ( index_y * 256 + 128 ) - middle_y;
                 uint32_t coeff_x;
@@ -128,7 +128,7 @@ void awb_roi_update( AWB_fsm_ptr_t p_fsm )
                     coeff_x = ptr_awb_zone_whgh_h[coeff_x / scale_x];
                     coeff_y = ptr_awb_zone_whgh_v[coeff_y / scale_y];
 
-                    awb_coeff = ( coeff_x * coeff_y ) >> 4;
+                    awb_coeff = (uint8_t)(( coeff_x * coeff_y ) >> 4);
                     if ( awb_coeff > 1 )
                         awb_coeff--;
                 }
@@ -175,9 +175,9 @@ void awb_init( AWB_fsm_t *p_fsm )
     p_fsm->awb_warming[1] = (int32_t)_GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_AWB_WARMING_LS_D50 )[1];
     p_fsm->awb_warming[2] = (int32_t)_GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_AWB_WARMING_LS_D50 )[2];
 
-    acamera_isp_ccm_coefft_wb_r_write( p_fsm->cmn.isp_base, p_fsm->awb_warming[0] );
-    acamera_isp_ccm_coefft_wb_g_write( p_fsm->cmn.isp_base, p_fsm->awb_warming[1] );
-    acamera_isp_ccm_coefft_wb_b_write( p_fsm->cmn.isp_base, p_fsm->awb_warming[2] );
+    acamera_isp_ccm_coefft_wb_r_write( p_fsm->cmn.isp_base, (uint16_t)p_fsm->awb_warming[0] );
+    acamera_isp_ccm_coefft_wb_g_write( p_fsm->cmn.isp_base, (uint16_t)p_fsm->awb_warming[1] );
+    acamera_isp_ccm_coefft_wb_b_write( p_fsm->cmn.isp_base, (uint16_t)p_fsm->awb_warming[2] );
 
     // Set the min/max temperatures and their gains:
     if ( ( _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_COLOR_TEMP )[0] != 0 ) && ( _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_COLOR_TEMP )[_GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_COLOR_TEMP ) - 1] != 0 ) && ( _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CT_RG_POS_CALC )[0] != 0 ) && ( _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CT_BG_POS_CALC )[0] != 0 ) && ( _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CT_RG_POS_CALC )[_GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CT_RG_POS_CALC ) - 1] != 0 ) && ( _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CT_BG_POS_CALC )[_GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CT_BG_POS_CALC ) - 1] != 0 ) ) {
@@ -253,7 +253,7 @@ void awb_read_statistics( AWB_fsm_t *p_fsm )
     p_sbuf_awb_stats->frame_id = awb_flow.frame_id_tracking;
 
     // Read out the per zone statistics
-    p_fsm->curr_AWB_ZONES = horz_zones * vert_zones;
+    p_fsm->curr_AWB_ZONES = (uint16_t)(horz_zones * vert_zones);
 
     if (p_ctx->isp_awb_stats_on) {
         temp_wb[0] = acamera_isp_white_balance_gain_00_read(p_fsm->cmn.isp_base);
@@ -279,8 +279,8 @@ void awb_read_statistics( AWB_fsm_t *p_fsm )
             ibg_1 = ( ibg_1 == 0 ) ? 1 : ibg_1;
         }
 
-        irg = ( irg * ( p_fsm->rg_coef ) ) >> 8;
-        ibg = ( ibg * ( p_fsm->bg_coef ) ) >> 8;
+        irg = (uint16_t)(( irg * ( p_fsm->rg_coef ) ) >> 8);
+        ibg = (uint16_t)(( ibg * ( p_fsm->bg_coef ) ) >> 8);
         irg = ( irg == 0 ) ? 1 : irg;
         ibg = ( ibg == 0 ) ? 1 : ibg;
 
@@ -368,8 +368,8 @@ void awb_update_ccm( AWB_fsm_t *p_fsm )
             ccm_info.light_source = p_fsm->light_source_candidate;
             ccm_info.light_source_ccm_previous = ccm_info.light_source_ccm;
             ccm_info.light_source_ccm = high_gain ? AWB_LIGHT_SOURCE_UNKNOWN : p_fsm->light_source_candidate; // for low light set ccm = I
-            ccm_info.light_source_change_frames = p_fsm->switch_light_source_change_frames_quantity;
-            ccm_info.light_source_change_frames_left = p_fsm->switch_light_source_change_frames_quantity;
+            ccm_info.light_source_change_frames = (uint8_t)p_fsm->switch_light_source_change_frames_quantity;
+            ccm_info.light_source_change_frames_left = (uint8_t)p_fsm->switch_light_source_change_frames_quantity;
 
             acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_CCM_INFO, &ccm_info, sizeof( ccm_info ) );
         }
@@ -382,8 +382,8 @@ void awb_update_ccm( AWB_fsm_t *p_fsm )
                 ccm_info.light_source = p_fsm->light_source_candidate;
                 ccm_info.light_source_ccm_previous = ccm_info.light_source_ccm;
                 ccm_info.light_source_ccm = high_gain ? AWB_LIGHT_SOURCE_UNKNOWN : p_fsm->light_source_candidate; // for low light set ccm = I
-                ccm_info.light_source_change_frames = p_fsm->switch_light_source_change_frames_quantity;
-                ccm_info.light_source_change_frames_left = p_fsm->switch_light_source_change_frames_quantity;
+                ccm_info.light_source_change_frames = (uint8_t)p_fsm->switch_light_source_change_frames_quantity;
+                ccm_info.light_source_change_frames_left = (uint8_t)p_fsm->switch_light_source_change_frames_quantity;
 
                 acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_CCM_INFO, &ccm_info, sizeof( ccm_info ) );
 #ifdef AWB_PRINT_DEBUG
@@ -417,8 +417,8 @@ void awb_normalise( AWB_fsm_t *p_fsm )
     wb[0] -= acamera_log2_fixed_to_fixed( _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_STATIC_WB )[0], 8, LOG2_GAIN_SHIFT );
     wb[3] -= acamera_log2_fixed_to_fixed( _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_STATIC_WB )[3], 8, LOG2_GAIN_SHIFT );
 
-    p_fsm->rg_coef = acamera_math_exp2( wb[0], LOG2_GAIN_SHIFT, 8 );
-    p_fsm->bg_coef = acamera_math_exp2( wb[3], LOG2_GAIN_SHIFT, 8 );
+    p_fsm->rg_coef = (uint16_t)acamera_math_exp2( wb[0], LOG2_GAIN_SHIFT, 8 );
+    p_fsm->bg_coef = (uint16_t)acamera_math_exp2( wb[3], LOG2_GAIN_SHIFT, 8 );
 
     wb[0] += acamera_log2_fixed_to_fixed( _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_STATIC_WB )[0], 8, LOG2_GAIN_SHIFT );
     wb[3] += acamera_log2_fixed_to_fixed( _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_STATIC_WB )[3], 8, LOG2_GAIN_SHIFT );
@@ -468,13 +468,13 @@ void awb_set_new_param( AWB_fsm_ptr_t p_fsm, sbuf_awb_t *p_sbuf_awb )
     p_status_info->awb_info.mix_light_contrast = p_sbuf_awb->mix_light_contrast;
 
     ACAMERA_FSM2CTX_PTR( p_fsm )
-        ->stab.global_awb_red_gain = p_sbuf_awb->awb_red_gain;
+        ->stab.global_awb_red_gain = (uint16_t)p_sbuf_awb->awb_red_gain;
     ACAMERA_FSM2CTX_PTR( p_fsm )
-        ->stab.global_awb_green_even_gain = p_sbuf_awb->awb_green_even_gain;
+        ->stab.global_awb_green_even_gain = (uint16_t)p_sbuf_awb->awb_green_even_gain;
     ACAMERA_FSM2CTX_PTR( p_fsm )
-        ->stab.global_awb_green_odd_gain = p_sbuf_awb->awb_green_odd_gain;
+        ->stab.global_awb_green_odd_gain = (uint16_t)p_sbuf_awb->awb_green_odd_gain;
     ACAMERA_FSM2CTX_PTR( p_fsm )
-        ->stab.global_awb_blue_gain = p_sbuf_awb->awb_blue_gain;
+        ->stab.global_awb_blue_gain = (uint16_t)p_sbuf_awb->awb_blue_gain;
 
     p_fsm->avg_GR = p_sbuf_awb->awb_red_gain;
     p_fsm->avg_GB = p_sbuf_awb->awb_blue_gain;

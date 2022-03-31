@@ -85,7 +85,7 @@ static uint32_t get_calibration_total_size( void *iq_ctx, int32_t ctx_id, void *
         int32_t ret = __IOCTL_CALL( iq_ctx, V4L2_SOC_IQ_IOCTL_REQUEST_INFO, args );
         if ( ret == 0 ) {
             result += __GET_LUT_SIZE( args.ioctl.request_info.lut );
-            result += sizeof( LookupTable );
+            result = (uint32_t)(result + sizeof( LookupTable ));
         } else {
             LOG( LOG_ERR, "Failed to request lut info from the device. sensor_arg 0x%x, lut id %d, ret %d", sensor_arg, idx, ret );
             result = 0;

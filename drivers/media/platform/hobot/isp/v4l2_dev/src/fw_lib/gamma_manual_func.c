@@ -110,13 +110,13 @@ void gamma_manual_update( gamma_manual_fsm_ptr_t p_fsm )
 {
     if ( ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_manual_auto_level == 0 ) {
 
-        acamera_isp_fr_gamma_rgb_gain_r_write( p_fsm->cmn.isp_base, p_fsm->gamma_gain );
-        acamera_isp_fr_gamma_rgb_gain_g_write( p_fsm->cmn.isp_base, p_fsm->gamma_gain );
-        acamera_isp_fr_gamma_rgb_gain_b_write( p_fsm->cmn.isp_base, p_fsm->gamma_gain );
+        acamera_isp_fr_gamma_rgb_gain_r_write( p_fsm->cmn.isp_base, (uint16_t)p_fsm->gamma_gain );
+        acamera_isp_fr_gamma_rgb_gain_g_write( p_fsm->cmn.isp_base, (uint16_t)p_fsm->gamma_gain );
+        acamera_isp_fr_gamma_rgb_gain_b_write( p_fsm->cmn.isp_base, (uint16_t)p_fsm->gamma_gain );
 
-        acamera_isp_fr_gamma_rgb_offset_r_write( p_fsm->cmn.isp_base, p_fsm->gamma_offset );
-        acamera_isp_fr_gamma_rgb_offset_g_write( p_fsm->cmn.isp_base, p_fsm->gamma_offset );
-        acamera_isp_fr_gamma_rgb_offset_b_write( p_fsm->cmn.isp_base, p_fsm->gamma_offset );
+        acamera_isp_fr_gamma_rgb_offset_r_write( p_fsm->cmn.isp_base, (uint16_t)p_fsm->gamma_offset );
+        acamera_isp_fr_gamma_rgb_offset_g_write( p_fsm->cmn.isp_base, (uint16_t)p_fsm->gamma_offset );
+        acamera_isp_fr_gamma_rgb_offset_b_write( p_fsm->cmn.isp_base, (uint16_t)p_fsm->gamma_offset );
 
 
 #if ISP_HAS_DS1

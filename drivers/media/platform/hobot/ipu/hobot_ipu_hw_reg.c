@@ -911,16 +911,16 @@ void ipu_get_osd_sta_bin(void __iomem *base_addr, u8 osd_num, u8 osd_layer,
 	if(osd_num < 3 && osd_layer < 8){
 		shift = osd_num * 16 + osd_layer * 2;
 
-		bin[0] = vio_hw_get_field(base_addr,
+		bin[0] = (u16)vio_hw_get_field(base_addr,
 				     &ipu_regs[IPU_OSD_0_STA_0_BIN01 + shift],
 				     &ipu_fields[IPU_F_OSD_STA_BIN_0_NUM]);
-		bin[1] = vio_hw_get_field(base_addr,
+		bin[1] = (u16)vio_hw_get_field(base_addr,
 				     &ipu_regs[IPU_OSD_0_STA_0_BIN01 + shift],
 				     &ipu_fields[IPU_F_OSD_STA_BIN_1_NUM]);
-		bin[2] = vio_hw_get_field(base_addr,
+		bin[2] = (u16)vio_hw_get_field(base_addr,
 				     &ipu_regs[IPU_OSD_0_STA_0_BIN23 + shift],
 				     &ipu_fields[IPU_F_OSD_STA_BIN_2_NUM]);
-		bin[3] = vio_hw_get_field(base_addr,
+		bin[3] = (u16)vio_hw_get_field(base_addr,
 				     &ipu_regs[IPU_OSD_0_STA_0_BIN23 + shift],
 				     &ipu_fields[IPU_F_OSD_STA_BIN_3_NUM]);
 	}else

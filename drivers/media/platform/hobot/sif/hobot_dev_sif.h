@@ -310,7 +310,7 @@ struct sif_subdev {
 struct frame_list {
 	spinlock_t slock;
 	u32 enable;               // pipe sequence enable
-	u32 timeout;              // pipe sequence timeout
+	u64 timeout;              // pipe sequence timeout
 	u64 frameid;              // for debug
 	u32 pipeline_id;          // pipe id
 	u32 queue_count;          // node count
@@ -320,7 +320,7 @@ struct frame_list {
 
 struct frame_node {
 	struct list_head list;
-	u32 interval;            // time interval between two frame
+	u64 interval;            // time interval between two frame
 	u64 frameid;             // for debug
 	struct vio_group *group;
 	struct vio_frame *frame;

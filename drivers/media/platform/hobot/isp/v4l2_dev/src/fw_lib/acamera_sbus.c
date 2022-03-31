@@ -47,7 +47,7 @@
 
 static __inline uint16_t change_endian_u16( uint16_t data )
 {
-    return ( data >> 8 ) | ( data << 8 );
+    return (uint16_t)(( data >> 8 ) | ( data << 8 ));
 }
 
 static __inline uintptr_t sbus_update_address( acamera_sbus_ptr_t p_bus, uintptr_t addr )
@@ -77,7 +77,7 @@ static __inline uintptr_t sbus_update_address( acamera_sbus_ptr_t p_bus, uintptr
 uint16_t acamera_mem_read_u16( void *p_data )
 {
     if ( ( (size_t)p_data ) & 1 ) {
-        return ( ( (uint16_t)MEM_ALIGNED_READ( uint8_t, MEM_OFFSET_PTR( p_data, 1 ) ) ) << 8 ) | MEM_ALIGNED_READ( uint8_t, p_data );
+        return (uint16_t)(( ( (uint16_t)MEM_ALIGNED_READ( uint8_t, MEM_OFFSET_PTR( p_data, 1 ) ) ) << 8 ) | MEM_ALIGNED_READ( uint8_t, p_data ));
     }
     return MEM_ALIGNED_READ( uint16_t, p_data );
 }
@@ -150,10 +150,10 @@ uint16_t acamera_sbus_read_u16( acamera_sbus_t *p_bus, uintptr_t addr )
         b1 = acamera_sbus_read_u8( p_bus, addr + 1 );
         if ( p_bus->mask & SBUS_MASK_SAMPLE_SWAP_BYTES ) {
             // big endian
-            return ( ( ( (uint16_t)b0 ) << 8 ) | b1 );
+            return (uint16_t)( ( ( (uint16_t)b0 ) << 8 ) | b1 );
         } else {
             // little endian
-            return ( ( ( (uint16_t)b1 ) << 8 ) | b0 );
+            return (uint16_t)( ( ( (uint16_t)b1 ) << 8 ) | b0 );
         }
     } else {
         // error here
@@ -424,7 +424,7 @@ void acamera_sbus_write_data( acamera_sbus_t *p_bus, uintptr_t addr, void *p_dat
 void acamera_sbus_copy( acamera_sbus_t *p_bus_to, uintptr_t addr_to, acamera_sbus_t *p_bus_from, uint32_t addr_from, int n_size )
 {
     if ( n_size > 4 ) {
-        uint8_t mask = ( p_bus_to->mask ) | ( p_bus_from->mask );
+        uint8_t mask = (uint8_t)(( p_bus_to->mask ) | ( p_bus_from->mask ));
         if ( mask & SBUS_MASK_SAMPLE_32BITS ) {
             const int n_count = n_size >> 2;
             const int i_to_step = SBUS_ADDRESS_32BIT_INCREMENT( p_bus_to );

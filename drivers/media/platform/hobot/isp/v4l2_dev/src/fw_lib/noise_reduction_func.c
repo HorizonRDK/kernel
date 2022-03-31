@@ -41,13 +41,13 @@ static void sinter_load_radial_lut( noise_reduction_fsm_t *p_fsm )
     // params must be in the following format : rm_enable, rm_centre_x, rm_centre_y, rm_off_centre_mult,
     const uint16_t *p_sinter_radial_params = (uint16_t *)_GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SINTER_RADIAL_PARAMS );
     int i;
-    uint8_t number_of_nodes = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SINTER_RADIAL_LUT );
+    uint8_t number_of_nodes = (uint8_t)(_GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SINTER_RADIAL_LUT ));
 
     for ( i = 0; i < number_of_nodes; ++i ) {
-        acamera_isp_sinter_shading_rm_shading_lut_write( p_fsm->cmn.isp_base, i, p_sinter_radial_lut[i] );
+        acamera_isp_sinter_shading_rm_shading_lut_write( p_fsm->cmn.isp_base, (uint8_t)i, p_sinter_radial_lut[i] );
     }
 
-    acamera_isp_sinter_rm_enable_write( p_fsm->cmn.isp_base, p_sinter_radial_params[0] );
+    acamera_isp_sinter_rm_enable_write( p_fsm->cmn.isp_base, (uint8_t)p_sinter_radial_params[0] );
     acamera_isp_sinter_rm_center_x_write( p_fsm->cmn.isp_base, p_sinter_radial_params[1] );
     acamera_isp_sinter_rm_center_y_write( p_fsm->cmn.isp_base, p_sinter_radial_params[2] );
     acamera_isp_sinter_rm_off_center_mult_write( p_fsm->cmn.isp_base, p_sinter_radial_params[3] );
@@ -66,7 +66,7 @@ void dynamic_dpc_strength_calculate( noise_reduction_fsm_t *p_fsm )
 
     acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_CMOS_TOTAL_GAIN, NULL, 0, &total_gain, sizeof( total_gain ) );
 
-    uint16_t log2_gain = total_gain >> ( LOG2_GAIN_SHIFT - 8 );
+    uint16_t log2_gain = (uint16_t)(total_gain >> ( LOG2_GAIN_SHIFT - 8 ));
 
     uint16_t dp_slope = acamera_isp_raw_frontend_dp_slope_read( p_fsm->cmn.isp_base );
     uint16_t dp_threshold = acamera_isp_raw_frontend_dp_threshold_read( p_fsm->cmn.isp_base );
@@ -102,7 +102,7 @@ void stitching_error_calculate( noise_reduction_fsm_t *p_fsm )
 
     acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_CMOS_TOTAL_GAIN, NULL, 0, &total_gain, sizeof( total_gain ) );
 
-    uint16_t log2_gain = total_gain >> ( LOG2_GAIN_SHIFT - 8 );
+    uint16_t log2_gain = (uint16_t)(total_gain >> ( LOG2_GAIN_SHIFT - 8 ));
     //long medium motion
     uint16_t lm_np = acamera_calc_modulation_u16( log2_gain, (modulation_entry_t *)_GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_STITCHING_LM_NP ), _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_STITCHING_LM_NP ) );
     uint16_t lm_mov_mult = acamera_calc_modulation_u16( log2_gain, (modulation_entry_t *)_GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_STITCHING_LM_MOV_MULT ), _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_STITCHING_LM_MOV_MULT ) );
@@ -190,7 +190,7 @@ void sinter_strength_calculate( noise_reduction_fsm_t *p_fsm )
 
         acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_CMOS_TOTAL_GAIN, NULL, 0, &total_gain, sizeof( total_gain ) );
 
-        uint16_t log2_gain = total_gain >> ( LOG2_GAIN_SHIFT - 8 );
+        uint16_t log2_gain = (uint16_t)(total_gain >> ( LOG2_GAIN_SHIFT - 8 ));
 
         // LOG( LOG_NOTICE, "log2_gain %d total_gain %d", log2_gain, total_gain );
         snr_thresh_master = acamera_calc_modulation_u16( log2_gain, _GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), sinter_strength_idx ), _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), sinter_strength_idx ) );
@@ -202,11 +202,11 @@ void sinter_strength_calculate( noise_reduction_fsm_t *p_fsm )
         acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_IRIDIX_CONTRAST, NULL, 0, &iridix_contrast, sizeof( iridix_contrast ) );
 
         iridix_contrast = iridix_contrast >> 8;
-        uint32_t snr_thresh_master_contrast = acamera_calc_modulation_u16( iridix_contrast, _GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), sinter_strength_mc_contrast_idx ), _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), sinter_strength_mc_contrast_idx ) );
+        uint32_t snr_thresh_master_contrast = acamera_calc_modulation_u16( (uint16_t)iridix_contrast, _GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), sinter_strength_mc_contrast_idx ), _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), sinter_strength_mc_contrast_idx ) );
         if ( snr_thresh_master_contrast > 0xFF )
             snr_thresh_master_contrast = 0xFF;
         //it will only affect short exposure
-        p_fsm->snr_thresh_contrast = snr_thresh_master_contrast;
+        p_fsm->snr_thresh_contrast = (int16_t)snr_thresh_master_contrast;
 
 #endif
 
@@ -214,36 +214,36 @@ void sinter_strength_calculate( noise_reduction_fsm_t *p_fsm )
             snr_thresh_master = 0xFF;
 
         ACAMERA_FSM2CTX_PTR( p_fsm )
-            ->stab.global_sinter_threshold_target = ( snr_thresh_master );
+            ->stab.global_sinter_threshold_target = (uint8_t)( snr_thresh_master );
         uint16_t sinter_strenght1 = acamera_calc_modulation_u16( log2_gain, _GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), sinter_strength1_idx ), _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), sinter_strength1_idx ) );
         // LOG( LOG_INFO, "sinter_strenght1 %d log2_gain %d ", (int)sinter_strenght1, (int)log2_gain );
-        acamera_isp_sinter_strength_1_write( p_fsm->cmn.isp_base, sinter_strenght1 );
+        acamera_isp_sinter_strength_1_write( p_fsm->cmn.isp_base, (uint8_t)sinter_strenght1 );
 
 	if (_GET_ROWS(ACAMERA_FSM2CTX_PTR(p_fsm), sinter_strength4_idx) != 0) {
 		uint16_t sinter_strenght4 = acamera_calc_modulation_u16(log2_gain, _GET_MOD_ENTRY16_PTR(ACAMERA_FSM2CTX_PTR(p_fsm), sinter_strength4_idx), _GET_ROWS(ACAMERA_FSM2CTX_PTR(p_fsm), sinter_strength4_idx));
 		// LOG( LOG_INFO, "sinter_strenght4 %d log2_gain %d ", (int)sinter_strenght4, (int)log2_gain );
-		acamera_isp_sinter_strength_4_write(p_fsm->cmn.isp_base, sinter_strenght4);
+		acamera_isp_sinter_strength_4_write(p_fsm->cmn.isp_base, (uint8_t)sinter_strenght4);
 	}
 
         uint16_t sinter_thresh1 = acamera_calc_modulation_u16( log2_gain, _GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), sinter_thresh1_idx ), _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), sinter_thresh1_idx ) );
-        acamera_isp_sinter_thresh_1h_write( p_fsm->cmn.isp_base, sinter_thresh1 );
-        acamera_isp_sinter_thresh_1v_write( p_fsm->cmn.isp_base, sinter_thresh1 );
+        acamera_isp_sinter_thresh_1h_write( p_fsm->cmn.isp_base, (uint8_t)sinter_thresh1 );
+        acamera_isp_sinter_thresh_1v_write( p_fsm->cmn.isp_base, (uint8_t)sinter_thresh1 );
         uint16_t sinter_thresh4 = acamera_calc_modulation_u16( log2_gain, _GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), sinter_thresh4_idx ), _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), sinter_thresh4_idx ) );
-        acamera_isp_sinter_thresh_4h_write( p_fsm->cmn.isp_base, sinter_thresh4 );
-        acamera_isp_sinter_thresh_4v_write( p_fsm->cmn.isp_base, sinter_thresh4 );
+        acamera_isp_sinter_thresh_4h_write( p_fsm->cmn.isp_base, (uint8_t)sinter_thresh4 );
+        acamera_isp_sinter_thresh_4v_write( p_fsm->cmn.isp_base, (uint8_t)sinter_thresh4 );
 
         uint16_t sinter_int_config = acamera_calc_modulation_u16( log2_gain, _GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), sinter_int_config_idx ), _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), sinter_int_config_idx ) );
-        acamera_isp_sinter_int_config_write( p_fsm->cmn.isp_base, sinter_int_config );
+        acamera_isp_sinter_int_config_write( p_fsm->cmn.isp_base, (uint8_t)sinter_int_config );
 
         if ( acamera_isp_isp_global_parameter_status_sinter_version_read( p_fsm->cmn.isp_base ) ) { //sinter 3 is used
             int sinter_sad_inx = CALIBRATION_SINTER_SAD;
-            acamera_isp_sinter_sad_filt_thresh_write( p_fsm->cmn.isp_base, acamera_calc_modulation_u16( log2_gain, _GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), sinter_sad_inx ), _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), sinter_sad_inx ) ) );
+            acamera_isp_sinter_sad_filt_thresh_write( p_fsm->cmn.isp_base,(uint8_t) acamera_calc_modulation_u16( log2_gain, _GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), sinter_sad_inx ), _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), sinter_sad_inx ) ) );
         }
     } else {
         snr_thresh_master = ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_sinter_threshold_target;
     }
 
-    p_fsm->snr_thresh_master = snr_thresh_master;
+    p_fsm->snr_thresh_master = (uint16_t)snr_thresh_master;
 }
 
 void temper_strength_calculate( noise_reduction_fsm_t *p_fsm )
@@ -259,11 +259,11 @@ void temper_strength_calculate( noise_reduction_fsm_t *p_fsm )
     {
         int32_t total_gain = 0;
         acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_CMOS_TOTAL_GAIN, NULL, 0, &total_gain, sizeof( total_gain ) );
-        uint16_t log2_gain = total_gain >> ( LOG2_GAIN_SHIFT - 8 );
+        uint16_t log2_gain = (uint16_t)(total_gain >> ( LOG2_GAIN_SHIFT - 8 ));
         //this drives global offset
         tnr_thresh_master = acamera_calc_modulation_u16( log2_gain, _GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_TEMPER_STRENGTH ), _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_TEMPER_STRENGTH ) );
         ACAMERA_FSM2CTX_PTR( p_fsm )
-            ->stab.global_temper_threshold_target = ( tnr_thresh_master );
+            ->stab.global_temper_threshold_target = (uint8_t)( tnr_thresh_master );
 
         switch ( wdr_mode ) {
         case WDR_MODE_FS_LIN: {
@@ -287,9 +287,9 @@ void temper_strength_calculate( noise_reduction_fsm_t *p_fsm )
                 // noise level 2 => (medium) = 64 - 8 * log2(svs_expoosure ratio*sm_expoosure ratio)
                 // noise level 3 => (long)   = 64 - 8 * log2(svs_expoosure ratio*sm_expoosure ratio*lm_expoosure ratio)
 
-                int8_t short_thresh = 64 - ( 8 * acamera_log2_int_to_fixed( SVS_exp_ratio >> 6, 8, 0 ) >> 8 );
-                int8_t medium_thresh = 64 - ( 8 * acamera_log2_int_to_fixed( ( SVS_exp_ratio * MS_exp_ratio ) >> 12, 8, 0 ) >> 8 );
-                int8_t long_thresh = 64 - ( 8 * acamera_log2_int_to_fixed( ( (uint64_t)SVS_exp_ratio * (uint64_t)MS_exp_ratio * (uint64_t)LM_exp_ratio ) >> 18, 8, 0 ) >> 8 );
+                int8_t short_thresh = (int8_t)(64 - ( 8 * acamera_log2_int_to_fixed( SVS_exp_ratio >> 6, 8, 0 ) >> 8 ));
+                int8_t medium_thresh = (int8_t)(64 - ( 8 * acamera_log2_int_to_fixed( ( SVS_exp_ratio * MS_exp_ratio ) >> 12, 8, 0 ) >> 8 ));
+                int8_t long_thresh = (int8_t)(64 - ( 8 * acamera_log2_int_to_fixed( (uint32_t)( (uint64_t)SVS_exp_ratio * (uint64_t)MS_exp_ratio * (uint64_t)LM_exp_ratio ) >> 18, 8, 0 ) >> 8 ));
 
                 if ( short_thresh < 0 ) {
                     short_thresh = 0;
@@ -333,9 +333,9 @@ void temper_strength_calculate( noise_reduction_fsm_t *p_fsm )
                 FS_thresh = ( FS_thresh * mult ) << 3;
                 uint32_t FS_thresh_sqrt_lm = acamera_sqrt32( FS_thresh ) + acamera_isp_sqrt_black_level_out_read( p_fsm->cmn.isp_base );
 
-                acamera_isp_temper_noise_profile_thresh3_write( p_fsm->cmn.isp_base, FS_thresh_sqrt_svs );
-                acamera_isp_temper_noise_profile_thresh2_write( p_fsm->cmn.isp_base, FS_thresh_sqrt_ms );
-                acamera_isp_temper_noise_profile_thresh1_write( p_fsm->cmn.isp_base, FS_thresh_sqrt_lm );
+                acamera_isp_temper_noise_profile_thresh3_write( p_fsm->cmn.isp_base, (uint16_t)FS_thresh_sqrt_svs );
+                acamera_isp_temper_noise_profile_thresh2_write( p_fsm->cmn.isp_base, (uint16_t)FS_thresh_sqrt_ms );
+                acamera_isp_temper_noise_profile_thresh1_write( p_fsm->cmn.isp_base, (uint16_t)FS_thresh_sqrt_lm );
 
             } break;
 
@@ -350,8 +350,8 @@ void temper_strength_calculate( noise_reduction_fsm_t *p_fsm )
                 // noise level 1 => (medium) = 64 - 8 * log2(sm_expoosure ratio)
                 // noise level 2 => (long)   = 64 - 8 * log2(sm_expoosure ratio*lm_expoosure ratio)
 
-                int8_t medium_thresh = 64 - ( 8 * acamera_log2_int_to_fixed( MS_exp_ratio >> 6, 8, 0 ) >> 8 );
-                int8_t long_thresh = 64 - ( 8 * acamera_log2_int_to_fixed( ( LM_exp_ratio * MS_exp_ratio ) >> 12, 8, 0 ) >> 8 );
+                int8_t medium_thresh = (int8_t)(64 - ( 8 * acamera_log2_int_to_fixed( MS_exp_ratio >> 6, 8, 0 ) >> 8 ));
+                int8_t long_thresh = (int8_t)(64 - ( 8 * acamera_log2_int_to_fixed( ( LM_exp_ratio * MS_exp_ratio ) >> 12, 8, 0 ) >> 8 ));
                 if ( medium_thresh < 0 ) {
                     medium_thresh = 0;
                 }
@@ -401,8 +401,8 @@ void temper_strength_calculate( noise_reduction_fsm_t *p_fsm )
 
                 // LOG( LOG_INFO, " 2 FS_thresh %d FS_thresh_sqrt_lm %d mult %d", (int)FS_thresh, (int)FS_thresh_sqrt_lm, (int)mult );
 
-                acamera_isp_temper_noise_profile_thresh3_write( p_fsm->cmn.isp_base, FS_thresh_sqrt_ms );
-                acamera_isp_temper_noise_profile_thresh2_write( p_fsm->cmn.isp_base, FS_thresh_sqrt_lm );
+                acamera_isp_temper_noise_profile_thresh3_write( p_fsm->cmn.isp_base, (uint16_t)FS_thresh_sqrt_ms );
+                acamera_isp_temper_noise_profile_thresh2_write( p_fsm->cmn.isp_base, (uint16_t)FS_thresh_sqrt_lm );
                 acamera_isp_temper_noise_profile_thresh1_write( p_fsm->cmn.isp_base, 0 );
             } break;
 
@@ -411,7 +411,7 @@ void temper_strength_calculate( noise_reduction_fsm_t *p_fsm )
                 // noise level 0 => (short)  = 64:
                 // noise level 1 => (long)   = 64 - 8 * log2(lm_expoosure ratio)
 
-                int8_t long_thresh = 64 - ( 8 * acamera_log2_int_to_fixed( exp_write_set.exposure_ratio >> 6, 8, 0 ) >> 8 );
+                int8_t long_thresh = (int8_t)(64 - ( 8 * acamera_log2_int_to_fixed( exp_write_set.exposure_ratio >> 6, 8, 0 ) >> 8 ));
                 if ( long_thresh < 0 ) {
                     long_thresh = 0;
                 }
@@ -444,7 +444,7 @@ void temper_strength_calculate( noise_reduction_fsm_t *p_fsm )
                 FS_thresh = ( FS_thresh * mult ) << 3;
                 FS_thresh_sqrt_lm = acamera_sqrt32( FS_thresh ) + acamera_isp_sqrt_black_level_out_read( p_fsm->cmn.isp_base );
 
-                acamera_isp_temper_noise_profile_thresh3_write( p_fsm->cmn.isp_base, FS_thresh_sqrt_lm );
+                acamera_isp_temper_noise_profile_thresh3_write( p_fsm->cmn.isp_base, (uint16_t)FS_thresh_sqrt_lm );
                 acamera_isp_temper_noise_profile_thresh2_write( p_fsm->cmn.isp_base, 0 );
                 acamera_isp_temper_noise_profile_thresh1_write( p_fsm->cmn.isp_base, 0 );
 
@@ -473,7 +473,7 @@ void temper_strength_calculate( noise_reduction_fsm_t *p_fsm )
 
     if ( tnr_thresh_master > 0xFF )
         tnr_thresh_master = 0xFF;
-    p_fsm->tnr_thresh_master = tnr_thresh_master;
+    p_fsm->tnr_thresh_master = (int16_t)tnr_thresh_master;
 }
 
 void noise_reduction_hw_init( noise_reduction_fsm_t *p_fsm )
@@ -521,15 +521,15 @@ void noise_reduction_update( noise_reduction_fsm_t *p_fsm )
     acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_WDR_MODE, NULL, 0, &wdr_mode, sizeof( wdr_mode ) );
     acamera_fsm_mgr_get_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_CMOS_TOTAL_GAIN, NULL, 0, &total_gain, sizeof( total_gain ) );
 
-    uint16_t log2_gain = total_gain >> ( LOG2_GAIN_SHIFT - 8 );
+    uint16_t log2_gain = (uint16_t)(total_gain >> ( LOG2_GAIN_SHIFT - 8 ));
     if ( ACAMERA_FSM2CTX_PTR( p_fsm )->stab.global_manual_demosaic == 0 ) {
         int tbl_inx = CALIBRATION_DEMOSAIC_NP_OFFSET;
-        acamera_isp_demosaic_rgb_np_offset_write( p_fsm->cmn.isp_base, acamera_calc_modulation_u16( log2_gain, _GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), tbl_inx ), _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), tbl_inx ) ) );
+        acamera_isp_demosaic_rgb_np_offset_write( p_fsm->cmn.isp_base, (uint8_t)acamera_calc_modulation_u16( log2_gain, _GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), tbl_inx ), _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), tbl_inx ) ) );
 
         uint32_t len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_DEMOSAIC_UU_SH_SLOPE );
         if (len > 0) {
             acamera_isp_demosaic_rgb_uu_sh_slope_write( p_fsm->cmn.isp_base,
-            acamera_calc_modulation_u16( log2_gain, _GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_DEMOSAIC_UU_SH_SLOPE ), _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_DEMOSAIC_UU_SH_SLOPE ) ) );
+            (uint8_t)acamera_calc_modulation_u16( log2_gain, _GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_DEMOSAIC_UU_SH_SLOPE ), _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_DEMOSAIC_UU_SH_SLOPE ) ) );
         }
 
         len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_DEMOSAIC_UU_SH_THRESH );
@@ -603,9 +603,9 @@ void noise_reduction_update( noise_reduction_fsm_t *p_fsm )
                 // noise level 2 => (medium) = 64 - 8 * log2(svs_expoosure ratio*sm_expoosure ratio)
                 // noise level 3 => (long)   = 64 - 8 * log2(svs_expoosure ratio*sm_expoosure ratio*lm_expoosure ratio)
 
-                int8_t short_thresh = 64 - ( 8 * acamera_log2_int_to_fixed( exp_write_set.exposure_ratio_short >> 6, 8, 0 ) >> 8 );
-                int8_t medium_thresh = 64 - ( 8 * acamera_log2_int_to_fixed( ( exp_write_set.exposure_ratio_short * exp_write_set.exposure_ratio_medium ) >> 12, 8, 0 ) >> 8 );
-                int8_t long_thresh = 64 - ( 8 * acamera_log2_int_to_fixed( ( (uint64_t)exp_write_set.exposure_ratio_short * (uint64_t)exp_write_set.exposure_ratio_medium * (uint64_t)exp_write_set.exposure_ratio_medium2 ) >> 18, 8, 0 ) >> 8 );
+                int8_t short_thresh = (int8_t)(64 - ( 8 * acamera_log2_int_to_fixed( exp_write_set.exposure_ratio_short >> 6, 8, 0 ) >> 8 ));
+                int8_t medium_thresh = (int8_t)(64 - ( 8 * acamera_log2_int_to_fixed( ( exp_write_set.exposure_ratio_short * exp_write_set.exposure_ratio_medium ) >> 12, 8, 0 ) >> 8 ));
+                int8_t long_thresh = (int8_t)(64 - ( 8 * acamera_log2_int_to_fixed( (uint32_t)( (uint64_t)exp_write_set.exposure_ratio_short * (uint64_t)exp_write_set.exposure_ratio_medium * (uint64_t)exp_write_set.exposure_ratio_medium2 ) >> 18, 8, 0 ) >> 8 ));
 
                 if ( short_thresh < 0 ) {
                     short_thresh = 0;
@@ -617,7 +617,7 @@ void noise_reduction_update( noise_reduction_fsm_t *p_fsm )
                     long_thresh = 0;
                 }
 
-                acamera_isp_sinter_noise_profile_noise_level_0_write( p_fsm->cmn.isp_base, 64 + ( p_fsm->snr_thresh_contrast ) );
+                acamera_isp_sinter_noise_profile_noise_level_0_write( p_fsm->cmn.isp_base, (uint8_t)(64 + ( p_fsm->snr_thresh_contrast )) );
                 acamera_isp_sinter_noise_profile_noise_level_1_write( p_fsm->cmn.isp_base, short_thresh );
                 acamera_isp_sinter_noise_profile_noise_level_2_write( p_fsm->cmn.isp_base, medium_thresh );
                 acamera_isp_sinter_noise_profile_noise_level_3_write( p_fsm->cmn.isp_base, long_thresh );
@@ -632,15 +632,15 @@ void noise_reduction_update( noise_reduction_fsm_t *p_fsm )
                 uint32_t MS_exp_ratio = exp_write_set.exposure_ratio_short;  //Usomething.6
                 uint32_t LM_exp_ratio = exp_write_set.exposure_ratio_medium; //Usomething.6
 
-                int8_t medium_thresh = 64 - ( 8 * acamera_log2_int_to_fixed( MS_exp_ratio >> 6, 8, 0 ) >> 8 );
-                int8_t long_thresh = 64 - ( 8 * acamera_log2_int_to_fixed( ( LM_exp_ratio * MS_exp_ratio ) >> 12, 8, 0 ) >> 8 );
+                int8_t medium_thresh = (int8_t)(64 - ( 8 * acamera_log2_int_to_fixed( MS_exp_ratio >> 6, 8, 0 ) >> 8 ));
+                int8_t long_thresh = (int8_t)(64 - ( 8 * acamera_log2_int_to_fixed( ( LM_exp_ratio * MS_exp_ratio ) >> 12, 8, 0 ) >> 8 ));
                 if ( medium_thresh < 0 ) {
                     medium_thresh = 0;
                 }
                 if ( long_thresh < 0 ) {
                     long_thresh = 0;
                 }
-                acamera_isp_sinter_noise_profile_noise_level_0_write( p_fsm->cmn.isp_base, 64 + ( p_fsm->snr_thresh_contrast ) );
+                acamera_isp_sinter_noise_profile_noise_level_0_write( p_fsm->cmn.isp_base, (uint8_t)(64 + ( p_fsm->snr_thresh_contrast )) );
                 acamera_isp_sinter_noise_profile_noise_level_1_write( p_fsm->cmn.isp_base, medium_thresh );
                 acamera_isp_sinter_noise_profile_noise_level_2_write( p_fsm->cmn.isp_base, long_thresh );
             } break;
@@ -650,11 +650,11 @@ void noise_reduction_update( noise_reduction_fsm_t *p_fsm )
                 // noise level 0 => (short)  = 64:
                 // noise level 1 => (long)   = 64 - 8 * log2(lm_expoosure ratio)
 
-                int8_t long_thresh = 64 - ( 8 * acamera_log2_int_to_fixed( exp_write_set.exposure_ratio >> 6, 8, 0 ) >> 8 );
+                int8_t long_thresh = (int8_t)(64 - ( 8 * acamera_log2_int_to_fixed( exp_write_set.exposure_ratio >> 6, 8, 0 ) >> 8 ));
                 if ( long_thresh < 0 ) {
                     long_thresh = 0;
                 }
-                acamera_isp_sinter_noise_profile_noise_level_0_write( p_fsm->cmn.isp_base, 64 + ( p_fsm->snr_thresh_contrast ) );
+                acamera_isp_sinter_noise_profile_noise_level_0_write( p_fsm->cmn.isp_base, (uint8_t)(64 + ( p_fsm->snr_thresh_contrast )) );
                 acamera_isp_sinter_noise_profile_noise_level_1_write( p_fsm->cmn.isp_base, long_thresh );
             } break;
 

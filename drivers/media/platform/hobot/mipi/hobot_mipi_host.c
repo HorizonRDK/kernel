@@ -9,7 +9,6 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  */
-
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/device.h>
@@ -26,7 +25,6 @@
 #include <linux/of.h>
 #include <linux/timer.h>
 #include <linux/sched/signal.h>
-
 #include <soc/hobot/hobot_mipi_host.h>
 #include <soc/hobot/hobot_mipi_dphy.h>
 #ifdef CONFIG_HOBOT_DIAG
@@ -49,6 +47,10 @@
 #define MIPI_HOST_IPICLK_NAME(x)	"mipi_rx" __stringify(x) "_ipi"
 #define MIPI_HOST_SNRCLK_NAME(x)	"sensor" __stringify(x) "_mclk"
 #define MIPI_HOST_HW_MODE_DEF	0
+
+
+#define MIPI_IPI_MASK_ALL (0xffffu)
+
 
 static unsigned int port_num;
 module_param(port_num, uint, 0444);
@@ -145,6 +147,7 @@ module_param(hw_mode, uint, 0644);
 #define MIPI_HOST_SNRCLK_ENABLE    (1)
 #define MIPI_HOST_SNRCLK_NOUSED    (2)
 #define MIPI_HOST_SNRCLK_FREQ_MIN  (9281250UL)
+#define MIPI_HOST_SNRCLK_FREQ_BASE (10000UL)
 
 #define HOST_DPHY_LANE_MAX         (4)
 #define HOST_DPHY_CHECK_MAX        (3000)
@@ -1231,10 +1234,10 @@ int32_t mipi_host_reset_ipi(uint32_t port, int32_t ipi, int32_t enable)
 		return-EINVAL;
 
 	if (ipi < 0)
-		ipi_reset.mask = (0x1u << ipi_max) - 1;
+		ipi_reset.mask = MIPI_IPI_MASK_ALL;
 	else
-		ipi_reset.mask = (0x1u << ipi);
-	ipi_reset.enable = enable;
+		ipi_reset.mask = (uint16_t)(0x1 << (uint8_t)ipi);
+	ipi_reset.enable = !!enable;
 	return mipi_host_ipi_reset(hdev, &ipi_reset);
 }
 EXPORT_SYMBOL_GPL(mipi_host_reset_ipi);
@@ -1312,7 +1315,7 @@ static int32_t mipi_host_ipi_get_info(mipi_hdev_t *hdev, mipi_host_ipi_info_t *i
 	}
 	ipi_info->fatal = (uint16_t)mipi_getreg(iomem + r_fatal);
 	ipi_info->mode = (uint16_t)mipi_getreg(iomem + r_mode);
-	ipi_info->vc = (uint16_t)mipi_getreg(iomem + r_vc);
+	ipi_info->vc = (uint8_t)mipi_getreg(iomem + r_vc);
 	ipi_info->datatype = (uint16_t)mipi_getreg(iomem + r_datatype);
 	ipi_info->hsa = (uint16_t)mipi_getreg(iomem + r_hsa);
 	ipi_info->hbp = (uint16_t)mipi_getreg(iomem + r_hbp);
@@ -1615,7 +1618,7 @@ static int32_t mipi_host_snrclk_set_en(mipi_hdev_t *hdev, int enable)
 		/* enable clk if not enabled */
 		if (ret == 0 && snrclk->en_cnt == 0) {
 			mipi_host_snrclk_set_freq(hdev,
-				mipi_host_get_clk(hdev, g_mh_snrclk_name[snrclk->index]));
+				(uint32_t)mipi_host_get_clk(hdev, g_mh_snrclk_name[snrclk->index]));
 		}
 	} else {
 		if (snrclk->disable) {
@@ -1787,7 +1790,7 @@ static uint16_t mipi_host_get_hsd(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg,
 			 cfg->linelenth, cfg->framelenth, cfg->fps, bits_per_pixel, pixclk, rx_bit_clk);
 	time_ppi = (1000 * bits_per_pixel * line_size * 1000000 / rx_bit_clk);
 	mipiinfo("time to transmit last pixel in ppi: %lu", time_ppi);
-	hsdtime = (bits_per_pixel * line_size * pixclk / rx_bit_clk) - (cfg->hsaTime + cfg->hbpTime + cycles_to_trans);
+	hsdtime = (uint32_t)((bits_per_pixel * line_size * pixclk / rx_bit_clk) - ((uint64_t)cfg->hsaTime + (uint64_t)cfg->hbpTime + cycles_to_trans));
 	mipiinfo("minium hsdtime: %d", hsdtime);
 #ifndef ADJUST_CLK_RECALCULATION
 	if (hsdtime < 0) {
@@ -1894,7 +1897,7 @@ static void mipi_host_diag_report(mipi_hdev_t *hdev,
 		diag_send_event_stat_and_env_data(
 				DiagMsgPrioHigh,
 				ModuleDiag_VIO,
-				EventIdVioMipiHost0Err + hdev->port,
+				(uint16_t)(EventIdVioMipiHost0Err + hdev->port),
 				DiagEventStaFail,
 				DiagGenEnvdataWhenErr,
 				env_data,
@@ -1913,7 +1916,7 @@ static void mipi_host_diag_timer_func(unsigned long data)
 		diag_send_event_stat(
 				DiagMsgPrioMid,
 				ModuleDiag_VIO,
-				EventIdVioMipiHost0Err + hdev->port,
+				(uint16_t)(EventIdVioMipiHost0Err + hdev->port),
 				DiagEventStaSuccess);
 	}
 	jiffi = get_jiffies_64() + msecs_to_jiffies(2000);
@@ -2203,11 +2206,11 @@ static irqreturn_t mipi_host_irq_func(int this_irq, void *data)
 					if (subirq & (0x1 << errchn))
 						break;
 				}
-				errtype = icnt_n;
+				errtype = (uint8_t)icnt_n;
 			} else if (icnt_n >= 13) {
 				/* ipi fatal */
-				errchn = icnt_n - 13;
-				errtype = 0x80 | subirq;
+				errchn = (uint8_t)(icnt_n - 13);
+				errtype = (uint8_t)(0x80 | subirq);
 			}
 #endif
 			if (param->irq_debug & MIPI_HOST_IRQ_DEBUG_PRERR)
@@ -2491,14 +2494,14 @@ static int32_t mipi_host_init(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 		 * 25~9280: invalid and error
 		 * 9281~  : *10K = freq -> 92.81~655.35MHz
 		 */
-		if (cfg->mclk >= (MIPI_HOST_SNRCLK_FREQ_MIN / 10000UL)) {
-			if (mipi_host_snrclk_set_freq(hdev, cfg->mclk * 10000UL) ||
+		if (cfg->mclk >= (MIPI_HOST_SNRCLK_FREQ_MIN / MIPI_HOST_SNRCLK_FREQ_BASE)) {
+			if (mipi_host_snrclk_set_freq(hdev, (uint32_t)(cfg->mclk * MIPI_HOST_SNRCLK_FREQ_BASE)) ||
 					mipi_host_snrclk_set_en(hdev, 1)) {
 				return -1;
 			}
 		} else if (cfg->mclk > 24) {
 			mipiinfo("mclk %d should >= %lu(%luHz)", cfg->mclk,
-				(MIPI_HOST_SNRCLK_FREQ_MIN / 10000UL), MIPI_HOST_SNRCLK_FREQ_MIN);
+				(MIPI_HOST_SNRCLK_FREQ_MIN / MIPI_HOST_SNRCLK_FREQ_BASE), MIPI_HOST_SNRCLK_FREQ_MIN);
 			return -1;
 		} else if (cfg->mclk > 1) {
 			mipiinfo("mclk %d drop", cfg->mclk);
@@ -3717,7 +3720,7 @@ static int hobot_mipi_host_class_get(void)
 #else
 		g_mh_class = class_create(THIS_MODULE, MIPI_HOST_DNAME);
 		if (IS_ERR(g_mh_class)) {
-			ret = PTR_ERR(g_mh_class);
+			ret = (int32_t)PTR_ERR(g_mh_class);
 			g_mh_class = NULL;
 			pr_err("[%s] class error %d\n", __func__,
 					ret);
@@ -3769,7 +3772,7 @@ static int hobot_mipi_host_probe_cdev(mipi_hdev_t *hdev)
 			(void *)hdev, attr_groups,
 			"%s%d", MIPI_HOST_DNAME, hdev->port);
 	if (IS_ERR(hdev->dev)) {
-		ret = PTR_ERR(hdev->dev);
+		ret = (int32_t)PTR_ERR(hdev->dev);
 		hdev->dev = NULL;
 		pr_err("[%s] deivce create error %d\n", __func__, ret);
 		goto err_creat;
@@ -3777,7 +3780,7 @@ static int hobot_mipi_host_probe_cdev(mipi_hdev_t *hdev)
 
 #ifdef CONFIG_HOBOT_DIAG
 	/* diag */
-	if (diag_register(ModuleDiag_VIO, EventIdVioMipiHost0Err + hdev->port,
+	if (diag_register(ModuleDiag_VIO, (uint16_t)(EventIdVioMipiHost0Err + hdev->port),
 			4, DIAG_MSG_INTERVAL_MIN, DIAG_MSG_INTERVAL_MAX,
 			mipi_host_diag_test) < 0) {
 		pr_err("mipi host %d diag register fail\n", hdev->port);
@@ -3917,7 +3920,7 @@ static int hobot_mipi_host_probe_param(void)
 		host->iomem = ioremap_nocache(reg_addr_dev, reg_size);
 		if (IS_ERR(host->iomem)) {
 			pr_err("[%s] ioremap error\n", __func__);
-			ret = PTR_ERR(host->iomem);
+			ret = (int32_t)PTR_ERR(host->iomem);
 			host->iomem = NULL;
 			goto err_ioremap;
 		}
@@ -4029,7 +4032,7 @@ static int hobot_mipi_host_probe(struct platform_device *pdev)
 	host->iomem = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(host->iomem)) {
 		pr_err("[%s] get mem res error\n", __func__);
-		ret = PTR_ERR(host->iomem);
+		ret = (int32_t)PTR_ERR(host->iomem);
 		host->iomem = NULL;
 		goto err_ioremap;
 	}
@@ -4047,7 +4050,7 @@ static int hobot_mipi_host_probe(struct platform_device *pdev)
 		ret = -ENODEV;
 		goto err_irq;
 	}
-	host->irq = res->start;
+	host->irq = (uint32_t)res->start;
 	ret = request_threaded_irq(host->irq,
 							   mipi_host_irq_func,
 							   NULL,

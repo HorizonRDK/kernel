@@ -152,9 +152,9 @@ static int AWB_set_mode( AWB_fsm_ptr_t p_fsm, uint32_t mode )
         uint32_t cb = _calibration_awb_scene_presets[i].y;
         // Change 9 bit into 7 bit
         ACAMERA_FSM2CTX_PTR( p_fsm )
-            ->stab.global_awb_red_gain = cr;
+            ->stab.global_awb_red_gain = (uint16_t)cr;
         ACAMERA_FSM2CTX_PTR( p_fsm )
-            ->stab.global_awb_blue_gain = cb;
+            ->stab.global_awb_blue_gain = (uint16_t)cb;
         break;
     }
     default:

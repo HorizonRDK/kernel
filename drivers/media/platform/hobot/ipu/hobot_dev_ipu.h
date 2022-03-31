@@ -270,7 +270,7 @@ struct ipu_subdev {
 	atomic_t pre_enable_flag;
 	u32 cur_enable_flag;
 
-	u8 poll_mask;
+	u32 poll_mask;
 
 	unsigned int enable_frame_cnt;
 	unsigned int curr_frame_cnt;

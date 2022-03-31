@@ -300,21 +300,21 @@ int isp_ctx_queue_init(void)
 			ctx_node[i][ISP_AE_5BIN][j].base = ae_5bin_base + j * AE_5BIN_NODE_SIZE;
 			ctx_node[i][ISP_LUMVAR][j].base = lumvar_base + j * LUMVAR_NODE_SIZE;
 
-			ctx_node[i][ISP_CTX][j].ctx.ctx_id = i;
+			ctx_node[i][ISP_CTX][j].ctx.ctx_id = (uint8_t)i;
 			ctx_node[i][ISP_CTX][j].ctx.type = ISP_CTX;
-			ctx_node[i][ISP_AE][j].ctx.ctx_id = i;
+			ctx_node[i][ISP_AE][j].ctx.ctx_id = (uint8_t)i;
 			ctx_node[i][ISP_AE][j].ctx.type = ISP_AE;
-			ctx_node[i][ISP_AWB][j].ctx.ctx_id = i;
+			ctx_node[i][ISP_AWB][j].ctx.ctx_id = (uint8_t)i;
 			ctx_node[i][ISP_AWB][j].ctx.type = ISP_AWB;
-			ctx_node[i][ISP_AF][j].ctx.ctx_id = i;
+			ctx_node[i][ISP_AF][j].ctx.ctx_id = (uint8_t)i;
 			ctx_node[i][ISP_AF][j].ctx.type = ISP_AF;
-			ctx_node[i][ISP_AE_5BIN][j].ctx.ctx_id = i;
+			ctx_node[i][ISP_AE_5BIN][j].ctx.ctx_id = (uint8_t)i;
 			ctx_node[i][ISP_AE_5BIN][j].ctx.type = ISP_AE_5BIN;
-			ctx_node[i][ISP_LUMVAR][j].ctx.ctx_id = i;
+			ctx_node[i][ISP_LUMVAR][j].ctx.ctx_id = (uint8_t)i;
 			ctx_node[i][ISP_LUMVAR][j].ctx.type = ISP_LUMVAR;
 
 			for (k = 0; k < TYPE_MAX; k++) {
-				ctx_node[i][k][j].ctx.idx = j;
+				ctx_node[i][k][j].ctx.idx = (uint8_t)j;
 				INIT_LIST_HEAD(&ctx_node[i][k][j].node);
 				list_add_tail(&ctx_node[i][k][j].node,
 							&ctx_queue[i][k].ctx_node_head[FREEQ]);
@@ -378,10 +378,10 @@ int isp_irq_wait_for_completion(int ctx_id, uint8_t irq_type, unsigned long time
 		return -1;
 	}
 	if (irq_type == 0) {
-		td = wait_event_timeout(frame_start, frame_start_cond[ctx_id], msecs_to_jiffies(timeout)); /* PRQA S ALL */
+		td = wait_event_timeout(frame_start, frame_start_cond[ctx_id], msecs_to_jiffies((uint32_t)timeout)); /* PRQA S ALL */
 		frame_start_cond[ctx_id] = 0;
 	} else {
-		td = wait_event_timeout(frame_end, frame_end_cond[ctx_id], msecs_to_jiffies(timeout)); /* PRQA S ALL */
+		td = wait_event_timeout(frame_end, frame_end_cond[ctx_id], msecs_to_jiffies((uint32_t)timeout)); /* PRQA S ALL */
 		frame_end_cond[ctx_id] = 0;
 	}
 	// td = wait_for_completion_timeout(&irq_completion[ctx_id][irq_type], msecs_to_jiffies(timeout));

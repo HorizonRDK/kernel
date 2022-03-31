@@ -9,7 +9,6 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  */
-
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/device.h>
@@ -25,7 +24,6 @@
 #include <linux/suspend.h>
 #include <linux/of.h>
 #include <linux/timer.h>
-
 #include <soc/hobot/hobot_mipi_dev.h>
 #include <soc/hobot/hobot_mipi_dphy.h>
 #ifdef CONFIG_HOBOT_DIAG
@@ -161,6 +159,20 @@ module_param(init_num, uint, 0644);
 #define MIPI_CSI2_DT_RAW_10		(0x2B)
 #define MIPI_CSI2_DT_RAW_12		(0x2C)
 #define MIPI_CSI2_DT_RAW_14		(0x2D)
+
+#define MIPI_CSI2_DT_BITS_8	    (8U)
+#define MIPI_CSI2_DT_BITS_10    (10U)
+#define MIPI_CSI2_DT_BITS_12    (12U)
+#define MIPI_CSI2_DT_BITS_14    (14U)
+#define MIPI_CSI2_DT_BITS_16    (16U)
+#define MIPI_CSI2_DT_BITS_MUL2  (2U)
+static inline uint16_t MIPI_CSI2_HLINE(uint16_t l, uint8_t b, int32_t m)  {
+	if (m != 0) {
+		return (uint16_t)(l * b * MIPI_CSI2_DT_BITS_MUL2 / MIPI_CSI2_DT_BITS_8);
+	} else {
+		return (uint16_t)(l * b / MIPI_CSI2_DT_BITS_8);
+	}
+}
 
 #ifdef CONFIG_HOBOT_MIPI_REG_OPERATE
 typedef struct _reg_s {
@@ -924,28 +936,28 @@ static uint16_t mipi_dev_vpg_get_hline(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 
 	switch (cfg->datatype) {
 	case MIPI_CSI2_DT_YUV420_8:
-		hline = (12 * cfg->linelenth) / 8;
+		hline = MIPI_CSI2_HLINE(cfg->linelenth, MIPI_CSI2_DT_BITS_12, 0);
 		break;
 	case MIPI_CSI2_DT_YUV422_8:
-		hline = (16 * cfg->linelenth) / 8;
+		hline = MIPI_CSI2_HLINE(cfg->linelenth, MIPI_CSI2_DT_BITS_16, 0);
 		break;
 	case MIPI_CSI2_DT_YUV420_10:
-		hline = (12 * 2 * cfg->linelenth) / 8;
+		hline = MIPI_CSI2_HLINE(cfg->linelenth, MIPI_CSI2_DT_BITS_12, 1);
 		break;
 	case MIPI_CSI2_DT_YUV422_10:
-		hline = (16 * 2 * cfg->linelenth) / 8;
+		hline = MIPI_CSI2_HLINE(cfg->linelenth, MIPI_CSI2_DT_BITS_16, 1);
 		break;
 	case MIPI_CSI2_DT_RAW_8:
-		hline = (8 * cfg->linelenth) / 8;
+		hline = MIPI_CSI2_HLINE(cfg->linelenth, MIPI_CSI2_DT_BITS_8, 0);
 		break;
 	case MIPI_CSI2_DT_RAW_10:
-		hline = (10 * cfg->linelenth) / 8;
+		hline = MIPI_CSI2_HLINE(cfg->linelenth, MIPI_CSI2_DT_BITS_10, 0);
 		break;
 	case MIPI_CSI2_DT_RAW_12:
-		hline = (12 * cfg->linelenth) / 8;
+		hline = MIPI_CSI2_HLINE(cfg->linelenth, MIPI_CSI2_DT_BITS_12, 0);
 		break;
 	case MIPI_CSI2_DT_RAW_14:
-		hline = (14 * cfg->linelenth) / 8;
+		hline = MIPI_CSI2_HLINE(cfg->linelenth, MIPI_CSI2_DT_BITS_14, 0);
 		break;
 	default:
 		mipierr("data type 0x%x not support", cfg->datatype);
@@ -973,8 +985,8 @@ static uint16_t mipi_dev_vpg_get_vfp(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 	mipi_dev_param_t *param = &mdev->param;
 	uint16_t vfp;
 
-	vfp	= cfg->framelenth - MIPI_DEV_VPG_VSA_LINES -
-			MIPI_DEV_VPG_VBP_LINES - cfg->height;
+	vfp	= (uint16_t)(cfg->framelenth - MIPI_DEV_VPG_VSA_LINES -
+			MIPI_DEV_VPG_VBP_LINES - cfg->height);
 	if (cfg->framelenth == 0 || cfg->framelenth == cfg->height)
 		vfp = MIPI_DEV_VPG_VFP_LINES;
 
@@ -1001,13 +1013,13 @@ static uint16_t mipi_dev_vpg_get_bk(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
 	mipi_dev_param_t *param = &mdev->param;
 	uint16_t vfp, bk = 0;
 
-	vfp	= cfg->framelenth - MIPI_DEV_VPG_VSA_LINES -
-			MIPI_DEV_VPG_VBP_LINES - cfg->height;
+	vfp	= (uint16_t)(cfg->framelenth - MIPI_DEV_VPG_VSA_LINES -
+			MIPI_DEV_VPG_VBP_LINES - cfg->height);
 	if (cfg->framelenth == 0 || cfg->framelenth == cfg->height)
 		vfp = MIPI_DEV_VPG_VFP_LINES;
 
 	if (vfp > MIPI_DEV_VPG_VFP_LINES_MAX) {
-		bk = vfp - MIPI_DEV_VPG_VFP_LINES_MAX;
+		bk = (uint16_t)(vfp - MIPI_DEV_VPG_VFP_LINES_MAX);
 		if (bk > MIPI_DEV_VPG_BK_LINES_MAX) {
 			mipiinfo("vpg bk %d overflow, set to %d", bk, MIPI_DEV_VPG_BK_LINES_MAX);
 			bk = MIPI_DEV_VPG_BK_LINES_MAX;
@@ -1187,30 +1199,30 @@ static void mipi_dev_diag_report(mipi_ddev_t *ddev,
 				errtype = (sub_irq_data[1] & 0x110) >> 4;
 			} else {
 				errchn = 0;
-				errtype = ((sub_irq_data[1] & 0x200) >> 3 |
+				errtype = (uint8_t)((sub_irq_data[1] & 0x200) >> 3 |
 						   (sub_irq_data[1] & 0x1) << 5);
 			}
 		} else if (sub_irq_data[2]) {
 			/* ipi fatal */
 			if (sub_irq_data[2] & 0x1f) {
 				errchn = 0;
-				errtype = 0x80 | (sub_irq_data[2] & 0x1f);
+				errtype = (uint8_t)(0x80 | (sub_irq_data[2] & 0x1f));
 			} else if (sub_irq_data[2] & 0x1f00) {
 				errchn = 1;
-				errtype = 0x80 | ((sub_irq_data[2] & 0x1f00) >> 8);
+				errtype = (uint8_t)(0x80 | ((sub_irq_data[2] & 0x1f00) >> 8));
 			} else if (sub_irq_data[2] & 0x1f0000) {
 				errchn = 2;
-				errtype = 0x80 | ((sub_irq_data[2] & 0x1f0000) >> 16);
+				errtype = (uint8_t)(0x80 | ((sub_irq_data[2] & 0x1f0000) >> 16));
 			} else {
 				errchn = 3;
-				errtype = 0x80 | ((sub_irq_data[2] & 0x1f000000) >> 24);
+				errtype = (uint8_t)(0x80 | ((sub_irq_data[2] & 0x1f000000) >> 24));
 			}
 		}
 
 		env_data[0] = errchn;
 		env_data[1] = errtype;
 		env_data[2] = 0;
-		env_data[3] = 4 + (elem_cnt * sizeof(sub_irq_data[0]));
+		env_data[3] = (uint8_t)(4 + (elem_cnt * sizeof(sub_irq_data[0])));
 		memcpy(&env_data[4], &total_irq, 4);
 		memcpy(&env_data[8], &sub_irq_data, elem_cnt * sizeof(sub_irq_data[0]));
 		diag_send_event_stat_and_env_data(
@@ -1594,7 +1606,7 @@ init_retry:
 	power |= DEV_DPHY_FORCEPOLL;
 	mipi_putreg(iomem + REG_MIPI_DEV_PHY_RSTZ, power);
 
-	cfg->ipi_lines = cfg->ipi_lines ? cfg->ipi_lines : (cfg->height + 1);
+	cfg->ipi_lines = cfg->ipi_lines ? cfg->ipi_lines : (uint16_t)(cfg->height + 1);
 	if (!cfg->vpg) {
 		if (0 != mipi_dev_configure_ipi(ddev, cfg)) {
 			mipi_dev_deinit(ddev);
@@ -2435,7 +2447,7 @@ static int hobot_mipi_dev_class_get(void)
 #else
 		g_md_class = class_create(THIS_MODULE, MIPI_DEV_DNAME);
 		if (IS_ERR(g_md_class)) {
-			ret = PTR_ERR(g_md_class);
+			ret = (int32_t)PTR_ERR(g_md_class);
 			g_md_class = NULL;
 			pr_err("[%s] class error %d\n", __func__,
 					ret);
@@ -2487,7 +2499,7 @@ static int hobot_mipi_dev_probe_cdev(mipi_ddev_t *ddev)
 			(void *)ddev, attr_groups,
 			"%s%d", MIPI_DEV_DNAME, ddev->port);
 	if (IS_ERR(ddev->dev)) {
-		ret = PTR_ERR(ddev->dev);
+		ret = (int32_t)PTR_ERR(ddev->dev);
 		ddev->dev = NULL;
 		pr_err("[%s] deivce create error %d\n", __func__, ret);
 		goto err_creat;
@@ -2628,7 +2640,7 @@ static int hobot_mipi_dev_probe_param(void)
 		mdev->iomem = ioremap_nocache(reg_addr_dev, reg_size);
 		if (IS_ERR(mdev->iomem)) {
 			pr_err("[%s] ioremap error\n", __func__);
-			ret = PTR_ERR(mdev->iomem);
+			ret = (int32_t)PTR_ERR(mdev->iomem);
 			mdev->iomem = NULL;
 			goto err_ioremap;
 		}
@@ -2734,7 +2746,7 @@ static int hobot_mipi_dev_probe(struct platform_device *pdev)
 	mdev->iomem = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(mdev->iomem)) {
 		pr_err("[%s] get mem res error\n", __func__);
-		ret = PTR_ERR(mdev->iomem);
+		ret = (int32_t)PTR_ERR(mdev->iomem);
 		mdev->iomem = NULL;
 		goto err_ioremap;
 	}
@@ -2752,7 +2764,7 @@ static int hobot_mipi_dev_probe(struct platform_device *pdev)
 		ret = -ENODEV;
 		goto err_irq;
 	}
-	mdev->irq = res->start;
+	mdev->irq = (int32_t)res->start;
 	ret = request_threaded_irq(mdev->irq,
 							   mipi_dev_irq_func,
 							   NULL,

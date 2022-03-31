@@ -334,9 +334,6 @@ case  TIMAGE:
 		case  FR_FORMAT_BASE_PLANE_ID:
 			ret = fr_format_base_plane(instance, value, direction, ret_value);
 			break;
-		case  DS1_FORMAT_BASE_PLANE_ID:
-			ret = ds1_format_base_plane(instance, value, direction, ret_value);
-			break;
 		case  ORIENTATION_VFLIP_ID:
 			ret = orientation_vflip(instance, value, direction, ret_value);
 			break;

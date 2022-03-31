@@ -43,7 +43,7 @@ extern int unregister_calib( ACameraCalibrations *c, uint8_t port );
 uint32_t get_calibrations_dummy( uint32_t ctx_id, void *sensor_arg, ACameraCalibrations *c, uint32_t sensor_type )
 {
 
-    uint8_t ret = 0;
+    uint32_t ret = 0;
     int iret = 0;
 
     if ( !sensor_arg ) {

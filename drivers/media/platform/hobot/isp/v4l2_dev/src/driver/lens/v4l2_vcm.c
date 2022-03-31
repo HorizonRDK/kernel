@@ -76,19 +76,19 @@ static void lens_update_parameters( void *ctx )
             settings.ctx_num = ctx_num;
             // Initial local parameters
             rc = v4l2_subdev_call( sd, core, ioctl, SOC_LENS_GET_LENS_TYPE, &settings );
-            p_ctx->param.lens_type = settings.args.general.val_out;
+            p_ctx->param.lens_type = (uint16_t)settings.args.general.val_out;
 
             rc = v4l2_subdev_call( sd, core, ioctl, SOC_LENS_GET_MIN_STEP, &settings );
-            p_ctx->param.min_step = settings.args.general.val_out;
+            p_ctx->param.min_step = (uint16_t)settings.args.general.val_out;
 
             rc = v4l2_subdev_call( sd, core, ioctl, SOC_LENS_GET_NEXT_ZOOM, &settings );
-            p_ctx->param.next_zoom = settings.args.general.val_out;
+            p_ctx->param.next_zoom = (uint16_t)settings.args.general.val_out;
 
             rc = v4l2_subdev_call( sd, core, ioctl, SOC_LENS_GET_CURR_ZOOM, &settings );
-            p_ctx->param.curr_zoom = settings.args.general.val_out;
+            p_ctx->param.curr_zoom = (uint16_t)settings.args.general.val_out;
 
             rc = v4l2_subdev_call( sd, core, ioctl, SOC_LENS_GET_NEXT_POS, &settings );
-            p_ctx->param.next_pos = settings.args.general.val_out;
+            p_ctx->param.next_pos = (uint16_t)settings.args.general.val_out;
 
         } else {
             LOG( LOG_ERR, "SOC lens subdev pointer is NULL" );
@@ -175,7 +175,7 @@ static uint8_t vcm_v4l2_subdev_is_moving( void *ctx )
             settings.ctx_num = ctx_num;
             int rc = v4l2_subdev_call( sd, core, ioctl, SOC_LENS_IS_MOVING, &settings );
             if ( rc == 0 ) {
-                result = settings.args.general.val_out;
+                result = (int8_t)settings.args.general.val_out;
             } else {
                 LOG( LOG_ERR, "Failed to move the lens. rc = %d", rc );
             }

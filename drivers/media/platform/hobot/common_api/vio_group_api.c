@@ -169,7 +169,7 @@ int vio_group_task_start(struct vio_group_task *group_task)
 	group_task->task = kthread_run(kthread_worker_fn, &group_task->worker, name); /*PRQA S ALL*/
 	if (IS_ERR(group_task->task)) {
 		vio_err("failed to create buffer task, err(%ld)\n",PTR_ERR(group_task->task));
-		ret = PTR_ERR(group_task->task);
+		ret = (int)PTR_ERR(group_task->task);
 		goto p_err;
 	}
 
@@ -428,13 +428,13 @@ void vio_bind_group_done(int instance)
 			group->leader = true;
 			snprintf(&stream[offset], sizeof(stream) - offset,
 					"=>G%d", group->id);
-			offset = strlen(stream);
+			offset = (int)strlen(stream);
 			every_group_input[i] = 1;
 		} else if (test_bit(VIO_GROUP_OTF_INPUT, &group->state)) {
 			vio_bind_chain_groups(&ischain->group[i - 1], group);
 			snprintf(&stream[offset], sizeof(stream) - offset,
 					"->G%d", group->id);
-			offset = strlen(stream);
+			offset = (int)strlen(stream);
 			every_group_input[i] = 0;
 		}
 	}
@@ -770,7 +770,7 @@ void voi_set_stat_info_update(s32 update)
 }
 EXPORT_SYMBOL(voi_set_stat_info_update);
 
-void vio_set_stat_info(u32 instance, u32 stat_type, u32 event, u16 frameid,
+void vio_set_stat_info(u32 instance, u32 stat_type, u32 event, u32 frameid,
 	u32 addr, u32 *queued_count)
 {
 	struct vio_chain *chain;
@@ -788,7 +788,7 @@ void vio_set_stat_info(u32 instance, u32 stat_type, u32 event, u16 frameid,
 		stat->addr  = addr;
 		if (queued_count != NULL) {
 			for (i = 0; i < NR_FRAME_STATE; i++)
-				stat->queued_count[i] = queued_count[i];
+				stat->queued_count[i] = (u8)queued_count[i];
 		}
 		chain->statinfoidx[stat_type]++;
 	}
@@ -854,7 +854,7 @@ int vio_print_delay(s32 instance, u8* buf, u32 size)
 	offset += len;
 	for (modidx = 0; modidx < VIO_MOD_NUM; modidx++) {
 		showidx = 0;
-		idx = chain->statinfoidx[modidx];
+		idx = (int)chain->statinfoidx[modidx];
 		for (i = 0; i < MAX_DELAY_FRAMES; i++) {
 			stat = chain->statinfo[(idx + i)%MAX_DELAY_FRAMES];
 			if (stat[modidx].event >= events[modidx] &&

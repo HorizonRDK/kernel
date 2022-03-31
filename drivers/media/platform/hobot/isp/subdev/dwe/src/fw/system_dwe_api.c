@@ -35,6 +35,7 @@
 #include <media/v4l2-subdev.h>
 #include <media/v4l2-async.h>
 #include <linux/ion.h>
+
 #include "acamera_logger.h"
 #include "vio_group_api.h"
 
@@ -442,7 +443,7 @@ int dwe_init_api(dwe_context_t *ctx, struct dwe_dev_s *pdev, dwe_param_t **ppara
 	ctx->dis_cur_num = 0;
 	ctx->online_enable = 1;
 	ctx->online_port = 0;
-	dma_addr = ctx->phy_mem;
+	dma_addr = (uint32_t)ctx->phy_mem;
 
 	for (tmp = 0; tmp < FIRMWARE_CONTEXT_NUMBER; tmp++) {
 		//the data is temp, ldc is bypass
@@ -464,7 +465,7 @@ int dwe_init_api(dwe_context_t *ctx, struct dwe_dev_s *pdev, dwe_param_t **ppara
 		dwe_param[tmp].dis_param.crop_x.crop_g = 0x4ff0000;
 		dwe_param[tmp].dis_param.crop_y.crop_g = 0x2cf0000;
 		dwe_param[tmp].pg_param.size.psize_g = 0x2cf04ff;
-		ctx->dframes[tmp].address = ctx->phy_mem;
+		ctx->dframes[tmp].address = (uint32_t)ctx->phy_mem;
 	}
 
 	mutex_init(&mc_mutex);
@@ -859,7 +860,7 @@ int dis_hwparam_set(dwe_context_t *ctx, uint32_t port)
 	if (dwe_param[port].dis_param.path.path_b.rg_dis_enable == 1) {
 		ret = dwe_stream_get_frame(port, &ctx->dframes[port]);
 		if (ret < 0) {
-			ctx->dframes[port].address = ctx->phy_mem;
+			ctx->dframes[port].address = (uint32_t)ctx->phy_mem;
 			ctx->dframes[port].virt_addr = ctx->ptr_mem;
 			LOG(LOG_ERR, "port %d get buffer failed!\n", port);
 		} else {
@@ -869,7 +870,7 @@ int dis_hwparam_set(dwe_context_t *ctx, uint32_t port)
 		tmp_cur = dwe_param[port].dis_param.path.path_b.rg_dis_enable + (dwe_param[port].dis_param.path.path_b.rg_dis_path_sel << 1);
 		set_chn_dis_setting(dev_ptr->dis_dev->io_vaddr, &tmp_cur, ctx->dis_dev_num);
 	} else {
-		ctx->dframes[port].address = ctx->phy_mem;
+		ctx->dframes[port].address = (uint32_t)ctx->phy_mem;
 		ctx->dframes[port].virt_addr = ctx->ptr_mem;
 		tmp_cur = 0;
 		set_chn_dis_setting(dev_ptr->dis_dev->io_vaddr, &tmp_cur, ctx->dis_dev_num);

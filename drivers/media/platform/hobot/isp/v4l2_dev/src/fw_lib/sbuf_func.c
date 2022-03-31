@@ -172,7 +172,7 @@ static int sbuf_mgr_alloc_sbuf( struct sbuf_mgr *p_sbuf_mgr )
     p_sbuf_mgr->len_used = ( sizeof( struct fw_sbuf ) + 1 + PAGE_SIZE ) & PAGE_MASK;
 
     /* allocate one more page for user-sapce mapping */
-    p_sbuf_mgr->len_allocated = p_sbuf_mgr->len_used - 1 + PAGE_SIZE;
+    p_sbuf_mgr->len_allocated = (uint32_t)(p_sbuf_mgr->len_used - 1 + PAGE_SIZE);
 
     p_sbuf_mgr->buf_allocated = vmalloc_user(p_sbuf_mgr->len_allocated);
     if ( !p_sbuf_mgr->buf_allocated ) {
@@ -332,7 +332,7 @@ static uint32_t get_cur_calibration_total_size( void *fw_instance )
             LOG( LOG_ERR, "Error: LUT %d is NULL(%p), not inited.", idx, p_lut );
         }
 
-        result += sizeof( LookupTable );
+        result = (uint32_t)(result + sizeof( LookupTable ));
     }
 
     LOG( LOG_NOTICE, "Total size for all IQ LUTs is %d bytes", result );
@@ -498,7 +498,7 @@ static uint32_t sbuf_mgr_item_count_in_using( struct sbuf_mgr *p_sbuf_mgr )
 
 static uint8_t sbuf_calibration_is_ready_to_update( struct sbuf_context *p_ctx )
 {
-    uint32_t rc = 1;
+    uint8_t rc = 1;
 
     // We can update the sbuf-calibration if no sbuf item used by UF.
     // or if UF is running but not fetched yet.
@@ -835,11 +835,11 @@ void sbuf_update_ae_idx( sbuf_fsm_t *p_fsm )
         return;
     }
 
-    p_ctx->idx_set.ae_idx = sbuf.buf_idx;
+    p_ctx->idx_set.ae_idx = (uint8_t)sbuf.buf_idx;
     p_ctx->idx_set.ae_idx_valid = 1;
 
 #if defined( ISP_HAS_IRIDIX_MANUAL_FSM ) || defined( ISP_HAS_IRIDIX8_MANUAL_FSM )
-    p_ctx->idx_set.iridix_idx = sbuf_iridix.buf_idx;
+    p_ctx->idx_set.iridix_idx = (uint8_t)sbuf_iridix.buf_idx;
     p_ctx->idx_set.iridix_idx_valid = 1;
 
     // iridix depends on AE stats data
@@ -908,7 +908,7 @@ void sbuf_update_awb_idx( sbuf_fsm_t *p_fsm )
         return;
     }
 
-    p_ctx->idx_set.awb_idx = sbuf.buf_idx;
+    p_ctx->idx_set.awb_idx = (uint8_t)sbuf.buf_idx;
     p_ctx->idx_set.awb_idx_valid = 1;
 
     mutex_unlock( &p_ctx->idx_set_lock );
@@ -963,7 +963,7 @@ void sbuf_update_af_idx( sbuf_fsm_t *p_fsm )
         return;
     }
 
-    p_ctx->idx_set.af_idx = sbuf.buf_idx;
+    p_ctx->idx_set.af_idx = (uint8_t)sbuf.buf_idx;
     p_ctx->idx_set.af_idx_valid = 1;
 
     mutex_unlock( &p_ctx->idx_set_lock );
@@ -1019,7 +1019,7 @@ void sbuf_update_gamma_idx( sbuf_fsm_t *p_fsm )
         return;
     }
 
-    p_ctx->idx_set.gamma_idx = sbuf.buf_idx;
+    p_ctx->idx_set.gamma_idx = (uint8_t)sbuf.buf_idx;
     p_ctx->idx_set.gamma_idx_valid = 1;
 
     mutex_unlock( &p_ctx->idx_set_lock );
@@ -1724,7 +1724,7 @@ static ssize_t sbuf_fops_write( struct file *file, const char __user *buf, size_
         return -EINVAL;
     }
 
-    rc = copy_from_user( &idx_set, buf, len_to_copy );
+    rc = (int)copy_from_user( &idx_set, buf, len_to_copy );
     if ( rc ) {
         LOG( LOG_ERR, "copy_from_user failed, not copied: %d, expected: %u.", rc, len_to_copy );
     }
@@ -1789,7 +1789,7 @@ static ssize_t sbuf_fops_read( struct file *file, char __user *buf, size_t count
         return -ENODATA;
     }
 
-    rc = copy_to_user( buf, &idx_set, len_to_copy );
+    rc = (int)copy_to_user( buf, &idx_set, len_to_copy );
     if ( rc ) {
         LOG( LOG_ERR, "copy_to_user failed, rc: %d.", rc );
     }

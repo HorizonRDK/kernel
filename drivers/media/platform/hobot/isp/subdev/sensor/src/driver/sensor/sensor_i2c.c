@@ -181,7 +181,7 @@ int sensor_i2c_read(uint8_t chn, uint16_t reg_addr, uint8_t bit_width, char *buf
 			goto failed;
 	}
 	
-    ret = i2c_master_recv(client[chn], buf, count);
+    ret = i2c_master_recv(client[chn], buf, (int)count);
 	
 	if(ret != count) {
 		LOG(LOG_ERR, "read failed !");
@@ -217,7 +217,7 @@ int sensor_i2c_write(uint8_t chn, uint16_t reg_addr, uint8_t bit_width, const ch
 		count += 2;
 	}
 
-        ret = i2c_master_send(client[chn], tmp, count);
+        ret = i2c_master_send(client[chn], tmp, (int)count);
 	
 	if (ret != count) {
 		LOG(LOG_INFO, "write failed !");

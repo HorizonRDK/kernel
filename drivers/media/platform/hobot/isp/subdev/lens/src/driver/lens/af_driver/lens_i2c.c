@@ -92,7 +92,7 @@ static int lens_i2c_read(const struct i2c_client *client, uint16_t reg_addr,
 		goto failed;
 	}
 
-	ret = i2c_master_recv(client, buf, count);
+	ret = i2c_master_recv(client, buf, (int)count);
 	if(ret != count) {
 		LOG(LOG_ERR, "read failed !");
 		ret = -1;
@@ -114,7 +114,7 @@ static int lens_i2c_writebuf(const struct i2c_client *client, const char *buf, s
 		return -ENOMEM;
 	}
 
-	ret = i2c_master_send(client, buf, count);
+	ret = i2c_master_send(client, buf, (int)count);
 
 	if (ret != count) {
 		LOG(LOG_INFO, "write failed !");
@@ -149,7 +149,7 @@ static int lens_i2c_write(const struct i2c_client *client, uint16_t reg_addr,
 		return -1;
 	}
 
-	ret = i2c_master_send(client, tmp, count);
+	ret = i2c_master_send(client, tmp, (int)count);
 
 	if (ret != count) {
 		LOG(LOG_INFO, "write failed !");
@@ -251,7 +251,7 @@ void motor_i2c_move(void *ctx, void *param, uint32_t pos)
 			i2c_param->reg_width, i2c_param->reg_len, pos);
 	} else {
 		data_tranform_to_send(pos, buf, i2c_param->reg_len, i2c_param->conversion);
-		ret = lens_i2c_write(client, i2c_param->reg_addr, i2c_param->reg_width, buf, i2c_param->reg_len);
+		ret = lens_i2c_write(client, (uint16_t)i2c_param->reg_addr, (uint8_t)i2c_param->reg_width, buf, i2c_param->reg_len);
 		LOG(LOG_DEBUG, "addr 0x%x, width %d, len %d, pos %d \n", i2c_param->reg_addr,
 			i2c_param->reg_width, i2c_param->reg_len, pos);
 	}
@@ -287,7 +287,7 @@ void motor_i2c_write_reg(void *ctx, void *param, uint32_t addr, uint32_t data)
 
 	LOG(LOG_DEBUG, "addr %d, data %d\n", addr, data);
 	data_tranform_to_send(data, buf, i2c_param->reg_len, i2c_param->conversion);
-	ret = lens_i2c_write(client, addr, i2c_param->reg_width, buf, 1);
+	ret = lens_i2c_write(client, (uint16_t)addr, (uint8_t)i2c_param->reg_width, buf, 1);
 }
 
 uint32_t motor_i2c_read_reg(void *ctx, void *param, uint32_t addr)
@@ -304,7 +304,7 @@ uint32_t motor_i2c_read_reg(void *ctx, void *param, uint32_t addr)
 	if (i2c_param == NULL)
 		return 0;
 
-	ret = lens_i2c_read(client, (uint16_t)addr, i2c_param->reg_width, buf, 1);
+	ret = lens_i2c_read(client, (uint16_t)addr, (uint8_t)i2c_param->reg_width, buf, 1);
 	LOG(LOG_DEBUG, "addr %d, data %d\n", addr, buf[0]);
 	data = buf[0];
 
@@ -344,7 +344,7 @@ struct i2c_client *lens_i2c_request(uint32_t i2c_chn, uint32_t i2c_addr,
 	LOG(LOG_DEBUG, "start request i2c driver!");
 	memset(&temp_info, 0, sizeof(struct i2c_board_info));
 	snprintf(temp_info.type, I2C_NAME_SIZE, "%s", name);
-	temp_info.addr = i2c_addr;
+	temp_info.addr = (uint16_t)i2c_addr;
 
 	LOG(LOG_DEBUG, "name %s, chn %d, addr 0x%x\n", name, i2c_chn, i2c_addr);
 

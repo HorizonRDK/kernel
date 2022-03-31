@@ -80,7 +80,7 @@ static int calib_destory(uint8_t port)
 
 	kfree(calib_data);
 	calib_param_ctx.plist[port] = NULL;
-	calib_param_ctx.p_num &= ~(1 << port);
+	calib_param_ctx.p_num &= (uint8_t)(~(1 << port));
 
 	LOG( LOG_DEBUG, "calib destory is success.");
 	
@@ -162,9 +162,8 @@ static int calib_create(camera_calib_t *ptr)
 		LOG( LOG_DEBUG, "the num of %d calib data is in addr %p, rows %d, cols %d, width %d!", tmp, calib_data->plut[tmp].ptr, calib_data->plut[tmp].rows, calib_data->plut[tmp].cols, calib_data->plut[tmp].width);	
 	}
 
-	calib_param_ctx.plist[ptr->port] = calib_data; 
-	calib_param_ctx.p_num |= (1 << ptr->port);  			
-	
+	calib_param_ctx.plist[ptr->port] = calib_data;
+	calib_param_ctx.p_num |= (uint8_t)(1 << ptr->port);
 	LOG( LOG_INFO, "calibration is init success.");
 	
 	return ret;
@@ -533,7 +532,7 @@ int system_calib_init( void )
 
 void system_calib_destroy( void )
 {
-    uint32_t tmp = 0;
+    uint8_t tmp = 0;
    
     LOG( LOG_INFO, "%s is runing.", __func__ );
     

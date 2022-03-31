@@ -43,7 +43,7 @@ int camera_i2c_open(uint32_t port, uint32_t i2c_bus,
 				sensor_name, sensor_addr);
 		strncpy(camera_mod[port]->board_info.type, sensor_name,
 				sizeof(camera_mod[port]->board_info.type));
-		camera_mod[port]->board_info.addr = sensor_addr;
+		camera_mod[port]->board_info.addr = (uint16_t)sensor_addr;
 		for (i = 0; i < CAMERA_TOTAL_NUMBER; i++) {
 			if ((camera_mod[i]->camera_param.sensor_addr == sensor_addr) &&
 					(camera_mod[i]->camera_param.bus_num == i2c_bus) &&
@@ -69,7 +69,7 @@ int camera_i2c_open(uint32_t port, uint32_t i2c_bus,
 	}
 	camera_mod[port]->client->adapter = adap;
 	if (sensor_name != NULL) {
-		camera_mod[port]->client->addr = sensor_addr;
+		camera_mod[port]->client->addr = (uint16_t)sensor_addr;
 	}
 
 	pr_info("the %s is open success !", camera_mod[port]->client->name);
@@ -126,7 +126,7 @@ int camera_i2c_read(uint32_t port, uint32_t reg_addr,
 	msg[1].addr = camera_mod[port]->client->addr;
 	msg[1].flags = camera_mod[port]->client->flags & I2C_M_TEN;
 	msg[1].flags |= I2C_M_RD;
-	msg[1].len = count;
+	msg[1].len = (uint16_t)count;
 	msg[1].buf = buf;
 
 	ret = i2c_transfer(adap, msg, 2);
@@ -172,7 +172,7 @@ int camrea_i2c_adapter_read(uint32_t port, uint16_t slave_addr,
 	msg[1].addr = slave_addr;
 	msg[1].flags = camera_mod[port]->client->flags & I2C_M_TEN;
 	msg[1].flags |= I2C_M_RD;
-	msg[1].len = count;
+	msg[1].len = (uint16_t)count;
 	msg[1].buf = buf;
 
 	ret = i2c_transfer(adap, msg, 2);
@@ -185,7 +185,7 @@ int camrea_i2c_adapter_read(uint32_t port, uint16_t slave_addr,
 	if (count == 1) {
 		*value = buf[0];
 	} else if (count == 2) {
-		*value = (buf[0] << 8) | buf[1];
+		*value = (uint16_t)((buf[0] << 8) | buf[1]);
 	} else {
 		pr_err("value count is invaild!\n");
 	}
@@ -240,121 +240,3 @@ int camera_i2c_write(uint32_t port, uint32_t reg_addr, uint32_t bit_width,
 	}
 	return ret;
 }
-
-/* sensor register read */
-int camera_user_i2c_read(struct i2c_client *client,
-			uint32_t addr, uint16_t reg, uint8_t *val)
-{
-	struct i2c_msg msg[2];
-	uint8_t buf[2];
-	int ret;
-
-	buf[0] = reg >> 8;
-	buf[1] = reg & 0xFF;
-
-	msg[0].addr = addr;
-	msg[0].flags = client->flags;
-	msg[0].buf = buf;
-	msg[0].len = sizeof(buf);
-
-	msg[1].addr = addr;
-	msg[1].flags = client->flags | I2C_M_RD;
-	msg[1].buf = buf;
-	msg[1].len = 1;
-
-	ret = i2c_transfer(client->adapter, msg, 2);
-	if (ret >= 0) {
-		*val = buf[0];
-		return 0;
-	}
-
-	pr_info("x2_camera i2c read error addr: 0x%x"
-			"reg: 0x%x ret %d !!!\n", addr, reg, ret);
-
-	return ret;
-}
-
-int camera_user_i2c_read_byte(struct i2c_client *client,
-			uint32_t addr, uint8_t reg, uint8_t *val)
-{
-	struct i2c_msg msg[2];
-	uint8_t buf[1];
-	int ret;
-
-	buf[0] = reg & 0xFF;
-
-	msg[0].addr = addr;
-	msg[0].flags = client->flags;
-	msg[0].buf = buf;
-	msg[0].len = sizeof(buf);
-
-	msg[1].addr = addr;
-	msg[1].flags = client->flags | I2C_M_RD;
-	msg[1].buf = buf;
-	msg[1].len = 1;
-
-	ret = i2c_transfer(client->adapter, msg, 2);
-	if (ret >= 0) {
-		*val = buf[0];
-		return 0;
-	}
-
-	pr_info("x2_camera i2c read error addr: 0x%x"
-			"reg: 0x%x ret %d !!!\n", addr, reg, ret);
-
-	return ret;
-}
-
-int camera_user_i2c_write_byte(struct i2c_client *client,
-		uint32_t addr, uint8_t reg, uint8_t val)
-{
-	struct i2c_msg msg;
-	uint8_t buf[2];
-	int ret;
-
-	buf[0] = reg & 0xFF;
-	buf[1] = val;
-
-	msg.addr = addr;
-	msg.flags = client->flags;
-	msg.buf = buf;
-	msg.len = sizeof(buf);
-
-	ret = i2c_transfer(client->adapter, &msg, 1);
-	if (ret >= 0)
-		return 0;
-
-	pr_info("x2_camera i2c write error addr: 0%x"
-			"reg: 0x%x ret %d !!!\n", addr, reg, ret);
-
-	return ret;
-}
-
-/* sensor register write */
-int camera_user_i2c_write(struct i2c_client *client, uint32_t addr,
-		uint16_t reg, uint8_t val)
-{
-	struct i2c_msg msg;
-	uint8_t buf[3];
-	int ret;
-
-	buf[0] = reg >> 8;
-	buf[1] = reg & 0xFF;
-	buf[2] = val;
-
-	msg.addr = addr;
-	msg.flags = client->flags;
-	msg.buf = buf;
-	msg.len = sizeof(buf);
-
-	ret = i2c_transfer(client->adapter, &msg, 1);
-	if (ret >= 0)
-		return 0;
-
-	pr_info("x2_camera i2c write error addr: 0%x"
-			"reg: 0x%x ret %d !!!\n", addr, reg, ret);
-
-	return ret;
-}
-
-

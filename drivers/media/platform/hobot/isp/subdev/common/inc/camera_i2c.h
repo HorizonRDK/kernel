@@ -26,14 +26,6 @@ int camrea_i2c_adapter_read(uint32_t port, uint16_t slave_addr,
 		uint16_t *value, int count);
 int camera_i2c_write(uint32_t port, uint32_t reg_addr,
 			uint32_t bit_width, const char *buf, uint32_t count);
-int camera_user_i2c_read(struct i2c_client *client,
-			uint32_t addr, uint16_t reg, uint8_t *val);
-int camera_user_i2c_read_byte(struct i2c_client *client,
-			uint32_t addr, uint8_t reg, uint8_t *val);
-int camera_user_i2c_write(struct i2c_client *client,
-			uint32_t addr, uint16_t reg, uint8_t val);
-int camera_user_i2c_write_byte(struct i2c_client *client,
-			uint32_t addr, uint8_t reg, uint8_t val);
 
 #endif // DRIVERS_MEDIA_PLATFORM_HOBOT_ISP_SUBDEV_COMMON_INC_CAMERA_I2C_H_
 

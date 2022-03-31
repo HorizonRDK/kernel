@@ -213,7 +213,7 @@ static ssize_t isp_status_show(struct device *dev,
 		if (p_ctx->initialized == 0)
 			continue;
 		len = snprintf(&buf[offset], PAGE_SIZE - offset, "\n--s%d status--\n", ctx_id);
-		offset += len;
+		offset = offset + (uint32_t)len;
         len = snprintf(&buf[offset], PAGE_SIZE - offset,
                         "fs_irq_cnt: %u\n"
                         "fe_irq_cnt: %u\n"
@@ -255,7 +255,7 @@ static ssize_t isp_status_show(struct device *dev,
                         p_ctx->sts.free_to_busy_failed_cnt,
                         p_ctx->sts.busy_to_done_cnt,
                         p_ctx->sts.busy_to_done_failed_cnt);
-		offset += len;
+		offset = offset + (uint32_t)len;
 	}
 
     return offset;
@@ -279,7 +279,7 @@ static ssize_t isp_v3a_store(struct device *dev,
                                         struct device_attribute *attr,
                                         const char *buf, size_t len)
 {
-	uint32_t size = len;
+	uint32_t size = (uint32_t)len;
 	if (len > 100) {
 		size = 100;
 	}
@@ -315,7 +315,7 @@ static int32_t isp_platform_probe( struct platform_device *pdev )
 
     if ( isp_res ) {
         LOG( LOG_INFO, "Juno isp irq = %d, flags = 0x%x !\n", (int)isp_res->start, (int)isp_res->flags );
-        system_interrupts_set_irq( isp_res->start, isp_res->flags );
+        system_interrupts_set_irq( (int)isp_res->start, (int)isp_res->flags );
     } else {
         LOG( LOG_ERR, "Error, no isp_irq found from DT\n" );
         return -1;

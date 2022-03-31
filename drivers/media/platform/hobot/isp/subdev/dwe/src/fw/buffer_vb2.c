@@ -20,6 +20,7 @@
 #include <media/videobuf2-vmalloc.h>
 #include <media/videobuf2-dma-contig.h>
 #include <media/v4l2-device.h>
+
 #include "acamera_logger.h"
 #include "acamera_dwe_config.h"
 #include "buffer_v4l2_stream.h"

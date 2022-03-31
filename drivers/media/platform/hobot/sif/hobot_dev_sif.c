@@ -48,12 +48,12 @@ int testpattern_fps = 30;
 module_param(testpattern_fps, int, 0644);
 static bool debug_log_print = 0;
 module_param(debug_log_print, bool, 0644);
-static int g_print_instance = 0;
+static int32_t g_print_instance = 0;
 int sif_video_streamoff(struct sif_video_ctx *sif_ctx);
 static struct pm_qos_request sif_pm_qos_req;
 static int g_sif_fps[VIO_MAX_STREAM] = {0, };
 static int g_sif_idx[VIO_MAX_STREAM] = {0, };
-static int g_sif_fps_lasttime[VIO_MAX_STREAM] = {0, };
+static __kernel_time_t g_sif_fps_lasttime[VIO_MAX_STREAM] = {0, };
 static u32 temp_flow = 0;
 static u32 sif_frm_value = 0;
 
@@ -679,7 +679,7 @@ static int sif_next_queue(struct x3_sif_dev *sif, int *cur_seq_num)
 	for (index = 0; index < VIO_MAX_STREAM; index++) {
 		if (next_seq_num > VIO_MAX_STREAM)
 			next_seq_num = 1;
-		next_pipeid = find_seq_num(sif, next_seq_num);
+		next_pipeid = find_seq_num(sif, (uint8_t)next_seq_num);
 		if (next_pipeid >= 0) {
 			*cur_seq_num = next_seq_num;
 			spin_unlock(&sif->seq_task.slock);
@@ -709,7 +709,7 @@ static int sif_start_trigger(struct frame_list *queue)
 {
 	struct frame_node *node = sif_node_dequeue(queue);
 	if (node) {
-		vio_dbg("pipe%d %llu %uus\n", queue->pipeline_id,
+		vio_dbg("pipe%d %llu %llu us\n", queue->pipeline_id,
 				node->frameid, node->interval);
 		vio_group_start_trigger_mp(node->group, node->frame);
 	} else {
@@ -726,7 +726,7 @@ static int sif_flush_queue(struct x3_sif_dev *sif, int cur_seq_num)
 
 	if (cur_seq_num > VIO_MAX_STREAM)
 		cur_seq_num = 1;
-	pipeid = find_seq_num(sif, cur_seq_num);
+	pipeid = find_seq_num(sif, (uint8_t)cur_seq_num);
 	if (pipeid >= 0) {
 		queue = &sif->frame_queue[pipeid];
 		if (queue->enable && queue->queue_count)
@@ -749,7 +749,7 @@ err_exit:
 	return -1;
 }
 
-static int get_time_sub(struct frame_list *queue)
+static u64 get_time_sub(struct frame_list *queue)
 {
 	struct timespec ts;
 	getnstimeofday(&ts);
@@ -853,7 +853,7 @@ static int sif_video_order(struct sif_video_ctx *sif_ctx,
 		}
 
 		if ((seq_info->timeout > 0) && (seq_info->timeout != queue->timeout)) {
-			vio_dbg("sif_order: pipe(%d) timeout change (%d -> %d)\n",
+			vio_dbg("sif_order: pipe(%d) timeout change (%llu -> %llu)\n",
 					pipeid, queue->timeout, seq_info->timeout);
 			queue->timeout = seq_info->timeout;
 		}
@@ -914,15 +914,16 @@ static int sif_seq_qbuf(struct sif_video_ctx *sif_ctx,
 	return 0;
 }
 
-static int sif_seq_sleep(struct sif2isp_seq *tsk,
-		int timeout, int cur_pipeid, int *con_sleep)
+static u64 sif_seq_sleep(struct sif2isp_seq *tsk,
+		u64 timeout, int cur_pipeid, int *con_sleep)
 {
-	int ret_time, us_wait, condi = 0;
+	int condi = 0;
 	struct timespec wait_start;
 	struct timespec wait_end;
+	u64 us_wait, ret_time;
 
 	getnstimeofday(&wait_start);
-	ret_time = wait_event_interruptible_timeout(
+	ret_time = (u64)wait_event_interruptible_timeout(
 			tsk->wait_queue, tsk->wait_mask &
 			((1 << cur_pipeid) | SEQ_KTHREAD_FLUSH |
 			 SEQ_KTHREAD_STOP), timeout*HZ/1000);
@@ -948,8 +949,9 @@ static int sif_seq_kthread(void *data)
 	struct frame_list  *queue;
 	struct x3_sif_dev  *sif = data;
 	struct sif2isp_seq *tsk = &sif->seq_task;
-	int ret_time, timeout, cur_pipeid, cur_seq_num;
+	int cur_pipeid, cur_seq_num;
 	int con_sleep, flush_queue = 0;
+	u64 ret_time, timeout;
 
 	cur_seq_num = 0;
 	cur_pipeid = sif_next_queue(sif, &cur_seq_num);
@@ -1005,7 +1007,7 @@ sleep:
 
 		// timeout: skip current queue
 		if (!ret_time && !queue->queue_count) {
-			vio_dbg("timeout pipe%d %llu miss %dus > %dms\n",
+			vio_dbg("timeout pipe%d %llu miss %llu us > %llu ms\n",
 					queue->pipeline_id, queue->frameid,
 					get_time_sub(queue)/1000, queue->timeout);
 			cur_pipeid = sif_next_queue(sif, &cur_seq_num);
@@ -1087,7 +1089,7 @@ static int seq_kthread_init(struct sif_video_ctx *sif_ctx)
 		return -EFAULT;
 	}
 
-	sif->seq_task.seq_num[pipeid] = pipeid + 1;  // default seq num;
+	sif->seq_task.seq_num[pipeid] = (uint8_t)(pipeid + 1);  // default seq num;
 	frame_queue->timeout = 34;                   // default timeout (ms)
 	spin_lock_init(&frame_queue->slock);
 	spin_lock(&frame_queue->slock);
@@ -1123,7 +1125,7 @@ static int seq_kthread_init(struct sif_video_ctx *sif_ctx)
 
 	vio_info("[S%d][V1] %s: seq_kthread start.\n", pipeid, __func__);
 en_ret:
-	vio_info("[S%d][V1] %s: en sequence queue%d tmout %dms HZ:%d\n",
+	vio_info("[S%d][V1] %s: en sequence queue%d tmout %llu ms HZ:%d\n",
 			pipeid, __func__, pipeid, frame_queue->timeout, HZ);
 exit:
 	return 0;
@@ -1906,7 +1908,7 @@ int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 		return ret;
 	}
 
-	ret = copy_from_user((char *) sif_config, (u32 __user *) arg,
+	ret = (int32_t)copy_from_user((char *) sif_config, (u32 __user *) arg,
 			   sizeof(sif_cfg_t));
 	if (ret)
 		return -EFAULT;
@@ -1927,7 +1929,7 @@ int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 		memcpy(&subdev->ddrin_fmt, &sif_config->input.ddr.data,
 			sizeof(sif_data_desc_t));
 
-		sif_set_isp_performance(sif->base_reg, sif->hblank);
+		sif_set_isp_performance(sif->base_reg, (u8)sif->hblank);
 
 		set_bit(SIF_DMA_IN_ENABLE, &sif->state);
 		set_bit(VIO_GROUP_DMA_INPUT, &group->state);
@@ -2260,7 +2262,7 @@ int sif_video_streamoff(struct sif_video_ctx *sif_ctx)
 		}
 		sif_disable_frame_intr(subdev, sif_dev);
 		for (i = 0; i < subdev->ipi_channels; i++)
-			sif_disable_ipi(sif_dev->base_reg, subdev->ipi_index + i);
+			sif_disable_ipi(sif_dev->base_reg, (u8)(subdev->ipi_index + i));
 	}
 	if (isp_enable && (atomic_dec_return(&sif_dev->isp_init_cnt) == 0)) {
 		sif_disable_isp_out_config(sif_dev->base_reg);
@@ -2389,7 +2391,7 @@ int sif_video_qbuf(struct sif_video_ctx *sif_ctx,
 		frameinfo->addr[0], framemgr->queued_count);
 
 	if (subdev->dol_num) {
-		ret = sif_check_phyaddr(frameinfo, subdev->dol_num);
+		ret = sif_check_phyaddr(frameinfo, (u8)subdev->dol_num);
 		if (ret)
 			return -EINVAL;
 	}
@@ -2493,7 +2495,7 @@ int sif_enable_bypass(struct sif_video_ctx *sif_ctx, unsigned long arg)
 	struct x3_sif_dev *sif;
 	sif_input_bypass_t cfg;
 
-	ret = copy_from_user((char *) &cfg, (u32 __user *) arg,
+	ret = (int32_t)copy_from_user((char *) &cfg, (u32 __user *) arg,
 			   sizeof(sif_input_bypass_t));
 	if (ret) {
 		vio_err("%s copy_from_user error(%d)\n", __func__, ret);
@@ -2559,7 +2561,7 @@ int sif_set_mot_cfg(struct sif_video_ctx *sif_ctx, unsigned long arg)
 		return -EINVAL;
 	}
 
-	ret = copy_from_user((char *) &md, (u32 __user *) arg,
+	ret = (int32_t)copy_from_user((char *) &md, (u32 __user *) arg,
 			   sizeof(sif_output_md_t));
 	if (ret) {
 		vio_err("%s copy_from_user error(%d)\n", __func__, ret);
@@ -2579,7 +2581,7 @@ int sif_set_pattern_cfg(struct sif_video_ctx *sif_ctx, unsigned long arg)
 	struct x3_sif_dev *sif;
 	struct sif_subdev *subdev;
 
-	ret = copy_from_user((char *) &cfg, (u32 __user *) arg,
+	ret = (int32_t)copy_from_user((char *) &cfg, (u32 __user *) arg,
 			   sizeof(struct sif_pattern_cfg));
 	if (ret) {
 		vio_err("%s copy_from_user error(%d)\n", __func__, ret);
@@ -2747,13 +2749,13 @@ static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 		ret = sif_video_dqbuf(sif_ctx, &frameinfo);
 		if (ret)
 			return ret;
-		ret = copy_to_user((void __user *) arg,
+		ret = (int32_t)copy_to_user((void __user *) arg,
 				(char *) &frameinfo, sizeof(struct frame_info));
 		if (ret)
 			return -EFAULT;
 		break;
 	case SIF_IOC_QBUF:
-		ret = copy_from_user((char *) &frameinfo,
+		ret = (int32_t)copy_from_user((char *) &frameinfo,
 				(u32 __user *) arg, sizeof(struct frame_info));
 		if (ret)
 			return -EFAULT;
@@ -2765,7 +2767,7 @@ static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 			return -EFAULT;
 		ret = sif_video_order(sif_ctx, &seq_info);
 		if (!ret)
-			ret = copy_to_user((void __user *)arg, (char *)&seq_info,
+			ret = (int32_t)copy_to_user((void __user *)arg, (char *)&seq_info,
 					sizeof(struct user_seq_info));
 		if (ret)
 			return -EFAULT;
@@ -2817,7 +2819,7 @@ static long x3_sif_ioctl(struct file *file, unsigned int cmd,
 		ret = sif_wake_up_poll(sif_ctx);
 		break;
 	case SIF_IOC_USER_STATS:
-		ret = copy_from_user((char *) &stats, (u32 __user *) arg,
+		ret = (int32_t)copy_from_user((char *) &stats, (u32 __user *) arg,
 				   sizeof(struct user_statistic));
 		if (ret)
 			return -EFAULT;
@@ -3168,13 +3170,13 @@ static void sif_diag_report(u8 errsta, u8 err_type,
 {
 	uint8_t env_data[8];
 
-	env_data[0] = instance;
+	env_data[0] = (u8)instance;
 	env_data[2] = 0xff;
 	env_data[3] = 4;
 	env_data[4] = status & 0xff;
 	env_data[5] = (status >> 8) & 0xff;
 	env_data[6] = (status >> 16) & 0xff;
-	env_data[7] = (status >> 24) & 0xff;
+	env_data[7] = (u8)((status >> 24) & 0xff);
 
 	if (errsta) {
 		env_data[1] = err_type;
@@ -3762,7 +3764,7 @@ static irqreturn_t sif_isr(int irq, void *data)
 	u32 instance = 0;
 	u32 status = 0;
 	u32 intr_en = 0;
-	u32 err_occured = 0;
+	u8 err_occured = 0;
 	struct sif_irq_src irq_src;
 	struct x3_sif_dev *sif;
 	struct vio_group *group;
@@ -4017,7 +4019,7 @@ static ssize_t sif_hblank_store(struct device *dev,
 	struct x3_sif_dev *sif;
 
 	sif = dev_get_drvdata(dev);
-	sif->hblank = simple_strtoul(buf, NULL, 0);
+	sif->hblank = (u32)simple_strtoul(buf, NULL, 0);
 
 	vio_info("%s : hblank = %d\n", __func__, sif->hblank);
 
@@ -4270,11 +4272,11 @@ static int vio_bind_info_dev_close(struct inode *inode, struct file *file)
 static long vio_bind_info_ioctl(struct file *file, unsigned int cmd,
 			  unsigned long arg)
 {
-	int ret = 0;
+	int32_t ret = 0;
 	struct vio_bind_info_dev *bind_dev;
 	struct hb_bind_info_update_s bind_info_update;
 	SYS_MOD_S *src_mod, *dst_mod;
-	int instance = 0, len = 0;
+	int32_t instance = 0, len = 0;
 	struct vio_chain *chain;
 
 	bind_dev = file->private_data;
@@ -4284,7 +4286,7 @@ static long vio_bind_info_ioctl(struct file *file, unsigned int cmd,
 
 	switch (cmd) {
 	case VIO_BIND_INFO_UPDATE:
-		ret = copy_from_user((char *) &bind_info_update,
+		ret = (int32_t)copy_from_user((char *) &bind_info_update,
 				(u32 __user *) arg,
 				sizeof(struct hb_bind_info_update_s));
 		if (ret)
@@ -4312,10 +4314,11 @@ static long vio_bind_info_ioctl(struct file *file, unsigned int cmd,
 
 		break;
 	case VIO_GET_STAT_INFO:
-		ret = copy_from_user((char*)&instance, (u32 __user *) arg, sizeof(int));
+		ret = (int32_t)copy_from_user((char*)&instance,
+				(u32 __user *) arg, sizeof(int));
 		voi_set_stat_info_update(0);
 		chain = vio_get_stat_info_ptr(instance);
-		len = copy_to_user((void __user *) arg,
+		len = (int32_t)copy_to_user((void __user *) arg,
 			(char *) &chain->statinfo, sizeof(chain->statinfo));
 		ret = len;
 		// len = copy_to_user((void __user *) arg + len,
@@ -4400,7 +4403,7 @@ static ssize_t sif_stat_show(struct device *dev,
 		len = snprintf(&buf[offset], PAGE_SIZE - offset,
 			"*******S%d info:******\n",
 			instance);
-		offset += len;
+		offset += (u32)len;
 		for (i = 0; i < 2; i++) {
 			stats = &sif->statistic.user_stats[instance][i];
 			len = snprintf(&buf[offset], PAGE_SIZE - offset,
@@ -4412,7 +4415,7 @@ static ssize_t sif_stat_show(struct device *dev,
 				stats->cnt[USER_STATS_DROP],
 				stats->cnt[USER_STATS_DQ_FAIL],
 				stats->cnt[USER_STATS_SEL_ERR]);
-			offset += len;
+			offset += (u32)len;
 
 			len = snprintf(&buf[offset],  PAGE_SIZE - offset,
 				"ch%d(%s) DRV: fe_normal %d, fe_lack_buf %d, "
@@ -4428,7 +4431,7 @@ static ssize_t sif_stat_show(struct device *dev,
 				sif->statistic.dq_normal[instance][i],
 				sif->statistic.dq_err[instance][i],
 				sif->statistic.q_normal[instance][i]);
-			offset += len;
+			offset += (u32)len;
 		}
 		len = snprintf(&buf[offset], PAGE_SIZE - offset,
 			"DRV: fs %d, grp_tsk_left %d, fs_lack_task %d, "
@@ -4439,7 +4442,7 @@ static ssize_t sif_stat_show(struct device *dev,
 			sif->statistic.hard_mismatch[instance],
 			sif->statistic.hard_overflow[instance],
 			sif->statistic.hard_buf_err[instance]);
-		offset += len;
+		offset += (u32)len;
 	}
 	return offset;
 }
@@ -4470,7 +4473,7 @@ static ssize_t vio_delay_store(struct device *dev,
 					struct device_attribute *attr,
 					const char *buf, size_t len)
 {
-	g_print_instance = simple_strtoul(buf, NULL, 0);
+	g_print_instance = (int32_t)simple_strtoul(buf, NULL, 0);
 	if (g_print_instance >= VIO_MAX_STREAM)
 		g_print_instance = VIO_MAX_STREAM - 1;
 	else if (g_print_instance < 0)
@@ -4526,8 +4529,8 @@ static ssize_t vio_bind_info_show(struct device *dev,
 	uint8_t mod_id = 0;
 	uint8_t i, j, k, out_chn_num, link_flag;
 	int next_chn, prev_chn;
-	ssize_t len = 0;
-	uint16_t offset = 0, x_offset = 0;
+	int32_t len = 0;
+	int32_t offset = 0, x_offset = 0;
 
 	sif = dev_get_drvdata(dev);
 	BUG_ON(!sif);
@@ -4615,16 +4618,16 @@ static ssize_t vio_bind_info_show(struct device *dev,
 						"\n");
 					offset += len;
 					for (k = 0; k < x_offset / 2 + 5; k++)
-						offset += snprintf(&buf[offset],
+						offset += (uint16_t)snprintf(&buf[offset],
 							PAGE_SIZE - offset, " ");
-					offset += snprintf(&buf[offset],
+					offset += (uint16_t)snprintf(&buf[offset],
 						PAGE_SIZE - offset, "|");
 				}
 				len = snprintf(&buf[offset],
 					PAGE_SIZE - offset,
 					"-#%d <==",
 					next_chn);
-				offset += len;
+				offset += (uint16_t)len;
 				if (out_chn_num <= 1)
 					x_offset += len;
 				next_mod = &bind_info[mod->out[next_chn].\
@@ -4654,7 +4657,7 @@ static ssize_t vio_bind_info_show(struct device *dev,
 				[mod->out[next_chn].next_mod];
 		}
 	}
-	offset += snprintf(&buf[offset], PAGE_SIZE - offset, "\n");
+	offset += (uint16_t)snprintf(&buf[offset], PAGE_SIZE - offset, "\n");
 
 	return offset;
 }
@@ -4663,7 +4666,7 @@ static ssize_t vio_bind_info_store(struct device *dev,
 					struct device_attribute *attr,
 					const char *buf, size_t len)
 {
-	int pipe_num;
+	int32_t pipe_num;
 	struct x3_sif_dev *sif;
 	struct vio_bind_info_dev *bind_dev;
 	struct hb_bind_info_s (*bind_info)[HB_ID_MAX];
@@ -4672,7 +4675,7 @@ static ssize_t vio_bind_info_store(struct device *dev,
 	bind_dev = sif->vio_bind_info_dev;
 	bind_info = (bind_dev->bind_info);
 
-	pipe_num = simple_strtoul(buf, NULL, 0);
+	pipe_num = (int32_t)simple_strtoul(buf, NULL, 0);
 	if (pipe_num < MAX_VIO_DEV)
 		memset(bind_info[pipe_num], 0,
 			sizeof(struct hb_bind_info_s) * HB_ID_MAX);

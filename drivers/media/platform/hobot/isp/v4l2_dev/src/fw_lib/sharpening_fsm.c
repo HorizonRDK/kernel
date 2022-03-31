@@ -73,7 +73,7 @@ int sharpening_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_
             break;
         }
 
-        p_fsm->api_value = *(uint32_t *)input;
+        p_fsm->api_value = (uint8_t)(*(uint32_t *)input);
 
         if ( p_fsm->api_value <= 128 ) {
             p_fsm->sharpening_mult = p_fsm->api_value;

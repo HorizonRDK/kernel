@@ -34,6 +34,7 @@
 #include <linux/module.h>
 #include <media/v4l2-subdev.h>
 #include <media/v4l2-async.h>
+
 #ifdef CONFIG_HOBOT_DIAG
 #include <soc/hobot/diag.h>
 #endif
@@ -327,11 +328,11 @@ static void ldc_diag_report(uint8_t errsta, uint32_t status)
 	env_data[0] = 0xff;
 	env_data[1] = 0xff;
 	env_data[2] = 0xff;
-	env_data[3] = sizeof(uint32_t);
-	env_data[4] = status & 0xff;
-	env_data[5] = (status >> 8) & 0xff;
-	env_data[6] = (status >> 16) & 0xff;
-	env_data[7] = (status >> 24) & 0xff;
+	env_data[3] = (uint8_t)(sizeof(uint32_t));
+	env_data[4] = (uint8_t)(status & 0xff);
+	env_data[5] = (uint8_t)((status >> 8) & 0xff);
+	env_data[6] = (uint8_t)((status >> 16) & 0xff);
+	env_data[7] = (uint8_t)((status >> 24) & 0xff);
 
 	if (errsta) {
 		diag_send_event_stat_and_env_data(
@@ -444,7 +445,7 @@ static irqreturn_t x3_ldc_irq(int this_irq, void *data)
 		dwe_ctx->ctx.ldc_running = 0;
 		//LOG(LOG_DEBUG, "----over_flow!----");
 #ifdef CONFIG_HOBOT_DIAG
-		ldc_diag_report(ldc_error_sts, tmp_irq.status_g);
+		ldc_diag_report((uint8_t)ldc_error_sts, tmp_irq.status_g);
 #endif
 	}
 

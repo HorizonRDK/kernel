@@ -21,22 +21,11 @@
 #define __SENSOR_INIT_H__
 
 #include "acamera_sbus_api.h"
-
-
-#if SENSOR_BINARY_SEQUENCE == 1
-#define sensor_load_sequence acamera_sensor_load_binary_sequence
-#else
-#define sensor_load_sequence acamera_sensor_load_array_sequence
-#endif
-
 typedef struct acam_reg_t {
     uint32_t address;
     uint32_t value;
     uint32_t mask;
     uint32_t len;
 } acam_reg_t;
-
-void acamera_sensor_load_binary_sequence( acamera_sbus_ptr_t p_sbus, char size, const char *sequence, int group );
-void acamera_sensor_load_array_sequence( acamera_sbus_ptr_t p_sbus, char size, const acam_reg_t **sequence, int group );
 
 #endif /* __SENSOR_INIT_H__ */

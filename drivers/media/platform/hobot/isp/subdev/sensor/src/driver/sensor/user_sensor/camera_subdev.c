@@ -19,7 +19,6 @@
 
 #include "acamera_logger.h"
 #include "../sensor_i2c.h"
-#include "../sensor_math.h"
 #include "acamera_firmware_config.h"
 #include "camera_subdev.h"
 #include "common_subdev.h"
@@ -380,8 +379,8 @@ void common_get_param(uint8_t chn, struct _setting_param_t *user_para)
 	user_para->exposure_time_max = sensor_param[chn].exposure_time_max;
 	user_para->exposure_time_min = sensor_param[chn].exposure_time_min;
 	user_para->exposure_time_long_max = sensor_param[chn].exposure_time_long_max;
-	user_para->active_width = sensor_param[chn].active_width;
-	user_para->active_height = sensor_param[chn].active_height;
+	user_para->active_width = (uint16_t)(sensor_param[chn].active_width);
+	user_para->active_height = (uint16_t)(sensor_param[chn].active_height);
 	user_para->fps = sensor_param[chn].fps;
 }
 

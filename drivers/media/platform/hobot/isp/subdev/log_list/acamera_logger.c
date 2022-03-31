@@ -106,12 +106,12 @@ static inline int32_t _logger_buf_remaining( acamera_logger_buf_t *log_buf_ptr )
 
 static inline void _logger_buf_move_end( acamera_logger_buf_t *log_buf_ptr, uint32_t size )
 {
-    log_buf_ptr->end += size;
+    log_buf_ptr->end = (uint16_t)(log_buf_ptr->end + size);
 }
 
 static inline void _logger_buf_move_start( acamera_logger_buf_t *log_buf_ptr, uint32_t size )
 {
-    log_buf_ptr->start += size;
+    log_buf_ptr->start = (uint16_t)(log_buf_ptr->start + size);
 }
 
 static inline void _logger_buf_reset( acamera_logger_buf_t *log_buf_ptr )

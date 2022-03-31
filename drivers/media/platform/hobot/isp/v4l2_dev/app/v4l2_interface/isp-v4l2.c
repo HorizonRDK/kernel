@@ -194,7 +194,7 @@ static int isp_v4l2_fop_open( struct file *file )
     /* update open counter */
     atomic_add( 1, &dev->opened );
 
-    rc = acamera_isp_init_context(dev->ctx_id);
+    rc = acamera_isp_init_context((uint8_t)dev->ctx_id);
     if (rc != 0) {
         goto fh_open_fail;
     }
@@ -278,7 +278,7 @@ static int isp_v4l2_fop_close( struct file *file )
     atomic_dec( &dev->opened );
 
     //evt-thread will touch hardware when processing event, stop it first
-    acamera_isp_evt_thread_stop(dev->ctx_id);
+    acamera_isp_evt_thread_stop((uint8_t)dev->ctx_id);
 
     //force stream off
     if (atomic_read(&dev->stream_on_cnt))
@@ -293,7 +293,7 @@ static int isp_v4l2_fop_close( struct file *file )
         acamera_fw_mem_free();
         pm_qos_remove_request(&isp_pm_qos_req);
     }
-    acamera_isp_deinit_context(dev->ctx_id);
+    acamera_isp_deinit_context((uint8_t)dev->ctx_id);
 
     /* deinit fh_ptr */
     mutex_lock( &dev->notify_lock );
@@ -333,7 +333,7 @@ static ssize_t isp_v4l2_fop_read( struct file *filep,
     struct isp_v4l2_fh *sp = fh_to_private( filep->private_data );
     int rc = 0;
 
-    rc = vb2_read( &sp->vb2_q, buf, count, ppos, filep->f_flags & O_NONBLOCK );
+    rc = (int)vb2_read( &sp->vb2_q, buf, count, ppos, filep->f_flags & O_NONBLOCK );
 
     return rc;
 }
@@ -719,7 +719,7 @@ long isp_v4l2_ioc_default(struct file *file, void *fh, bool valid_prio, unsigned
 		if (p_ctx->timestamps == 0) {
 			v2 = acamera_isp_rggb_start_pre_mirror_read_hw();
 			if (v1) //mirror on
-				acamera_isp_rggb_start_post_mirror_write_hw(v2 % 2 ? v2 - 1 : v2 + 1);
+				acamera_isp_rggb_start_post_mirror_write_hw(v2 % 2 ? (uint8_t)(v2 - 1) : (uint8_t)(v2 + 1));
 			else
 				acamera_isp_rggb_start_post_mirror_write_hw(v2);
 
@@ -728,7 +728,7 @@ long isp_v4l2_ioc_default(struct file *file, void *fh, bool valid_prio, unsigned
 
 		v2 = acamera_isp_top_rggb_start_pre_mirror_read(p_ctx->settings.isp_base);
         if (v1) //mirror on
-            acamera_isp_top_rggb_start_post_mirror_write(p_ctx->settings.isp_base, v2 % 2 ? v2 - 1 : v2 + 1);
+            acamera_isp_top_rggb_start_post_mirror_write(p_ctx->settings.isp_base, v2 % 2 ? (uint8_t)(v2 - 1) : (uint8_t)(v2 + 1));
         else
             acamera_isp_top_rggb_start_post_mirror_write(p_ctx->settings.isp_base, v2);
 
@@ -1056,7 +1056,7 @@ int isp_v4l2_notify_event( int ctx_id, int stream_id, uint32_t event_type )
 
 int isp_init_iridix(uint32_t ctx_id, uint32_t ctrl_val)
 {
-	int i;
+	uint8_t i;
 	int iridix_no;
 	int ret = 0;
 	acamera_context_t *ptr_tmp;
@@ -1093,7 +1093,7 @@ int isp_init_iridix(uint32_t ctx_id, uint32_t ctrl_val)
 					acamera_isp_iridix_enable_write(ptr_tmp->settings.isp_base, 0);
 					// give iridix to pwl ctx
 					ptr->iridix_chn_idx = iridix_no;
-					acamera_isp_iridix_context_no_write(ptr->settings.isp_base, iridix_no);
+					acamera_isp_iridix_context_no_write(ptr->settings.isp_base, (uint8_t)iridix_no);
 					acamera_isp_top_bypass_iridix_write(ptr->settings.isp_base, 0);
 					acamera_isp_iridix_enable_write(ptr->settings.isp_base, 1);
 					break;

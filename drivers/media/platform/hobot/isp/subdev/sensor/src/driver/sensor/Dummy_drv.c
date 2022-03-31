@@ -31,6 +31,7 @@
 
 #define pr_fmt(fmt) "[isp_drv]: %s: " fmt, __func__
 
+#include <linux/delay.h>
 #include <linux/videodev2.h>
 #include "acamera_types.h"
 #include "acamera_logger.h"
@@ -38,9 +39,8 @@
 #include "acamera_sbus_api.h"
 #include "acamera_command_api.h"
 #include "acamera_sensor_api.h"
-#include "system_timer.h"
-#include "acamera_firmware_config.h"
 #include "acamera_math.h"
+#include "acamera_firmware_config.h"
 #include "sensor_i2c.h"
 
 
@@ -247,7 +247,7 @@ static void sensor_set_type( void *ctx, uint8_t sensor_type, uint8_t sensor_i2c_
 			} else {
 				sensor_ops[p_ctx->channel]->param_enable = 0;
 				LOG( LOG_INFO, "num [%d]: get param failed!", tmp);
-				system_timer_usleep(5000); // reset at least 1 ms
+				usleep_range( 5000, 5000 + 100 ); // reset at least 1 ms
 			}
 		}
     	}
@@ -456,8 +456,8 @@ void sensor_info_fill(uint32_t ctx_id, struct v4l2_format *f)
 	i = p_ctx->param.modes_num;
 	p_ctx->supported_modes[i].wdr_mode = mode;
 	p_ctx->supported_modes[i].fps = 30 * 256;
-	p_ctx->supported_modes[i].resolution.width = f->fmt.pix_mp.width;
-	p_ctx->supported_modes[i].resolution.height = f->fmt.pix_mp.height;
+	p_ctx->supported_modes[i].resolution.width = (uint16_t)f->fmt.pix_mp.width;
+	p_ctx->supported_modes[i].resolution.height = (uint16_t)f->fmt.pix_mp.height;
 	p_ctx->supported_modes[i].exposures = f->fmt.pix_mp.reserved[0];
 	p_ctx->supported_modes[i].bits = f->fmt.pix_mp.reserved[1];	
 	p_ctx->param.modes_num++;
@@ -493,7 +493,7 @@ void sensor_init_dummy(uint32_t ctx_id, void **ctx, sensor_control_t *ctrl )
         sensor_context_t *p_ctx = &s_ctx[ctx_id];
 		sensor_ops[ctx_id] = NULL;
 
-		p_ctx->channel = ctx_id;
+		p_ctx->channel = (uint8_t)ctx_id;
         p_ctx->param.sensor_exp_number = 1;
         p_ctx->param.again_log2_max = 2088960;//0 255*2^13 = 255*8196
         p_ctx->param.dgain_log2_max = 2088960;//0

@@ -37,7 +37,7 @@ static void vector_vector_add( int16_t *v1, int16_t *v2, int dim1 )
 {
     int i;
     for ( i = 0; i < dim1; ++i ) {
-        v2[i] = v1[i] + v2[i];
+        v2[i] = (int16_t)(v1[i] + v2[i]);
     }
 }
 static void matrix_vector_multiply( int16_t *m, int16_t *v )
@@ -52,7 +52,7 @@ static void matrix_vector_multiply( int16_t *m, int16_t *v )
             temp += ((int32_t)m[i * dim2 + j] * v[j]);
 	}
         temp = ((temp) >> 8);
-        result[i] = (uint16_t)temp;
+        result[i] = (int16_t)temp;
     }
     for ( i = 0; i < dim1; ++i )
         v[i] = ACAMERA_MAX( -1023, ACAMERA_MIN( 1023, result[i] ) );
@@ -88,7 +88,7 @@ static uint16_t color_matrix_complement_to_direct_16( int16_t v )
     if ( v >= 0 )
         result = v;
     else {
-        result = -v;
+        result = (uint16_t)(-v);
         result |= ( 1 << 15 );
     }
     return result;
@@ -106,7 +106,7 @@ static void matrix_yuv_clip( int16_t *input )
         val = ACAMERA_MAX( -1023, ACAMERA_MIN( 1023, input[i] ) );
         input[i] = val;
         if ( val < 0 ) {
-            val = 2048 + val;
+            val = (int16_t)(2048 + val);
             input[i] = val;
         }
     }
@@ -208,13 +208,13 @@ static void matrix_compute_brightness( uint8_t brightness_strength, int16_t *p_m
     int16_t brightness_shift = 0;
     uint8_t i = 0;
     if ( brightness_strength < 128 ) {
-        brightness_shift = -( ( 0x3FF * ( 127 - brightness_strength ) ) / 127 );
+        brightness_shift = (int16_t)(-( ( 0x3FF * ( 127 - brightness_strength ) ) / 127 ));
     } else {
-        brightness_shift = ( 0x3FF * ( brightness_strength - 128 ) ) / 127;
+        brightness_shift = (int16_t)(( 0x3FF * ( brightness_strength - 128 ) ) / 127);
     }
     for ( i = 0; i < 12; i++ )
         p_matrix[i] = 0x00;
-    for ( i = 0; i < 9; i += 4 ) {
+    for ( i = 0; i < 9; i = (uint8_t)(i + 4 )) {
         p_matrix[i] = 0x100;
     }
     p_matrix[9] = brightness_shift;
@@ -233,15 +233,15 @@ static void matrix_compute_saturation( uint8_t saturation_strength, int16_t *p_m
     int16_t saturation_transfrom_mat[12] = {179, -149, -28, -76, 104, -29, -75, -148, 226, 0, 0, 0};
     int16_t saturation_scale = 0;
     if ( saturation_strength < 128 )
-        saturation_scale = 256 * ( saturation_strength - 128 ) / 128;
+        saturation_scale = (int16_t)(256 * ( saturation_strength - 128 ) / 128);
     else
-        saturation_scale = ( 256 * ( (uint16_t)saturation_strength - 128 ) ) / 128;
+        saturation_scale = (int16_t)(( 256 * ( (uint16_t)saturation_strength - 128 ) ) / 128);
     uint8_t i = 0;
     for ( i = 0; i < 12; i++ )
-        p_matrix[i] = ( saturation_transfrom_mat[i] * saturation_scale ) >> 8;
-    p_matrix[0] += 0x100;
-    p_matrix[4] += 0x100;
-    p_matrix[8] += 0x100;
+        p_matrix[i] = (int16_t)(( saturation_transfrom_mat[i] * saturation_scale ) >> 8);
+    p_matrix[0] = (int16_t)(p_matrix[0] + 0x100);
+    p_matrix[4] = (int16_t)(p_matrix[4] + 0x100);
+    p_matrix[8] = (int16_t)(p_matrix[8] + 0x100);
 }
 static void matrix_compute_contrast( uint8_t contrast_strength, int16_t *p_matrix )
 {
@@ -256,11 +256,11 @@ static void matrix_compute_contrast( uint8_t contrast_strength, int16_t *p_matri
     int16_t contrast_shift = 0;
     uint8_t i = 0;
     if ( contrast_strength <= 128 ) {
-        contrast_scale = ( 256 * contrast_strength ) / 128;
-        contrast_shift = 512 - ( ( 512 * contrast_strength ) / 128 );
+        contrast_scale = (int16_t)(( 256 * contrast_strength ) / 128);
+        contrast_shift = (int16_t)(512 - ( ( 512 * contrast_strength ) / 128 ));
     } else {
-        contrast_scale = 256 + ( ( 256 * ( contrast_strength - 128 ) ) / 128 );
-        contrast_shift = ( 512 * ( 128 - contrast_strength ) ) / 128;
+        contrast_scale = (int16_t)(256 + ( ( 256 * ( contrast_strength - 128 ) ) / 128 ));
+        contrast_shift = (int16_t)(( 512 * ( 128 - contrast_strength ) ) / 128);
     }
     for ( i = 0; i < 12; i++ )
         p_matrix[i] = 0;
@@ -280,19 +280,19 @@ static int16_t get_cosine( int16_t theta, int16_t *p_hue_COS_TABLES )
     int8_t index = 0;
     int8_t sign = 0;
     if ( theta >= 0 && theta <= 90 ) {
-        index = theta;
+        index = (int8_t)theta;
         sign = 1;
     } else if ( theta > 90 && theta <= 180 ) {
         sign = -1;
-        index = 180 - theta;
+        index = (int8_t)(180 - theta);
     } else if ( theta < 0 && theta >= -90 ) {
         sign = 1;
-        index = -theta;
+        index = (int8_t)(-theta);
     } else if ( theta < -90 && theta >= -180 ) {
         sign = -1;
-        index = 180 + theta;
+        index = (int8_t)(180 + theta);
     }
-    result = sign * ( p_hue_COS_TABLES[index] + ( 90 - index ) );
+    result = (int16_t)(sign * ( p_hue_COS_TABLES[index] + ( 90 - index ) ));
     return result;
 }
 static int16_t get_sine( int16_t theta, int16_t *p_hue_COS_TABLES )
@@ -301,19 +301,19 @@ static int16_t get_sine( int16_t theta, int16_t *p_hue_COS_TABLES )
     int8_t index = 0;
     int8_t sign = 0;
     if ( theta >= 0 && theta <= 90 ) {
-        index = 90 - theta;
+        index = (int8_t)(90 - theta);
         sign = 1;
     } else if ( theta > 90 && theta <= 180 ) {
         sign = 1;
-        index = theta - 90;
+        index = (int8_t)(theta - 90);
     } else if ( theta < -90 && theta >= -180 ) {
         sign = -1;
-        index = -( theta + 90 );
+        index = (int8_t)(-( theta + 90 ));
     } else if ( theta < 0 && theta >= -90 ) {
         sign = -1;
-        index = 90 + theta;
+        index = (int8_t)(90 + theta);
     }
-    result = sign * ( p_hue_COS_TABLES[index] + ( 90 - index ) );
+    result = (int16_t)(sign * ( p_hue_COS_TABLES[index] + ( 90 - index ) ));
     return result;
 }
 static void matrix_compute_hue_saturation( uint16_t value, int16_t *p_matrix )
@@ -352,11 +352,11 @@ static void matrix_compute_hue_saturation( uint16_t value, int16_t *p_matrix )
     for ( _index = 0; _index < 12; _index++ )
         p_matrix[_index] = identity_matrix[_index];
 
-    theta = theta - 180;
+    theta = (int16_t)(theta - 180);
     cosine = get_cosine( theta, HUE_COSTABLE );
     sine = get_sine( theta, HUE_COSTABLE );
     for ( _index = 0; _index < 9; _index++ ) {
-        p_matrix[_index] = ( hue_coeff[0 + ( _index * 3 )] >> 1 ) + MUL_16_16( hue_coeff[1 + ( _index * 3 )], cosine ) + MUL_16_16( hue_coeff[2 + ( _index * 3 )], sine );
+        p_matrix[_index] = (int16_t)(( hue_coeff[0 + ( _index * 3 )] >> 1 ) + MUL_16_16( hue_coeff[1 + ( _index * 3 )], cosine ) + MUL_16_16( hue_coeff[2 + ( _index * 3 )], sine ));
         p_matrix[_index] = p_matrix[_index] >> 5; //(Q13->Q8)
     }
 }
@@ -464,12 +464,12 @@ static void compute_transfrom_matrix( matrix_yuv_fsm_t *p_fsm, int16_t *final_co
 void matrix_yuv_recompute( matrix_yuv_fsm_t *p_fsm )
 {
 
-    matrix_compute_color_mode( p_fsm->color_mode, p_fsm->color_mode_matrix, p_fsm );
-    matrix_compute_brightness( p_fsm->brightness_strength, p_fsm->brightness_matrix );
-    matrix_compute_contrast( p_fsm->contrast_strength, p_fsm->contrast_matrix );
-    matrix_compute_saturation( p_fsm->saturation_strength, p_fsm->saturation_matrix, p_fsm );
-    matrix_compute_hue_saturation( p_fsm->hue_theta, p_fsm->hue_correction_matrix );
-    compute_transfrom_matrix( p_fsm, p_fsm->fr_composite_yuv_matrix, p_fsm->fr_pipe_output_format );
+    matrix_compute_color_mode( (uint16_t)p_fsm->color_mode, p_fsm->color_mode_matrix, p_fsm );
+    matrix_compute_brightness( (uint8_t)p_fsm->brightness_strength, p_fsm->brightness_matrix );
+    matrix_compute_contrast( (uint8_t)p_fsm->contrast_strength, p_fsm->contrast_matrix );
+    matrix_compute_saturation( (uint8_t)p_fsm->saturation_strength, p_fsm->saturation_matrix, p_fsm );
+    matrix_compute_hue_saturation( (uint16_t)p_fsm->hue_theta, p_fsm->hue_correction_matrix );
+    compute_transfrom_matrix( p_fsm, p_fsm->fr_composite_yuv_matrix, (uint8_t)p_fsm->fr_pipe_output_format );
 #if ISP_HAS_DS1
     compute_transfrom_matrix( p_fsm, p_fsm->ds1_composite_yuv_matrix, p_fsm->ds1_pipe_output_format );
 #endif

@@ -650,6 +650,7 @@ EXPORT_SYMBOL(frame_manager_flush_mp);
 /*
  * Set the streaming off mask of the frame, clear ctx_mask
  */
+ #if 0
 int frame_manager_flush_mp_prepare(struct vio_framemgr *this,
 	u32 index_start, u32 buffers, u8 proc_id)
 {
@@ -699,6 +700,7 @@ int frame_manager_flush_mp_prepare(struct vio_framemgr *this,
 	return 0;
 }
 EXPORT_SYMBOL(frame_manager_flush_mp_prepare); /*PRQA S ALL*/
+#endif
 
 void frame_manager_print_queues(struct vio_framemgr *this)
 {

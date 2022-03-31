@@ -133,7 +133,7 @@ int fw_intf_isp_get_sensor_info( uint32_t ctx_id, isp_v4l2_sensor_info *sensor_i
 #if defined( TSENSOR ) && defined( SENSOR_SUPPORTED_PRESETS ) && defined( SENSOR_INFO_PRESET ) && \
     defined( SENSOR_INFO_FPS ) && defined( SENSOR_INFO_WIDTH ) && defined( SENSOR_INFO_HEIGHT )
     LOG( LOG_INFO, "API found, initializing sensor_info from API." );
-    int i, j;
+    uint8_t i, j;
     uint32_t ret_val = 0;
     uint32_t preset_num = 0;
 
@@ -171,7 +171,7 @@ int fw_intf_isp_get_sensor_info( uint32_t ctx_id, isp_v4l2_sensor_info *sensor_i
         if ( sensor_info->preset[j].fps_num < MAX_SENSOR_FPS_SIZE ) {
             sensor_info->preset[j].width = width;
             sensor_info->preset[j].height = height;
-            sensor_info->preset[j].exposures[sensor_info->preset[j].fps_num] = exposures;
+            sensor_info->preset[j].exposures[sensor_info->preset[j].fps_num] = (uint8_t)exposures;
             sensor_info->preset[j].fps[sensor_info->preset[j].fps_num] = fps;
             sensor_info->preset[j].idx[sensor_info->preset[j].fps_num] = i;
             sensor_info->preset[j].fps_num++;
@@ -196,7 +196,7 @@ int fw_intf_isp_get_sensor_info( uint32_t ctx_id, isp_v4l2_sensor_info *sensor_i
     if ( i < MAX_SENSOR_PRESET_SIZE ) {
         for ( j = 0; j < sensor_info->preset[i].fps_num; j++ ) {
             if ( sensor_info->preset[i].idx[j] == spreset ) {
-                sensor_info->preset[i].fps_cur = spreset;
+                sensor_info->preset[i].fps_cur = (uint8_t)spreset;
                 break;
             }
         }
@@ -346,7 +346,7 @@ int fw_intf_stream_set_resolution( uint32_t ctx_id, const isp_v4l2_sensor_info *
             f->fmt.pix_mp.width, f->fmt.pix_mp.height,
             f->fmt.pix_mp.reserved[0], f->fmt.pix_mp.reserved[1], idx);
 
-        update_preset_mode_to_sbuf(ctx_id);
+        update_preset_mode_to_sbuf((uint8_t)ctx_id);
 
         result = acamera_command( ctx_id, TSENSOR, SENSOR_PRESET, idx, COMMAND_SET, &ret_val );
         // *( (char *)&sensor_info->preset_cur ) = idx;
@@ -491,20 +491,6 @@ int fw_intf_stream_set_output_format( uint32_t ctx_id, isp_v4l2_stream_type_t st
             LOG( LOG_ERR, "TIMAGE - FR_FORMAT_BASE_PLANE_ID failed (value = 0x%x, result = %d)", value, result );
         }
     }
-#if ISP_HAS_DS1
-    else if ( streamType == V4L2_STREAM_TYPE_DS1 ) {
-
-        uint8_t result;
-        uint32_t ret_val = 0;
-
-        result = acamera_command( ctx_id, TIMAGE, DS1_FORMAT_BASE_PLANE_ID, value, COMMAND_SET, &ret_val );
-        LOG( LOG_INFO, "set format for stream %d to %d (0x%x)", streamType, value, format );
-        if ( result ) {
-            LOG( LOG_ERR, "TIMAGE - DS1_FORMAT_BASE_PLANE_ID failed (value = 0x%x, result = %d)", value, result );
-        }
-    }
-#endif
-
 #else
     LOG( LOG_ERR, "cannot find proper API for fr base mode ID" );
 #endif
@@ -1590,7 +1576,7 @@ int fw_intf_set_raw_bypass_on_off(uint32_t ctx_id, uint32_t ctrl_val)
 	acamera_context_t *ptr = acamera_get_ctx_ptr(ctx_id);
 
 	pr_debug("set value %d\n", ctrl_val);
-	acamera_isp_top_isp_raw_bypass_write(ptr->settings.isp_base, ctrl_val);
+	acamera_isp_top_isp_raw_bypass_write(ptr->settings.isp_base, (uint8_t)ctrl_val);
 
 	return 0;
 }
@@ -1615,9 +1601,9 @@ int fw_intf_temper_buf_ctrl(uint32_t ctx_id, uint32_t ctrl_val)
 	return 0;
 }
 
-int fw_intf_cfa_pattern_ctrl(uint32_t ctx_id, uint32_t ctrl_val)
+int fw_intf_cfa_pattern_ctrl(uint32_t ctx_id, uint8_t ctrl_val)
 {
-    int pattern = 0;
+    uint8_t pattern = 0;
     acamera_context_t *ptr = acamera_get_ctx_ptr(ctx_id);
 
     if (MONOCHROME == ctrl_val)
@@ -1649,7 +1635,7 @@ int fw_intf_iridix_ctrl(uint32_t ctx_id, uint32_t ctrl_val)
     return 0;
 }
 
-int fw_intf_sif_isp_offline_set(uint32_t ctx_id, uint32_t ctrl_val)
+int fw_intf_sif_isp_offline_set(uint32_t ctx_id, uint8_t ctrl_val)
 {
     acamera_context_t *ptr = acamera_get_ctx_ptr(ctx_id);
 

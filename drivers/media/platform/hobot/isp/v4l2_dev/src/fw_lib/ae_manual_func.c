@@ -67,8 +67,8 @@ void ae_roi_update( AE_fsm_ptr_t p_fsm )
     uint8_t y_start = ( uint8_t )( ( ( ( p_fsm->roi >> 16 ) & 0xFF ) * vert_zones + 128 ) >> 8 );
     uint8_t y_end = ( uint8_t )( ( ( ( p_fsm->roi >> 0 ) & 0xFF ) * vert_zones + 128 ) >> 8 );
 
-    uint8_t zone_size_x = x_end - x_start;
-    uint8_t zone_size_y = y_end - y_start;
+    uint8_t zone_size_x = (uint8_t)(x_end - x_start);
+    uint8_t zone_size_y = (uint8_t)(y_end - y_start);
     uint32_t middle_x = zone_size_x * 256 / 2;
     uint32_t middle_y = zone_size_y * 256 / 2;
     uint16_t scale_x = 0;
@@ -77,20 +77,20 @@ void ae_roi_update( AE_fsm_ptr_t p_fsm )
     uint32_t ae_zone_wght_ver_len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_AE_ZONE_WGHT_VER );
 
     if ( ae_zone_wght_hor_len ) {
-        scale_x = ( horz_zones - 1 ) / ae_zone_wght_hor_len + 1;
+        scale_x = (uint16_t)(( horz_zones - 1 ) / ae_zone_wght_hor_len + 1);
     } else {
         LOG( LOG_ERR, "ae_zone_wght_hor_len is zero" );
         return;
     }
     if ( ae_zone_wght_ver_len ) {
-        scale_y = ( vert_zones - 1 ) / ae_zone_wght_ver_len + 1;
+        scale_y = (uint16_t)(( vert_zones - 1 ) / ae_zone_wght_ver_len + 1);
     } else {
         LOG( LOG_ERR, "ae_zone_wght_ver_len is zero" );
         return;
     }
 
-    uint16_t gaus_center_x = ( _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_AE_ZONE_WGHT_HOR ) * 256 / 2 ) * scale_x;
-    uint16_t gaus_center_y = ( _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_AE_ZONE_WGHT_VER ) * 256 / 2 ) * scale_y;
+    uint16_t gaus_center_x = (uint16_t)(( _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_AE_ZONE_WGHT_HOR ) * 256 / 2 ) * scale_x);
+    uint16_t gaus_center_y = (uint16_t)(( _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_AE_ZONE_WGHT_VER ) * 256 / 2 ) * scale_y);
 
     for ( y = 0; y < vert_zones; y++ ) {
         uint8_t ae_coeff = 0;
@@ -98,8 +98,8 @@ void ae_roi_update( AE_fsm_ptr_t p_fsm )
             if ( y >= y_start && y <= y_end &&
                  x >= x_start && x <= x_end ) {
 
-                uint8_t index_y = ( y - y_start );
-                uint8_t index_x = ( x - x_start );
+                uint8_t index_y = (uint8_t)( y - y_start );
+                uint8_t index_x = (uint8_t)( x - x_start );
                 int32_t distance_x = ( index_x * 256 + 128 ) - middle_x;
                 int32_t distance_y = ( index_y * 256 + 128 ) - middle_y;
                 uint32_t coeff_x;
@@ -119,7 +119,7 @@ void ae_roi_update( AE_fsm_ptr_t p_fsm )
                     coeff_x = ptr_ae_zone_whgh_h[coeff_x / scale_x];
                     coeff_y = ptr_ae_zone_whgh_v[coeff_y / scale_y];
 
-                    ae_coeff = ( coeff_x * coeff_y ) >> 4;
+                    ae_coeff = (uint8_t)(( coeff_x * coeff_y ) >> 4);
                     if ( ae_coeff > 1 )
                         ae_coeff--;
                 }
@@ -448,7 +448,7 @@ int ae_calculate_exposure( AE_fsm_ptr_t p_fsm )
     exp_target.sensor_ctrl_enable = p_fsm->sensor_ctrl_enable;
 
     ACAMERA_FSM2CTX_PTR( p_fsm )
-        ->stab.global_exposure_ratio = full_ratio_to_adjaced( &sensor_info, p_fsm->new_exposure_ratio );
+        ->stab.global_exposure_ratio = (uint8_t)full_ratio_to_adjaced( &sensor_info, p_fsm->new_exposure_ratio );
 
     /* CMOS will skip exposure set operation in some conditions, so we need to check the apply result, ret 0 menas succeed  */
     if ( !acamera_fsm_mgr_set_param( p_fsm->cmn.p_fsm_mgr, FSM_PARAM_SET_EXPOSURE_TARGET, &exp_target, sizeof( exp_target ) ) ) {

@@ -313,9 +313,9 @@ void frame_buffer_prepare_metadata( dma_writer_fsm_ptr_t p_fsm )
 
     if ( p_set ) {
         p_set->curr_metadata.format = acamera_isp_fr_dma_writer_format_read( p_fsm->cmn.isp_base );
-        p_set->curr_metadata.width = p_set->width;
-        p_set->curr_metadata.height = p_set->height;
-        p_set->curr_metadata.line_size = acamera_line_offset( p_set->curr_metadata.width, _get_pixel_width( p_set->curr_metadata.format ) );
+        p_set->curr_metadata.width = (uint16_t)p_set->width;
+        p_set->curr_metadata.height = (uint16_t)p_set->height;
+        p_set->curr_metadata.line_size = acamera_line_offset( p_set->curr_metadata.width, (uint8_t)_get_pixel_width( p_set->curr_metadata.format ) );
 #if ISP_HAS_CMOS_FSM
         p_set->curr_metadata.exposure = exp_set.info.exposure_log2;
         p_set->curr_metadata.int_time = exp_set.data.integration_time;
@@ -357,8 +357,8 @@ void frame_buffer_fr_finished(dma_writer_fsm_ptr_t p_fsm)
     if ( metadata_cb ) {
         metadata_cb->frame_id = ACAMERA_FSM2CTX_PTR(p_fsm)->isp_frame_counter;
         metadata_cb->timestamps = ACAMERA_FSM2CTX_PTR(p_fsm)->timestamps;
-        metadata_cb->tv_sec = ACAMERA_FSM2CTX_PTR(p_fsm)->tv.tv_sec;
-        metadata_cb->tv_usec = ACAMERA_FSM2CTX_PTR(p_fsm)->tv.tv_usec;
+        metadata_cb->tv_sec = (uint32_t)(ACAMERA_FSM2CTX_PTR(p_fsm)->tv.tv_sec);
+        metadata_cb->tv_usec = (uint32_t)(ACAMERA_FSM2CTX_PTR(p_fsm)->tv.tv_usec);
     }
 }
 

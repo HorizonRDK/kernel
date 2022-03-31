@@ -26,22 +26,22 @@ static uint8_t leading_one_position( const uint32_t in )
     uint32_t val = in;
     if ( val >= 1 << 16 ) {
         val >>= 16;
-        pos += 16;
+        pos = (uint8_t)(pos + 16);
     }
     if ( val >= 1 << 8 ) {
         val >>= 8;
-        pos += 8;
+        pos = (uint8_t)(pos + 8);
     }
     if ( val >= 1 << 4 ) {
         val >>= 4;
-        pos += 4;
+        pos = (uint8_t)(pos + 4);
     }
     if ( val >= 1 << 2 ) {
         val >>= 2;
-        pos += 2;
+        pos = (uint8_t)(pos + 2);
     }
     if ( val >= 1 << 1 ) {
-        pos += 1;
+        pos = (uint8_t)(pos + 1);
     }
     return pos;
 }
@@ -174,7 +174,7 @@ uint32_t acamera_math_exp2( uint32_t val, const unsigned char shift_in, const un
         unsigned int lut_fract = fract_part & ( ( 1 << ( shift_in - 5 ) ) - 1 );
         unsigned int a = _pow2_lut[lut_index];
         unsigned int b = _pow2_lut[lut_index + 1];
-        unsigned int res = ( (unsigned long long)( b - a ) * lut_fract ) >> ( shift_in - 5 );
+        unsigned int res = (unsigned int)(( (unsigned long long)( b - a ) * lut_fract ) >> ( shift_in - 5 ));
         res = ( res + a ) >> ( 30 - shift_out - int_part );
 
         return res;
@@ -189,7 +189,7 @@ uint32_t acamera_sqrt64( uint64_t arg )
 
     for ( i = 0; i < 32; i++ ) {
         if ( ( res + ( mask >> i ) ) * ( res + ( mask >> i ) ) <= arg )
-            res = res + ( mask >> i );
+            res = (uint32_t)(res + ( mask >> i ));
     }
     return res;
 }
@@ -202,7 +202,7 @@ uint16_t acamera_sqrt32( uint32_t arg )
 
     for ( i = 0; i < 16; i++ ) {
         if ( ( res + ( mask >> i ) ) * ( res + ( mask >> i ) ) <= arg )
-            res = res + ( mask >> i );
+            res = (uint16_t)(res + ( mask >> i ));
     }
     return res;
 }
@@ -215,7 +215,7 @@ uint8_t acamera_sqrt16( uint16_t arg )
 
     for ( i = 0; i < 8; i++ ) {
         if ( ( res + ( mask >> i ) ) * ( res + ( mask >> i ) ) <= arg ) {
-            res = res + ( mask >> i );
+            res = (uint8_t)(res + ( mask >> i ));
         }
     }
     return res;
@@ -232,7 +232,7 @@ uint8_t acamera_log16( uint16_t arg )
 
     for ( k = 0; k < 16; k++ ) {
         if ( arg > ( 1 << k ) ) {
-            res = ( k << 4 ) + ( ( arg << 4 ) / ( 1 << ( k ) ) ) - 16; // division by zero is checked
+            res = (uint8_t)(( k << 4 ) + ( ( arg << 4 ) / ( 1 << ( k ) ) ) - 16); // division by zero is checked
         }
     }
     return res;
@@ -344,7 +344,7 @@ int32_t acamera_solving_nth_root_045( int32_t x, const int16_t fraction_size )
 uint16_t acamera_line_offset( uint16_t line_len, uint8_t bytes_per_pixel )
 {
     const uint32_t alignment = 128; // line offset has to be aligned at 128 bytes
-    return ( bytes_per_pixel * line_len + alignment - 1 ) & ~( alignment - 1 );
+    return (uint16_t)(( bytes_per_pixel * line_len + alignment - 1 ) & ~( alignment - 1 ));
 }
 
 uint16_t acamera_calc_modulation_u16( uint16_t x, const modulation_entry_t *p_table, int table_len )
@@ -371,7 +371,7 @@ uint16_t acamera_calc_modulation_u16( uint16_t x, const modulation_entry_t *p_ta
     if ((p_table[i].x - p_table[i - 1].x) != 0) {
         int alpha =
 			(x - p_table[i - 1].x) * 256 / (p_table[i].x - p_table[i - 1].x);
-        return (p_table[i].y * alpha + p_table[i - 1].y * ( 256 - alpha )) >> 8;
+        return (uint16_t)((p_table[i].y * alpha + p_table[i - 1].y * ( 256 - alpha )) >> 8);
     } else {
         LOG(LOG_ERR, "AVOIDED DIVISION BY ZERO");
         return p_table[i].y;
@@ -434,7 +434,7 @@ uint16_t acamera_calc_scaled_modulation_u16( uint16_t x, uint16_t target_min_y, 
         }
         if ( ( p_table[i].x - p_table[i - 1].x ) != 0 ) {
             alpha = ( x - p_table[i - 1].x ) * 256 / ( p_table[i].x - p_table[i - 1].x ); // division by zero is checked
-            return scale_factor * ( p_table[i].y * alpha + p_table[i - 1].y * ( 256 - alpha ) ) >> 16;
+            return (uint16_t)(scale_factor * ( p_table[i].y * alpha + p_table[i - 1].y * ( 256 - alpha ) ) >> 16);
         } else {
             LOG( LOG_ERR, "AVOIDED DIVISION BY ZERO" );
             return p_table[i].y;
@@ -455,14 +455,14 @@ uint16_t acamera_calc_equidistant_modulation_u16( uint16_t x, const uint16_t *p_
         return p_table[0];
     }
 
-    uint16_t d = ( 1 << 16 ) / ( table_len - 1 ); // division by zero is checked
+    uint16_t d = (uint16_t)(( 1 << 16 ) / ( table_len - 1 )); // division by zero is checked
     if ( d == 0 ) {
         LOG( LOG_ERR, "AVOIDED DIVISION BY ZERO" );
         return p_table[0];
     }
     uint16_t bn = x / d;                                                      // division by zero is checked
-    uint16_t alpha = ( x - ( bn * d ) ) * 256 / d;                            // division by zero is checked
-    return ( p_table[bn] * ( 256 - alpha ) + p_table[bn + 1] * alpha ) / 256; // division by zero is checked
+    uint16_t alpha = (uint16_t)(( x - ( bn * d ) ) * 256 / d);                            // division by zero is checked
+    return (uint16_t)(( p_table[bn] * ( 256 - alpha ) + p_table[bn + 1] * alpha ) / 256); // division by zero is checked
 }
 
 uint32_t acamera_calc_equidistant_modulation_u32( uint32_t x, const uint32_t *p_table, uint32_t table_len )
@@ -508,15 +508,15 @@ uint16_t acamera_calc_inv_equidistant_modulation_u16( uint16_t x, const uint16_t
     }
 
 
-    uint16_t d = ( 1 << 16 ) / ( table_len - 1 ); // division by zero is checked
+    uint16_t d = (uint16_t)(( 1 << 16 ) / ( table_len - 1 )); // division by zero is checked
 
     if ( p_table[i] == p_table[i - 1] ) {
         LOG( LOG_ERR, "AVOIDED DIVISION BY ZERO" );
-        return d * i;
+        return (uint16_t)(d * i);
     }
 
-    uint16_t alpha = ( x - p_table[i - 1] ) * 256 / ( p_table[i] - p_table[i - 1] ); // division by zero is checked
-    return ( d * i * alpha + d * ( i - 1 ) * ( 256 - alpha ) ) / 256;                // division by zero is checked
+    uint16_t alpha = (uint16_t)(( x - p_table[i - 1] ) * 256 / ( p_table[i] - p_table[i - 1] )); // division by zero is checked
+    return (uint16_t)(( d * i * alpha + d * ( i - 1 ) * ( 256 - alpha ) ) / 256);                // division by zero is checked
 }
 
 uint32_t acamera_calc_inv_equidistant_modulation_u32( uint32_t x, const uint32_t *p_table, uint32_t table_len )

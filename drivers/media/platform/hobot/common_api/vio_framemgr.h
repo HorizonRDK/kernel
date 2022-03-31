@@ -154,8 +154,8 @@ struct vio_frame {
 	u32			fcount;
 	u32			index;
 
-	u8			poll_mask;
-	u16			dispatch_mask;
+	u32			poll_mask;
+	u32			dispatch_mask;
 
 	u8			hw_idx;
 };
@@ -210,8 +210,8 @@ struct vio_framemgr {
 	u32			max_index;
 	struct vio_frame	*frames;
 	struct vio_frame	*frames_mp[VIO_MP_MAX_FRAMES];
-	u16			dispatch_mask[VIO_MP_MAX_FRAMES];
-	u8			ctx_mask;
+	u32			dispatch_mask[VIO_MP_MAX_FRAMES];
+	u32			ctx_mask;
 	enum vio_frame_index_state	index_state[VIO_MP_MAX_FRAMES];
 	enum vio_framemgr_state	state;
 
@@ -250,7 +250,7 @@ struct user_statistic {
 };
 
 struct user_seq_info {
-	int timeout;
+	u64 timeout;
 	uint8_t seq_num[VIO_MAX_STREAM];
 };
 
@@ -303,8 +303,10 @@ int frame_manager_close_mp(struct vio_framemgr *this,
 
 int frame_manager_flush_mp(struct vio_framemgr *this,
 	u32 index_start, u32 buffers, u8 proc_id);
+#if 0
 int frame_manager_flush_mp_prepare(struct vio_framemgr *this,
 	u32 index_start, u32 buffers, u8 proc_id);
+#endif
 void frame_work_init(struct kthread_work *work);
 
 #endif

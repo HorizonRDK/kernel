@@ -546,7 +546,7 @@ void ctrl_channel_handle_api_calibration( uint32_t cmd_ctx_id, uint8_t type, uin
     }
 
     p_cmd->cmd_category = CTRL_CMD_CATEGORY_API_CALIBRATION;
-    p_cmd->cmd_len = sizeof( struct ctrl_cmd_item ) + data_size;
+    p_cmd->cmd_len = (uint32_t)(sizeof( struct ctrl_cmd_item ) + data_size);
     p_cmd->cmd_type = type;
 
     p_cmd->cmd_ctx_id = cmd_ctx_id;

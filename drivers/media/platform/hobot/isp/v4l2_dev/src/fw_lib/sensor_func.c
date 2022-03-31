@@ -76,7 +76,7 @@ void sensor_init_output( sensor_fsm_ptr_t p_fsm, int mode )
     if ( mode > param.active.height )
         mode = 720;
 
-    p_fsm->isp_output_mode = mode;
+    p_fsm->isp_output_mode = (uint16_t)mode;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -157,7 +157,7 @@ void sensor_sw_init( sensor_fsm_ptr_t p_fsm )
 
     acamera_isp_lumvar_active_width_write( p_fsm->cmn.isp_base, param.active.width );
     acamera_isp_lumvar_active_height_write( p_fsm->cmn.isp_base, param.active.height );
-    bitwidth = (param.modes_table[param.mode].bits - 8) / 2;
+    bitwidth = (uint8_t)((param.modes_table[param.mode].bits - 8) / 2);
     if (bitwidth == 6)
         bitwidth = 5;
     if (bitwidth <= 5)
@@ -239,7 +239,7 @@ void sensor_update_black( sensor_fsm_ptr_t p_fsm )
     uint32_t gr = acamera_calc_modulation_u16( again_log2, _GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), idx_gr ), _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), idx_gr ) );
     uint32_t gb = acamera_calc_modulation_u16( again_log2, _GET_MOD_ENTRY16_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), idx_gb ), _GET_ROWS( ACAMERA_FSM2CTX_PTR( p_fsm ), idx_gb ) );
 
-    p_fsm->black_level = r;
+    p_fsm->black_level = (uint16_t)r;
 
 	//IE&E edit blc shift
 	/**
@@ -260,14 +260,14 @@ void sensor_update_black( sensor_fsm_ptr_t p_fsm )
 	if (wdr_mode == WDR_MODE_NATIVE) {
 		if (sensor_bits >= 12) {
 			//shift = (20 - sensor_decomp_bits - (12 - sensor_bits))
-			sensor_blc_shfit_wb = 8 + sensor_bits - sensor_decomp_bits;
-			sensor_blc_shfit_dg = 8 + sensor_bits - sensor_decomp_bits;
+			sensor_blc_shfit_wb = (uint8_t)(8 + sensor_bits - sensor_decomp_bits);
+			sensor_blc_shfit_dg = (uint8_t)(8 + sensor_bits - sensor_decomp_bits);
 		}
 	} else {
 	//WDR_MODE_LINEAR & WDR_MODE_FS_LIN
 		if (sensor_bits > 12) {
-			sensor_blc_shfit_wb = sensor_bits_max - sensor_bits;
-			sensor_blc_shfit_dg = sensor_bits_max - sensor_bits;
+			sensor_blc_shfit_wb = (uint8_t)(sensor_bits_max - sensor_bits);
+			sensor_blc_shfit_dg = (uint8_t)(sensor_bits_max - sensor_bits);
 		}
 	}
         LOG(LOG_INFO, "blc shift: %d.", sensor_blc_shfit_dg);

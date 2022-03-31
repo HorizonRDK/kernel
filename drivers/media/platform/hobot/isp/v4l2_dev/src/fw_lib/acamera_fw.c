@@ -100,7 +100,7 @@ void acamera_fw_init( acamera_context_t *p_ctx )
     p_ctx->irq_flag = 1;
 
     p_ctx->fsm_mgr.p_ctx = p_ctx;
-    p_ctx->fsm_mgr.ctx_id = p_ctx->context_id;
+    p_ctx->fsm_mgr.ctx_id = (uint8_t)p_ctx->context_id;
     p_ctx->fsm_mgr.isp_base = p_ctx->settings.isp_base;
     acamera_fsm_mgr_init( &p_ctx->fsm_mgr );
 
@@ -114,8 +114,8 @@ void acamera_fw_deinit( acamera_context_t *p_ctx )
     acamera_fsm_mgr_deinit( &p_ctx->fsm_mgr );
 }
 
-extern uint8_t isp_safe_start( uint32_t base );
-extern uint8_t isp_safe_stop( uint32_t base );
+extern uint8_t isp_safe_start( uintptr_t base );
+extern uint8_t isp_safe_stop( uintptr_t base );
 extern void isp_input_port_size_config(sensor_fsm_ptr_t p_fsm);
 extern void ips_set_isp_interrupt(bool enable);
 extern acamera_firmware_t *acamera_get_firmware_ptr(void);

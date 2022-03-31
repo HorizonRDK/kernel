@@ -1028,7 +1028,7 @@ int isp_v4l2_stream_try_format( isp_v4l2_stream_t *pstream, struct v4l2_format *
             acamera_command( pstream->ctx_id, TSENSOR, SENSOR_INFO_EXPOSURES, 0, COMMAND_GET, &exposures_preset );
 
             LOG( LOG_INFO, "[Stream#%d] Changing the number of planes according preset %d to exposures %d=>%d.\n", pstream->stream_id, spreset, tfmt->planes, exposures_preset );
-            tfmt->planes = exposures_preset;
+            tfmt->planes = (uint8_t)exposures_preset;
         } else {
             tfmt->planes = 1;
         }
@@ -1104,8 +1104,8 @@ int isp_v4l2_stream_get_format( isp_v4l2_stream_t *pstream, struct v4l2_format *
 extern int sensor_info_check_valid(uint32_t ctx_id, struct v4l2_format *f);
 extern int sensor_info_check_exist(uint32_t ctx_id, struct v4l2_format *f);
 extern void sensor_info_fill(uint32_t ctx_id, struct v4l2_format *f);
-extern int fw_intf_cfa_pattern_ctrl(uint32_t ctx_id, uint32_t ctrl_val);
-extern int fw_intf_sif_isp_offline_set(uint32_t ctx_id, uint32_t ctrl_val);
+extern int fw_intf_cfa_pattern_ctrl(uint32_t ctx_id, uint8_t ctrl_val);
+extern int fw_intf_sif_isp_offline_set(uint32_t ctx_id, uint8_t ctrl_val);
 int isp_v4l2_stream_set_format( isp_v4l2_stream_t *pstream, struct v4l2_format *f, struct vb2_queue *q )
 {
     int rc = 0;

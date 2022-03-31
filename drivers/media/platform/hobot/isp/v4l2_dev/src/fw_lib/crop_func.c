@@ -58,28 +58,6 @@ int crop_validate_size( crop_fsm_t *p_fsm, uint16_t type, uint16_t sizeto, int i
         else if ( isWidth == 0 && ( ( p_fsm->crop_fr.yoffset + sizeto ) > sizefrom ) )
             return ( ( (int)sizefrom - (int)p_fsm->crop_fr.yoffset ) > 0 ? 0 : -1 );
         break;
-#if ISP_HAS_DS1
-    case CROP_DS:
-        if ( isWidth == 1 && ( ( p_fsm->crop_ds.xoffset + sizeto ) > sizefrom ) )
-            return ( ( (int)sizefrom - (int)p_fsm->crop_ds.xoffset ) > 0 ? 0 : -1 );
-        else if ( isWidth == 0 && ( ( p_fsm->crop_ds.yoffset + sizeto ) > sizefrom ) )
-            return ( ( (int)sizefrom - (int)p_fsm->crop_ds.yoffset ) > 0 ? 0 : -1 );
-        break;
-    case SCALER:
-        if ( p_fsm->crop_ds.enable ) {
-            if ( isWidth == 1 && ( ( p_fsm->crop_ds.xoffset + sizeto ) > sizefrom ) )
-                sizefrom = sizefrom - p_fsm->crop_ds.xoffset;
-            else if ( isWidth == 0 && ( ( p_fsm->crop_ds.yoffset + sizeto ) > sizefrom ) )
-                sizefrom = sizefrom - p_fsm->crop_ds.yoffset;
-        }
-        if ( sizefrom >= 0x1000 && ( ( ( (uint32_t)sizefrom << 18 ) / sizeto ) << 2 ) >= 1 << 24 )
-            return -1;
-        else if ( ( ( (uint32_t)sizefrom << 20 ) / sizeto ) >= 1 << 24 )
-            return -1;
-        else
-            return 0;
-        break;
-#endif
     default:
         return -1;
         break;
@@ -194,13 +172,13 @@ void _update_fr( crop_fsm_ptr_t p_fsm, int isr )
         // check limits
 
         if ( p_fsm->crop_fr.xoffset >= width )
-            p_fsm->crop_fr.xoffset = width - 1;
+            p_fsm->crop_fr.xoffset = (uint16_t)(width - 1);
         if ( p_fsm->crop_fr.yoffset >= height )
-            p_fsm->crop_fr.yoffset = height - 1;
+            p_fsm->crop_fr.yoffset = (uint16_t)(height - 1);
         if ( p_fsm->crop_fr.xoffset + p_fsm->crop_fr.xsize > width )
-            p_fsm->crop_fr.xsize = width - p_fsm->crop_fr.xoffset;
+            p_fsm->crop_fr.xsize = (uint16_t)(width - p_fsm->crop_fr.xoffset);
         if ( p_fsm->crop_fr.yoffset + p_fsm->crop_fr.ysize > height )
-            p_fsm->crop_fr.ysize = height - p_fsm->crop_fr.yoffset;
+            p_fsm->crop_fr.ysize = (uint16_t)(height - p_fsm->crop_fr.yoffset);
         // apply crop
         acamera_isp_fr_crop_start_x_write( p_fsm->cmn.isp_base, p_fsm->crop_fr.xoffset );
         acamera_isp_fr_crop_start_y_write( p_fsm->cmn.isp_base, p_fsm->crop_fr.yoffset );
@@ -231,9 +209,6 @@ void crop_fsm_process_interrupt( crop_fsm_const_ptr_t p_fsm, uint8_t irq_event )
 
         case ACAMERA_IRQ_FRAME_WRITER_FR:
             _update_fr( (crop_fsm_ptr_t)p_fsm, no_log_in_isr );
-#if ISP_HAS_DS1
-            _update_ds( (crop_fsm_ptr_t)p_fsm, no_log_in_isr );
-#endif
             fsm_raise_event( p_fsm, event_id_crop_updated );
             break;
         }
@@ -244,57 +219,11 @@ void crop_resolution_changed( crop_fsm_ptr_t p_fsm )
 {
 
     _update_fr( p_fsm, 0 );
-
-#if ISP_HAS_DS1
-    LOG( LOG_INFO, "_update_ds from crop_resolution_changed" );
-    _update_ds( p_fsm, 0 );
-#endif
     fsm_raise_event( p_fsm, event_id_crop_updated );
 }
 
 void crop_initialize( crop_fsm_ptr_t p_fsm )
 {
-#if ISP_HAS_DS1
-    int i;
-#endif
-
-#if FW_DO_INITIALIZATION
-
-#if ISP_HAS_DS1
-    acamera_isp_top_bypass_ds1_scaler_write( p_fsm->cmn.isp_base, 0 );
-    //  SCALER
-
-    for ( i = 0; i < _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SCALER_H_FILTER ); i++ ) {
-        acamera_ds1_scaler_hfilt_coefmem_array_data_write( p_fsm->cmn.isp_base, i, _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SCALER_H_FILTER )[i] );
-    }
-
-    for ( i = 0; i < _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SCALER_V_FILTER ); i++ ) {
-        acamera_ds1_scaler_vfilt_coefmem_array_data_write( p_fsm->cmn.isp_base, i, _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SCALER_V_FILTER )[i] );
-    }
-
-    for ( i = 0; i < _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SCALER_H_FILTER ); i++ ) {
-        if ( _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SCALER_H_FILTER )[i] != acamera_ds1_scaler_hfilt_coefmem_array_data_read( p_fsm->cmn.isp_base, i ) ) {
-            LOG( LOG_ERR, "Wrong Scaler Coefficient %d read %X write %X",
-                 i,
-                 (unsigned int)acamera_ds1_scaler_hfilt_coefmem_array_data_read( p_fsm->cmn.isp_base, i ),
-                 (unsigned int)_GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SCALER_H_FILTER )[i] );
-            break;
-        }
-    }
-    for ( i = 0; i < _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SCALER_V_FILTER ); i++ ) {
-        if ( _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SCALER_V_FILTER )[i] != acamera_ds1_scaler_vfilt_coefmem_array_data_read( p_fsm->cmn.isp_base, i ) ) {
-            LOG( LOG_ERR, "Wrong Scaler Coefficient %d read %X write %X",
-                 i,
-                 (unsigned int)acamera_ds1_scaler_vfilt_coefmem_array_data_read( p_fsm->cmn.isp_base, i ),
-                 (unsigned int)_GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SCALER_V_FILTER )[i] );
-            break;
-        }
-    }
-
-#endif
-
-
-#endif //FW_DO_INITIALIZATION
 
     p_fsm->resize_type = 0;
 #if ( ISP_HAS_DS1 ) && defined( SCALER )
@@ -304,29 +233,16 @@ void crop_initialize( crop_fsm_ptr_t p_fsm )
 #endif
 
     // default parameters
-
     uint16_t width = acamera_isp_top_active_width_read( p_fsm->cmn.isp_base );
     uint16_t height = acamera_isp_top_active_height_read( p_fsm->cmn.isp_base );
     p_fsm->width_fr = width;
     p_fsm->height_fr = height;
     p_fsm->crop_fr.xsize = width;
     p_fsm->crop_fr.ysize = height;
-#if ISP_HAS_DS1
-    p_fsm->width_ds = width;
-    p_fsm->height_ds = height;
-    p_fsm->crop_ds.xsize = width;
-    p_fsm->crop_ds.ysize = height;
-    p_fsm->scaler_ds.xsize = width;
-    p_fsm->scaler_ds.ysize = height;
-#endif
-
 
     // Called once at boot up
     p_fsm->mask.repeat_irq_mask = 0;
     p_fsm->mask.repeat_irq_mask |= ACAMERA_IRQ_MASK( ACAMERA_IRQ_FRAME_WRITER_FR );
-#if ISP_HAS_DS1
-    p_fsm->mask.repeat_irq_mask |= ACAMERA_IRQ_MASK( ACAMERA_IRQ_FRAME_WRITER_DS );
-#endif
 
     // Finally request interrupts
     crop_request_interrupt( p_fsm, p_fsm->mask.repeat_irq_mask );

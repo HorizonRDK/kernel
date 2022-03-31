@@ -244,7 +244,7 @@ int sensor_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t in
         } else {
             p_fsm->ctrl.stop_streaming( p_fsm->sensor_ctx );
         }
-        p_fsm->is_streaming = streaming;
+        p_fsm->is_streaming = (uint8_t)streaming;
         break;
     }
 
@@ -255,7 +255,7 @@ int sensor_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t in
             break;
         }
 
-        p_fsm->preset_mode = *(uint32_t *)input;
+        p_fsm->preset_mode = *(uint8_t *)input;
 	p_fsm->sensor_type = 1;
         break;
 
@@ -266,7 +266,7 @@ int sensor_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t in
             break;
         }
 
-        p_fsm->sensor_i2c_channel = *(uint32_t *)input;
+        p_fsm->sensor_i2c_channel = *(uint8_t *)input;
         break;
 
     case FSM_PARAM_SET_SENROR_TYPE://IE&E ADD
@@ -276,7 +276,7 @@ int sensor_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t in
             break;
         }
 
-        p_fsm->sensor_type = *(uint32_t *)input;
+        p_fsm->sensor_type = *(uint8_t *)input;
         break;
 
     case FSM_PARAM_SET_SENSOR_MAX_AGAIN://IE&E ADD
@@ -363,7 +363,7 @@ int sensor_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t in
             break;
         }
 
-        p_fsm->sensor_decomp_bits = *(uint32_t *)input;
+        p_fsm->sensor_decomp_bits = *(uint8_t *)input;
         break;
 
     case FSM_PARAM_SET_SENSOR_INFO_PRESET_NUM:
@@ -373,7 +373,7 @@ int sensor_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t in
             break;
         }
 
-        p_fsm->info_preset_num = *(uint32_t *)input;
+        p_fsm->info_preset_num = *(uint8_t *)input;
 
         break;
 

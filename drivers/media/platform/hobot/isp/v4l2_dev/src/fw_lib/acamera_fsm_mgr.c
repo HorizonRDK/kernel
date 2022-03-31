@@ -166,7 +166,7 @@ void acamera_fsm_mgr_process_events(acamera_fsm_mgr_t *p_fsm_mgr,int n_max_event
     int n_event=0;
 	struct timeval start;
 	struct timeval end;
-	int diff;
+	long diff;
 	int ctx_id = p_fsm_mgr->ctx_id;
 	int debug_flag = ((1 << ctx_id) & isp_debug_mask);
 
@@ -196,7 +196,7 @@ void acamera_fsm_mgr_process_events(acamera_fsm_mgr_t *p_fsm_mgr,int n_max_event
 					if (debug_flag)
 						do_gettimeofday(&start);
 
-                    b_processed = p_fsm_mgr->fsm_arr[idx]->ops.proc_event(p_fsm_mgr->fsm_arr[idx]->p_fsm, event_id);
+                    b_processed = (uint8_t)p_fsm_mgr->fsm_arr[idx]->ops.proc_event(p_fsm_mgr->fsm_arr[idx]->p_fsm, event_id);
 
 					if (debug_flag)
 						do_gettimeofday(&end);
