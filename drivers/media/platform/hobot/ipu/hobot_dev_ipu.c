@@ -1179,6 +1179,7 @@ int ipu_update_osd_color_map(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 	u32 id = 0;
 	osd_color_map_t *color_map;
 	struct ipu_subdev *subdev;
+	osd_color_map_t color_map_tmp;
 
 	subdev = ipu_ctx->subdev;
 	id = ipu_ctx->id;
@@ -1187,10 +1188,14 @@ int ipu_update_osd_color_map(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 		return -EFAULT;
 	}
 	color_map = &subdev->osd_cfg.color_map;
-	ret = copy_from_user((char *) color_map, (u32 __user *) arg,
+	ret = copy_from_user((char *) &color_map_tmp, (u32 __user *) arg,
 			   sizeof(osd_color_map_t));
 	if (ret)
 		return -EFAULT;
+
+	spin_lock(&subdev->osd_cfg.osd_cfg_slock);
+	memcpy(color_map, &color_map_tmp, sizeof(osd_color_map_t));
+	spin_unlock(&subdev->osd_cfg.osd_cfg_slock);
 
 	vio_dbg("[S%d][V%d] %s\n", ipu_ctx->group->instance, ipu_ctx->id,
 		 __func__);
@@ -1204,6 +1209,7 @@ int ipu_update_osd_addr(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 	u32 id = 0;
 	u32 *osd_buf;
 	struct ipu_subdev *subdev;
+	u32 osd_buf_tmp[MAX_OSD_LAYER];
 
 	subdev = ipu_ctx->subdev;
 	id = ipu_ctx->id;
@@ -1212,12 +1218,15 @@ int ipu_update_osd_addr(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 		return -EFAULT;
 	}
 	osd_buf = subdev->osd_cfg.osd_buf;
-	ret = copy_from_user((char *) osd_buf, (u32 __user *) arg,
+	ret = copy_from_user((char *) osd_buf_tmp, (u32 __user *) arg,
 			   MAX_OSD_LAYER * sizeof(u32));
 	if (ret)
 		return -EFAULT;
 
+	spin_lock(&subdev->osd_cfg.osd_cfg_slock);
+	memcpy(osd_buf, osd_buf_tmp, MAX_OSD_LAYER * sizeof(u32));
 	subdev->osd_cfg.osd_buf_update = 1;
+	spin_unlock(&subdev->osd_cfg.osd_cfg_slock);
 	vio_dbg("[S%d][V%d] %s\n", subdev->group->instance, ipu_ctx->id,
 		 __func__);
 
@@ -1230,6 +1239,7 @@ int ipu_update_osd_roi(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 	u32 id = 0;
 	osd_box_t *osd_box;
 	struct ipu_subdev *subdev;
+	osd_box_t osd_box_tmp[MAX_OSD_NUM];
 
 	subdev = ipu_ctx->subdev;
 	id = ipu_ctx->id;
@@ -1238,12 +1248,15 @@ int ipu_update_osd_roi(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 		return -EFAULT;
 	}
 	osd_box = subdev->osd_cfg.osd_box;
-	ret = copy_from_user((char *) osd_box, (u32 __user *) arg,
+	ret = copy_from_user((char *) osd_box_tmp, (u32 __user *) arg,
 			  MAX_OSD_NUM * sizeof(osd_box_t));
 	if (ret)
 		return -EFAULT;
 
+	spin_lock(&subdev->osd_cfg.osd_cfg_slock);
+	memcpy(osd_box, osd_box_tmp, MAX_OSD_NUM * sizeof(osd_box_t));
 	subdev->osd_cfg.osd_box_update = 1;
+	spin_unlock(&subdev->osd_cfg.osd_cfg_slock);
 
 	vio_dbg("[S%d][V%d] %s\n", subdev->group->instance, ipu_ctx->id,
 		 __func__);
@@ -1283,6 +1296,8 @@ void ipu_hw_set_osd_cfg(struct ipu_subdev *subdev, u32 shadow_index)
 	osd_box = osd_cfg->osd_box;
 	osd_buf = osd_cfg->osd_buf;
 
+	spin_lock(&subdev->osd_cfg.osd_cfg_slock);
+
 	if (osd_cfg->osd_box_update) {
 		for (i = 0; i < MAX_OSD_LAYER; i++) {
 			osd_enable |= osd_box[i].osd_en << i;
@@ -1293,6 +1308,8 @@ void ipu_hw_set_osd_cfg(struct ipu_subdev *subdev, u32 shadow_index)
 			height = osd_box[i].height;
 			ipu_set_osd_roi(base_reg, shadow_index, osd_index, i, start_x,
 					start_y, width, height);
+			vio_dbg("OSD[%d] update point = (0x%x, 0x%x), size = (0x%x, 0x%x)",
+				i, start_x, start_y, width, height);
 		}
 		ipu_set_osd_overlay_mode(base_reg, shadow_index, osd_index,
 				osd_overlay);
@@ -1306,6 +1323,7 @@ void ipu_hw_set_osd_cfg(struct ipu_subdev *subdev, u32 shadow_index)
 		for (i = 0; i < MAX_OSD_LAYER; i++) {
 			ipu_set_osd_addr(base_reg, shadow_index, osd_index,
 					i, osd_buf[i]);
+			vio_dbg("OSD[%d] update addr = %u", i, osd_buf[i]);
 		}
 	}
 	osd_cfg->osd_buf_update = 0;
@@ -1340,6 +1358,7 @@ void ipu_hw_set_osd_cfg(struct ipu_subdev *subdev, u32 shadow_index)
 					osd_cfg->osd_sta_level[i]);
 	}
 	osd_cfg->osd_sta_level_update = 0;
+	spin_unlock(&subdev->osd_cfg.osd_cfg_slock);
 }
 
 void ipu_set_roi_enable(struct ipu_subdev *subdev, u32 shadow_index,
@@ -1644,15 +1663,19 @@ int ipu_update_osd_sta_roi(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 	int ret = 0;
 	osd_sta_box_t *osd_sta;
 	struct ipu_subdev *subdev;
+	osd_sta_box_t osd_sta_tmp[MAX_STA_NUM];
 
 	subdev = ipu_ctx->subdev;
 	osd_sta = subdev->osd_cfg.osd_sta;
-	ret = copy_from_user((char *) osd_sta, (u32 __user *) arg,
+	ret = copy_from_user((char *) osd_sta_tmp, (u32 __user *) arg,
 			   MAX_STA_NUM * sizeof(osd_sta_box_t));
 	if (ret)
 		return -EFAULT;
 
+	spin_lock(&subdev->osd_cfg.osd_cfg_slock);
+	memcpy(osd_sta, osd_sta_tmp, MAX_STA_NUM * sizeof(osd_sta_box_t));
 	subdev->osd_cfg.osd_sta_update = 1;
+	spin_unlock(&subdev->osd_cfg.osd_cfg_slock);
 
 	vio_dbg("[S%d][V%d] %s\n", ipu_ctx->group->instance, ipu_ctx->id,
 		 __func__);
@@ -1665,15 +1688,19 @@ int ipu_update_osd_sta_level(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 	int ret = 0;
 	u8 *osd_sta_level;
 	struct ipu_subdev *subdev;
+	u8 osd_sta_level_tmp[MAX_OSD_STA_LEVEL_NUM];
 
 	subdev = ipu_ctx->subdev;
 	osd_sta_level = subdev->osd_cfg.osd_sta_level;
-	ret = copy_from_user((char *) osd_sta_level, (u32 __user *) arg,
+	ret = copy_from_user((char *) osd_sta_level_tmp, (u32 __user *) arg,
 			   MAX_OSD_STA_LEVEL_NUM * sizeof(u8));
 	if (ret)
 		return -EFAULT;
 
+	spin_lock(&subdev->osd_cfg.osd_cfg_slock);
+	memcpy(osd_sta_level, osd_sta_level_tmp, MAX_OSD_STA_LEVEL_NUM * sizeof(u8));
 	subdev->osd_cfg.osd_sta_level_update = 1;
+	spin_unlock(&subdev->osd_cfg.osd_cfg_slock);
 
 	vio_dbg("[S%d][V%d] %s\n", ipu_ctx->group->instance, ipu_ctx->id,
 		 __func__);
@@ -4426,6 +4453,7 @@ int ipu_subdev_init(struct ipu_subdev *subdev)
 	atomic_set(&subdev->refcount, 0);
 	subdev->frameinfo.bufferindex = -1;
 	subdev->poll_mask = 0x00;
+	spin_lock_init(&subdev->osd_cfg.osd_cfg_slock);
 
 	return ret;
 }

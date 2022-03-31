@@ -641,7 +641,7 @@ void vio_group_done(struct vio_group *group)
 	group_task = group_leader->gtask;
 	/* all online scenario, ipu will enter this condition */
 	if (group_task == NULL) {
-		vio_info("WARN: group%d's group leader(%d) task is NULL\n",
+		vio_dbg("WARN: group%d's group leader(%d) task is NULL\n",
 				group->id, group_leader->id);
 		return;
 	}

@@ -66,6 +66,8 @@ struct ipu_osd_cfg{
 	bool osd_sta_level_update;
 	u8 osd_sta_level[MAX_OSD_STA_LEVEL_NUM];
 	osd_color_map_t color_map;
+
+	spinlock_t osd_cfg_slock;
 };
 
 struct ipu_info_cfg {
