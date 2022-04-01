@@ -275,8 +275,8 @@ static void diag_msg_to_array(uint8_t *data, const struct diag_msg *msg)
 	data[4] = (uint8_t)((msg->header.checksum & (uint32_t)0xFF0000) >> 16);
 	data[5] = (uint8_t)((msg->header.checksum & (uint32_t)0xFF00) >> 8);
 	data[6] = (uint8_t)(msg->header.checksum & (uint32_t)0xFF);
-	data[7] = msg->data.module_id;
-	data[8] = msg->data.event_id;
+	data[7] = (uint8_t)msg->data.module_id;
+	data[8] = (uint8_t)msg->data.event_id;
 	data[9] = msg->data.event_sta;
 	if (msg->header.msg_type == MSG_WITH_ENV) {
 		for (i = 0; i < msg->data.env_len; i++)
@@ -675,7 +675,7 @@ int32_t diag_send_event_stat_and_env_data(
 	event.event_sta = event_sta;
 
 	if (env_data != NULL && env_len != 0) {
-		event.env_len = env_len;
+		event.env_len = (uint8_t)env_len;
 		event.when = env_data_gen_timing;
 		memcpy(event.payload, env_data, env_len);
 	}
