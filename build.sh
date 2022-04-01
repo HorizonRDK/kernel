@@ -92,6 +92,20 @@ function set_kernel_config()
         sed -i 's:CONFIG_HOBOT_GCOV_AVIO=y:# CONFIG_HOBOT_GCOV_AVIO is not set:g' ${BUILD_OUTPUT_PATH}/.config
         sed -i 's:CONFIG_HOBOT_GCOV_BASE=y:# CONFIG_HOBOT_GCOV_BASE is not set:g' ${BUILD_OUTPUT_PATH}/.config
     fi
+
+    if [ "$SLEEP_BUILD" = "true" ];then
+        kernel_config_dir=${SRC_KERNEL_DIR}/arch/arm64/configs
+        tmp_defconfig_path="${kernel_config_dir}/tmp_defconfig"
+        sed 's/# CONFIG_SUSPEND is not set/CONFIG_SUSPEND=y/g' "${kernel_config_dir}/$config" > "${tmp_defconfig_path}"
+        # DFS Does NOT support RT, need automatically change to preempt lowlatency
+        sed -i 's/CONFIG_PREEMPT_RT_FULL=y/CONFIG_PREEMPT__LL=y/g' "${tmp_defconfig_path}"
+        make ARCH=${ARCH_KERNEL} O=${BUILD_OUTPUT_PATH} tmp_defconfig || {
+            echo "make tmp_defconfig failed"
+            exit 1
+        }
+        [ -f "${tmp_defconfig_path}" ] && rm "${tmp_defconfig_path}"
+    fi
+
     echo "******************************"
 }
 
@@ -209,7 +223,7 @@ function all()
     # Configuring Image for AP Booting
     choose
 
-    # For GCOV only, will modify the resulting .config
+    # For GCOV and sleep build, will modify the resulting .config
     set_kernel_config
 
     make ARCH=${ARCH_KERNEL} O=${BUILD_OUTPUT_PATH} -j${N} || {
@@ -228,17 +242,17 @@ function all()
 
     # Moving Close Source kos to target/tmprootfs
     rel_ko_path="${SRC_PREBUILTS_DIR}/ko"
-    [ ! -d ${TARGET_TMPROOTFS_DIR}/ -a -d ${rel_ko_path} ] && mkdir -p ${TARGET_TMPROOTFS_DIR}/
-    if [ "$TARGET_MODE" = "debug" ];then
-        [ -d ${rel_ko_path}/ko_debug/ ] && cp -raf ${rel_ko_path}/ko_debug/* ${TARGET_TMPROOTFS_DIR}/
-    elif [ "$TARGET_MODE" = "release" ] || [ "$TARGET_MODE" = "quickboot" ];then
-        [ -d ${rel_ko_path}/ko_release/ ] && cp -raf ${rel_ko_path}/ko_release/* ${TARGET_TMPROOTFS_DIR}/
-    elif [ "$TARGET_MODE" = "docker" ];then
-        [ -d ${rel_ko_path}/ko_docker/ ] && cp -raf ${rel_ko_path}/ko_docker/* ${TARGET_TMPROOTFS_DIR}/
-    else
-        echo "TARGET_MODE:$TARGET_MODE has not support yet"
-        exit 1
+    if [ "$SLEEP_BUILD" = "true" ];then
+        # Because sleep is ONLY supported with DFS enabled, use SLEEP_BUILD to check if building for sleep
+        sleep_ko_path_suffix="_sleep"
     fi
+    [ ! -d ${TARGET_TMPROOTFS_DIR}/ -a -d ${rel_ko_path} ] && mkdir -p ${TARGET_TMPROOTFS_DIR}/
+    if [ "${TARGET_MODE}" = "quickboot" ];then
+        prebuilt_ko_path="${rel_ko_path}/ko_release${sleep_ko_path_suffix}/"
+    else
+        prebuilt_ko_path="${rel_ko_path}/ko_${TARGET_MODE}${sleep_ko_path_suffix}"
+    fi
+    [ -d "$prebuilt_ko_path" ] && cpfiles "${prebuilt_ko_path}/*" "${TARGET_TMPROOTFS_DIR}/"
 
     #release: module signature: use fixed public and private keys
     if [ "$TARGET_MODE" = "release" ] || [ "$TARGET_MODE" = "quickboot" ];then
