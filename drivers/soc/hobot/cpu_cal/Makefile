@@ -1,4 +1,4 @@
-obj-m := cpu_cal.o
+obj-$(CONFIG_HOBOT_CPU_CAL) := cpu_cal.o
 cpu_cal-objs += hobot_cpu_cal_cdev.o
 cpu_cal-objs += scheduler/src/a53_stl_arrays.o
 cpu_cal-objs += stl_core/src/a53_stl_core_p001_n001.o
