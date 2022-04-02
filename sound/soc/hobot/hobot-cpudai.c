@@ -682,7 +682,7 @@ static inline int change_clk(struct device *dev,
 		clk = devm_clk_get(dev, clk_name);
 		if (IS_ERR(clk)) {
 			dev_err(dev, "failed to get: %s\n", clk_name);
-			return PTR_ERR(clk);
+			return PTR_ERR_OR_ZERO(clk);
 		}
 		round_rate = clk_round_rate(clk, rate);
 		ret = clk_set_rate(clk, (unsigned long)round_rate);
@@ -725,7 +725,7 @@ static int hobot_i2s_probe(struct platform_device *pdev)
 	i2s->regaddr_rx = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(i2s->regaddr_rx)) {
 		dev_err(&pdev->dev, "Failed to ioremap regaddr_rx!\n");
-		return PTR_ERR(i2s->regaddr_rx);
+		return PTR_ERR_OR_ZERO(i2s->regaddr_rx);
 	}
 	res = NULL;
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
@@ -736,7 +736,7 @@ static int hobot_i2s_probe(struct platform_device *pdev)
 	i2s->regaddr_tx = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(i2s->regaddr_tx)) {
 		dev_err(&pdev->dev, "Failed to ioremap regaddr_tx!\n");
-		return PTR_ERR(i2s->regaddr_tx);
+		return PTR_ERR_OR_ZERO(i2s->regaddr_tx);
 	}
 
 	res = NULL;
@@ -753,7 +753,7 @@ static int hobot_i2s_probe(struct platform_device *pdev)
 	i2s->mclk = devm_clk_get(&pdev->dev, "i2s-mclk");
 		if (IS_ERR(i2s->mclk)) {
 			dev_err(&pdev->dev, "failed to get i2s-mclk\n");
-			return PTR_ERR(i2s->mclk);
+			return PTR_ERR_OR_ZERO(i2s->mclk);
 		}
 		ret = clk_prepare_enable(i2s->mclk);
 		if (ret != 0) {
@@ -764,7 +764,7 @@ static int hobot_i2s_probe(struct platform_device *pdev)
 		i2s->bclk = devm_clk_get(&pdev->dev, "i2s-bclk");
 		if (IS_ERR(i2s->bclk)) {
 			dev_err(&pdev->dev, "failed to get i2s-bclk\n");
-			return PTR_ERR(i2s->bclk);
+			return PTR_ERR_OR_ZERO(i2s->bclk);
 		}
 		ret = clk_prepare_enable(i2s->bclk);
 		if (ret != 0) {
@@ -827,7 +827,7 @@ static int hobot_i2s_probe(struct platform_device *pdev)
 	i2s->rst = devm_reset_control_get(&pdev->dev, "i2s");
 	if (IS_ERR(i2s->rst)) {
 		dev_err(&pdev->dev, "Missing reset controller!\n");
-		return PTR_ERR(i2s->rst);
+		return PTR_ERR_OR_ZERO(i2s->rst);
 	}
 
 	/* hobot_i2s is set to cpudai dev data */

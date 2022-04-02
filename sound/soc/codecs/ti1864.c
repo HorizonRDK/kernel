@@ -217,7 +217,7 @@ static int ti1864_i2c_probe(struct i2c_client *i2c,
 	if (IS_ERR(i2c_adap)) {
 		printk(KERN_ERR  "[%s:%d] get i2c adapter error\n",
 			__func__, __LINE__);
-		ret = PTR_ERR(i2c_adap);
+		ret = PTR_ERR_OR_ZERO(i2c_adap);
     return ret;
 	}
 

@@ -764,9 +764,9 @@ static int snd_ac101_put_volsw(struct snd_kcontrol *kcontrol,
 	int ret;
 
 	if (sign_bit)
-		mask = BIT(sign_bit + 1) - 1;
+		mask = (uint32_t)(BIT(sign_bit + 1) - 1);
 
-	val = ((ucontrol->value.integer.value[0] + mc->min) & mask);
+	val = ((ucontrol->value.enumerated.item[0] + mc->min) & mask);
 	if (invert) {
 		val = mc->max - val;
 	}
@@ -776,7 +776,7 @@ static int snd_ac101_put_volsw(struct snd_kcontrol *kcontrol,
 	if (! snd_soc_volsw_is_stereo(mc)) {
 		return ret;
 	}
-	val = ((ucontrol->value.integer.value[1] + mc->min) & mask);
+	val = ((ucontrol->value.enumerated.item[1] + mc->min) & mask);
 	if (invert) {
 		val = mc->max - val;
 	}
@@ -1589,11 +1589,10 @@ static ssize_t ac101_debug_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t count)
 {
 	struct ac10x_priv *ac10x = static_ac10x;
-	int val = 0, flag = 0;
-	u16 value_w, value_r;
-	u8 reg, num, i=0;
+	u32 value_w, value_r, val = 0, flag = 0;
+	u32 reg, num, i = 0;
 
-	val = simple_strtol(buf, NULL, 16);
+	val = (u32)simple_strtol(buf, NULL, 16);
 	flag = (val >> 24) & 0xF;
 	if (flag) {
 		reg = (val >> 16) & 0xFF;
@@ -1838,7 +1837,7 @@ int ac101_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 
 	ac10x->regmap101 = devm_regmap_init_i2c(i2c, &ac101_regmap);
 	if (IS_ERR(ac10x->regmap101)) {
-		ret = PTR_ERR(ac10x->regmap101);
+		ret = PTR_ERR_OR_ZERO(ac10x->regmap101);
 		dev_err(&i2c->dev, "Fail to initialize I/O: %d\n", ret);
 		return ret;
 	}

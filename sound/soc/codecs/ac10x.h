@@ -80,7 +80,7 @@ struct ac10x_priv {
 
 	#ifdef CONFIG_AC101_SWITCH_DETECT
 	struct gpio_desc* gpiod_irq;
-	long irq;
+	unsigned int irq;
 	volatile int irq_cntr;
 	volatile int pullout_cntr;
 	volatile int state;

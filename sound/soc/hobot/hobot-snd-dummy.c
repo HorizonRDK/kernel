@@ -39,7 +39,6 @@ static int hobot_snd_hw_params(struct snd_pcm_substream *substream,
 			     struct snd_pcm_hw_params *params)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	unsigned long sample_rate = params_rate(params);
 	struct hobot_i2s *i2s = snd_soc_dai_get_drvdata(rtd->cpu_dai);
 	struct hobot_snd *snd_data = snd_soc_card_get_drvdata(rtd->card);
 	int ret = 0;
@@ -63,9 +62,9 @@ static struct snd_soc_ops hobot_snd_ops = {
 
 static int hobot_snd_probe(struct platform_device *pdev)
 {
-	int ret = 0, id = 0, num = 0, idx = 0;
+	int ret = 0, id = 0, num = 0;
 	struct snd_soc_card *card = NULL;
-	struct snd_soc_dai_link *link = NULL, *links = NULL;
+	struct snd_soc_dai_link *link = NULL;
 	struct device *dev = &pdev->dev;
 	struct device_node *np, *codec, *cpu, *platform, *node = dev->of_node;
 	struct dummy_data *data;
@@ -97,7 +96,7 @@ static int hobot_snd_probe(struct platform_device *pdev)
 	data = devm_kzalloc(dev, sizeof(*data) + sizeof(*link) * num,
             GFP_KERNEL);
 	 if (!data)
-        return ERR_PTR(-ENOMEM);
+        return -ENOMEM;
 
 	card->dai_link = &data->dai_link[0];
 	card->num_links = num;
@@ -142,7 +141,7 @@ static int hobot_snd_probe(struct platform_device *pdev)
 			ret = snd_soc_of_get_dai_name(cpu, &link->cpu_dai_name);
 			if (ret) {
 					dev_err(card->dev, "error getting cpu dai name\n");
-					return ERR_PTR(ret);
+					return ret;
 			}
 			pr_debug("cpu_dai_name: %s\n", link->cpu_dai_name);
 		

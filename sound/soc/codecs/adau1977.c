@@ -95,7 +95,7 @@
 #define ADAU1977_SAI_CTRL1_BCLKRATE_MASK	(0x1 << 1)
 #define ADAU1977_SAI_CTRL1_MASTER		BIT(0)
 
-#define ADAU1977_SAI_OVERTEMP_DRV_C(x)		BIT(4 + (x))
+#define ADAU1977_SAI_OVERTEMP_DRV_C(x)		(unsigned int)(BIT(4 + (x)))
 #define ADAU1977_SAI_OVERTEMP_DRV_HIZ		BIT(3)
 
 #define ADAU1977_MISC_CONTROL_SUM_MODE_MASK	(0x3 << 6)
@@ -517,7 +517,7 @@ static int adau1977_set_tdm_slot(struct snd_soc_dai *dai, unsigned int tx_mask,
 
 	drv = 0;
 	for (i = 0; i < 4; i++) {
-		slot[i] = __ffs(rx_mask);
+		slot[i] = ffs(rx_mask);
 		drv |= ADAU1977_SAI_OVERTEMP_DRV_C(i);
 		rx_mask &= ~(1 << slot[i]);
 		if (slot[i] >= slots)
@@ -923,7 +923,7 @@ int adau1977_probe(struct device *dev, struct regmap *regmap,
 	int ret;
 
 	if (IS_ERR(regmap))
-		return PTR_ERR(regmap);
+		return PTR_ERR_OR_ZERO(regmap);
 
 	adau1977 = devm_kzalloc(dev, sizeof(*adau1977), GFP_KERNEL);
 	if (adau1977 == NULL)
@@ -940,19 +940,19 @@ int adau1977_probe(struct device *dev, struct regmap *regmap,
 
 	adau1977->avdd_reg = devm_regulator_get(dev, "AVDD");
 	if (IS_ERR(adau1977->avdd_reg))
-		return PTR_ERR(adau1977->avdd_reg);
+		return PTR_ERR_OR_ZERO(adau1977->avdd_reg);
 
 	adau1977->dvdd_reg = devm_regulator_get_optional(dev, "DVDD");
 	if (IS_ERR(adau1977->dvdd_reg)) {
-		if (PTR_ERR(adau1977->dvdd_reg) != -ENODEV)
-			return PTR_ERR(adau1977->dvdd_reg);
+		if (PTR_ERR_OR_ZERO(adau1977->dvdd_reg) != -ENODEV)
+			return PTR_ERR_OR_ZERO(adau1977->dvdd_reg);
 		adau1977->dvdd_reg = NULL;
 	}
 
 	adau1977->reset_gpio = devm_gpiod_get_optional(dev, "reset",
 						       GPIOD_OUT_LOW);
 	if (IS_ERR(adau1977->reset_gpio))
-		return PTR_ERR(adau1977->reset_gpio);
+		return PTR_ERR_OR_ZERO(adau1977->reset_gpio);
 
 	dev_set_drvdata(dev, adau1977);
 

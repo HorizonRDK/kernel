@@ -96,7 +96,7 @@ static const struct regmap_config ac108_regmap_config = {
 
 struct real_val_to_reg_val {
 	unsigned int real_val;
-	unsigned int reg_val;
+	u8 reg_val;
 };
 
 struct pll_div {
@@ -655,7 +655,7 @@ static int ac108_read(u8 reg, u8 *rt_value, struct i2c_client *client)
 {
 	int ret;
 	u8 read_cmd[3] = {0};
-	u8 cmd_len = 0;
+	int32_t cmd_len = 0;
 
 	read_cmd[0] = reg;
 	cmd_len = 1;
@@ -681,7 +681,7 @@ static int ac108_read(u8 reg, u8 *rt_value, struct i2c_client *client)
 	return 0;
 }
 
-static int ac108_write(u8 reg, unsigned char value, struct i2c_client *client)
+static int ac108_write(u8 reg, u8 value, struct i2c_client *client)
 {
 	int ret = 0;
 	u8 write_cmd[2] = {0};
@@ -716,7 +716,7 @@ static int ac108_update_bits(u8 reg, u8 mask, u8 value, struct i2c_client *clien
 		pr_err("%s ac108_read error!\n", __func__);
 		return -EINVAL;
 	}
-	val_new = (val_old & ~mask) | (value & mask);
+	val_new = (u8)((val_old & ~mask) | (value & mask));
 	if(val_new != val_old){
 		ret = ac108_write(reg, val_new, client);
 		if (ret < 0) {
@@ -742,7 +742,7 @@ static int ac108_multi_chips_read(u8 reg, unsigned char *rt_value)
 }
 #endif
 
-static int ac108_multi_chips_write(u8 reg, unsigned char value)
+static int ac108_multi_chips_write(u8 reg, u8 value)
 {
 	u8 i;
 	int ret;
@@ -803,7 +803,7 @@ static void ac108_hw_init(struct i2c_client *i2c)
 	/*** I2S Common Config ***/
 	ac108_update_bits(I2S_CTRL, 0x1<<SDO1_EN | 0x1<<SDO2_EN, 0x1<<SDO1_EN | !!AC108_SDO2_EN<<SDO2_EN, i2c);	/*SDO1 enable, SDO2 Enable*/
 	ac108_update_bits(I2S_BCLK_CTRL, 0x1<<EDGE_TRANSFER, 0x0<<EDGE_TRANSFER, i2c);	/*SDO drive data and SDI sample data at the different BCLK edge*/
-	ac108_update_bits(I2S_LRCK_CTRL1, 0x3<<LRCK_PERIODH, ((AC108_LRCK_PERIOD-1) >> 8)<<LRCK_PERIODH, i2c);
+	ac108_update_bits(I2S_LRCK_CTRL1, 0x3 << LRCK_PERIODH, (u8)(((AC108_LRCK_PERIOD - 1) >> 8)) << LRCK_PERIODH, i2c);
 	ac108_write(I2S_LRCK_CTRL2, (u8)(AC108_LRCK_PERIOD-1), i2c);	/*config LRCK period: 16bit * 8ch = 128, 32bit * 8ch = 256, 32bit *16ch =512*/
 	/*Encoding mode enable, Turn to hi-z state (TDM) when not transferring slot*/
 	ac108_update_bits(I2S_FMT_CTRL1, 0x1<<ENCD_SEL | 0x1<<TX_SLOT_HIZ | 0x1<<TX_STATE, !!AC108_ENCODING_EN<<ENCD_SEL | 0x0<<TX_SLOT_HIZ | 0x1<<TX_STATE, i2c);
@@ -920,7 +920,7 @@ static int ac108_set_pll(struct snd_soc_dai *dai, int pll_id, int source, unsign
 	} else if ((freq_in == 24576000 || freq_in == 22579200) && pll_id == SYSCLK_SRC_MCLK) {
 		//System Clock Source Select MCLK, SYSCLK Enable
 		AC108_DEBUG("AC108 don't need to use PLL\n\n");
-		ac108_multi_chips_update_bits(SYSCLK_CTRL, 0x1<<SYSCLK_SRC | 0x1<<SYSCLK_EN, 0x0<<SYSCLK_SRC | 0x1<<SYSCLK_EN);
+		ac108_multi_chips_update_bits(SYSCLK_CTRL, 0x1 << SYSCLK_SRC | 0x1 << SYSCLK_EN, 0x0 << SYSCLK_SRC | 0x1 << SYSCLK_EN);
 		return 0;	//Don't need to use PLL
 	}
 
@@ -966,10 +966,10 @@ static int ac108_set_pll(struct snd_soc_dai *dai, int pll_id, int source, unsign
 	}
 
 	//Config PLL DIV param M1/M2/N/K1/K2
-	ac108_multi_chips_update_bits(PLL_CTRL2, 0x1f<<PLL_PREDIV1 | 0x1<<PLL_PREDIV2, m1<<PLL_PREDIV1 | m2<<PLL_PREDIV2);
-	ac108_multi_chips_update_bits(PLL_CTRL3, 0x3<<PLL_LOOPDIV_MSB, (n>>8)<<PLL_LOOPDIV_MSB);
-	ac108_multi_chips_update_bits(PLL_CTRL4, 0xff<<PLL_LOOPDIV_LSB, (u8)n<<PLL_LOOPDIV_LSB);
-	ac108_multi_chips_update_bits(PLL_CTRL5, 0x1f<<PLL_POSTDIV1 | 0x1<<PLL_POSTDIV2, k1<<PLL_POSTDIV1 | k2<<PLL_POSTDIV2);
+	ac108_multi_chips_update_bits(PLL_CTRL2, 0x1f << PLL_PREDIV1 | 0x1 << PLL_PREDIV2, (u8) (m1 << PLL_PREDIV1 | m2 << PLL_PREDIV2));
+	ac108_multi_chips_update_bits(PLL_CTRL3, 0x3 << PLL_LOOPDIV_MSB, (u8)((n >> 8) << PLL_LOOPDIV_MSB));
+	ac108_multi_chips_update_bits(PLL_CTRL4, 0xff << PLL_LOOPDIV_LSB, (u8)n << PLL_LOOPDIV_LSB);
+	ac108_multi_chips_update_bits(PLL_CTRL5, 0x1f << PLL_POSTDIV1 | 0x1 << PLL_POSTDIV2, (u8)(k1 << PLL_POSTDIV1 | k2 << PLL_POSTDIV2));
 
 	//Config PLL module current
 	ac108_multi_chips_update_bits(PLL_CTRL1, 0x7<<PLL_IBIAS, 0x0<<PLL_IBIAS);
@@ -987,7 +987,8 @@ static int ac108_set_pll(struct snd_soc_dai *dai, int pll_id, int source, unsign
 
 static int ac108_set_clkdiv(struct snd_soc_dai *dai, int div_id, int div)
 {
-	u32 i,bclk_div,bclk_div_reg_val;
+	u8 i, bclk_div_reg_val;
+	int32_t bclk_div;
 	AC108_DEBUG("\n--->%s\n",__FUNCTION__);
 
 	if(!div_id){	//use div_id to judge Master/Slave mode,  0: Slave mode, 1: Master mode
@@ -1012,7 +1013,7 @@ static int ac108_set_clkdiv(struct snd_soc_dai *dai, int div_id, int div)
 	}
 
 	//AC108 set BCLK DIV
-	ac108_multi_chips_update_bits(I2S_BCLK_CTRL, 0xf<<BCLKDIV, bclk_div_reg_val<<BCLKDIV);
+	ac108_multi_chips_update_bits(I2S_BCLK_CTRL, 0xf << BCLKDIV, (u8)(bclk_div_reg_val << BCLKDIV));
 	return 0;
 }
 
@@ -1107,7 +1108,7 @@ static int ac108_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 	}
 	ret = ac108_multi_chips_update_bits(I2S_FMT_CTRL1,
 		0x3 << MODE_SEL | 0x1 << TX2_OFFSET | 0x1 << TX1_OFFSET,
-		i2s_mode << MODE_SEL | tx_offset << TX2_OFFSET | tx_offset << TX1_OFFSET);
+		(u8)(i2s_mode << MODE_SEL | tx_offset << TX2_OFFSET | tx_offset << TX1_OFFSET));
 	if (ret < 0) {
 		pr_err("%s update I2S_FMT_CTRL1 error!\n", __func__);
 		return -EINVAL;
@@ -1140,13 +1141,13 @@ static int ac108_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 			return -EINVAL;
 	}
 	ret = ac108_multi_chips_update_bits(I2S_BCLK_CTRL,
-		0x1 << BCLK_POLARITY, brck_polarity << BCLK_POLARITY);
+		0x1 << BCLK_POLARITY, (u8)(brck_polarity << BCLK_POLARITY));
 	if (ret < 0) {
 		pr_err("%s update I2S_BCLK_CTRL error\n", __func__);
 		return -EINVAL;
 	}
 	ret = ac108_multi_chips_update_bits(I2S_LRCK_CTRL1,
-		0x1 << LRCK_POLARITY, lrck_polarity << LRCK_POLARITY);
+		0x1 << LRCK_POLARITY, (u8)(lrck_polarity << LRCK_POLARITY));
 	if (ret < 0) {
 		pr_err("%s update I2S_LRCK_CTRL1 error\n", __func__);
 		return -EINVAL;
@@ -1157,8 +1158,9 @@ static int ac108_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 
 static int ac108_hw_params(struct snd_pcm_substream *substream, struct snd_pcm_hw_params *params, struct snd_soc_dai *dai)
 {
-	u16 i, channels, channels_en, sample_resolution;
-	u8 reg_val;
+	u32 channels;
+	u16 i, sample_resolution;
+	u8 reg_val, channels_en;
 	unsigned int freq_out;
 	unsigned int bclk;
 
@@ -1180,7 +1182,7 @@ static int ac108_hw_params(struct snd_pcm_substream *substream, struct snd_pcm_h
 	//AC108 set sample rate
 	for(i=0; i<ARRAY_SIZE(ac108_sample_rate); i++){
 		if(ac108_sample_rate[i].real_val == params_rate(params) / (AC108_ENCODING_EN ? AC108_ENCODING_CH_NUMS/2 : 1)){
-			ac108_multi_chips_update_bits(ADC_SPRC, 0xf<<ADC_FS_I2S1, ac108_sample_rate[i].reg_val<<ADC_FS_I2S1);
+			ac108_multi_chips_update_bits(ADC_SPRC, 0xf << ADC_FS_I2S1, (u8)(ac108_sample_rate[i].reg_val << ADC_FS_I2S1));
 			break;
 		}
 	}
@@ -1189,10 +1191,10 @@ static int ac108_hw_params(struct snd_pcm_substream *substream, struct snd_pcm_h
 	channels = params_channels(params) * (AC108_ENCODING_EN ? AC108_ENCODING_CH_NUMS/2 : 1) / (AC108_SDO2_EN ? 2 :1);
 	for(i=0; i<(channels+3)/4; i++){
 		// i = 0; channels = 8
-		channels_en = (channels >= 4*(i+1)) ? 0x000f<<(4*i) : ((1<<(channels%4))-1)<<(4*i);
-		ac108_write(I2S_TX1_CTRL1, channels-1, i2c_driver_clt[i]);
-		ac108_write(I2S_TX1_CTRL2, (u8)channels_en, i2c_driver_clt[i]);
-		ac108_write(I2S_TX1_CTRL3, channels_en>>8, i2c_driver_clt[i]);
+		channels_en = (u8)((channels >= 4 * (i + 1)) ? 0x000f << (4 * i) : ((1 << (channels % 4)) - 1) << (4 * i));
+		ac108_write(I2S_TX1_CTRL1, (u8)(channels-1), i2c_driver_clt[i]);
+		ac108_write(I2S_TX1_CTRL2, channels_en, i2c_driver_clt[i]);
+		ac108_write(I2S_TX1_CTRL3, (u8)(channels_en>>8), i2c_driver_clt[i]);
 	}
 
 #if AC108_SDO2_EN
@@ -1236,7 +1238,7 @@ static int ac108_hw_params(struct snd_pcm_substream *substream, struct snd_pcm_h
   #endif
 	for(i=0; i<ARRAY_SIZE(ac108_sample_resolution); i++){
 		if(ac108_sample_resolution[i].real_val == sample_resolution){
-			ac108_multi_chips_update_bits(I2S_FMT_CTRL2, 0x7<<SAMPLE_RESOLUTION, ac108_sample_resolution[i].reg_val<<SAMPLE_RESOLUTION);
+			ac108_multi_chips_update_bits(I2S_FMT_CTRL2, 0x7 << SAMPLE_RESOLUTION, (u8)(ac108_sample_resolution[i].reg_val << SAMPLE_RESOLUTION));
 			break;
 		}
 	}
@@ -1473,14 +1475,14 @@ static unsigned int ac108_codec_read(struct snd_soc_codec *codec, unsigned int r
 	u8 val_r;
 	struct ac108_priv *ac108 = dev_get_drvdata(codec->dev);
 
-	ac108_read(reg, &val_r, ac108->i2c);
+	ac108_read((u8)reg, &val_r, ac108->i2c);
 	return val_r;
 }
 
 static int ac108_codec_write(struct snd_soc_codec *codec, unsigned int reg, unsigned int value)
 {
 	//AC108_DEBUG("\n--->%s\n",__FUNCTION__);
-	ac108_multi_chips_write(reg, value);
+	ac108_multi_chips_write((u8)reg, (u8)value);
 	return 0;
 }
 
@@ -1511,11 +1513,10 @@ static const struct snd_soc_codec_driver ac108_soc_codec_driver = {
 
 static ssize_t ac108_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
 {
-	int val=0, flag=0;
-	u8 i=0, reg, num, value_w, value_r;
+	u8 i = 0, reg, num, value_w, value_r, val = 0, flag = 0;
 
 	struct ac108_priv *ac108 = dev_get_drvdata(dev);
-	val = simple_strtol(buf, NULL, 16);
+	val = (u8)simple_strtol(buf, NULL, 16);
 	flag = (val >> 16) & 0xFF;
 
 	if (flag) {

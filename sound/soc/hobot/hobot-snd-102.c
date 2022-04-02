@@ -28,7 +28,7 @@ static int hobot_snd_hw_params(struct snd_pcm_substream *substream,
 			     struct snd_pcm_hw_params *params)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	unsigned long sample_rate = params_rate(params);
+	unsigned int sample_rate = params_rate(params);
 	struct hobot_i2s *i2s = snd_soc_dai_get_drvdata(rtd->cpu_dai);
 	struct hobot_snd *snd_data = snd_soc_card_get_drvdata(rtd->card);
 	int ret = 0;

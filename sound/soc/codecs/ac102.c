@@ -96,7 +96,7 @@ static const struct regmap_config ac102_regmap_config = {
 
 struct real_val_to_reg_val {
 	unsigned int real_val;
-	unsigned int reg_val;
+	u8 reg_val;
 };
 
 
@@ -310,7 +310,7 @@ static int ac102_read(u8 reg, u8 *rt_value, struct i2c_client *client)
 	return 0;
 }
 
-static int ac102_write(u8 reg, unsigned char value, struct i2c_client *client)
+static int ac102_write(u8 reg, u8 value, struct i2c_client *client)
 {
 	int ret = 0;
 	u8 write_cmd[2] = {0};
@@ -334,10 +334,11 @@ static int ac102_write(u8 reg, unsigned char value, struct i2c_client *client)
 
 static int ac102_update_bits(u8 reg, u8 mask, u8 value, struct i2c_client *client)
 {
-	u8 val_old,val_new;
+	u8 val_old;
+	u8 val_new;
 
 	ac102_read(reg, &val_old, client);
-	val_new = (val_old & ~mask) | (value & mask);
+	val_new = (u8)((val_old & ~mask) | (value & mask));
 	if(val_new != val_old){
 		ac102_write(reg, val_new, client);
 	}
@@ -358,7 +359,7 @@ static int ac102_multi_chips_read(u8 reg, unsigned char *rt_value)
 }
 #endif
 
-static int ac102_multi_chips_write(u8 reg, unsigned char value)
+static int ac102_multi_chips_write(u8 reg, u8 value)
 {
 	u8 i;
 
@@ -474,7 +475,8 @@ static int ac102_set_pll(struct snd_soc_dai *dai, int pll_id, int source, unsign
 
 static int ac102_set_clkdiv(struct snd_soc_dai *dai, int div_id, int div)
 {
-	u32 i,bclk_div,bclk_div_reg_val;
+	u32 i, bclk_div;
+	u8 bclk_div_reg_val;
 
 	AC102_DEBUG("\n--->%s\n",__FUNCTION__);
 	if(!div_id){	//use div_id to judge Master/Slave mode,  0: Slave mode, 1: Master mode
@@ -570,7 +572,7 @@ static int ac102_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 			pr_err("AC102 I2S format config error:%u\n\n",fmt & SND_SOC_DAIFMT_FORMAT_MASK);
 			return -EINVAL;
 	}
-	ac102_multi_chips_update_bits(I2S_FMT_CTRL1, 0x3<<MODE_SEL | 0x1<<OFFSET, i2s_mode<<MODE_SEL | tx_offset<<OFFSET);
+	ac102_multi_chips_update_bits(I2S_FMT_CTRL1, 0x3 << MODE_SEL | 0x1 << OFFSET, (u8)(i2s_mode << MODE_SEL | tx_offset << OFFSET));
 
 	//AC102 config BCLK&LRCK polarity
 	switch (fmt & SND_SOC_DAIFMT_INV_MASK) {
@@ -598,16 +600,17 @@ static int ac102_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 			pr_err("AC102 config BCLK/LRCLK polarity error:%u\n\n",(fmt & SND_SOC_DAIFMT_INV_MASK)>>8);
 			return -EINVAL;
 	}
-	ac102_multi_chips_update_bits(I2S_BCLK_CTRL,  0x1<<BCLK_POLARITY, brck_polarity<<BCLK_POLARITY);
-	ac102_multi_chips_update_bits(I2S_LRCK_CTRL1, 0x1<<LRCK_POLARITY, lrck_polarity<<LRCK_POLARITY);
+	ac102_multi_chips_update_bits(I2S_BCLK_CTRL,  0x1 << BCLK_POLARITY, (u8)(brck_polarity << BCLK_POLARITY));
+	ac102_multi_chips_update_bits(I2S_LRCK_CTRL1, 0x1 << LRCK_POLARITY, (u8)(lrck_polarity << LRCK_POLARITY));
 
 	return 0;
 }
 
 static int ac102_hw_params(struct snd_pcm_substream *substream, struct snd_pcm_hw_params *params, struct snd_soc_dai *dai)
 {
-	u8 i, channels, channels_en, sample_resolution;
-	u8 lrck_period;
+	u8 i, channels_en, sample_resolution;
+	unsigned int channels;
+	unsigned int lrck_period;
 	AC102_DEBUG("\n--->%s\n",__FUNCTION__);
 
 	//AC102 hw init
@@ -624,13 +627,13 @@ static int ac102_hw_params(struct snd_pcm_substream *substream, struct snd_pcm_h
 	channels = params_channels(params);
 	for(i=0; i<(channels<=AC102_CHIP_NUMS ? channels : AC102_CHIP_NUMS); i++){
 		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK){
-			ac102_update_bits(I2S_SLOT_CTRL, 0x3<<RX_CHSEL, (channels-1)<<RX_CHSEL, i2c_ctrl[i]);
+			ac102_update_bits(I2S_SLOT_CTRL, 0x3 << RX_CHSEL, (u8)((channels - 1) << RX_CHSEL), i2c_ctrl[i]);
 			ac102_update_bits(I2S_CTRL, 0x1<<RXEN, 0x1<<RXEN, i2c_ctrl[i]);
 			if(i<2)	ac102_write(I2S_RX_CHMP_CTRL, 0xe4, i2c_ctrl[i]);
 			else	ac102_write(I2S_RX_CHMP_CTRL, 0x4e, i2c_ctrl[i]);
 		} else {
-			channels_en = AC102_CHIP_NUMS>1? 1<<i : ((1<<channels)-1)<<i;
-			ac102_update_bits(I2S_SLOT_CTRL, 0x3<<TX_CHSEL, (channels-1)<<TX_CHSEL, i2c_ctrl[i]);
+			channels_en = (u8)(AC102_CHIP_NUMS > 1? 1 << i : ((1 << channels) - 1) << i);
+			ac102_update_bits(I2S_SLOT_CTRL, 0x3 << TX_CHSEL, (u8)((channels - 1) << TX_CHSEL), i2c_ctrl[i]);
 			ac102_write(I2S_TX_CTRL, channels_en, i2c_ctrl[i]);
 			ac102_update_bits(I2S_CTRL, 0x1<<TXEN, 0x1<<TXEN, i2c_ctrl[i]);
 		}
@@ -667,7 +670,7 @@ static int ac102_hw_params(struct snd_pcm_substream *substream, struct snd_pcm_h
 		dev_err(dai->dev, "AC102 don't supported the sample resolution: %u\n", params_format(params));
 		return -EINVAL;
 	}
-	ac102_multi_chips_update_bits(I2S_FMT_CTRL2, 0x7<<SAMPLE_RESOLUTION, (sample_resolution/4-1)<<SAMPLE_RESOLUTION);
+	ac102_multi_chips_update_bits(I2S_FMT_CTRL2, 0x7 << SAMPLE_RESOLUTION, (u8)((sample_resolution / 4 - 1) << SAMPLE_RESOLUTION));
 
 	//AC102 Globle enable
 	ac102_multi_chips_update_bits(I2S_CTRL, 0x1<<GEN, 0x1<<GEN);
@@ -875,14 +878,14 @@ static unsigned int ac102_codec_read(struct snd_soc_codec *codec, unsigned int r
 	u8 val_r;
 	struct ac102_priv *ac102 = dev_get_drvdata(codec->dev);
 
-	ac102_read(reg, &val_r, ac102->i2c);
+	ac102_read((u8)reg, &val_r, ac102->i2c);
 	return val_r;
 }
 
 static int ac102_codec_write(struct snd_soc_codec *codec, unsigned int reg, unsigned int value)
 {
 	//AC102_DEBUG("\n--->%s\n",__FUNCTION__);
-	ac102_multi_chips_write(reg, value);
+	ac102_multi_chips_write((u8)reg, (u8)value);
 	return 0;
 }
 
@@ -913,11 +916,11 @@ static struct snd_soc_codec_driver ac102_soc_codec_driver = {
 
 static ssize_t ac102_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
 {
-	int val=0, flag=0;
-	u8 i=0, reg, num, value_w, value_r;
+	unsigned int i = 0, num;
+	u8 value_r, value_w, reg, val, flag;
 
 	struct ac102_priv *ac102 = dev_get_drvdata(dev);
-	val = simple_strtol(buf, NULL, 16);
+	val = (u8)simple_strtoul(buf, NULL, 16);
 	flag = (val >> 16) & 0xFF;
 
 	if (flag) {

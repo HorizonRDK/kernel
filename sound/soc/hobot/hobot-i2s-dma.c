@@ -9,7 +9,6 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  */
-
 #include <linux/kernel.h>
 #include <linux/io.h>
 #include <linux/err.h>
@@ -39,7 +38,6 @@
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
 #include <sound/dmaengine_pcm.h>
-
 #include "hobot-i2s.h"
 
 #if IS_ENABLED(CONFIG_HOBOT_DMC_CLK)
@@ -116,16 +114,16 @@ struct idma_ctrl_s {
 	dma_addr_t end;
 	dma_addr_t lastset;
 	dma_addr_t current_addr;
-	dma_addr_t period;
-	dma_addr_t periodsz;
-	size_t bytesnum;
+	unsigned int period;
+	unsigned long periodsz;
+	unsigned long bytesnum;
 	void *token;
-	void (*cb)(void *dt, int bytes_xfer);
+	void (*cb)(void *dt, unsigned int bytes_xfer);
 	int stream;		/* capture or play */
-	int ch_num;		/* paly or capture channel */
+	unsigned int ch_num;		/* paly or capture channel */
 	int word_len;
 	int id;
-	int buffer_num;
+	unsigned long buffer_num;
 	int buffer_int_index;
 	int buffer_set_index;
 	char *tmp_buf;
@@ -170,7 +168,8 @@ MODULE_PARM_DESC(tstamp_mode, "enable/disable tstamp printk");
 static int copy_usr_interleaved(struct snd_pcm_substream *substream,
 		int channel, unsigned long hwoff,
 		void *buf, unsigned long bytes) {
-	int i, j, channel_buf_offset;
+	int i, j;
+	unsigned long channel_buf_offset;
 	char *dma_ptr;
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct idma_ctrl_s *dma_ctrl = substream->runtime->private_data;
@@ -249,19 +248,15 @@ static int hobot_copy_usr(struct snd_pcm_substream *substream,
 		int channel, unsigned long hwoff,
 		void *buf, unsigned long bytes)
 {
-	char *dma_ptr;
-	int channel_buf_offset, i, j, k;
+	int i;
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct idma_ctrl_s *dma_ctrl = substream->runtime->private_data;
 	//char *tmp_buf;
-	uint8_t count;
-	uint8_t bytes_count;
+	unsigned long count = 0;
 	unsigned long period_bytes;
-	uint8_t period_count;
-	int8_t ret;
+	unsigned long period_count;
+	int ret;
 	snd_pcm_uframes_t xfer_off;
-
-	channel_buf_offset = (dma_ctrl->periodsz) / (dma_ctrl->ch_num);
 
 	if (runtime->access == SNDRV_PCM_ACCESS_RW_INTERLEAVED) {
 		period_bytes = dma_ctrl->periodsz;
@@ -295,7 +290,7 @@ static int hobot_copy_usr(struct snd_pcm_substream *substream,
 		} else {
 			ret = copy_usr_noninterleaved(substream, channel,
 				hwoff * dma_ctrl->ch_num + channel * period_bytes +
-				k * dma_ctrl->periodsz,
+				i * period_bytes,
 				buf, period_bytes);
 			if (ret < 0)
 				break;
@@ -325,7 +320,7 @@ static int i2sidma_enqueue(struct snd_pcm_substream *substream)
 {
 	/* struct snd_pcm_runtime *runtime = substream->runtime; */
 	struct idma_ctrl_s *dma_ctrl = substream->runtime->private_data;
-	u32 val;
+	dma_addr_t val;
 
 	/* set buf0 ready */
 	val = dma_ctrl->start;
@@ -338,7 +333,7 @@ static int i2sidma_enqueue(struct snd_pcm_substream *substream)
 				I2S_BUF1_ADDR);
 		dma_ctrl->buffer_int_index = 0;
 		dma_ctrl->buffer_set_index = 2;
-		val = (dma_ctrl->periodsz) / (dma_ctrl->ch_num);
+		val = (dma_addr_t)((dma_ctrl->periodsz) / (dma_ctrl->ch_num));
 		writel(val, hobot_i2sidma[dma_ctrl->id].regaddr_rx +
 			I2S_BUF_SIZE);
 
@@ -362,7 +357,7 @@ static int i2sidma_enqueue(struct snd_pcm_substream *substream)
 }
 
 static void i2sidma_setcallbk(struct snd_pcm_substream *substream,
-			       void (*cb)(void *, int))
+			       void (*cb)(void *, unsigned int))
 {
 	struct idma_ctrl_s *dma_ctrl = substream->runtime->private_data;
 	unsigned long flags;
@@ -406,12 +401,14 @@ static void i2sidma_control(int op, int stream, struct idma_ctrl_s *dma_ctrl)
 
 }
 
-static void i2sidma_done(void *id, int bytes_xfer)
+static void i2sidma_done(void *id, unsigned int bytes_xfer)
 {
+	struct snd_pcm_substream *substream;
+	struct idma_ctrl_s *dma_ctrl;
 	if (!id)
 		return;
-	struct snd_pcm_substream *substream = id;
-	struct idma_ctrl_s *dma_ctrl = substream->runtime->private_data;
+	substream = id;
+	dma_ctrl = substream->runtime->private_data;
 	if (dma_ctrl && (dma_ctrl->state & ST_RUNNING))
 		snd_pcm_period_elapsed(substream);
 }
@@ -486,13 +483,13 @@ static int i2sidma_hw_params(struct snd_pcm_substream *substream,
 	}
 
 	dev_dbg(hobot_dma->dev,
-		"dma_ctrl->period is %llu, dma_ctrl->periodsz bytes is %llu,dma_ctrl->bytesnum is %lu\n", dma_ctrl->period,
+		"dma_ctrl->period is %u, dma_ctrl->periodsz bytes is %lu,dma_ctrl->bytesnum is %lu\n", dma_ctrl->period,
 		dma_ctrl->periodsz, dma_ctrl->bytesnum);
 	dev_dbg(hobot_dma->dev,
 		"dma_ctrl->start is 0x%llx,dma_ctrl->end is 0x%llx\n",
 		dma_ctrl->start, dma_ctrl->end);
 	dev_dbg(hobot_dma->dev,
-		"dma_ctrl->buffer_num is %d\n", dma_ctrl->buffer_num);
+		"dma_ctrl->buffer_num is %lu\n", dma_ctrl->buffer_num);
 
 	/* set dma cb */
 	i2sidma_setcallbk(substream, i2sidma_done);
@@ -654,7 +651,7 @@ static snd_pcm_uframes_t i2sidma_pointer(struct snd_pcm_substream *substream)
 	res = src - dma_ctrl->start;
 
 	if (tstamp_mode == 1 && substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
-		uint8_t count;
+		unsigned long count;
 		struct timespec curr_tstamp;
 		snd_pcm_uframes_t hw_ptr;
 		hw_ptr = runtime->status->hw_ptr / runtime->period_size;
@@ -729,9 +726,11 @@ static irqreturn_t iis_irq0(int irqno, void *dev_id)
 {
 	struct idma_ctrl_s *dma_ctrl = (struct idma_ctrl_s *)dev_id;
 	u32 intstatus;
-	u32	addr = 0;
+	dma_addr_t	addr = 0;
 	uint8_t errsta = 0;
 	uint8_t i = 0;
+	struct snd_pcm_substream *substream;
+	struct idma_ctrl_s *dma_ctrl_seed;
 
 	intstatus = readl(hobot_i2sidma[dma_ctrl->id].regaddr_rx + I2S_SRCPND);
 
@@ -816,9 +815,9 @@ static irqreturn_t iis_irq0(int irqno, void *dev_id)
 	for (i = 1; i < I2S_PROCESS_NUM; i++) {
 		if (!global_info[dma_ctrl->id].process_info[i].substream)
 			continue;
-		struct snd_pcm_substream *substream =
+		substream =
 			global_info[dma_ctrl->id].process_info[i].substream;
-		struct idma_ctrl_s *dma_ctrl_seed = substream->runtime->private_data;
+		dma_ctrl_seed = substream->runtime->private_data;
 		if (!dma_ctrl_seed || !dma_ctrl_seed->token) {
 			continue;
 		}
@@ -838,7 +837,7 @@ static irqreturn_t iis_irq1(int irqno, void *dev_id)
 {
 	struct idma_ctrl_s *dma_ctrl = (struct idma_ctrl_s *)dev_id;
 	u32 intstatus;
-	u32	addr = 0;
+	dma_addr_t	addr = 0;
 	uint8_t errsta = 0;
 
 	intstatus = readl(hobot_i2sidma[dma_ctrl->id].regaddr_tx + I2S_SRCPND);
@@ -937,7 +936,6 @@ static int i2sidma_open(struct snd_pcm_substream *substream)
 	unsigned long flags;
 	int ret;
 	uint8_t i;
-	uint8_t id_index;
 
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct snd_soc_pcm_runtime *soc_runtime = substream->private_data;
@@ -1249,7 +1247,7 @@ static int asoc_i2sidma_platform_probe(struct platform_device *pdev)
 			devm_ioremap(&pdev->dev, res->start, resource_size(res));
 		if (IS_ERR(hobot_i2sidma[id].regaddr_rx)) {
 			dev_err(&pdev->dev, "Failed to ioremap regaddr_rx!\n");
-			return PTR_ERR(hobot_i2sidma[id].regaddr_rx);
+			return PTR_ERR_OR_ZERO(hobot_i2sidma[id].regaddr_rx);
 		}
 		res = NULL;
 		res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
@@ -1261,7 +1259,7 @@ static int asoc_i2sidma_platform_probe(struct platform_device *pdev)
 			devm_ioremap(&pdev->dev, res->start, resource_size(res));
 		if (IS_ERR(hobot_i2sidma[id].regaddr_tx)) {
 			dev_err(&pdev->dev, "Failed to ioremap regaddr_tx!\n");
-			return PTR_ERR(hobot_i2sidma[id].regaddr_tx);
+			return PTR_ERR_OR_ZERO(hobot_i2sidma[id].regaddr_tx);
 		}
 
 		res = NULL;
@@ -1315,7 +1313,7 @@ static int asoc_i2sidma_platform_probe(struct platform_device *pdev)
 	ret =  devm_snd_soc_register_platform(&pdev->dev,
 					      &asoc_i2sidma_platform[id]);
 #ifdef CONFIG_HOBOT_DIAG
-	if (diag_register(ModuleDiag_sound, EventIdSoundI2s0Err + id,
+	if (diag_register(ModuleDiag_sound, (uint16_t)(EventIdSoundI2s0Err + (uint16_t)(id)),
 				5, DIAG_MSG_INTERVAL_MIN, DIAG_MSG_INTERVAL_MAX, NULL) < 0)
 		dev_err(&pdev->dev, "i2s%d diag register fail\n", EventIdSoundI2s0Err + id);
 #endif
