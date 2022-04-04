@@ -2489,15 +2489,11 @@ void gtp_get_chip_type(struct goodix_ts_data *ts)
  */
 static void gtp_parse_dt(struct device *dev)
 {
-#if 0
 	struct device_node *np = dev->of_node;
 
 	gtp_int_gpio = of_get_named_gpio(np, "irq-gpio", 0);
 	gtp_rst_gpio = of_get_named_gpio(np, "rst-gpio", 0);
-#else
-	gtp_rst_gpio = GTP_RST_PORT;
-	gtp_int_gpio = GTP_INT_PORT;
-#endif
+
 	GTP_INFO("GTP get gpio %d %d\n", gtp_int_gpio, gtp_rst_gpio);
 }
 
@@ -3366,6 +3362,7 @@ static void gtp_esd_check_func(struct work_struct *work)
 #ifdef GTP_CONFIG_OF
 static const struct of_device_id goodix_match_table[] = {
 		{.compatible = "goodix,gt9xx",},
+		{.compatible = "goodix,gt911",},
 		{ },
 };
 #endif
@@ -3422,8 +3419,8 @@ static int __init goodix_ts_init(void)
 	gtp_esd_check_workqueue = create_workqueue("gtp_esd_check");
 #endif
 	//ret = i2c_register_board_info(0, gt9xx_info, ARRAY_SIZE(gt9xx_info));
-	i2c_adap = i2c_get_adapter(1);
-	i2c_new_device(i2c_adap, &gt9xx_info);
+	/*i2c_adap = i2c_get_adapter(1);*/
+	/*i2c_new_device(i2c_adap, &gt9xx_info);*/
 
 	GTP_INFO("i2c_register_board_info, ret=%d\n", ret);
 	ret = i2c_add_driver(&goodix_ts_driver);

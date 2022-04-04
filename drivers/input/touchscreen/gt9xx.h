@@ -49,7 +49,7 @@
 #endif
 
 
-// #define GTP_CONFIG_OF
+#define GTP_CONFIG_OF
 
 //***************************PART1:ON/OFF define*******************************
 #define GTP_CUSTOM_CFG		1	
