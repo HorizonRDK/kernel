@@ -306,6 +306,12 @@
 			status = "disabled";
 		};
 
+		extcon_vbus: extcon_vbus {
+			compatible = "linux,extcon-vbus-gpio";
+
+			status = "disabled";
+		};
+
 		dwc3_powersave: dwc3-powersave {
 			compatible = "hobot,dwc3-powersave";
 			usb = <&usbdrd3_0>;

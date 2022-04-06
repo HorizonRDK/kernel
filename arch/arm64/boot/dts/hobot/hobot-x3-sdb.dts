@@ -75,8 +75,9 @@
 
 		gpios = &gpios;
 		usb_id = &usb_id;
+		extcon_vbus = &extcon_vbus;
 
-        power = &power;
+		power = &power;
 
 	};
 
@@ -287,6 +288,16 @@
 	id-gpio = <&gpios 65 GPIO_ACTIVE_HIGH>;
 	host-rst-gpio = <&gpios 115 GPIO_ACTIVE_HIGH>;
 	host-exrst-gpio = <&gpios 4 GPIO_ACTIVE_LOW>;
+};
+
+&extcon_vbus {
+	status = "disabled";
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&vbus_detect_function>;
+
+	gpio-mode = <0x1>;	/* 1: poll mode, 2: interrupt mode */
+	vbus-gpio = <&gpios 22 GPIO_ACTIVE_HIGH>;
 };
 
 &gpios {

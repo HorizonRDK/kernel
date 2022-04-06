@@ -681,6 +681,12 @@
 					0x104	 (MUX_F3 | DRIVE1_03MA | SCHMITT1_ENA | PULL1_UP) /* usb id pin */
 				>;
 			};
+
+			vbus_detect_function: vbus_detect_function {
+				pinctrl-single,pins = <
+					0x058	 (MUX_F3 | DRIVE2_06MA | SCHMITT2_ENA | PULL2_DIS ) /* vbus detect pin */
+				>;
+			};
 		};
 	};
 };

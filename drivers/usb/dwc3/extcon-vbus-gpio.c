@@ -80,7 +80,7 @@ static int vbus_find_match(struct device *dev, void *data)
 static int vbus_find_device(void)
 {
 	struct find_data data = {0};
-	u8 *usb_name = "b2000000.usb";
+	u8 *usb_name = "b2000000.dwc3";
 
 	memcpy(data.name, usb_name, strlen(usb_name));
 	return bus_for_each_dev(&platform_bus_type, NULL, &data,
