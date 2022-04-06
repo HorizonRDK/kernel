@@ -2838,7 +2838,6 @@ static int goodix_ts_remove(struct i2c_client *client)
 
 #endif /* if 0 */
 	GTP_INFO("GTP driver removing...");
-	i2c_set_clientdata(client, NULL);
 	input_unregister_device(ts->input_dev);
 	kfree(ts);
 

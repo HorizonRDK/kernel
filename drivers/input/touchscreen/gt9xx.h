@@ -81,7 +81,7 @@
 #define GTP_COMPATIBLE_MODE   0	// compatible with GT9XXF
 
 //#define GTP_CREATE_WR_NODE	1
-#define GTP_ESD_PROTECT	   1	// esd protection with a cycle of 2 seconds
+//#define GTP_ESD_PROTECT	   1	// esd protection with a cycle of 2 seconds
 
 #define GTP_WITH_HOVER		0	//pen surrport hover or not 1:enable 0 disable
 
