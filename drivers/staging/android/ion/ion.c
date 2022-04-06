@@ -1105,36 +1105,27 @@ static int ion_debug_client_show(struct seq_file *s, void *unused)
 {
 	struct ion_client *client = s->private;
 	struct rb_node *n;
-	size_t sizes[ION_NUM_HEAP_IDS] = {0};
-	const char *names[ION_NUM_HEAP_IDS] = {NULL};
-	int i;
-	size_t len = 0;
-	phys_addr_t paddr = 0;
+
+	seq_printf(s, "%16.16s: %16.16s : %16.16s : %16.16s : %16.16s : %16.16s : %16.16s : %16.20s\n",
+		   "heap_name", "size_in_bytes", "handle refcount", "handle import",
+		   "buffer ptr", "buffer refcount", "buffer share id",
+		   "buffer share count");
 
 	mutex_lock(&client->lock);
 	for (n = rb_first(&client->handles); n; n = rb_next(n)) {
 		struct ion_handle *handle = rb_entry(n, struct ion_handle,
 						     node);
 
-		if (!names[id])
-			names[id] = handle->buffer->heap->name;
-		sizes[id] += handle->buffer->size;
+		seq_printf(s, "%16.16s: %16zx : %16d : %16d : %16pK : %16d: %16d : %16d",
+			   handle->buffer->heap->name,
+			   handle->buffer->size,
+			   kref_read(&handle->ref),
+			   handle->import_cnt,
+			   handle->buffer,
+			   kref_read(&handle->buffer->ref),
+			   handle->share_id, handle->sh_hd->client_cnt);
 
-		if (handle->buffer->heap->ops->phys)
-			handle->buffer->heap->ops->phys(handle->buffer->heap,
-				handle->buffer, &paddr, &len);
-		else
-			pr_err("%s: ion_phys is not implemented by this heap (name=%s, type=%d).\n",
-			__func__, handle->buffer->heap->name, handle->buffer->heap->type);
-	}
-	mutex_unlock(&client->lock);
-
-	seq_printf(s, "%16.16s: %16.16s %16.16s\n", "heap_name",
-		"paddr", "size_in_bytes");
-	for (i = 0; i < ION_NUM_HEAP_IDS; i++) {
-		if (!names[i])
-			continue;
-		seq_printf(s, "%16.16s: %#*llx %16zu\n", names[i], 16, paddr, sizes[i]);
+		seq_puts(s, "\n");
 	}
 	mutex_unlock(&client->lock);
 	return 0;
@@ -2099,8 +2090,6 @@ static int ion_debug_heap_show(struct seq_file *s, void *unused)
 	int datatype = 0;
 	char iontype[32];
 	char *ptrtype;
-	size_t len = 0;
-	phys_addr_t paddr = 0;
 
 	seq_printf(s, "%16s %16s %16s\n", "client", "pid", "size");
 	seq_puts(s, "----------------------------------------------------\n");
@@ -2156,23 +2145,19 @@ static int ion_debug_heap_show(struct seq_file *s, void *unused)
 		} else {
 			ptrtype = "other";
 		}
-		if (buffer->heap->ops->phys)
-			buffer->heap->ops->phys(buffer->heap, buffer, &paddr, &len);
-		else
-			pr_err("%s: ion_phys is not implemented by this heap (name=%s, type=%d).\n",
-			__func__, buffer->heap->name, buffer->heap->type);
+
 		if (!buffer->handle_count) {
-			seq_printf(s, "%16s %16u %16s %#*llx %16zu %d orphaned\n",
+			seq_printf(s, "%16s %16u %16s %16zu %d orphaned\n",
 				buffer->task_comm, buffer->pid,
 				ptrtype,
-				16, paddr, buffer->size, buffer->kmap_cnt);
+				buffer->size, buffer->kmap_cnt);
 				/* atomic_read(&buffer->ref.refcount)); */
 			total_orphaned_size += buffer->size;
 		} else {
-			seq_printf(s, "%16s %16u %16s %#*llx %16zu %d\n",
+			seq_printf(s, "%16s %16u %16s %16zu %d\n",
 				buffer->task_comm, buffer->pid,
 				ptrtype,
-				16, paddr, buffer->size, buffer->kmap_cnt);
+				buffer->size, buffer->kmap_cnt);
 		}
 	}
 
