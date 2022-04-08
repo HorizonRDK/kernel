@@ -1412,6 +1412,9 @@ static int hobot_dma_dpm_callback(struct hobot_dpm *self,
 	if (IS_ERR(dma))
 		return -ENODEV;
 
+	/* The parameter of tx/rx in dummy dma is NULL, so return early */
+	if (!dma->regaddr_tx || !dma->regaddr_rx)
+		return ret;
 	if (event == HB_BUS_SIGNAL_START) {
 		if (dma->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 			value = readl(dma->regaddr_tx + I2S_CTL);
