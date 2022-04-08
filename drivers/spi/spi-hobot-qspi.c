@@ -63,7 +63,7 @@ struct hb_qspi {
 	struct mutex xfer_lock;
 	struct hobot_dpm hbqspi_dpm;
 #endif
-	uint32_t ref_clk;
+	uint64_t ref_clk;
 #ifndef CONFIG_HOBOT_FPGA_X3
 	struct clk *hclk;
 #endif
@@ -174,9 +174,9 @@ static inline void hb_qspi_cfg_line_mode(struct hb_qspi *hbqspi,
 		if ((line_mode == SPI_RX_QUAD) || (line_mode == SPI_TX_QUAD)) {
 			val = hb_qspi_rd_reg(hbqspi, HB_QSPI_DQM_REG);
 			val &=
-			    ~(HB_QSPI_HOLD_OUTPUT | HB_QSPI_HOLD_OE | HB_QSPI_HOLD_CTL
-			      | HB_QSPI_WP_OUTPUT | HB_QSPI_WP_OE | HB_QSPI_WP_CTL
-				  | HB_QSPI_DUAL_EN);
+			    (uint32_t)~(HB_QSPI_HOLD_OUTPUT | HB_QSPI_HOLD_OE
+			      | HB_QSPI_HOLD_CTL | HB_QSPI_WP_OUTPUT | HB_QSPI_WP_OE
+				  | HB_QSPI_WP_CTL | HB_QSPI_DUAL_EN);
 			val |= HB_QSPI_QUAD_EN;
 			hb_qspi_wr_reg(hbqspi, HB_QSPI_DQM_REG, val);
 		}
@@ -251,7 +251,7 @@ static inline void hb_qspi_batch_mode_set(struct hb_qspi *hbqspi, bool enable)
 
 	val = hb_qspi_rd_reg(hbqspi, HB_QSPI_CTL3_REG);
 	if (enable)
-		val &= ~HB_QSPI_BATCH_DIS;
+		val &= (uint32_t)~HB_QSPI_BATCH_DIS;
 	else
 		val |= HB_QSPI_BATCH_DIS;
 	hb_qspi_wr_reg(hbqspi, HB_QSPI_CTL3_REG, val);
@@ -275,7 +275,7 @@ static void hb_qspi_set_speed(struct hb_qspi *hbqspi)
 	hbqspi->ref_clk = clk_get_rate(hbqspi->hclk);
 
 	/* The maxmium of prescale is 16, according to spec. */
-	div_min = hbqspi->ref_clk / hbqspi->sclk / 16;
+	div_min = (uint32_t)(hbqspi->ref_clk / hbqspi->sclk / 16);
 	if (div_min >= (1 << 16)) {
 		pr_err("error: Invalid QSpi freq\r\n");
 		/* Return a max scaler. */
@@ -287,11 +287,11 @@ static void hb_qspi_set_speed(struct hb_qspi *hbqspi)
 		div_min >>= 1;
 		div++;
 	}
-	scaler = ((hbqspi->ref_clk / hbqspi->sclk) / (2 << div)) - 1;
+	scaler = (uint32_t)(((hbqspi->ref_clk / hbqspi->sclk) / (2 << div)) - 1);
 	sclk_val = SCLK_VAL(div, scaler);
 	hb_qspi_wr_reg(hbqspi, HB_QSPI_BDR_REG, sclk_val);
-	hbqspi->sclk = hbqspi->ref_clk / ((scaler + 1) * (2 << div));
-	dev_dbg(hbqspi->dev, "hbqspi sclk_con val:0x%x, hclk %d, sclk %d\n",
+	hbqspi->sclk = (uint32_t)(hbqspi->ref_clk / ((scaler + 1) * (2 << div)));
+	dev_dbg(hbqspi->dev, "hbqspi sclk_con val:0x%x, hclk %llu, sclk %u\n",
 			 sclk_val, hbqspi->ref_clk, hbqspi->sclk);
 }
 
@@ -452,9 +452,9 @@ static inline int hb_qspi_setup(struct spi_device *qspi)
 }
 
 static inline int hb_qspi_rd_byte(struct hb_qspi *hbqspi,
-								void *pbuf, uint32_t len)
+								void *pbuf, int len)
 {
-	int64_t i, ret = len;
+	int i, ret = len;
 	uint8_t *dbuf = (uint8_t *) pbuf;
 
 	hb_qspi_reset_fifo(hbqspi);
@@ -491,10 +491,10 @@ rd_err:
 }
 
 static inline int hb_qspi_rd_batch(struct hb_qspi *hbqspi,
-									void *pbuf, uint32_t len)
+									void *pbuf, int len)
 {
-	uint32_t rx_len, offset = 0;
-	int64_t i, len_remain = (int64_t)len, ret = 0;
+	int rx_len, offset = 0;
+	int i, len_remain = len, ret = 0;
 	uint32_t *dbuf = (uint32_t *) pbuf;
 
 	hb_qspi_reset_fifo(hbqspi);
@@ -514,7 +514,7 @@ static inline int hb_qspi_rd_batch(struct hb_qspi *hbqspi,
 		for (i = 0; i < rx_len; i += 8) {
 			if (hb_qspi_check_status(hbqspi, HB_QSPI_ST1_REG,
 								HB_QSPI_RX_AF, HB_QSPI_TIMEOUT_US)) {
-				pr_err("%s:%d rx batch fill timeout! len=%u, recv=%lld\n",
+				pr_err("%s:%d rx batch fill timeout! len=%d, recv=%d\n",
 					__func__, __LINE__, len, i);
 				goto rb_err;
 			}
@@ -524,13 +524,13 @@ static inline int hb_qspi_rd_batch(struct hb_qspi *hbqspi,
 #ifdef HB_QSPI_WORK_POLL
 		if (hb_qspi_batch_done(hbqspi,
 							  HB_QSPI_RBD, HB_QSPI_TIMEOUT_US)) {
-			pr_info("%s:%d poll rx batch comp timeout! len=%u, received=%lld\n",
+			pr_info("%s:%d poll rx batch comp timeout! len=%d, received=%d\n",
 					__func__, __LINE__, len, i);
 		}
 #else
 		if (!wait_for_completion_timeout(&hbqspi->xfer_complete,
 									msecs_to_jiffies(HB_QSPI_TIMEOUT_MS))) {
-			pr_info("%s:%d rx batch comp timeout! len=%u, received=%lld\n",
+			pr_info("%s:%d rx batch comp timeout! len=%d, received=%d\n",
 					__func__, __LINE__, len, i);
 		}
 #endif
@@ -556,9 +556,9 @@ rb_err:
 }
 
 static inline int hb_qspi_wr_byte(struct hb_qspi *hbqspi,
-							const void *pbuf, uint32_t len)
+							const void *pbuf, int len)
 {
-	int64_t i, ret = len;
+	int i, ret = len;
 	uint8_t *dbuf = (uint8_t *) pbuf;
 #if (QSPI_DEBUG > 0)
 #define MAXPRINT 32
@@ -605,10 +605,10 @@ wr_err:
 }
 
 static inline int hb_qspi_wr_batch(struct hb_qspi *hbqspi,
-							const void *pbuf, uint32_t len)
+							const void *pbuf, int len)
 {
-	uint32_t tx_len, offset = 0;
-	int64_t i, len_remain = (int64_t)len, ret = 0;
+	int tx_len, offset = 0;
+	int i, len_remain = len, ret = 0;
 	uint32_t *dbuf = (uint32_t *) pbuf;
 #if (QSPI_DEBUG > 0)
 #define MAXPRINT 32
@@ -639,7 +639,7 @@ static inline int hb_qspi_wr_batch(struct hb_qspi *hbqspi,
 		for (i = 0; i < tx_len; i += 8) {
 			if (hb_qspi_check_status(hbqspi, HB_QSPI_ST1_REG,
 								  HB_QSPI_TX_AE, HB_QSPI_TIMEOUT_US)) {
-				pr_err("%s:%d tx batch fill timeout! len=%u, received=%lld\n",
+				pr_err("%s:%d tx batch fill timeout! len=%d, received=%d\n",
 					__func__, __LINE__, len, i);
 				goto tb_err;
 			}
@@ -649,13 +649,13 @@ static inline int hb_qspi_wr_batch(struct hb_qspi *hbqspi,
 #ifdef HB_QSPI_WORK_POLL
 		if (hb_qspi_batch_done(hbqspi,
 							  HB_QSPI_TBD, HB_QSPI_TIMEOUT_US)) {
-			pr_err("%s:%d poll tx batch comp timeout! len=%u, received=%lld\n",
+			pr_err("%s:%d poll tx batch comp timeout! len=%d, received=%d\n",
 					__func__, __LINE__, len, i);
 		}
 #else
 		if (!wait_for_completion_timeout(&hbqspi->xfer_complete,
 									msecs_to_jiffies(HB_QSPI_TIMEOUT_MS))) {
-			pr_info("%s:%d tx batch comp timeout! len=%u, tansferred=%lld\n",
+			pr_info("%s:%d tx batch comp timeout! len=%d, tansferred=%d\n",
 					__func__, __LINE__, len, i);
 		}
 #endif
@@ -697,10 +697,10 @@ static inline int hb_qspi_start_transfer(struct spi_master *master,
 				  struct spi_device *qspi,
 				  struct spi_transfer *transfer)
 {
-	uint16_t default_mode = 0;
+	uint32_t default_mode = 0;
 	int transfered = 0;
 	struct hb_qspi *hbqspi = spi_master_get_devdata(master);
-	unsigned remainder, residue;
+	int remainder, residue;
 #if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
 	mutex_lock(&(hbqspi->xfer_lock));
 #endif
@@ -800,7 +800,8 @@ static int hb_qspi_exec_mem_op(struct spi_mem *mem,
 				 const struct spi_mem_op *op)
 {
 	struct hb_qspi *hbqspi = spi_controller_get_devdata(mem->spi->master);
-	int ret = 0, remainder = 0, residue = 0, non_data_size = 0, i;
+	int ret = 0, remainder = 0, residue = 0, i;
+	ssize_t non_data_size = 0;
 	uint8_t *non_data_buf = NULL, *tmp_ptr;
 #if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
 	mutex_lock(&(hbqspi->xfer_lock));
@@ -826,8 +827,8 @@ static int hb_qspi_exec_mem_op(struct spi_mem *mem,
 	if (op->addr.nbytes) {
 		memset(tmp_ptr, 0, sizeof(op->addr.nbytes));
 		for (i = 0; i < op->addr.nbytes; i++)
-			tmp_ptr[i] = op->addr.val >>
-					(8 * (op->addr.nbytes - i - 1));
+			tmp_ptr[i] = (uint8_t)(op->addr.val >>
+					(8 * (op->addr.nbytes - i - 1)));
 
 		tmp_ptr += op->addr.nbytes;
 	}
@@ -849,7 +850,7 @@ static int hb_qspi_exec_mem_op(struct spi_mem *mem,
 		op->addr.buswidth == 4 ? SPI_TX_QUAD : SPI_TX_DUAL,
 		op->addr.buswidth == 1 ? false : true);
 	ret += hb_qspi_wr_byte(hbqspi, hbqspi->txbuf,
-					non_data_size - sizeof(op->cmd.opcode));
+					(int)(non_data_size - sizeof(op->cmd.opcode)));
 
 	if(ret != non_data_size) {
 		ret = -1;
@@ -904,7 +905,7 @@ exec_end:
 				op->cmd.opcode, ret);
 
 #ifdef CONFIG_HOBOT_DIAG
-	hb_qspiflash_diag_report(ret, op->cmd.opcode);
+	hb_qspiflash_diag_report((uint8_t)ret, op->cmd.opcode);
 #endif
 #if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
 	mutex_unlock(&(hbqspi->xfer_lock));
@@ -1026,13 +1027,13 @@ static irqreturn_t hb_qspi_irq_handler(int irq, void *dev_id)
 {
 #ifdef CONFIG_HOBOT_DIAG
 	uint32_t err_status;
-	int err = 0;
+	uint8_t err = 0;
 #endif
 	struct hb_qspi *hbqspi = dev_id;
 #ifndef HB_QSPI_WORK_POLL
-	unsigned int irq_status;
+	uint8_t irq_status;
 	/* Read interrupt status */
-	irq_status = hb_qspi_rd_reg(hbqspi, HB_QSPI_ST1_REG);
+	irq_status = (uint8_t)hb_qspi_rd_reg(hbqspi, HB_QSPI_ST1_REG);
 	hb_qspi_wr_reg(hbqspi, HB_QSPI_ST1_REG, HB_QSPI_TBD | HB_QSPI_RBD);
 	if (irq_status & (HB_QSPI_TBD | HB_QSPI_RBD)) {
 		complete(&hbqspi->xfer_complete);
@@ -1047,7 +1048,7 @@ static irqreturn_t hb_qspi_irq_handler(int irq, void *dev_id)
 	if (err_status & (HB_QSPI_RXWR_FULL | HB_QSPI_TXRD_EMPTY))
 		err = 1;
 
-	hb_qspiflash_diag_report(err, err_status);
+	hb_qspiflash_diag_report(err, (uint8_t)err_status);
 #endif /* CONFIG_HOBOT_DIAG */
 #endif /* HB_QSPI_WORK_POLL */
 	hb_qspi_wr_reg(hbqspi, HB_QSPI_ST2_REG,
@@ -1086,7 +1087,7 @@ static int hb_qspi_probe(struct platform_device *pdev)
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	hbqspi->regs = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(hbqspi->regs)) {
-		ret = PTR_ERR(hbqspi->regs);
+		ret = PTR_ERR_OR_ZERO(hbqspi->regs);
 		goto remove_master;
 	}
 
@@ -1096,7 +1097,7 @@ static int hb_qspi_probe(struct platform_device *pdev)
 	hbqspi->hclk = devm_clk_get(&pdev->dev, "qspi_aclk");
 	if (IS_ERR(hbqspi->hclk)) {
 		dev_err(dev, "hclk clock not found.\n");
-		ret = PTR_ERR(hbqspi->hclk);
+		ret = PTR_ERR_OR_ZERO(hbqspi->hclk);
 		goto remove_master;
 	}
 
@@ -1137,7 +1138,7 @@ static int hb_qspi_probe(struct platform_device *pdev)
 	if (ret < 0)
 		master->num_chipselect = HB_QSPI_MAX_CS;
 	else
-		master->num_chipselect = num_cs;
+		master->num_chipselect = (uint16_t)num_cs;
 #ifndef HB_QSPI_WORK_POLL
 	init_completion(&hbqspi->xfer_complete);
 #endif
@@ -1170,7 +1171,7 @@ static int hb_qspi_probe(struct platform_device *pdev)
 	/* QSPI controller initializations */
 	hb_qspi_hw_init(hbqspi);
 
-	pr_debug("hbqspi_refclk:%dHz, hbqspi_sclk:%dHz\n",
+	pr_debug("hbqspi_refclk:%lluHz, hbqspi_sclk:%uHz\n",
 			  hbqspi->ref_clk, hbqspi->sclk);
 	master->setup = hb_qspi_setup;
 	master->set_cs = hb_qspi_chipselect;
@@ -1178,7 +1179,7 @@ static int hb_qspi_probe(struct platform_device *pdev)
 	master->prepare_transfer_hardware = hb_prepare_transfer_hardware;
 	master->unprepare_transfer_hardware = hb_unprepare_transfer_hardware;
 	master->mem_ops = &hb_mem_ops;
-	master->max_speed_hz = hbqspi->sclk;
+	master->max_speed_hz = (uint32_t)hbqspi->sclk;
 	master->bits_per_word_mask = SPI_BPW_MASK(8);
 	master->mode_bits = 0;
 
