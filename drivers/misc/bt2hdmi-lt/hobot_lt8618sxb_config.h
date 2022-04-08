@@ -32,8 +32,8 @@
  * (at your option) any later version.
  */
 
-#ifndef __HOBOT_LT8618SXBCFG_H__
-#define __HOBOT_LT8618SXBCFG_H__
+#ifndef DRIVERS_MISC_BT2HDMI_LT_HOBOT_LT8618SXB_CONFIG_H_
+#define DRIVERS_MISC_BT2HDMI_LT_HOBOT_LT8618SXB_CONFIG_H_
 
 #define _LT8618_
 //#define _LT8618EXB_
@@ -47,22 +47,22 @@
 #define _Read_TV_EDID_
 #endif
 
-#define _YUV_ // _YUV_
+#define _YUV_			// _YUV_
 //#define _RGB888_ // _LVDS_
 //#define _LVDS_
 
 #ifdef _YUV_
 
-#define _BT1120_ // _BT1120_  /  _BT656_
+#define _BT1120_		// _BT1120_  /  _BT656_
 
 #ifdef _BT656_
 //#define _8bit_ // 8bit YC
-#define _10bit_ // 10bit YC
+#define _10bit_			// 10bit YC
 //#define _12bit_ // 12bit YC
 #endif
 
 #ifdef _BT1120_
-#define _16bit_ // 16bit YC
+#define _16bit_			// 16bit YC
 //#define _20bit_  // 20bit YC
 //#define _24bit_ // 24bit YC
 #endif
@@ -118,11 +118,11 @@
 
 //--------------------------------------//
 
-#define _YUV_Low_16bit_YC_Swap_Input 0x12 // D0 ~ D15
-#define _YUV_High_16bit_YC_Swap_Input 0x10 // D8 ~ D23
+#define _YUV_Low_16bit_YC_Swap_Input 0x12	// D0 ~ D15
+#define _YUV_High_16bit_YC_Swap_Input 0x10	// D8 ~ D23
 
-#define _YUV_Low_16bit_YC_No_Swap_Input 0x14 // D0 ~ D15
-#define _YUV_High_16bit_YC_No_Swap_Input 0x11 // D8 ~ D23
+#define _YUV_Low_16bit_YC_No_Swap_Input 0x14	// D0 ~ D15
+#define _YUV_High_16bit_YC_No_Swap_Input 0x11	// D8 ~ D23
 
 //--------------------------------------//
 
@@ -134,77 +134,85 @@
 //--------------------------------------//
 
 // for LT8618SXB
-#define _SXInPut_BGR_ 0x70 // B0~B7[D0:D7];G0~G7[D8:D15];R0~R7[D16:D23];
-#define _SXInPut_GBR_ 0x60 // G0~G7[D0:D7];B0~B7[D8:D15];R0~R7[D16:D23];
+#define _SXInPut_BGR_ 0x70	// B0~B7[D0:D7];G0~G7[D8:D15];R0~R7[D16:D23];
+#define _SXInPut_GBR_ 0x60	// G0~G7[D0:D7];B0~B7[D8:D15];R0~R7[D16:D23];
 
-#define _SXInPut_BRG_ 0x50 // B0~B7[D0:D7];R0~R7[D8:D15];G0~G7[D16:D23];
-#define _SXInPut_RBG_ 0x40 // R0~R7[D0:D7];B0~B7[D8:D15];G0~G7[D16:D23];
+#define _SXInPut_BRG_ 0x50	// B0~B7[D0:D7];R0~R7[D8:D15];G0~G7[D16:D23];
+#define _SXInPut_RBG_ 0x40	// R0~R7[D0:D7];B0~B7[D8:D15];G0~G7[D16:D23];
 
-#define _SXInPut_GRB_ 0x30 // G0~G7[D0:D7];R0~R7[D8:D15];B0~B7[D16:D23];
-#define _SXInPut_RGB_ 0x20 // R0~R7[D0:D7];G0~G7[D8:D15];B0~B7[D16:D23];
+#define _SXInPut_GRB_ 0x30	// G0~G7[D0:D7];R0~R7[D8:D15];B0~B7[D16:D23];
+#define _SXInPut_RGB_ 0x20	// R0~R7[D0:D7];G0~G7[D8:D15];B0~B7[D16:D23];
 
 //--------------------------------------//
 
-//#define _D0_D7_In	0x40    // BT656 input from D0 to D7 of LT8618SXB pins.
-//#define _D8_D15_In	0x00    // BT656 input from D8 to D15 of LT8618SXB pins.
+//#define _D0_D7_In     0x40    // BT656 input from D0 to D7 of LT8618SXB pins.
+//#define _D8_D15_In    0x00    // BT656 input from D8 to D15 of LT8618SXB pins.
 //#define _D16_D23_In 0x60    // BT656 input from D16 to D23 of LT8618SXB pins.
 
 #ifdef _BT656_
 #ifdef _8bit_
 // BT656 8bit
-#define _D0_D7_In_ 0x40 // BT656 input from D0 to D7 of LT8618SXB pins.
-#define _D8_D15_In_ 0x00 // BT656 input from D8 to D15 of LT8618SXB pins.
-#define _D16_D23_In_ 0x60 // BT656 input from D16 to D23 of LT8618SXB pins.
+#define _D0_D7_In_ 0x40		// BT656 input from D0 to D7 of LT8618SXB pins.
+#define _D8_D15_In_ 0x00	// BT656 input from D8 to D15 of LT8618SXB pins.
+#define _D16_D23_In_ 0x60	// BT656 input from D16 to D23 of LT8618SXB pins.
 
 #define _YC_Channel_ _D8_D15_In_
 
-#define _Reg0x8248_D1_D0_ 0x00 // bit1/bit0 = 0:Input data color depth is 8 bit enable for BT
+// bit1/bit0 = 0:Input data color depth is 8 bit enable for BT
+#define _Reg0x8248_D1_D0_ 0x00
 #else
 
 // BT656 10bit/12bit
-#define _D8_D15_In_ 0x00 // BT656 10bit input from D2,D3, D8 to D15 of LT8618SXB. \
-    // BT656 12bit input from D0 to D3, D8 to D15 of LT8618SXB.
 
+// BT656 10bit input from D2,D3, D8 to D15 of LT8618SXB. \
+// BT656 12bit input from D0 to D3, D8 to D15 of LT8618SXB.
+#define _D8_D15_In_ 0x00
 #define _YC_Channel_ _D8_D15_In_
 
 #ifdef _10bit_
-#define _Reg0x8248_D1_D0_ 0x01 // bit1 = 0;bit0 = 1: Input data color depth is 10 bit enable for BT
+// bit1 = 0;bit0 = 1: Input data color depth is 10 bit enable for BT
+#define _Reg0x8248_D1_D0_ 0x01
 #else // 12bit
-#define _Reg0x8248_D1_D0_ 0x02 // bit1 = 1;bit0 = 0: Input data color depth is 12 bit enable for BT
+// bit1 = 1;bit0 = 0: Input data color depth is 12 bit enable for BT
+#define _Reg0x8248_D1_D0_ 0x02
 #endif
 
 #endif
 #endif
 //--------------------------------------//
 
-//#define _D0_D15_In	0x30        // BT1120 input from D0 to D15 of LT8618SXB . // D0 ~ D7 Y ; D8 ~ D15 C
-//#define _D8_D23_In	0x70        // BT1120 input from D8 to D23 of LT8618SXB . // D8 ~ D15 Y ; D16 ~ D23 C
-
-//#define _D0_D15_In_2	0x00    // BT1120 input from D0 to D15 of LT8618SXB . // D0 ~ D7 C ; D8 ~ D15 Y
-//#define _D8_D23_In_2	0x60    // BT1120 input from D8 to D23 of LT8618SXB . // D8 ~ D15 C ; D16 ~ D23 Y
-
 #ifdef _BT1120_
 #ifdef _16bit_
 // BT1120 16bit
-#define _D0_D15_In_ 0x30 // BT1120 input from D0 to D15 of LT8618SXB pins. // D0 ~ D7 Y ; D8 ~ D15 C
-#define _D8_D23_In_ 0x70 // BT1120 input from D8 to D23 of LT8618SXB pins. // D8 ~ D15 Y ; D16 ~ D23 C
+// BT1120 input from D0 to D15 of LT8618SXB pins. // D0 ~ D7 Y ; D8 ~ D15 C
+#define _D0_D15_In_ 0x30
+// BT1120 input from D8 to D23 of LT8618SXB pins. // D8 ~ D15 Y ; D16 ~ D23 C
+#define _D8_D23_In_ 0x70
 
-#define _D0_D15_In_2_ 0x00 // BT1120 input from D0 to D15 of LT8618SXB pins. // D0 ~ D7 C ; D8 ~ D15 Y
-#define _D8_D23_In_2_ 0x60 // BT1120 input from D8 to D23 of LT8618SXB pins. // D8 ~ D15 C ; D16 ~ D23 Y
+// BT1120 input from D0 to D15 of LT8618SXB pins. // D0 ~ D7 C ; D8 ~ D15 Y
+#define _D0_D15_In_2_ 0x00
+// BT1120 input from D8 to D23 of LT8618SXB pins. // D8 ~ D15 C ; D16 ~ D23 Y
+#define _D8_D23_In_2_ 0x60
 
 #define _YC_Channel_ _D8_D23_In_
 
-#define _Reg0x8248_D1_D0_ 0x00 // bit1/bit0 = 0:Input data color depth is 8 bit enable for BT
+// bit1/bit0 = 0:Input data color depth is 8 bit enable for BT
+#define _Reg0x8248_D1_D0_ 0x00
 #else
-
 // BT1120 20bit/24bit
-#define _YC_Channel_ 0x70 // BT1120 10bit input from D2 ~ D3(Y0~Y1),D6 ~ D7(C0~C1),D8 ~ D15(Y2~Y9),D16 ~ D23(C2~C9) of LT8618SXB. \
-    // BT1120 12bit input from D0 ~ D3(Y0~Y3),D4 ~ D7(C0~C3),D8 ~ D15(Y4~Y11),D16 ~ D23(C4~C11) of LT8618SXB.
+// BT1120 10bit input from D2 ~ D3(Y0~Y1),D6 ~ D7(C0~C1), \
+// D8 ~ D15(Y2~Y9),D16 ~ D23(C2~C9) of LT8618SXB. \
+// BT1120 12bit input from D0 ~ D3(Y0~Y3),D4 ~ D7(C0~C3), \
+// D8 ~ D15(Y4~Y11),D16 ~ D23(C4~C11) of LT8618SXB.
+#define _YC_Channel_ 0x70
+
 
 #ifdef _20bit_
-#define _Reg0x8248_D1_D0_ 0x01 // bit1 = 0;bit0 = 1: Input data color depth is 10 bit enable for BT
+// bit1 = 0;bit0 = 1: Input data color depth is 10 bit enable for BT
+#define _Reg0x8248_D1_D0_ 0x01
 #else // 24bit
-#define _Reg0x8248_D1_D0_ 0x02 // bit1 = 1;bit0 = 0: Input data color depth is 12 bit enable for BT
+// bit1 = 1;bit0 = 0: Input data color depth is 12 bit enable for BT
+#define _Reg0x8248_D1_D0_ 0x02
 #endif
 
 #endif
@@ -228,29 +236,24 @@
 #define Color_Ycbcr422 0x12
 
 //--------------------------------------//
-enum {
-    _480P60_ = 0,
-    _576P50_,
+enum { _480P60_ = 0,
+	_576P50_,
+	_720P60_,
+	_720P50_,
+	//  _720P30_,
+	//  _720P25_,
+	_1080P60_,
+	_1080P50_,
+	_1080P30_,
+	//  _1080P25_,
 
-    _720P60_,
-    _720P50_,
-    //	_720P30_,
-    //	_720P25_,
+	//  _1080i60_,
+	//  _1080i50_,
+	_4K30_,			// When setting bt656 input, 4k30 resolution is not supported.
 
-    _1080P60_,
-    _1080P50_,
-    _1080P30_,
-    //	_1080P25_,
-
-    //	_1080i60_,
-    //	_1080i50_,
-
-    _4K30_, // When setting bt656 input, 4k30 resolution is not supported.
-
-    //	_800x600P60_,
-    //	_1024x768P60_,
-
-    Resolution_Num
+	//  _800x600P60_,
+	//  _1024x768P60_,
+	Resolution_Num
 };
 
 #define _No_input_ 0xff
@@ -291,62 +294,62 @@ enum {
 //--------------------------------------//
 #define _VIC_PC 0x00
 
-#define _VIC_480P60 2 // 3
-#define _VIC_576P50 17 // 18
+#define _VIC_480P60 2		// 3
+#define _VIC_576P50 17		// 18
 
-#define _VIC_480i60 8 // 9
-#define _VIC_576i50 23 // 24
+#define _VIC_480i60 8		// 9
+#define _VIC_576i50 23		// 24
 
-#define _VIC_720P60 4 // 69
-#define _VIC_720P50 19 // 68
-#define _VIC_720P30 62 // 67
-#define _VIC_720P25 61 // 66
+#define _VIC_720P60 4		// 69
+#define _VIC_720P50 19		// 68
+#define _VIC_720P30 62		// 67
+#define _VIC_720P25 61		// 66
 
-#define _VIC_1080P60 16 // 76
-#define _VIC_1080P50 31 // 75
+#define _VIC_1080P60 16		// 76
+#define _VIC_1080P50 31		// 75
 
-#define _VIC_1080P30 34 // 74
-#define _VIC_1080P25 33 // 73
-#define _VIC_1080P24 32 // 72
+#define _VIC_1080P30 34		// 74
+#define _VIC_1080P25 33		// 73
+#define _VIC_1080P24 32		// 72
 
 #define _VIC_1080i60 5
 #define _VIC_1080i50 20
 
-#define _VIC_4K30 95 // 105
+#define _VIC_4K30 95		// 105
 
 //=================================//
 
 #ifdef _LT8618SXB_
-#define _LT8618SXB_D0_D7_Bit_Swap_En 0x01 // D0 ~ D7 High / Low bit swap enable
+#define _LT8618SXB_D0_D7_Bit_Swap_En 0x01	// D0~D7 High/Low bit swap enable
 #define _LT8618SXB_D0_D7_Bit_Swap_Dis 0x00
 
-#define _LT8618SXB_D8_D15_Bit_Swap_En 0x02 // D8 ~ D15 High / Low bit swap enable
+#define _LT8618SXB_D8_D15_Bit_Swap_En 0x02	// D8~D15 High/Low bit swap enable
 #define _LT8618SXB_D8_D15_Bit_Swap_Dis 0x00
 
-#define _LT8618SXB_D16_D23_Bit_Swap_En 0x04 //  D16 ~ D23 High / Low bit swap enable
+#define _LT8618SXB_D16_D23_Bit_Swap_En 0x04	// D16~D23 High/Low bit swap enable
 #define _LT8618SXB_D16_D23_Bit_Swap_Dis 0x00
 #endif
 
 enum {
-    H_fp = 0,
-    H_sync,
-    H_bp,
-    H_act,
-    H_tol,
+	H_fp = 0,
+	H_sync,
+	H_bp,
+	H_act,
+	H_tol,
 
-    V_fp,
-    V_sync,
-    V_bp,
-    V_act,
-    V_tol,
+	V_fp,
+	V_sync,
+	V_bp,
+	V_act,
+	V_tol,
 
-    Vic,
+	Vic,
 
-    Pic_Ratio, // Image proportion
+	Pic_Ratio,		// Image proportion
 
-    Clk_bound_SDR, // SDR
-    Clk_bound_DDR // DDR
+	Clk_bound_SDR,		// SDR
+	Clk_bound_DDR		// DDR
 };
 
-#endif
-/************************************** The End Of File **************************************/
+#endif // DRIVERS_MISC_BT2HDMI_LT_HOBOT_LT8618SXB_CONFIG_H_
+/**************************** The End Of File *******************************/

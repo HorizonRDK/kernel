@@ -35,11 +35,11 @@
 extern int display_type;
 
 struct x2_lt8618sxb_s {
-    struct i2c_client* client;
-    struct mutex lt8618sxb_mutex;
+	struct i2c_client *client;
+	struct mutex lt8618sxb_mutex;
 };
 
-extern int LT8618SX_Chip_ID(void);
+extern int LT8618SXB_Chip_ID(void);
 extern void LT8618SX_Initial(void);
 
 #endif

@@ -30,15 +30,24 @@
 
 #include "hobot_lt8618sxb.h"
 
-
 int lt8618sxb_reset_pin = -1;
-struct x2_lt8618sxb_s* g_x2_lt8618sxb;
+struct x2_lt8618sxb_s *g_x2_lt8618sxb;
 
-
-static int x2_lt8618sxb_probe(struct i2c_client* client,
-	const struct i2c_device_id* id)
+static void reset_hdmi_converter(void)
 {
-	struct i2c_adapter* adapter = client->adapter;
+	return;
+}
+
+static int disp_config_hdmi(unsigned short vmode,
+			unsigned short VideoFormat, unsigned short Afs)
+{
+	return 0;
+}
+
+static int x2_lt8618sxb_probe(struct i2c_client *client,
+			const struct i2c_device_id *id)
+{
+	struct i2c_adapter *adapter = client->adapter;
 	int ret = 0;
 
 	pr_debug("x2 lt8618sxb probe start.\n");
@@ -46,15 +55,16 @@ static int x2_lt8618sxb_probe(struct i2c_client* client,
 	if (!i2c_check_functionality(adapter, I2C_FUNC_I2C))
 		return -ENODEV;
 
-	g_x2_lt8618sxb = devm_kzalloc(&client->dev, sizeof(struct x2_lt8618sxb_s),
-		GFP_KERNEL);
+	g_x2_lt8618sxb =
+	    devm_kzalloc(&client->dev, sizeof(struct x2_lt8618sxb_s),
+			 GFP_KERNEL);
 	if (!g_x2_lt8618sxb)
 		return -ENOMEM;
 	g_x2_lt8618sxb->client = client;
 
 	mutex_init(&g_x2_lt8618sxb->lt8618sxb_mutex);
 
-	ret = LT8618SX_Chip_ID();
+	ret = LT8618SXB_Chip_ID();
 	if (ret != 0) {
 		pr_err("not found lt8618sxb device, exit probe!!!\n");
 		goto err;
@@ -63,13 +73,13 @@ static int x2_lt8618sxb_probe(struct i2c_client* client,
 	display_type = HDMI_TYPE;
 
 	ret = of_property_read_u32(client->dev.of_node, "rst_pin",
-			&lt8618sxb_reset_pin);
-	if (ret) {
-		//dev_err(&client->dev, "Failed to get rst_pin %d\n", ret);
-	} else {
+				   &lt8618sxb_reset_pin);
+	if (!ret) {
 		ret = gpio_request(lt8618sxb_reset_pin, "lt8618sxb_rst_pin");
 		if (ret) {
-			//pr_err("%s() Err get reset pin ret= %d\n", __func__, ret);
+			pr_err("%s() Err get reset pin ret= %d\n", __func__,
+			       ret);
+			goto err;
 		}
 	}
 
@@ -81,6 +91,9 @@ static int x2_lt8618sxb_probe(struct i2c_client* client,
 
 	LT8618SX_Initial();
 
+	hdmi_register_config_callback(disp_config_hdmi);
+	hdmi_register_stop_output_callback(reset_hdmi_converter);
+
 	pr_debug("x2_lt8618sxb probe OK!!!\n");
 	return 0;
 
@@ -90,11 +103,12 @@ err:
 	return ret;
 }
 
-static int x2_lt8618sxb_remove(struct i2c_client* client)
+static int x2_lt8618sxb_remove(struct i2c_client *client)
 {
-	struct x2_lt8618sxb_s* x2_lt8618sxb = i2c_get_clientdata(client);
+	struct x2_lt8618sxb_s *x2_lt8618sxb = i2c_get_clientdata(client);
 	if (x2_lt8618sxb)
 		devm_kfree(&client->dev, x2_lt8618sxb);
+	gpio_free(lt8618sxb_reset_pin);
 	return 0;
 }
 
@@ -102,16 +116,18 @@ static const struct of_device_id x2_lt8618sxb_of_match[] = {
 	{ .compatible = "lt,lt8618sxb", .data = NULL },
 	{}
 };
+
 MODULE_DEVICE_TABLE(of, x2_lt8618sxb_of_match);
 
 static struct i2c_driver x2_lt8618sxb_driver = {
 	.driver = {
-		.name = "x2_lt8618sxb",
-		.of_match_table = x2_lt8618sxb_of_match,
-	},
+		   .name = "x2_lt8618sxb",
+		   .of_match_table = x2_lt8618sxb_of_match,
+		   },
 	.probe = x2_lt8618sxb_probe,
 	.remove = x2_lt8618sxb_remove,
 };
+
 module_i2c_driver(x2_lt8618sxb_driver);
 
 MODULE_DESCRIPTION("x2_lt8618sxb_converter_driver");
