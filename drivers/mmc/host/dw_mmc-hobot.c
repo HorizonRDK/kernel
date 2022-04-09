@@ -25,6 +25,7 @@
 #include <linux/mmc/slot-gpio.h>
 #include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
+#include <linux/err.h>
 
 #include "dw_mmc.h"
 #include "dw_mmc-pltfm.h"
@@ -502,7 +503,7 @@ static void dw_mci_hb_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 
 	bus_hz = clk_get_rate(host->ciu_clk);
 	if (bus_hz != host->bus_hz) {
-		host->bus_hz = bus_hz;
+		host->bus_hz = (u32)bus_hz;
 		/* force dw_mci_setup_bus() */
 		host->current_speed = 0;
 	}
@@ -611,11 +612,11 @@ static int dw_mci_hb_parse_dt(struct dw_mci *host)
 
 	priv->sysctrl_reg = ioremap(HOBOT_SYSCTRL_REG, 0x400);
 	if (IS_ERR(priv->sysctrl_reg))
-		return PTR_ERR(priv->sysctrl_reg);
+		return PTR_ERR_OR_ZERO(priv->sysctrl_reg);
 
 	priv->padcctrl_reg = ioremap(HOBOT_PDACCTRL_REG, 0x200);
 	if (IS_ERR(priv->padcctrl_reg))
-		return PTR_ERR(priv->padcctrl_reg);
+		return PTR_ERR_OR_ZERO(priv->padcctrl_reg);
 
 	priv->uhs_180v_gpio = 0;
 	priv->uhs_180v_logic = 0;
@@ -775,7 +776,7 @@ static int dw_mci_hb_switch_voltage(struct mmc_host *mmc, struct mmc_ios *ios)
 	struct dw_mci_slot *slot = mmc_priv(mmc);
 	struct dw_mci *host = slot->host;
 	struct dw_mci_hobot_priv_data *priv = host->priv;
-	u32 v18 = SDMMC_UHS_18V << slot->id;
+	u32 v18 = (u32)(SDMMC_UHS_18V << slot->id);
 	int ret = 0;
 	u32 uhs;
 

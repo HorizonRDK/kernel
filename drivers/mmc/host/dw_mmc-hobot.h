@@ -27,9 +27,9 @@ struct dw_mci_hobot_priv_data {
 	u32 powerup_gpio;
 	u32 powerup_logic;
 	u32 ctrl_id;
-	u8 current_drv_phase;
-	u8 current_sample_phase;
-	u8 current_phase_cnt;
+	int current_drv_phase;
+	int current_sample_phase;
+	int current_phase_cnt;
 	struct pinctrl *pin_ctrl;
 	struct pinctrl_state *pin_state_1_8v;
 	struct pinctrl_state *pin_state_3_3v;
