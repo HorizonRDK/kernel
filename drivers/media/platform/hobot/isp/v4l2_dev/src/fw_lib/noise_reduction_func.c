@@ -115,7 +115,7 @@ void stitching_error_calculate( noise_reduction_fsm_t *p_fsm )
 
 
     //change to MC off mode when gain is higher than gain_log2 value found in calibration
-    uint16_t MC_off_enable_gain = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_FS_MC_OFF )[0];
+    uint16_t MC_off_enable_gain = _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_FS_MC_OFF )[0];
 
     if ( log2_gain > MC_off_enable_gain ) {
         acamera_isp_frame_stitch_mcoff_mode_enable_write( p_fsm->cmn.isp_base, 1 );

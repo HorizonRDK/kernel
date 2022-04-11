@@ -630,16 +630,37 @@ static int32_t mipi_dev_configure_ipi(mipi_ddev_t *ddev, mipi_dev_cfg_t *cfg)
  */
 static int32_t mipi_dev_configure_cmp(mipi_dev_cfg_t *scfg, mipi_dev_cfg_t *dcfg)
 {
-	mipi_dev_cfg_t bcfg;
+	uint32_t i;
 
-	if (!scfg || !dcfg)
+	if ((scfg == NULL) || (dcfg == NULL)) {
+		/* do not need report */
 		return -1;
+	}
 
-	memcpy(&bcfg, scfg, sizeof(mipi_dev_cfg_t));
-	if (dcfg->ipi_lines == 0)
-		bcfg.ipi_lines = 0;
+	if ((scfg->lane != dcfg->lane) ||
+		(scfg->datatype != dcfg->datatype) ||
+		(scfg->fps != dcfg->fps) ||
+		(scfg->mclk != dcfg->mclk) ||
+		(scfg->mipiclk != dcfg->mipiclk) ||
+		(scfg->width != dcfg->width) ||
+		(scfg->height != dcfg->height) ||
+		(scfg->linelenth != dcfg->linelenth) ||
+		(scfg->framelenth != dcfg->framelenth) ||
+		(scfg->settle != dcfg->settle) ||
+		(scfg->vpg != dcfg->vpg) ||
+		((dcfg->ipi_lines != 0U) && (scfg->ipi_lines != dcfg->ipi_lines)) ||
+		(scfg->channel_num != dcfg->channel_num)) {
+		/* do not need report */
+		return -1;
+	}
+	for (i = 0U; (i < scfg->channel_num) && (i < (uint32_t)MIPIDEV_CHANNEL_NUM); i++) {
+		if (scfg->channel_sel[i] != dcfg->channel_sel[i]) {
+			/* do not need report */
+			return -1;
+		}
+	}
 
-	return memcmp(&bcfg, dcfg, sizeof(mipi_dev_cfg_t));
+	return 0;
 }
 
 /**

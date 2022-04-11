@@ -1222,7 +1222,7 @@ static void sif_disable_wdma(struct sif_subdev *subdev)
 	int i;
 
 	sif = subdev->sif_dev;
-	mux_index = subdev->mux_index;
+	mux_index = subdev->ddr_mux_index % SIF_MUX_MAX;
 	yuv_format = subdev->format;
 
 	sif_set_wdma_enable(sif->base_reg, mux_index, 0);

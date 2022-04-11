@@ -1119,20 +1119,38 @@ static int32_t mipi_host_configure_ipi(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
  */
 static int32_t mipi_host_configure_cmp(mipi_host_cfg_t *scfg, mipi_host_cfg_t *dcfg)
 {
-	mipi_host_cfg_t bcfg;
+	uint32_t i;
 
-	if (!scfg || !dcfg)
+	if ((scfg == NULL) || (dcfg == NULL)) {
+		/* do not need report */
 		return -1;
+	}
 
-	memcpy(&bcfg, scfg, sizeof(mipi_host_cfg_t));
-	if (dcfg->hsaTime == 0)
-		bcfg.hsaTime = 0;
-	if (dcfg->hbpTime == 0)
-		bcfg.hbpTime = 0;
-	if (dcfg->hsdTime == 0)
-		bcfg.hsdTime = 0;
+	if ((scfg->lane != dcfg->lane) ||
+		(scfg->datatype != dcfg->datatype) ||
+		(scfg->fps != dcfg->fps) ||
+		(scfg->mclk != dcfg->mclk) ||
+		(scfg->mipiclk != dcfg->mipiclk) ||
+		(scfg->width != dcfg->width) ||
+		(scfg->height != dcfg->height) ||
+		(scfg->linelenth != dcfg->linelenth) ||
+		(scfg->framelenth != dcfg->framelenth) ||
+		(scfg->settle != dcfg->settle) ||
+		((dcfg->hsaTime != 0U) && (scfg->hsaTime != dcfg->hsaTime)) ||
+		((dcfg->hbpTime != 0U) && (scfg->hbpTime != dcfg->hbpTime)) ||
+		((dcfg->hsdTime != 0U) && (scfg->hsdTime != dcfg->hsdTime)) ||
+		(scfg->channel_num != dcfg->channel_num)) {
+		/* do not need report */
+		return -1;
+	}
+	for (i = 0U; (i < scfg->channel_num) && (i < (uint32_t)MIPIHOST_CHANNEL_NUM); i++) {
+		if (scfg->channel_sel[i] != dcfg->channel_sel[i]) {
+			/* do not need report */
+			return -1;
+		}
+	}
 
-	return memcmp(&bcfg, dcfg, sizeof(mipi_host_cfg_t));
+	return 0;
 }
 
 /**
@@ -2200,7 +2218,7 @@ static irqreturn_t mipi_host_irq_func(int this_irq, void *data)
 #ifdef CONFIG_HOBOT_DIAG
 			errchn = 0xff;
 			errtype = 0xff;
-			if (icnt_n >= 4 || icnt_n <= 9) {
+			if (icnt_n >= 4 && icnt_n <= 9) {
 				/* bndry_frm seq_frm crc_frm pld_crc data_id ecc_corrected */
 				for (errchn = 0; errchn < 32; errchn++) {
 					if (subirq & (0x1 << errchn))

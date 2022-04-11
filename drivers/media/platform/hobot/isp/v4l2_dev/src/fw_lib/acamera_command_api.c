@@ -36,10 +36,17 @@ extern int isp_open_check(void);
 
 uint8_t acamera_command( uint32_t ctx_id, uint8_t command_type, uint8_t command, uint32_t value, uint8_t direction, uint32_t *ret_value){
 acamera_context_ptr_t p_ctx = acamera_get_ctx_ptr(ctx_id);
-if (p_ctx && p_ctx->initialized == 0) {
+
+if (!p_ctx) {
+	pr_err("p_ctx is null.\n");
+	return -1;
+}
+
+if (p_ctx->initialized == 0) {
 	pr_err("context %d is not initialized.\n", ctx_id);
 	return -1;
 }
+
 if (!isp_open_check())
 	return -1;
 

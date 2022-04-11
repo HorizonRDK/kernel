@@ -336,7 +336,7 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 				instance, subdev_id, __func__, atomic_read(&group->node_refcount) );
 	}
 
-	if (atomic_dec_return(&pym->open_cnt) == 0) {
+	if (group && atomic_dec_return(&pym->open_cnt) == 0) {
 		clear_bit(PYM_OTF_INPUT, &pym->state);
 		clear_bit(PYM_DMA_INPUT, &pym->state);
 		clear_bit(PYM_REUSE_SHADOW0, &pym->state);
@@ -373,8 +373,12 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 	spin_unlock_irqrestore(&subdev->slock, flags);
 	kfree(pym_ctx);
 
-	vio_info("[S%d][V%d] proc:%d %s PYM close node done pym open_cnt: %d\n",
+	if (group)
+		vio_info("[S%d][V%d] proc:%d %s PYM close node done pym open_cnt: %d\n",
 			group->instance, subdev_id, proc, __func__, atomic_read(&pym->open_cnt));
+	else
+		vio_err("group is null\n");
+
 	return 0;
 }
 

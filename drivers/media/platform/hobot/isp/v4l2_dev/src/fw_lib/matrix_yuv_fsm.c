@@ -70,13 +70,13 @@ int matrix_yuv_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_
 
     switch ( param_id ) {
     case FSM_PARAM_SET_MATRIX_YUV_FR_OUT_FMT:
-        if ( !input || input_size != sizeof( uint32_t ) ) {
+        if ( !input || input_size != sizeof( uint8_t ) ) {
             LOG( LOG_ERR, "Invalid param, param_id: %d.", param_id );
             rc = -1;
             break;
         }
 
-        p_fsm->fr_pipe_output_format = *(uint32_t *)input;
+        p_fsm->fr_pipe_output_format = *(uint8_t *)input;
         matrix_yuv_update( p_fsm );
         break;
 

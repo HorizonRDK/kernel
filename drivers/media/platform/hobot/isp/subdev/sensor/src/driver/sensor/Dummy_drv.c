@@ -321,7 +321,9 @@ static void sensor_get_parameters(void *ctx, sensor_param_t *param)
 			sensor_ops[p_ctx->channel]->param_enable = 0;
 		}
 	}
-	memcpy(param, info, sizeof(sensor_param_t));
+
+	if (info)
+		memcpy(param, info, sizeof(sensor_param_t));
 }
 
 static void sensor_disable_isp( void *ctx )

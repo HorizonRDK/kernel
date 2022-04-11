@@ -468,7 +468,7 @@ void acamera_reload_isp_calibratons( general_fsm_ptr_t p_fsm )
 
 #if defined(CALIBRATION_SHADING_RADIAL_CENTRE_AND_MULT)
     uint32_t len_cm = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_RADIAL_CENTRE_AND_MULT );
-    uint32_t *radial_shading_lut_cm = _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_RADIAL_CENTRE_AND_MULT );
+    uint16_t *radial_shading_lut_cm = _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_RADIAL_CENTRE_AND_MULT );
 
     if ( len_cm == 16 ) {
         //R

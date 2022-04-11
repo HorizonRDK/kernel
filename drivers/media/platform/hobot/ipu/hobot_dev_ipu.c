@@ -402,7 +402,7 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 		(void)subdev_frame_skip_deinit(subdev);
 	}
 
-	if (atomic_dec_return(&ipu->open_cnt) == 0) {
+	if (group && atomic_dec_return(&ipu->open_cnt) == 0) {
 		vio_dbg("[S%d] ipu last process close\n", instance);
 		clear_bit(IPU_OTF_INPUT, &ipu->state);
 		clear_bit(IPU_DMA_INPUT, &ipu->state);
@@ -452,8 +452,11 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 	kfree(ipu_ctx);
 	vio_rst_mutex_unlock();
 
-	vio_info("[S%d]IPU close node V%d proc %d\n", group->instance,
+	if (group)
+		vio_info("[S%d]IPU close node V%d proc %d\n", group->instance,
 		id, ctx_index);
+	else
+		vio_err("ipu group is null\n");
 
 	return ret;
 }
@@ -4343,10 +4346,10 @@ static irqreturn_t ipu_isr(int irq, void *data)
 				group->frameid.tv = ipu_frame_info[instance].tv;
 				vio_dbg("[S%d] ipu online frame_id %d", instance, frmid.frame_id);
 			}
-		}
 
-		vio_set_stat_info(group->instance, IPU_MOD, event_ipu_fs,
-			group->frameid.frame_id, 0, src_subdev->framemgr.queued_count);
+			vio_set_stat_info(group->instance, IPU_MOD, event_ipu_fs,
+				group->frameid.frame_id, 0, src_subdev->framemgr.queued_count);
+		}
 	}
 
 	if (ipu->frame_drop_count > 20) {

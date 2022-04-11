@@ -185,7 +185,7 @@ static void common_alloc_integration_time(uint8_t chn, uint16_t *int_time,
 		case SENSOR_PWL:
 			sensor_ctl[chn].line_buf[0] = time_L;
 			sensor_ctl[chn].line_num = 1;
-			LOG(LOG_ERR, "linear time is %d", time_L);
+			pr_debug("linear time is %d", time_L);
 		break;
 		case SENSOR_DOL2:
 			sensor_ctl[chn].line_buf[0] = time_L;
@@ -199,10 +199,10 @@ static void common_alloc_integration_time(uint8_t chn, uint16_t *int_time,
 			sensor_ctl[chn].line_num = 3;
 		break;
 		case SENSOR_DOL4:
-			LOG(LOG_ERR, "common subdev pointer is NULL");
+			LOG(LOG_ERR, "dol4 not support now.");
 		break;
 		default:
-			LOG(LOG_ERR, "sensor mode is error");
+			LOG(LOG_ERR, "sensor mode %d is error", sensor_ctl[chn].mode);
 		break;
 		}
 	} else {
@@ -219,13 +219,18 @@ static void common_update(uint8_t chn, struct sensor_priv_old updata)
 	int ret = 0;
 	struct sensor_arg settings;
 
+	if (chn >= FIRMWARE_CONTEXT_NUMBER) {
+		pr_err("chn %d is invalid.\n", chn);
+		return;
+	}
+
 	if (sensor_param[chn].lines_per_second == 0)
 		return;
 
-	if (common_subdev != NULL && chn < FIRMWARE_CONTEXT_NUMBER) {
+	if (common_subdev != NULL) {
 		settings.port = chn;
 		settings.sensor_priv = &sensor_ctl[chn];
-		LOG(LOG_ERR, "chn is %d", chn);
+		pr_debug("chn is %d\n", chn);
 		// Initial local parameters
 		ret = v4l2_subdev_call(common_subdev, core, ioctl,
 			SENSOR_UPDATE, &settings);
@@ -246,7 +251,7 @@ static void sensor_awb_update(uint8_t chn, uint32_t rgain, uint32_t grgain, uint
 		sensor_ctl[chn].gbgain = gbgain;
 		sensor_ctl[chn].bgain = bgain;
 		settings.sensor_priv = &sensor_ctl[chn];
-		LOG(LOG_ERR, "chn is %d", chn);
+		pr_debug("chn is %d", chn);
 		// Initial local parameters
 		ret = v4l2_subdev_call(common_subdev, core, ioctl,
 			SENSOR_AWB_UPDATE, &settings);

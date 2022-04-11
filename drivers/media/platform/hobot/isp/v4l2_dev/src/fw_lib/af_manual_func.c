@@ -56,8 +56,8 @@ int zoom_update_lens_position(AF_fsm_ptr_t p_fsm)
 	uint32_t ret_data = 0;
 
 	//const lens_param_t *lens_param = p_fsm->lens_ctrl.get_parameters(p_fsm->lens_ctx);
-	uint32_t *zoom_param = (uint32_t *)_GET_USHORT_PTR(ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_ZOOM_LMS);
-	uint32_t *zoom_af_param = (uint32_t *)_GET_USHORT_PTR(ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_ZOOM_AF_LMS);
+	uint32_t *zoom_param = _GET_UINT_PTR(ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_ZOOM_LMS);
+	uint32_t *zoom_af_param = _GET_UINT_PTR(ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_ZOOM_AF_LMS);
 	uint32_t zoom_cols = _GET_COLS(ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_ZOOM_LMS);
 	uint32_t zoom_af_rows = _GET_ROWS(ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_ZOOM_AF_LMS);
 
@@ -95,7 +95,7 @@ int zoom_update_lens_position(AF_fsm_ptr_t p_fsm)
 static void af_update_lens_position( AF_fsm_ptr_t p_fsm )
 {
     const lens_param_t *lens_param = p_fsm->lens_ctrl.get_parameters( p_fsm->lens_ctx );
-    af_lms_param_t *param = (af_lms_param_t *)_GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_AF_LMS );
+    af_lms_param_t *param = (af_lms_param_t *)_GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_AF_LMS );
 
     /* the new AF position is updated in sbuf FSM */
     if ( p_fsm->last_position != p_fsm->new_pos ) {
@@ -260,7 +260,7 @@ void AF_init( AF_fsm_ptr_t p_fsm )
             result = ACAMERA_FSM2CTX_PTR( p_fsm )->settings.lens_init( &p_fsm->lens_ctx, &p_fsm->lens_ctrl );
             if ( result != -1 && p_fsm->lens_ctx != NULL ) {
                 //only on lens init success populate param
-                param = (af_lms_param_t *)_GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_AF_LMS );
+                param = (af_lms_param_t *)_GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_AF_LMS );
                 p_fsm->lens_driver_ok = 1;
             } else {
                 p_fsm->lens_driver_ok = 0;

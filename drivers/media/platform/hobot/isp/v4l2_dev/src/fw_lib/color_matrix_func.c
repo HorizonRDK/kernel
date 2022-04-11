@@ -114,7 +114,7 @@ int16_t color_matrix_direct_to_complement( uint16_t v )
     int16_t result;
     result = (int16_t)(v & ( ~( 1 << 15 ) ));
     if ( v & ( 1 << 15 ) )
-        result = (int16_t)(-result);
+        result = -result;
 
     return result;
 }

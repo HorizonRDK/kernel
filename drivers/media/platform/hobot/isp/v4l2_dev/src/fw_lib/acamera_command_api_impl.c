@@ -3910,7 +3910,7 @@ uint8_t sharpening_strength( acamera_fsm_mgr_t *instance, uint32_t value, uint8_
 #ifdef FR_OUTPUT_MODE_ID
 uint8_t fr_output_mode( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t direction, uint32_t *ret_value )
 {
-    uint32_t fr_output_fmt = 0;
+    uint8_t fr_output_fmt = 0;
     *ret_value = 0;
     if ( direction == COMMAND_SET ) {
         switch ( value ) {
