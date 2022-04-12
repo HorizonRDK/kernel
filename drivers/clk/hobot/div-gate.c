@@ -146,7 +146,7 @@ static int div_gate_clk_set_rate(struct clk_hw *hw, unsigned long rate,
 	}
 
 	value = divider_get_val(rate, parent_rate, NULL,
-				clk->div_reg.div_field, clk->flags);
+				(u8)(clk->div_reg.div_field), clk->flags);
 	if (value < 0) {
 		if (clk->lock) {
 		raw_spin_unlock_irqrestore(clk->lock, flags);
@@ -194,7 +194,7 @@ static long div_gate_clk_round_rate(struct clk_hw *hw, unsigned long rate,
 		bestdiv = clk_readl(clk->div_reg.divider_reg) >> (clk->div_reg.div_bits);
 		bestdiv &= div_mask(clk->div_reg.div_field);
 		bestdiv = _get_div(NULL, bestdiv, clk->flags,
-			clk->div_reg.div_field);
+			(u8)(clk->div_reg.div_field));
 		if (clk_hw_get_flags(hw) & CLK_SET_RATE_PARENT) {
 			struct clk_hw *parent = clk_hw_get_parent(hw);
 			*prate = clk_hw_round_rate(parent, rate * bestdiv);
@@ -202,7 +202,7 @@ static long div_gate_clk_round_rate(struct clk_hw *hw, unsigned long rate,
 		return DIV_ROUND_UP_ULL((u64)*prate, bestdiv);
 	}
 	return divider_round_rate(hw, rate, prate, NULL,
-					clk->div_reg.div_field, clk->flags);
+					(u8)(clk->div_reg.div_field), clk->flags);
 }
 
 const struct clk_ops div_gate_clk_ops = {

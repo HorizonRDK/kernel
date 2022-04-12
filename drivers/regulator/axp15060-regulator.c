@@ -364,7 +364,7 @@ static int axp15060_pmic_probe(struct i2c_client *client,
 
 	axp15060->regmap = devm_regmap_init_i2c(client, regmap_config);
 	if (IS_ERR(axp15060->regmap)) {
-		ret = PTR_ERR(axp15060->regmap);
+		ret = PTR_ERR_OR_ZERO(axp15060->regmap);
 		dev_err(dev, "Failed to allocate register map: %d\n", ret);
 		return ret;
 	}
@@ -392,7 +392,7 @@ static int axp15060_pmic_probe(struct i2c_client *client,
 		rdev = devm_regulator_register(dev, desc, &config);
 		if (IS_ERR(rdev)) {
 			dev_err(dev, "failed to register %s\n", desc->name);
-			return PTR_ERR(rdev);
+			return PTR_ERR_OR_ZERO(rdev);
 		}
 	}
 

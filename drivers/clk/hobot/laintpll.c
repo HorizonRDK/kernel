@@ -356,9 +356,9 @@ int laintpll_clk_enable(struct clk_hw *hw)
 		val = readl(clk->reg.pllclk_sel);
 		pr_debug("%d,val:0x%x\n", __LINE__, val);
 		if (clk->reg.reverse)
-			val |= BIT(clk->reg.sel_bit);
+			val |= (u32)(BIT(clk->reg.sel_bit));
 		else
-			val &= ~BIT(clk->reg.sel_bit);
+			val &= (u32)(~BIT(clk->reg.sel_bit));
 		pr_debug("%d,val:0x%x\n", __LINE__, val);
 		writel(val, clk->reg.pllclk_sel);
 	}
@@ -368,7 +368,7 @@ int laintpll_clk_enable(struct clk_hw *hw)
 	if (pd) {
 		val &= (~(1 << PLL_PD_CTRL_PD_BIT)) &
 				(~(1 << PLL_PD_CTRL_FOUTPOSTDIVPD_BIT));
-		val |= BIT(PLL_PD_CTRL_FOUT4PHASEPD_BIT);
+		val |= (u32)(BIT(PLL_PD_CTRL_FOUT4PHASEPD_BIT));
 		pr_debug("%d,val:0x%x\n", __LINE__, val);
 		writel(val, clk->reg.pd_reg);
 		clk_lainpll_wait_lock(clk);
@@ -377,9 +377,9 @@ int laintpll_clk_enable(struct clk_hw *hw)
 	if (clk->reg.sel_bit != 0) {
 		val = readl(clk->reg.pllclk_sel);
 		if (clk->reg.reverse)
-			val &= ~BIT(clk->reg.sel_bit);
+			val &= (u32)(~BIT(clk->reg.sel_bit));
 		else
-			val |= BIT(clk->reg.sel_bit);
+			val |= (u32)(BIT(clk->reg.sel_bit));
 		pr_debug("%d,val:0x%x\n", __LINE__, val);
 		writel(val, clk->reg.pllclk_sel);
 	}
@@ -405,9 +405,9 @@ static void laintpll_clk_disable(struct clk_hw *hw)
 		val = readl(clk->reg.pllclk_sel);
 		pr_debug("%d,val:0x%x\n", __LINE__, val);
 		if (clk->reg.reverse)
-			val |= BIT(clk->reg.sel_bit);
+			val |= (u32)(BIT(clk->reg.sel_bit));
 		else
-			val &= ~BIT(clk->reg.sel_bit);
+			val &= (u32)(~BIT(clk->reg.sel_bit));
 		pr_debug("%d,val:0x%x\n", __LINE__, val);
 		writel(val, clk->reg.pllclk_sel);
 	}

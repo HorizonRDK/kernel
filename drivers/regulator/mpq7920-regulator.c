@@ -380,7 +380,7 @@ static int mpq7920_pmic_probe(struct i2c_client *client,
 
 	mpq7920->regmap = devm_regmap_init_i2c(client, regmap_config);
 	if (IS_ERR(mpq7920->regmap)) {
-		ret = PTR_ERR(mpq7920->regmap);
+		ret = PTR_ERR_OR_ZERO(mpq7920->regmap);
 		dev_err(dev, "Failed to allocate register map: %d\n", ret);
 		return ret;
 	}
@@ -417,7 +417,7 @@ static int mpq7920_pmic_probe(struct i2c_client *client,
 				break;
 			} else if (retry_cnt == 0) {
 				dev_err(dev, "failed to register %s\n", desc->name);
-				return PTR_ERR(rdev);
+				return PTR_ERR_OR_ZERO(rdev);
 			}
 		}
 	}

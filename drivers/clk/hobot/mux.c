@@ -86,7 +86,8 @@ static void __init _of_hobot_mux_clk_setup(struct device_node *node)
 	}
 	spin_lock_init(lock);
 
-	clk_hw = clk_hw_register_mux(NULL, node->name, parent_names, num_parents, flags, reg, offset, field, clk_mux_flags, lock);
+	clk_hw = clk_hw_register_mux(NULL, node->name, parent_names, (u8)num_parents,
+			flags, reg, (u8)offset, (u8)field, (u8)clk_mux_flags, lock);
 	if(IS_ERR(clk_hw)){
 		kfree(parent_names);
 		kfree(lock);

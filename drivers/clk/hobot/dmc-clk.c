@@ -605,7 +605,7 @@ static struct clk *dmc_clk_register(struct device *dev, struct device_node *node
 #endif
 
 	if (IS_ERR(invoke_fn)) {
-		ret = PTR_ERR(invoke_fn);
+		ret = PTR_ERR_OR_ZERO(invoke_fn);
 		goto err_free;
 	}
 	ddrclk->invoke_fn = invoke_fn;

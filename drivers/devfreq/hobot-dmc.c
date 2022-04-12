@@ -94,7 +94,7 @@ static int hobot_dmcfreq_target(struct device *dev, unsigned long *freq,
 	target_rate = *freq;
 	opp = devfreq_recommended_opp(dev, freq, flags);
 	if (IS_ERR(opp))
-		return PTR_ERR(opp);
+		return PTR_ERR_OR_ZERO(opp);
 
 	target_rate = *freq;
 	dev_pm_opp_put(opp);
@@ -247,7 +247,7 @@ static ssize_t method_show(struct device *dev,
 static ssize_t method_store(struct device *dev, struct device_attribute *attr,
 			      const char *buf, size_t count)
 {
-	int ret;
+	ssize_t ret;
 	char ddr_method[DMC_METHOD_LEN];
 	ret = sscanf(buf, "%" __stringify(DMC_METHOD_LEN) "s", ddr_method);
 	if (ret != 1)
@@ -284,7 +284,7 @@ static int hobot_dmcfreq_probe(struct platform_device *pdev)
 	ctx->dmc_clk = devm_clk_get(dev, "dmc_clk");
 	if (IS_ERR(ctx->dmc_clk)) {
 		dev_err(dev, "Cannot get the clk dmc_clk\n");
-		return PTR_ERR(ctx->dmc_clk);
+		return PTR_ERR_OR_ZERO(ctx->dmc_clk);
 	};
 
 	ctx->edev = devfreq_event_get_edev_by_phandle(dev, 0);
@@ -304,7 +304,7 @@ static int hobot_dmcfreq_probe(struct platform_device *pdev)
 
 	opp = devfreq_recommended_opp(dev, &ctx->rate, 0);
 	if (IS_ERR(opp))
-		return PTR_ERR(opp);
+		return PTR_ERR_OR_ZERO(opp);
 
 	ctx->rate = dev_pm_opp_get_freq(opp);
 	dev_pm_opp_put(opp);
@@ -330,7 +330,7 @@ static int hobot_dmcfreq_probe(struct platform_device *pdev)
 					   "simple_ondemand",
 					   &ctx->ondemand_data);
 	if (IS_ERR(ctx->devfreq))
-		return PTR_ERR(ctx->devfreq);
+		return PTR_ERR_OR_ZERO(ctx->devfreq);
 
 	ctx->devfreq->min_freq = ULONG_MAX;
 	ctx->devfreq->max_freq = 0;
@@ -342,7 +342,7 @@ static int hobot_dmcfreq_probe(struct platform_device *pdev)
 	for (i = 0, rate = 0; i < max_opps; i++, rate++) {
 		opp = dev_pm_opp_find_freq_ceil(dev, &rate);
 		if (IS_ERR(opp)) {
-			ret = PTR_ERR(opp);
+			ret = PTR_ERR_OR_ZERO(opp);
 			return ret;
 		}
 		if (ctx->devfreq->min_freq > rate)

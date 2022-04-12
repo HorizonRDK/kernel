@@ -241,7 +241,7 @@ static int pf5024_pmic_probe(struct i2c_client *client,
 
 	pf5024->regmap = devm_regmap_init_i2c(client, regmap_config);
 	if (IS_ERR(pf5024->regmap)) {
-		ret = PTR_ERR(pf5024->regmap);
+		ret = PTR_ERR_OR_ZERO(pf5024->regmap);
 		dev_err(dev, "Failed to allocate register map: %d\n", ret);
 		return ret;
 	}
@@ -269,7 +269,7 @@ static int pf5024_pmic_probe(struct i2c_client *client,
 		rdev = devm_regulator_register(dev, desc, &config);
 		if (IS_ERR(rdev)) {
 			dev_err(dev, "failed to register %s\n", desc->name);
-			return PTR_ERR(rdev);
+			return PTR_ERR_OR_ZERO(rdev);
 		}
 	}
 

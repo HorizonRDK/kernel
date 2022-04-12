@@ -115,7 +115,7 @@ struct hobot_dfi {
 	int record_num, sample_number;
 	/* read bytes per transaction */
 	int rd_cmd_byte;
-	int total;
+	u64 total;
 
 	unsigned int monitor_period; /* in ms */
 };
@@ -276,7 +276,7 @@ static int hobot_dfi_probe(struct platform_device *pdev)
 	data->dmc_clk = devm_clk_get(dev, "dmc_clk");
 	if (IS_ERR(data->dmc_clk)) {
 		dev_err(dev, "Cannot get the clk dmc_clk\n");
-		return PTR_ERR(data->dmc_clk);
+		return PTR_ERR_OR_ZERO(data->dmc_clk);
 	};
 
 	/* every ddr translation will be 64 bit, i.e. 8byte */
@@ -289,7 +289,7 @@ static int hobot_dfi_probe(struct platform_device *pdev)
 		data->base = devm_ioremap_resource(&pdev->dev, res);
 
 	if (IS_ERR_OR_NULL(data->base)) {
-		return PTR_ERR(data->base);
+		return PTR_ERR_OR_ZERO(data->base);
 	}
 
 	irq = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
@@ -306,7 +306,7 @@ static int hobot_dfi_probe(struct platform_device *pdev)
 	data->clk = devm_clk_get(dev, "pclk_ddr_mon");
 	if (IS_ERR(data->clk)) {
 		dev_err(dev, "Cannot get the clk dmc_clk\n");
-		return PTR_ERR(data->clk);
+		return PTR_ERR_OR_ZERO(data->clk);
 	};
 
 	data->dev = dev;
@@ -330,7 +330,7 @@ static int hobot_dfi_probe(struct platform_device *pdev)
 	if (IS_ERR(data->edev)) {
 		dev_err(&pdev->dev,
 			"failed to add devfreq-event device\n");
-		return PTR_ERR(data->edev);
+		return PTR_ERR_OR_ZERO(data->edev);
 	}
 
 

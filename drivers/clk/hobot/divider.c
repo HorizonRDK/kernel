@@ -78,7 +78,8 @@ static void __init _of_hobot_divider_clk_setup(struct device_node *node)
 	}
 	spin_lock_init(lock);
 
-	clk_hw = clk_hw_register_divider(NULL, node->name, parent_name, flags, reg, offset, field, clk_divider_flags, lock);
+	clk_hw = clk_hw_register_divider(NULL, node->name, parent_name, flags, reg,
+			(u8)offset, (u8)field, (u8)clk_divider_flags, lock);
 	if(IS_ERR(clk_hw)){
 		kfree(lock);
 		pr_err("%s: %s failed to register the clock!\n", __func__, node->name);
