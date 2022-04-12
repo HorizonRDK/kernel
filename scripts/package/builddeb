@@ -146,12 +146,14 @@ else
 	cp System.map "$tmpdir/boot/System.map-$version"
 	cp $KCONFIG_CONFIG "$tmpdir/boot/config-$version"
 fi
-cp "$($MAKE -s image_name)" "$tmpdir/$installed_image_path"
+# cp "$($MAKE -s image_name)" "$tmpdir/$installed_image_path"
+$MAKE KBUILD_SRC= INSTALL_PATH="$tmpdir/boot/" install
 
 if grep -q "^CONFIG_OF=y" $KCONFIG_CONFIG ; then
 	# Only some architectures with OF support have this target
 	if grep -q dtbs_install "${srctree}/arch/$SRCARCH/Makefile"; then
 		$MAKE KBUILD_SRC= INSTALL_DTBS_PATH="$tmpdir/usr/lib/$packagename" dtbs_install
+		$MAKE KBUILD_SRC= INSTALL_DTBS_PATH="$tmpdir/boot/" dtbs_install
 	fi
 fi
 
@@ -389,7 +391,7 @@ Description: Linux kernel debugging symbols for $version
  all the necessary debug symbols for the kernel and its modules.
 EOF
 
-	create_package "$dbg_packagename" "$dbg_dir"
+	# create_package "$dbg_packagename" "$dbg_dir"
 fi
 
 if [ "x$1" = "xdeb-pkg" ]
