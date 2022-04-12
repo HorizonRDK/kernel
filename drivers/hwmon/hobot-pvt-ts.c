@@ -276,7 +276,7 @@ static irqreturn_t pvt_irq_handler(int irq, void *dev_id)
 	u32 irq_status = 0;
 	u32 sdif_done = 0;
 	u32 sdif_data = 0;
-	u32 update_ts_bitmap = 0;
+	u64 update_ts_bitmap = 0;
 	static u32 cnt = 0;
 	int i = 0;
 
@@ -442,14 +442,14 @@ static int pvt_probe(struct platform_device *pdev)
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	pvt_dev->reg_base = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(pvt_dev->reg_base))
-		return PTR_ERR(pvt_dev->reg_base);
+		return PTR_ERR_OR_ZERO(pvt_dev->reg_base);
 
 	pr_debug("resource 0 %pr\n", res);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
 	pvt_dev->efuse_base = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(pvt_dev->efuse_base))
-		return PTR_ERR(pvt_dev->efuse_base);
+		return PTR_ERR_OR_ZERO(pvt_dev->efuse_base);
 
 	pr_debug("resource 1 %pr\n", res);
 
@@ -469,7 +469,7 @@ static int pvt_probe(struct platform_device *pdev)
 	pvt_dev->clk = devm_clk_get(&pdev->dev, "sys_pclk");
 	if (IS_ERR(pvt_dev->clk)) {
 		dev_err(&pdev->dev, "sys_pclk clock not found.\n");
-		return PTR_ERR(pvt_dev->clk);
+		return PTR_ERR_OR_ZERO(pvt_dev->clk);
 	}
 
 	/*

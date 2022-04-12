@@ -56,7 +56,7 @@ static int hobot_vm_read_channel(struct hobot_vm_data_t *info, int channel)
 {
     u32 val = 0;
 
-    pvt_reg_wr(info, VM_CMN_SDIF_ADDR, 0x890010000 | (channel << 16));
+    pvt_reg_wr(info, VM_CMN_SDIF_ADDR, (u32)(0x89001000 | (channel << 16)));
     msleep(1);
     if (!pvt_reg_rd(info, VM_CMN_SDIF_STATUS_ADDR)) {
         dev_warn(info->dev, "%s %d TIMEOUT", __func__, __LINE__);
@@ -114,8 +114,8 @@ static int hobot_vm_read_raw(struct iio_dev *indio_dev,
             if (info->vm_mode == 0) {
                 k = (s64)info->vm_k3 * 25;
                 offset = info->vm_n0 * k;
-                volt = (k * (s64)(info->last_smpl[chan->channel]) - offset) \
-                        >> 12;
+                volt = (int)((k * (s64)(info->last_smpl[chan->channel]) \
+                       - offset) >> 12);
             } else {
                 /* (0.24 * (6 * sapmle - 16387)) * 1000 / 16384 */
                 volt = (90000 * info->last_smpl[chan->channel] - 245805000) \
