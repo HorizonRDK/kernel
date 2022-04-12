@@ -34,15 +34,15 @@ struct apb_timeout_dev {
 	int err_mode; /* 0:irq, 1: data abort */
 	int timeout;
 	struct clk *pclk;
-	u32 clk_hz;
-	u32 cnt;
+	long clk_hz;
+	long cnt;
 } apb_tmt;
 
-static int timeout_ms = 20; /* default timeout in milliseconds */
+static long timeout_ms = 20; /* default timeout in milliseconds */
 static int timeout_ms_set(const char *val, const struct kernel_param *kp)
 {
 	int ret;
-	u32 tgt_cnt;
+	long tgt_cnt;
 
 	ret = param_set_int(val, kp);
 	if (ret < 0)
@@ -61,7 +61,7 @@ static int timeout_ms_set(const char *val, const struct kernel_param *kp)
 
 	writel(tgt_cnt, apb_tmt.reg_base + APB_TIMEOUT_CNT_TGT);
 	apb_tmt.cnt = tgt_cnt;
-	pr_debug("set apb timeout tgt_cnt:%u, timeout_ms:%d, clk_hz=%u\n",
+	pr_debug("set apb timeout tgt_cnt:%lu, timeout_ms:%ld, clk_hz=%lu\n",
 		tgt_cnt, timeout_ms, apb_tmt.clk_hz);
 
 	return ret;
@@ -166,7 +166,7 @@ static int apb_timeout_probe(struct platform_device *pdev)
 	if (IS_ERR(apb_tmt.reg_base)) {
 		pr_err("apb timeout base address map failed, %ld\n",
 			PTR_ERR(apb_tmt.reg_base));
-		return PTR_ERR(apb_tmt.reg_base);
+		return PTR_ERR_OR_ZERO(apb_tmt.reg_base);
 	}
 
 	irq = platform_get_irq(pdev, 0);
@@ -198,7 +198,7 @@ static int apb_timeout_probe(struct platform_device *pdev)
 	writel(err_mode, apb_tmt.reg_base + APB_TIMEOUT_PERR);
 	writel(cnt_enable, apb_tmt.reg_base + APB_TIMEOUT_CNT_ENABLE);
 
-	pr_info("set apb timeout tgt_cnt:%u, timeout_ms:%d, clk_hz=%u\n",
+	pr_info("set apb timeout tgt_cnt:%lu, timeout_ms:%ld, clk_hz=%lu\n",
 		apb_tmt.cnt, timeout_ms, apb_tmt.clk_hz);
 
 	return 0;
@@ -216,7 +216,7 @@ static const struct of_device_id apb_timeout_match[] = {
 
 MODULE_DEVICE_TABLE(of, apb_timeout_match);
 
-#ifdef CONFIG_PM
+#ifdef CONFIG_PM_SLEEP
 static int apb_timeout_suspend(struct device *dev)
 {
         return 0;
@@ -243,7 +243,7 @@ static struct platform_driver apb_timeout_driver = {
 	.driver = {
 		.name	= "apb_timeout",
 		.of_match_table = apb_timeout_match,
-#ifdef CONFIG_PM
+#ifdef CONFIG_PM_SLEEP
 		.pm	= &apbtimeout_pm_ops,
 #endif
 	},

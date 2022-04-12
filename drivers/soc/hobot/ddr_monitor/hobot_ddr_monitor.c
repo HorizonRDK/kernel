@@ -287,8 +287,8 @@ static int ddr_monitor_release(struct inode *pinode, struct file *pfile)
 static ssize_t ddr_monitor_read(struct file *pfile, char *puser_buf, size_t len, loff_t *poff)
 {
 	unsigned long flags;
-	int ret;
-	int offset = 0;
+	long ret;
+	long offset = 0;
 	int rec_num;
 
 	wait_event_interruptible(ddrmon->wq_head, g_rec_num >= g_sample_number);
@@ -313,7 +313,7 @@ static ssize_t ddr_monitor_read(struct file *pfile, char *puser_buf, size_t len,
 
 	ret = copy_to_user(puser_buf, ddr_info_bc, rec_num * sizeof(struct ddr_mon_rec));
 	if (ret) {
-		pr_err("%s:%d copy to user error :%d\n", __func__, __LINE__, ret);
+		pr_err("%s:%d copy to user error :%ld\n", __func__, __LINE__, ret);
 		mutex_unlock(&ddrmon->ops_lock);
 		return -EFAULT;
 	}
@@ -457,7 +457,7 @@ int ddr_monitor_cdev_create(void)
 
 	ddrmon->ddr_mon_cls = class_create(THIS_MODULE, "ddr_monitor");
 	if (IS_ERR(ddrmon->ddr_mon_cls))
-		return PTR_ERR(ddrmon->ddr_mon_cls);
+		return PTR_ERR_OR_ZERO(ddrmon->ddr_mon_cls);
 
 	ret = alloc_chrdev_region(&ddrmon->dev_num, 0, 1, "ddr_monitor");
 	if (ret != 0) {
@@ -479,7 +479,7 @@ int ddr_monitor_cdev_create(void)
 			NULL, ddrmon->dev_num, NULL, "ddrmonitor");
 	if (IS_ERR(device)) {
 		pr_err("device_create failed\n");
-		return PTR_ERR(device);
+		return PTR_ERR_OR_ZERO(device);
 	}
 	return ret;
 }
@@ -1368,7 +1368,7 @@ static int ddr_monitor_get_ddr_type(struct platform_device *pdev)
 	ddrc_base = ioremap(pres->start, pres->end - pres->start);
 	if (IS_ERR(ddrc_base)) {
 		pr_err("%s:DDRC base address map failed\n", __func__);
-		return PTR_ERR(ddrc_base);
+		return PTR_ERR_OR_ZERO(ddrc_base);
 	}
 
 	reg_val = readl(ddrc_base);
@@ -1417,7 +1417,7 @@ static int ddr_monitor_probe(struct platform_device *pdev)
 	ddrmon->regaddr = devm_ioremap_resource(&pdev->dev, pres);
 	if (IS_ERR(ddrmon->regaddr)) {
 		pr_err("ddr monitor reg address map failed\n");
-		return PTR_ERR(ddrmon->regaddr);
+		return PTR_ERR_OR_ZERO(ddrmon->regaddr);
 	}
 
 	ddrmon->irq = platform_get_irq(pdev, 0);
@@ -1455,7 +1455,7 @@ static int ddr_monitor_probe(struct platform_device *pdev)
 			"failed to add devfreq-event device %ld\n",
 			PTR_ERR(ddrmon->edev));
 
-		return PTR_ERR(ddrmon->edev);
+		return PTR_ERR_OR_ZERO(ddrmon->edev);
 	}
 
 	platform_set_drvdata(pdev, ddrmon);

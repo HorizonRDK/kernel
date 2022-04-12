@@ -220,7 +220,7 @@ static void check_mpu_violation(int check_write, int port_id)
 {
     u32 user_id = 0;
     u32 addr = 0;
-	int j;
+	int8_t j;
 	int reg_offset = 0;
 	char *rw_type = check_write ? "write" : "read";
 	uint8_t block_id = 0xff;
@@ -437,8 +437,8 @@ static int ion_get_range(struct ion_cma_info *info)
 static int ddr_mpu_protect_kernel(void)
 {
 	u32 phy_start0 = 0x0;
-	u32 phy_end0   = virt_to_phys(__end_rodata);
-	u32 phy_start1 = virt_to_phys(__end_rodata);
+	u32 phy_end0   = (u32)virt_to_phys(__end_rodata);
+	u32 phy_start1 = (u32)virt_to_phys(__end_rodata);
 	u32 phy_end1   = 0;
 	u32 phy_start2 = 0;
 	u32 phy_end2   = 0;
@@ -591,7 +591,7 @@ int ddr_mpu_init(struct platform_device *pdev)
 	mpu_prt.sysctrl = devm_ioremap_resource(&pdev->dev, pres);
 	if (IS_ERR(mpu_prt.sysctrl)) {
 		pr_err("mpu base address map failed, %ld\n", PTR_ERR(mpu_prt.sysctrl));
-		return PTR_ERR(mpu_prt.sysctrl);
+		return PTR_ERR_OR_ZERO(mpu_prt.sysctrl);
 	}
 
 	/* support MPU start */
@@ -606,7 +606,7 @@ int ddr_mpu_init(struct platform_device *pdev)
 	mpu_prt.secreg = devm_ioremap_resource(&pdev->dev, pres);
 	if (IS_ERR(mpu_prt.secreg)) {
 		pr_err("secreg base address map failed, %ld\n", PTR_ERR(mpu_prt.secreg));
-		return PTR_ERR(mpu_prt.secreg);
+		return PTR_ERR_OR_ZERO(mpu_prt.secreg);
 	}
 
 	mpu_prt.irq = platform_get_irq(pdev, 2);

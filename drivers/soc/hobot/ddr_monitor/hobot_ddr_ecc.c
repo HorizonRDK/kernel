@@ -158,7 +158,7 @@ int hobot_ddr_ecc_init(struct platform_device *pdev)
 	ddr_ecc.ddrc_base = devm_ioremap_resource(&pdev->dev, pres);
 	if (IS_ERR(ddr_ecc.ddrc_base)) {
 		pr_err("%s DDRC base address map failed\n", __func__);
-		return PTR_ERR(ddr_ecc.ddrc_base);
+		return PTR_ERR_OR_ZERO(ddr_ecc.ddrc_base);
 	}
 
 	if (readl(ddr_ecc.ddrc_base + uMCTL2_ECCCFG0) & 0x7) {
