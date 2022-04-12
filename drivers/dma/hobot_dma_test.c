@@ -55,12 +55,12 @@ static int mem_dma_open(struct inode *inode, struct file *file)
 static ssize_t mem_dma_read(struct file *filp, char __user *buf,
                                  size_t size, loff_t *ppos)
 {
-    int ret = 0;
+    ssize_t ret = 0;
     unsigned long p = *ppos;
-    unsigned int count = size;
+    unsigned long count = size;
 	struct device *dev = mem_dma->dev;
 
-    dev_info(dev, "%s enter.size=%d\n", __func__, (int)size);
+    dev_info(dev, "%s enter.size=%ld\n", __func__, size);
     if (p >= BUFSIZE)
         return 0;
     if (count > BUFSIZE - p)
@@ -82,7 +82,7 @@ static ssize_t mem_dma_write(struct file *file, const char *data,
 	struct dma_device *dma_dev = mem_dma->dma_dev;
 	struct device *dev = mem_dma->dev;
 	dma_cookie_t cookie;
-	int ret;
+	unsigned long ret;
 
 	dev_info(dev, "%s enter.\n", __func__);
 

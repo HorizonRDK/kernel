@@ -48,10 +48,10 @@
  * @next_desc: Next Descriptor Pointer @0x0C
  */
 struct hobot_dma_desc_hw {
-	u32 src_addr;
-	u32 dest_addr;
-	u32 tx_len;
-	u32 next_desc;
+	dma_addr_t src_addr;
+	dma_addr_t dest_addr;
+	size_t tx_len;
+	dma_addr_t next_desc;
 } __aligned(32);
 
 /**
@@ -404,7 +404,7 @@ static void hobot_dma_start_transfer(struct hobot_dma_chan *chan)
 	chan->idle = false;
 
 	if (chan->has_sg) {
-		hobot_dma_wr(chan, HOBOT_DMA_LLI_ADDR, head_desc->async_tx.phys);
+		hobot_dma_wr(chan, HOBOT_DMA_LLI_ADDR, (u32)head_desc->async_tx.phys);
 
 		/* Start the transfer */
 		hobot_dma_wr(chan, HOBOT_DMA_SOFT_REQ, HOBOT_DMA_START_TX);
@@ -419,12 +419,12 @@ static void hobot_dma_start_transfer(struct hobot_dma_chan *chan)
 
 		hw = &segment->hw;
 
-		hobot_dma_wr(chan, HOBOT_DMA_SRC_ADDR,  hw->src_addr);
-		hobot_dma_wr(chan, HOBOT_DMA_DEST_ADDR, hw->dest_addr);
+		hobot_dma_wr(chan, HOBOT_DMA_SRC_ADDR,  (u32)hw->src_addr);
+		hobot_dma_wr(chan, HOBOT_DMA_DEST_ADDR, (u32)hw->dest_addr);
 		val = hobot_dma_rd(chan, HOBOT_DMA_CTRL_ADDR);
 		val |= HOBOT_DMA_EN_CH;
 		val &= 0xFF000000;
-		val |= hw->tx_len;
+		val |= (u32)hw->tx_len;
 		hobot_dma_wr(chan, HOBOT_DMA_CTRL_ADDR, val);
 
 		/* Start the transfer */
@@ -877,7 +877,7 @@ static int hobot_dma_probe(struct platform_device *pdev)
 	io = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	xdev->regs = devm_ioremap_resource(&pdev->dev, io);
 	if (IS_ERR(xdev->regs))
-		return PTR_ERR(xdev->regs);
+		return PTR_ERR_OR_ZERO(xdev->regs);
 
 	/* Retrieve the DMA engine properties from the device tree */
 	xdev->has_sg = false;
