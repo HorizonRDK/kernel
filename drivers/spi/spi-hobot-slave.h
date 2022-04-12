@@ -128,12 +128,12 @@ struct spidev_data {
 	int level;
 	struct spi_statistic spi_statistic;
 
-	u32 timeout;
+	u64 timeout;
 
 	u8 *tx_dummy_buffer;
 
 	u8 noblock;
-	u32 data_len;
+	size_t data_len;
 	u8 *tx_swap_buffer;
 
 	struct rx_tmp_buffer spi_recv_buf;

@@ -498,7 +498,7 @@ static int spi_send_message(struct spidev_data *spidev,
 
 	int status = 0, i = 0, data_length = len;
 	int frag_count = 0, tmp_rest_rx_frag_count;
-	char ret = 0, tmp_rx_end_flag = 0, tp_frag_finish_flag = 0;
+	int ret = 0, tmp_rx_end_flag = 0, tp_frag_finish_flag = 0;
 
 
 	while (tp_frag_finish_flag != 2) {	/* ret = 2 frag finish */
@@ -792,7 +792,7 @@ static long spidev_ioctl(struct file *filp,
 		if (retval == 0) {
 			u8	save = spi->bits_per_word;
 
-			spi->bits_per_word = tmp;
+			spi->bits_per_word = (u8)tmp;
 			retval = spi_setup(spi);
 			if (retval < 0)
 				spi->bits_per_word = save;
@@ -1172,7 +1172,7 @@ static ssize_t debug_level_write(struct file *file,
 	struct spidev_data *spidev = seq->private;
 	struct spi_device *spi = spidev->spi;
 
-    level = simple_strtoul(buffer, NULL, 10);
+    level = (u32)simple_strtoul(buffer, NULL, 10);
 
 	if (level > SPI_DEBUG_LEVEL_MAX)
 		spidev->level = SPI_DEBUG_LEVEL_MAX;
@@ -1361,7 +1361,7 @@ static int spidev_probe(struct spi_device *spi)
 		goto device_create_err;
 	}
 	if (status == 0) {
-		set_bit(minor, minors);
+		set_bit((u32)minor, minors);
 		list_add(&spidev->device_entry, &device_list);
 	}
 	mutex_unlock(&device_list_lock);
@@ -1467,7 +1467,7 @@ static int __init spidev_init(void)
 	spidev_class = class_create(THIS_MODULE, HOBOT_SPIDEV);
 	if (IS_ERR(spidev_class)) {
 		unregister_chrdev(SPIDEV_MAJOR, spidev_spi_driver.driver.name);
-		return PTR_ERR(spidev_class);
+		return PTR_ERR_OR_ZERO(spidev_class);
 	}
 
 	status = spi_register_driver(&spidev_spi_driver);

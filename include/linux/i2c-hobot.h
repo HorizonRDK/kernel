@@ -32,8 +32,8 @@ union saddr_reg_e {
 };
 
 struct dcount_bits_s {
-	unsigned int w_dcount:16;
-	unsigned int r_dcount:16;
+	unsigned int w_dcount;
+	unsigned int r_dcount;
 };
 union dcount_reg_e {
 	unsigned int all;

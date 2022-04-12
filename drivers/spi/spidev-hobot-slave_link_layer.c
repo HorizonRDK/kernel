@@ -218,8 +218,8 @@ static int Checksum16_test(char *buf)
 	buf[SPI_CRC_OFFSET] = 0;
 	buf[SPI_CRC_OFFSET + 1] = 0;
 	checksum16_recv_temp = Checksum16_Calc(buf, SPI_FRAGMENT_SIZE);
-	buf[SPI_CRC_OFFSET] = checksum16_recv;
-	buf[SPI_CRC_OFFSET + 1] = checksum16_recv >> 8;
+	buf[SPI_CRC_OFFSET] = (u8)checksum16_recv;
+	buf[SPI_CRC_OFFSET + 1] = (u8)(checksum16_recv >> 8);
 	if (checksum16_recv != checksum16_recv_temp)
 		ret = -1;
 	return ret;
@@ -232,8 +232,8 @@ static int Checksum16_set(char *buf)
 	buf[SPI_CRC_OFFSET] = 0;
 	buf[SPI_CRC_OFFSET + 1] = 0;
 	checksum16_set = Checksum16_Calc(buf, SPI_FRAGMENT_SIZE);
-	buf[SPI_CRC_OFFSET] = checksum16_set;
-	buf[SPI_CRC_OFFSET + 1] = checksum16_set >> 8;
+	buf[SPI_CRC_OFFSET] = (u8)checksum16_set;
+	buf[SPI_CRC_OFFSET + 1] = (u8)(checksum16_set >> 8);
 	if (*(unsigned short *)(buf + SPI_CRC_OFFSET) != checksum16_set)
 		ret = 0;
 	return ret;

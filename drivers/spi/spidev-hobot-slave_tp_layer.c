@@ -313,7 +313,7 @@ int spi_tp_resolve_fragment_interface(struct spidev_data *spidev,
 	return spi_tp_resolve_fragment(spidev, rest_fragment_count);
 }
 
-static int spi_slave_frag_count_set = 0;
+static char spi_slave_frag_count_set = 0;
 static int spi_slave_frag_count_total = 0;
 static int spi_slave_frag_last_copy = 0;
 static int spi_slave_frag_index = 0;
@@ -321,7 +321,7 @@ static int spi_slave_frag_index = 0;
 static int spi_slave_tp_frag(char *src_buf, char *frag_buf, int data_length)
 {
 	static spi_header_byte send_spi_header;
-	unsigned char copy_length = 0;
+	u32 copy_length = 0;
 	int tmp_data_length = data_length;
 	memset(&send_spi_header, 0, sizeof(send_spi_header));
 	if (src_buf == NULL || frag_buf == NULL || data_length <= 0) {
@@ -350,8 +350,8 @@ static int spi_slave_tp_frag(char *src_buf, char *frag_buf, int data_length)
 		send_spi_header.element_value.end = 1;
 		frag_buf[0] = send_spi_header.byte_value;
 		frag_buf[1] = spi_slave_frag_count_set;
-		frag_buf[2] = (short)data_length & 0xff;
-		frag_buf[3] = ((short)data_length>>8) & 0xff;
+		frag_buf[2] = (u8)(short)data_length & 0xff;
+		frag_buf[3] = (u8)((short)data_length>>8) & 0xff;
 		memcpy(frag_buf + 4, src_buf, copy_length);
 		spi_slave_frag_count_total = 0;
 		spi_slave_frag_last_copy = 0;
@@ -365,8 +365,8 @@ static int spi_slave_tp_frag(char *src_buf, char *frag_buf, int data_length)
 		copy_length = SPI_FRAGMENT_VALID_SIZE;
 		frag_buf[0] = send_spi_header.byte_value;
 		frag_buf[1] = spi_slave_frag_count_set;
-		frag_buf[2] = (short)data_length & 0xff;
-		frag_buf[3] = ((short)data_length>>8) & 0xff;
+		frag_buf[2] = (u8)(short)data_length & 0xff;
+		frag_buf[3] = (u8)((short)data_length>>8) & 0xff;
 		++spi_slave_frag_count_set;
 		memcpy(frag_buf + 4, src_buf+spi_slave_frag_index, copy_length);
 		spi_slave_frag_index += copy_length;

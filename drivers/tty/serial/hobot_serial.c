@@ -155,7 +155,7 @@ static unsigned int dbg_tx_index = 0;
 
 #ifdef CONFIG_HOBOT_TTY_DMA_MODE
 
-#define HOBOT_UART_DMA_SIZE	(UART_XMIT_SIZE * 2)
+#define HOBOT_UART_DMA_SIZE	(uint32_t)(UART_XMIT_SIZE * 2)
 #if IS_ENABLED(CONFIG_HOBOT_BUS_CLK_X3)
 static int serial_dpm_callback(struct hobot_dpm *self,
 				 unsigned long event, int state)
@@ -772,19 +772,19 @@ static void uart_diag_report(uint8_t errsta, uint32_t srcpndreg,
 						struct hobot_uart *hbuart)
 {
 	uint8_t env_data[8];
-	env_data[0] = hbuart->uart_id;
+	env_data[0] = (uint8_t)hbuart->uart_id;
 	env_data[1] = 0xff;
 	env_data[2] = 0;
 	env_data[3] = sizeof(uint32_t);
 	env_data[4] = srcpndreg & 0xff;
 	env_data[5] = (srcpndreg >> 8) & 0xff;
 	env_data[6] = (srcpndreg >> 16) & 0xff;
-	env_data[7] = (srcpndreg >> 24) & 0xff;
+	env_data[7] = (uint8_t)((srcpndreg >> 24) & 0xff);
 	if (errsta) {
 		diag_send_event_stat_and_env_data(
 				DiagMsgPrioHigh,
 				ModuleDiag_uart,
-				EventIdUart0Err + hbuart->uart_id,
+				(uint16_t)(EventIdUart0Err + hbuart->uart_id),
 				DiagEventStaFail,
 				DiagGenEnvdataWhenErr,
 				(uint8_t *)&env_data,
@@ -793,7 +793,7 @@ static void uart_diag_report(uint8_t errsta, uint32_t srcpndreg,
 		diag_send_event_stat(
 			DiagMsgPrioHigh,
 			ModuleDiag_uart,
-			EventIdUart0Err + hbuart->uart_id,
+			(uint16_t)(EventIdUart0Err + hbuart->uart_id),
 			DiagEventStaSuccess);
 	}
 }
@@ -1885,7 +1885,7 @@ static int hobot_regaddr_get(void *data, u64 *val)
 
 static int hobot_regaddr_set(void *data, u64 val)
 {
-	dgb_addr = val;
+	dgb_addr = (u32)val;
 	return 0;
 }
 
@@ -2024,7 +2024,7 @@ static int hobot_uart_probe(struct platform_device *pdev)
 	hobot_uart_data->uartclk = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(hobot_uart_data->uartclk)) {
 		dev_err(&pdev->dev, "uart_clk clock not found.\n");
-		return PTR_ERR(hobot_uart_data->uartclk);
+		return PTR_ERR_OR_ZERO(hobot_uart_data->uartclk);
 	}
 	rc = clk_prepare_enable(hobot_uart_data->uartclk);
 	if (rc) {
@@ -2067,7 +2067,7 @@ static int hobot_uart_probe(struct platform_device *pdev)
 	port->irq = irq;
 	port->dev = &pdev->dev;
 	if (0 == IS_ENABLED(CONFIG_HOBOT_FPGA_X2) && 0 == IS_ENABLED(CONFIG_HOBOT_FPGA_X3)) {
-		port->uartclk = clk_get_rate(hobot_uart_data->uartclk);
+		port->uartclk = (u32)clk_get_rate(hobot_uart_data->uartclk);
 	}
 	port->private_data = hobot_uart_data;
 	hobot_uart_data->port = port;
@@ -2092,7 +2092,7 @@ static int hobot_uart_probe(struct platform_device *pdev)
 #ifdef CONFIG_HOBOT_DIAG
 	/* diag */
 	hobot_uart_data->uart_id = id;
-	if (diag_register(ModuleDiag_uart, EventIdUart0Err + id,
+	if (diag_register(ModuleDiag_uart, (uint16_t)(EventIdUart0Err + id),
 				4, DIAG_MSG_INTERVAL_MIN, DIAG_MSG_INTERVAL_MAX, NULL) < 0)
 		dev_err(&pdev->dev, "uart%d diag register fail\n", id);
 #endif

@@ -52,7 +52,7 @@ struct hobot_i2c_dev {
 	volatile struct hobot_i2c_regs_s *i2c_regs;
 	struct reset_control *rst;
 	struct mutex lock;
-	int clkdiv;
+	unsigned char clkdiv;
 	int default_trans_freq;
 	int irq;
 	struct i2c_adapter adapter;
@@ -62,9 +62,9 @@ struct hobot_i2c_dev {
 	u32 msg_err;
 	u8 *tx_buf;
 	u8 *rx_buf;
-	size_t tx_remaining;
-	size_t rx_remaining;
-	uint8_t i2c_id;
+	int tx_remaining;
+	int rx_remaining;
+	int i2c_id;
 	bool is_suspended;
 #ifdef CONFIG_HOBOT_DIAG
 	/*log the error status of the previous interrupt on the I2C IP*/
@@ -166,7 +166,8 @@ static int i2c_dpm_callback(struct hobot_dpm *self,
  * change, we can pass the situation that there are may ack error.
  * (Edited by peng01.liu)
  */
-static int hobot_i2c_cfg(struct hobot_i2c_dev *dev, int dir_rd, int timeout_enable)
+static int hobot_i2c_cfg(struct hobot_i2c_dev *dev, u32 dir_rd,
+							int timeout_enable)
 {
 	union cfg_reg_e cfg;
 
@@ -303,7 +304,7 @@ static void hobot_i2c_diag_process(u32 errsta, struct hobot_i2c_dev *i2c_contro)
 	u8 envgen_timing;
 	union sprcpnd_reg_e int_status;
 	uint8_t envdata[10];
-	u8 i2c_event;
+	u16 i2c_event;
 	u16 slave_addr;
 
 	int_status.all = i2c_contro->msg_err;
@@ -312,10 +313,10 @@ static void hobot_i2c_diag_process(u32 errsta, struct hobot_i2c_dev *i2c_contro)
 	errsta = int_status.bit.nack | int_status.bit.sterr | int_status.bit.al |
 			int_status.bit.to | int_status.bit.aerr;
 #endif
-	i2c_event = EventIdI2cController0Err + i2c_contro->i2c_id;
+	i2c_event = (u16)(EventIdI2cController0Err + i2c_contro->i2c_id);
 	slave_addr = (u16)i2c_contro->i2c_regs->addr.all;
-	slave_addr = (~BIT(11) & slave_addr) >> 1;
-	envdata[0] = i2c_contro->i2c_id;
+	slave_addr = ((u16)~BIT(11) & slave_addr) >> 1;
+	envdata[0] = (u8)i2c_contro->i2c_id;
 	envdata[1] = 0xff;
 	envdata[2] = 0;
 	if (errsta) {
@@ -503,7 +504,7 @@ static int hobot_i2c_xfer_msg(struct hobot_i2c_dev *dev, struct i2c_msg *msg)
 
 static void recal_clk_div(struct hobot_i2c_dev *dev)
 {
-	u32 clk_freq = 0;
+	u64 clk_freq = 0;
 	int temp_div = 0;
 	struct client_request *client_req;
 
@@ -599,7 +600,7 @@ static int hobot_i2c_doxfer_smbus(struct hobot_i2c_dev *dev, u16 addr, bool writ
 		iowrite32(dcount_reg.all, &dev->i2c_regs->dcount);
 		dev->i2c_state = i2c_read;
 		dev->rx_buf = data;
-		dev->rx_remaining = size+1;
+		dev->rx_remaining = size + 1;
 		ctl_reg.bit.rd = 1;
 	} else {
 		if (write) {
@@ -794,14 +795,14 @@ static int hobot_i2c_probe(struct platform_device *pdev)
 	dev->rst = devm_reset_control_get(&pdev->dev, i2c_name);
 	if (IS_ERR(dev->rst)) {
 		dev_err(dev->dev, "missing controller reset\n");
-		ret = PTR_ERR(dev->rst);
+		ret = PTR_ERR_OR_ZERO(dev->rst);
 		goto err;
 	}
 
 	dev->clk = devm_clk_get(&pdev->dev, "i2c_mclk");
 	if (IS_ERR(dev->clk)) {
 		dev_err(&pdev->dev, "failed to get i2c_mclk\n");
-		ret = PTR_ERR(dev->clk);
+		ret = PTR_ERR_OR_ZERO(dev->clk);
 		goto err;
 	}
 
@@ -856,7 +857,7 @@ static int hobot_i2c_probe(struct platform_device *pdev)
 #ifdef CONFIG_HOBOT_DIAG
 	dev_err(&pdev->dev, "i2c%d diag register....\n", i2c_id);
 	dev->pre_errsta = 0;
-	if (diag_register(ModuleDiag_i2c, EventIdI2cController0Err + i2c_id,
+	if (diag_register(ModuleDiag_i2c, (u16)(EventIdI2cController0Err + i2c_id),
 			5, DIAG_MSG_INTERVAL_MIN, DIAG_MSG_INTERVAL_MAX, NULL) < 0) {
 		dev_err(&pdev->dev, "i2c%d diag register fail\n",
 				EventIdI2cController0Err + i2c_id);
@@ -869,7 +870,7 @@ static int hobot_i2c_probe(struct platform_device *pdev)
 		ret = -ENODEV;
 		goto err_clk;
 	}
-	dev->irq = irq->start;
+	dev->irq = (int)irq->start;
 
 	ret = request_irq(dev->irq, hobot_i2c_isr, IRQF_TRIGGER_HIGH,
 			  dev_name(&pdev->dev), dev);

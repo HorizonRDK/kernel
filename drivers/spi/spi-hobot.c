@@ -197,7 +197,7 @@ struct hb_spi {
 	int txcnt;		/* count to be Tx */
 	int rxcnt;		/* count to be Rx */
 	u16 word_width;		/* Bits per word:16bit or 8bit */
-	u16 mode;		/* current mode */
+	u32 mode;		/* current mode */
 	u32 speed;		/* current speed */
 	struct clk *spi_mclk;		/* clk source */
 	struct reset_control *rst;	/* reset controller */
@@ -208,7 +208,7 @@ struct hb_spi {
 	dma_addr_t tx_dma_phys;
 	dma_addr_t rx_dma_phys;
 
-	u8 spi_id;
+	int spi_id;
 	int isslave;
 	bool slave_aborted;
 
@@ -273,7 +273,7 @@ static void hb_spi_dump(struct hb_spi *hbspi, char *str, unchar *buf,
 static int hb_spi_en_ctrl(struct hb_spi *hbspi, int en_flag,
 			  int fifo_flag, int tr_flag)
 {
-	u32 val = 0;
+	u64 val = 0;
 
 	val = hb_spi_rd(hbspi, HB_SPI_CTRL_REG);
 	if (fifo_flag >= 0) {
@@ -301,7 +301,7 @@ static int hb_spi_en_ctrl(struct hb_spi *hbspi, int en_flag,
 	else
 		val &= (~HB_SPI_CORE_EN);
 
-	hb_spi_wr(hbspi, HB_SPI_CTRL_REG, val);
+	hb_spi_wr(hbspi, HB_SPI_CTRL_REG, (u32)val);
 
 	if (debug)
 		pr_info("%s CTRL=%08X\n", __func__, val);
@@ -590,19 +590,19 @@ static void spi_diag_report(uint8_t errsta, uint32_t srcpndreg,
 {
 	uint8_t env_data[8];
 
-	env_data[0] = hbspi->spi_id;
+	env_data[0] = (uint8_t)hbspi->spi_id;
 	env_data[1] = 0xff;
 	env_data[2] = 0;
 	env_data[3] = sizeof(uint32_t);
 	env_data[4] = srcpndreg & 0xff;
 	env_data[5] = (srcpndreg >> 8) & 0xff;
 	env_data[6] = (srcpndreg >> 16) & 0xff;
-	env_data[7] = (srcpndreg >> 24) & 0xff;
+	env_data[7] = (uint8_t)((srcpndreg >> 24) & 0xff);
 	if (errsta) {
 		diag_send_event_stat_and_env_data(
 				DiagMsgPrioHigh,
 				ModuleDiag_spi,
-				EventIdSpi0Err + hbspi->spi_id,
+				(u16)(EventIdSpi0Err + hbspi->spi_id),
 				DiagEventStaFail,
 				DiagGenEnvdataWhenErr,
 				(uint8_t *)&env_data,
@@ -611,7 +611,7 @@ static void spi_diag_report(uint8_t errsta, uint32_t srcpndreg,
 		diag_send_event_stat(
 			DiagMsgPrioHigh,
 			ModuleDiag_spi,
-			EventIdSpi0Err + hbspi->spi_id,
+			(u16)(EventIdSpi0Err + hbspi->spi_id),
 			DiagEventStaSuccess);
 	}
 }
@@ -687,8 +687,7 @@ static irqreturn_t hb_spi_int_handle(int irq, void *data)
 /* spi config: word_width, mode(pol, pha, lsb, cshigh), speed */
 static int hb_spi_config(struct hb_spi *hbspi)
 {
-	u32 val;
-	int divider = 0;
+	u64 val, divider = 0;
 
 	val = hb_spi_rd(hbspi, HB_SPI_CTRL_REG);
 	/* bit width */
@@ -713,7 +712,7 @@ static int hb_spi_config(struct hb_spi *hbspi)
 		val &= ~HB_SPI_DIVIDER_MASK;
 		val |= (divider << HB_SPI_DIVIDER_OFFSET) & HB_SPI_DIVIDER_MASK;
 	}
-	hb_spi_wr(hbspi, HB_SPI_CTRL_REG, val);
+	hb_spi_wr(hbspi, HB_SPI_CTRL_REG, (u32)val);
 
 	return 0;
 }
@@ -746,7 +745,7 @@ static int hb_spi_reset(struct hb_spi *hbspi)
 /* spi hw init */
 static void hb_spi_init_hw(struct hb_spi *hbspi)
 {
-	u32 val = 0;
+	u64 val = 0;
 
 	/* First, should reset the whole controller */
 	hb_spi_reset(hbspi);
@@ -769,7 +768,7 @@ static void hb_spi_init_hw(struct hb_spi *hbspi)
 		val &= (~HB_SPI_SLAVE_MODE);
 	if (hbspi->isslave == MASTER_MODE)
 		val &= (~HB_SPI_SAMP_SEL);
-	hb_spi_wr(hbspi, HB_SPI_CTRL_REG, val);
+	hb_spi_wr(hbspi, HB_SPI_CTRL_REG, (u32)val);
 
 	if (debug)
 		dev_err(hbspi->dev, "%s CTRL=%08X\n",
@@ -856,9 +855,9 @@ static void hb_spi_chipselect(struct spi_device *spi, bool is_high)
 }
 
 /* spi wait for tpi before xfer: return 0 timeout */
-static u32 hb_spi_wait_for_tpi(struct hb_spi *hbspi, int timeout_ms)
+static u64 hb_spi_wait_for_tpi(struct hb_spi *hbspi, int timeout_ms)
 {
-	u32 loop = 1;
+	u64 loop = 1;
 	u32 status;
 
 	if (timeout_ms)
@@ -1001,8 +1000,8 @@ static int hb_spi_transfer_one(struct spi_master *master,
 		goto exit_1;
 	}
 
-	hb_spi_wr(hbspi, HB_SPI_TDMA_ADDR0_REG, hbspi->tx_dma_phys);
-	hb_spi_wr(hbspi, HB_SPI_RDMA_ADDR0_REG, hbspi->rx_dma_phys);
+	hb_spi_wr(hbspi, HB_SPI_TDMA_ADDR0_REG, (u32)hbspi->tx_dma_phys);
+	hb_spi_wr(hbspi, HB_SPI_RDMA_ADDR0_REG, (u32)hbspi->rx_dma_phys);
 
 	if (hbspi->len < HB_SPI_DMA_BUFSIZE) {
 		hb_spi_wr(hbspi, HB_SPI_TDMA_SIZE0_REG, hbspi->len);
@@ -1223,8 +1222,8 @@ static int hb_spi_probe(struct platform_device *pdev)
 	struct resource *res = NULL;
 	char spi_name[20];
 	char ctrl_mode[16];
-	int ret, spi_id, rate, isslave = MASTER_MODE;
-	u32 num_cs;
+	int ret, spi_id, isslave = MASTER_MODE;
+	u16 num_cs;
 #ifdef CONFIG_SPI_HOBOT_DFS_PROTECT
 	struct sched_param param = { .sched_priority = MAX_RT_PRIO - 1 };
 #endif
@@ -1256,7 +1255,7 @@ static int hb_spi_probe(struct platform_device *pdev)
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	hbspi->regs_base = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(hbspi->regs_base)) {
-		ret = PTR_ERR(hbspi->regs_base);
+		ret = PTR_ERR_OR_ZERO(hbspi->regs_base);
 		dev_err(&pdev->dev, "failed to determine base address\n");
 		goto err_put_ctlr;
 	}
@@ -1267,7 +1266,7 @@ static int hb_spi_probe(struct platform_device *pdev)
 	sprintf(spi_name, "spi%d", spi_id);
 	hbspi->rst = devm_reset_control_get(&pdev->dev, spi_name);
 	if (IS_ERR(hbspi->rst)) {
-		ret = PTR_ERR(hbspi->rst);
+		ret = PTR_ERR_OR_ZERO(hbspi->rst);
 		dev_err(&pdev->dev, "missing controller reset %s\n", spi_name);
 		goto err_put_ctlr;
 	}
@@ -1290,7 +1289,7 @@ static int hb_spi_probe(struct platform_device *pdev)
 
 	hbspi->spi_mclk = devm_clk_get(&pdev->dev, "spi_mclk");
 	if (IS_ERR(hbspi->spi_mclk)) {
-		ret = PTR_ERR(hbspi->spi_mclk);
+		ret = PTR_ERR_OR_ZERO(hbspi->spi_mclk);
 		dev_err(&pdev->dev, "failed to get spi_mclk: %d\n", ret);
 		goto err_put_ctlr;
 	}
@@ -1301,13 +1300,9 @@ static int hb_spi_probe(struct platform_device *pdev)
 		goto err_put_ctlr;
 	}
 
-	rate = clk_get_rate(hbspi->spi_mclk);
-	if (debug)
-		dev_err(&pdev->dev, "spi clock is %d\n", rate);
-
 	init_completion(&hbspi->completion);
 
-	ret = of_property_read_u32(pdev->dev.of_node, "num-cs", &num_cs);
+	ret = of_property_read_u16(pdev->dev.of_node, "num-cs", &num_cs);
 	if (ret < 0)
 		ctlr->num_chipselect = HB_SPI_MAX_CS;
 	else
@@ -1316,7 +1311,7 @@ static int hb_spi_probe(struct platform_device *pdev)
 	if (isslave == MASTER_MODE) {
 		hbspi->isslave = MASTER_MODE;
 		snprintf(ctrl_mode, sizeof(ctrl_mode), "%s", "master");
-		ctlr->bus_num = pdev->id;
+		ctlr->bus_num = (s16)pdev->id;
 		ctlr->mode_bits = SPI_CPOL | SPI_CPHA | SPI_LSB_FIRST
 								| SPI_CS_HIGH | SPI_NO_CS;
 		ctlr->setup = hb_spi_setup;
@@ -1375,7 +1370,7 @@ static int hb_spi_probe(struct platform_device *pdev)
 #ifdef CONFIG_HOBOT_DIAG
 	/* diag */
 	hbspi->spi_id = spi_id;
-	if (diag_register(ModuleDiag_spi, EventIdSpi0Err + spi_id,
+	if (diag_register(ModuleDiag_spi, (u16)(EventIdSpi0Err + spi_id),
 			4, DIAG_MSG_INTERVAL_MIN, DIAG_MSG_INTERVAL_MAX, NULL) < 0)
 		dev_err(hbspi->dev, "spi%d diag register fail\n", spi_id);
 #endif
