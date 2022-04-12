@@ -45,7 +45,7 @@
 static int wdt_timeout;
 static int wdt_timeleft;
 static int nowayout = WATCHDOG_NOWAYOUT;
-static u64 timer_rate;
+static u32 timer_rate;
 static int panic_on_bark;
 static int on_panic;
 static int do_ipi_ping = 1;
@@ -565,7 +565,7 @@ static int hobot_wdog_dt_to_pdata(struct platform_device *pdev,
 
 	hbwdt->regs_base = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(hbwdt->regs_base)) {
-		ret = PTR_ERR(hbwdt->regs_base);
+		ret = PTR_ERR_OR_ZERO(hbwdt->regs_base);
 		return ret;
 	}
 
@@ -650,7 +650,7 @@ static int hobot_wdt_probe(struct platform_device *pdev)
 	hbwdt->clock = devm_clk_get(&pdev->dev, "watchdog_mclk");
 	if (IS_ERR(hbwdt->clock)) {
 		dev_err(&pdev->dev, "failed to find watchdog clock source\n");
-		ret = PTR_ERR(hbwdt->clock);
+		ret = PTR_ERR_OR_ZERO(hbwdt->clock);
 		goto err;
 	}
 
@@ -660,7 +660,7 @@ static int hobot_wdt_probe(struct platform_device *pdev)
 		goto err;
 	}
 
-	timer_rate = clk_get_rate(hbwdt->clock);
+	timer_rate = (u32)clk_get_rate(hbwdt->clock);
 	if (!timer_rate) {
 		pr_err("failed to get watchdog clock rate\n");
 		return -1;
@@ -695,7 +695,7 @@ static int hobot_wdt_probe(struct platform_device *pdev)
 	hbwdt->watchdog_thread = kthread_create_on_cpu(watchdog_kthread,
 		hbwdt, 0, "hw_watchdog");
 	if (IS_ERR(hbwdt->watchdog_thread)) {
-		ret = PTR_ERR(hbwdt->watchdog_thread);
+		ret = PTR_ERR_OR_ZERO(hbwdt->watchdog_thread);
 		goto err;
 	}
 

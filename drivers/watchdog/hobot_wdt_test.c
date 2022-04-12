@@ -79,13 +79,13 @@ static int wdt_test_deadloop_kthread(void *arg)
 	return 0;
 }
 
-static void wdt_test_trigger_deadloop(u32 cpu_mask)
+static void wdt_test_trigger_deadloop(u64 cpu_mask)
 {
 	int i;
 	char name[32];
 	struct task_struct *pkthread[NR_CPUS];
 
-	pr_info("cpu_mask: %x\n", cpu_mask);
+	pr_info("cpu_mask: %llx\n", cpu_mask);
 
 	for (i = 0; i < NR_CPUS; i++) {
 		if (cpu_mask & BIT(i)) {
@@ -149,7 +149,7 @@ static ssize_t wdt_test_write(struct file *file, const char __user *buf, size_t 
 {
 #define CMD_BUF_LEN 32
 	char info[CMD_BUF_LEN];
-	u32  cpu_mask = 0;
+	u64  cpu_mask = 0;
 	char *ptr = &info[0];
 	char *token;
 	int  i;
@@ -189,7 +189,7 @@ static ssize_t wdt_test_write(struct file *file, const char __user *buf, size_t 
 			return -EINVAL;
 
 			if (cpu_mask & BIT(i))
-				mode_map[i] = token[i] - '0';
+				mode_map[i] = (u8)(token[i] - '0');
 		}
 
 		wdt_test_trigger_deadloop(cpu_mask);
