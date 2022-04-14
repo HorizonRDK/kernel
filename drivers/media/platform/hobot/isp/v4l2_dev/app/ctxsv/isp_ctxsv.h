@@ -10,7 +10,8 @@
 
 #define CTX_CP_SPEED_1	0xa800
 #define CTX_CP_SPEED_2	0x36c
-#define CTX_NODE_TOTAL_SIZE (CFG_NODE_SIZE + CTX_CP_SPEED_2)
+/* cn.base should be 8 words align for the speed of memcpy_fromio */
+#define CTX_NODE_TOTAL_SIZE (CFG_NODE_SIZE + CTX_CP_SPEED_2 + 4)
 
 #define AWB_NODE_SIZE	(33 * 33 * 8) //8712
 #define AE_NODE_SIZE	(ISP_FULL_HISTOGRAM_SIZE * 4) //4096

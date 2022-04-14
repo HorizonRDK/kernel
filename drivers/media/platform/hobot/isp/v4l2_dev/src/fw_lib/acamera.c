@@ -24,6 +24,7 @@
 #include <linux/semaphore.h>
 #include <linux/kthread.h>
 #include <linux/crc16.h>
+#include <linux/delay.h>
 
 #ifdef CONFIG_HOBOT_DIAG
 #include <soc/hobot/diag.h>
@@ -704,6 +705,8 @@ void acamera_isp_ctxsv(uint8_t ctx_id)
     volatile void *offset;
     struct vio_frame_id frmid;
     acamera_context_t *p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[ctx_id];
+    uint32_t timeout_cnt = 0;
+    unsigned long flags = 0;
 
     if (p_ctx->isp_ctxsv_on) {
         rc = system_chardev_lock();
@@ -714,8 +717,23 @@ void acamera_isp_ctxsv(uint8_t ctx_id)
                 cn->ctx.frame_id = frmid.frame_id;
                 cn->ctx.timestamps = frmid.timestamps;
                 offset = p_ctx->sw_reg_map.isp_sw_config_map + CTX_CP_SPEED_1; //offset should be 1024 align, memcpy_fromio will be faster
-				if(p_ctx->isp_ctxsv_on != 0) {
-					memcpy_fromio(cn->base, offset, CTX_NODE_TOTAL_SIZE);
+                if (p_ctx->isp_ctxsv_on != 0) {
+                    flags = system_spinlock_lock(g_hobot_dma.dma_ctrl_lock);
+                    /* delay up to 5ms */
+                    while (hobot_idma_is_busy()) {
+                        udelay(100);
+                        timeout_cnt += 1;
+                        if (timeout_cnt > 50) {
+                            pr_err("idma access sram now, wait to memcpy timeout\n");
+                            system_chardev_unlock();
+                            system_spinlock_unlock(g_hobot_dma.dma_ctrl_lock, flags);
+                            return;
+                        } else {
+                            pr_debug("timeout_cnt: %d\n", timeout_cnt);
+                        }
+                    }
+					memcpy_fromio(cn->base, offset, CTX_NODE_TOTAL_SIZE - 4);
+                    system_spinlock_unlock(g_hobot_dma.dma_ctrl_lock, flags);
 					cn->ctx.crc16 = crc16(0xffff, cn->base + CTX_CP_SPEED_2, CTX_SIZE);
 				}
                 isp_ctx_put_node(ctx_id, cn, ISP_CTX, DONEQ);
