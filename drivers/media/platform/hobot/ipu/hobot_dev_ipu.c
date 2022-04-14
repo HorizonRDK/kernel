@@ -4046,7 +4046,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 	 */
 	if (status & (1 << INTR_IPU_FRAME_START) &&
 			status & (1 << INTR_IPU_DS2_FRAME_DONE)) {
-		vio_err("FS and FE occur at same time\n");
+		vio_warn("FS and FE occur at same time\n");
 		if (test_bit(VIO_GROUP_IPU_DS2_DMA_OUTPUT, &group->state)) {
 			subdev = group->sub_ctx[GROUP_ID_DS2];
 			if (subdev) {
@@ -4056,6 +4056,24 @@ static irqreturn_t ipu_isr(int irq, void *data)
 						subdev->cur_enable_flag);
 				enable_flag_set = 1;
 			}
+		}
+	}
+	/* FS and FE occur at same time require update frameid in advance */
+	if (status & (1 << INTR_IPU_FRAME_START) &&
+			((status & (1 << INTR_IPU_DS0_FRAME_DONE)) ||
+			 (status & (1 << INTR_IPU_DS1_FRAME_DONE)) ||
+			 (status & (1 << INTR_IPU_DS2_FRAME_DONE)) ||
+			 (status & (1 << INTR_IPU_DS3_FRAME_DONE)) ||
+			 (status & (1 << INTR_IPU_DS4_FRAME_DONE)) ||
+			 (status & (1 << INTR_IPU_US_FRAME_DROP)))) {
+		if (!vio_check_all_online_state(group)) {
+			vio_get_sif_frame_info(instance, &frmid);
+			vio_warn("[S%d] FS and FE occur at same time update"
+					" frameid in advance (%d->%d)\n", instance,
+					group->frameid.frame_id, frmid.frame_id);
+			group->frameid.frame_id = frmid.frame_id;
+			group->frameid.timestamps = frmid.timestamps;
+			group->frameid.tv = frmid.tv;
 		}
 	}
 
