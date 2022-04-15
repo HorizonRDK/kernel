@@ -92,10 +92,10 @@ uint8_t iar_display_addr_type = DS5;
 uint8_t iar_display_cam_no;
 #else
 uint32_t hb_disp_base_board_id;
-uint8_t iar_display_addr_type = DISPLAY_CHANNEL1;
-uint8_t iar_display_cam_no = PIPELINE0;
-uint8_t iar_display_addr_type_video1 = 0;
-uint8_t iar_display_cam_no_video1 = PIPELINE0;
+uint32_t iar_display_addr_type = DISPLAY_CHANNEL1;
+uint32_t iar_display_cam_no = PIPELINE0;
+uint32_t iar_display_addr_type_video1 = 0;
+uint32_t iar_display_cam_no_video1 = PIPELINE0;
 EXPORT_SYMBOL(iar_display_addr_type);
 EXPORT_SYMBOL(iar_display_cam_no);
 EXPORT_SYMBOL(iar_display_addr_type_video1);
@@ -114,10 +114,10 @@ uint32_t g_disp_caddr_video1;
 bool iar_video_not_pause = true;
 EXPORT_SYMBOL_GPL(iar_video_not_pause);
 
-uint8_t config_rotate;
+uint32_t config_rotate;
 uint8_t ipu_process_done;
-uint8_t disp_user_update;
-uint8_t disp_user_update_video1;
+uint32_t disp_user_update;
+uint32_t disp_user_update_video1;
 uint8_t frame_count;
 uint8_t disp_copy_done = 0;
 static int disp_clk_already_enable = 0;
@@ -588,7 +588,7 @@ static void set_iar_pixel_clk_inv(void)
 buf_addr_t iar_addr_convert(phys_addr_t paddr)
 {
 	buf_addr_t addr;
-	addr.addr = paddr;
+	addr.addr = (uint32_t)paddr;
 	return addr;
 }
 
@@ -1943,7 +1943,7 @@ int32_t iar_open(void)
 		if (IS_ERR(g_iar_dev->iar_task)) {
 			g_iar_dev->iar_task = NULL;
 			dev_err(&g_iar_dev->pdev->dev, "iar thread create fail\n");
-			ret = PTR_ERR(g_iar_dev->iar_task);
+			ret = PTR_ERR_OR_ZERO(g_iar_dev->iar_task);
 		}
 		stop_flag = 0;
 	} else {
@@ -2755,7 +2755,7 @@ int enable_iar_irq(void)
 int disp_set_ppbuf_addr(uint8_t layer_no, void *yaddr, void *caddr)
 {
 	buf_addr_t display_addr;
-	uint8_t video_index;
+	uint32_t video_index;
 	uint32_t y_size;
 	void __iomem *video_to_display_vaddr;
 	int ret = 0;
@@ -2778,12 +2778,12 @@ int disp_set_ppbuf_addr(uint8_t layer_no, void *yaddr, void *caddr)
 	video_index = g_iar_dev->cur_framebuf_id[layer_no];
 	video_to_display_vaddr =
 		g_iar_dev->pingpong_buf[layer_no].framebuf[!video_index].vaddr;
-	ret = copy_from_user(video_to_display_vaddr, yaddr, y_size);
+	ret = (int)copy_from_user(video_to_display_vaddr, yaddr, y_size);
 	if (ret) {
 		pr_err("%s: error copy y imge from user!\n", __func__);
 		return ret;
 	}
-        ret = copy_from_user(video_to_display_vaddr + y_size,
+        ret = (int)copy_from_user(video_to_display_vaddr + y_size,
 			caddr, y_size >> 1);
 	if (ret) {
 		pr_err("%s: error copy uv imge from user!\n", __func__);
@@ -2793,9 +2793,10 @@ int disp_set_ppbuf_addr(uint8_t layer_no, void *yaddr, void *caddr)
 	disp_copy_done = 1;
 
 	display_addr.Yaddr =
-	g_iar_dev->pingpong_buf[layer_no].framebuf[!video_index].paddr;
+	(uint32_t)g_iar_dev->pingpong_buf[layer_no].framebuf[!video_index].paddr;
 	display_addr.Uaddr =
-	g_iar_dev->pingpong_buf[layer_no].framebuf[!video_index].paddr + y_size;
+	(uint32_t)g_iar_dev->pingpong_buf[layer_no].framebuf[!video_index].paddr
+	+ y_size;
 	display_addr.Vaddr = 0;
 
 	iar_set_bufaddr(layer_no, &display_addr);
@@ -2825,7 +2826,7 @@ int iar_rotate_video_buffer(phys_addr_t yaddr,
 	do {
 		struct timeval tv_s;
 		struct timeval tv_e;
-		int time_cost = 0;
+		long int time_cost = 0;
 		uint8_t *src_addr = (void *)(phys_to_virt(yaddr));
 		uint8_t *tmp_addr =
 			(uint8_t *)g_iar_dev->frambuf[IAR_CHANNEL_1].vaddr;
@@ -2847,14 +2848,14 @@ int iar_rotate_video_buffer(phys_addr_t yaddr,
 		do_gettimeofday(&tv_e);
 		time_cost = (tv_e.tv_sec*1000 + tv_e.tv_usec/1000) -
 			(tv_s.tv_sec*1000 + tv_s.tv_usec/1000);
-		pr_debug("time cost %dms\n", time_cost);
+		pr_debug("time cost %ldms\n", time_cost);
 	} while (0);
 
 	//display video
 	display_addr.Yaddr =
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[!video_index].paddr;
+	(uint32_t)g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[!video_index].paddr;
 	display_addr.Uaddr =
-	g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[!video_index].paddr
+	(uint32_t)g_iar_dev->pingpong_buf[IAR_CHANNEL_1].framebuf[!video_index].paddr
 	+ 720*1280;
 	display_addr.Vaddr = 0;
 
@@ -2947,7 +2948,7 @@ static int stride_copy_bmp(int width, int height, const unsigned char *src,
 	int i, j;
 	struct bmp_image *bmp = (struct bmp_image *)src;
 	const unsigned char *bmap;
-	unsigned long widthi, heighti;
+	int widthi, heighti;
 	int stb0;
 	unsigned colours, bmp_bpix;
 	const unsigned char *p0, *hp0;
@@ -3270,8 +3271,8 @@ int user_config_display(enum DISPLAY_TYPE d_type)
 	channel_base_cfg_t channel_base_cfg[2] = {{0}, {0}};
 	output_cfg_t output_cfg = {0};
 
-	graphic_display_paddr.addr = g_iar_dev->frambuf[2].paddr;
-	graphic1_display_paddr.addr = g_iar_dev->frambuf[3].paddr;
+	graphic_display_paddr.addr = (uint32_t)g_iar_dev->frambuf[2].paddr;
+	graphic1_display_paddr.addr = (uint32_t)g_iar_dev->frambuf[3].paddr;
 
 	enable_sif_mclk();
 	iar_pixel_clk_enable();
@@ -4005,7 +4006,7 @@ static int hobot_iar_probe(struct platform_device *pdev)
 	ret = of_property_read_u32(pdev->dev.of_node,
                         "default_display_type", &display_type);
 
-	hb_disp_base_board_id = simple_strtoul(base_board_name, NULL, 16);
+	hb_disp_base_board_id = (uint32_t)simple_strtoul(base_board_name, NULL, 16);
 
 	ret = of_property_read_u32(pdev->dev.of_node,
 			"disp_panel_reset_pin", &panel_reset_pin);
@@ -4036,7 +4037,7 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "No IRQ resource\n");
 		goto err1;
 	}
-	g_iar_dev->irq = irq->start;
+	g_iar_dev->irq = (int)irq->start;
 	pr_debug("g_iar_dev->irq is %lld\n", irq->start);
 
 	g_iar_dev->pinctrl = devm_pinctrl_get(&pdev->dev);
@@ -4499,8 +4500,8 @@ static int hobot_iar_probe(struct platform_device *pdev)
 	if (logo == 0)
 		disp_set_panel_timing(&default_timing);
 
-	channel_buf_addr_3.addr = g_iar_dev->frambuf[IAR_CHANNEL_3].paddr;
-	channel_buf_addr_4.addr = g_iar_dev->frambuf[IAR_CHANNEL_4].paddr;
+	channel_buf_addr_3.addr = (uint32_t)g_iar_dev->frambuf[IAR_CHANNEL_3].paddr;
+	channel_buf_addr_4.addr = (uint32_t)g_iar_dev->frambuf[IAR_CHANNEL_4].paddr;
 	iar_switch_buf(0);
 	iar_set_bufaddr(IAR_CHANNEL_3, &channel_buf_addr_3);
 	iar_set_bufaddr(IAR_CHANNEL_4, &channel_buf_addr_4);

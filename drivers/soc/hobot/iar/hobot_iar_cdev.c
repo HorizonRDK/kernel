@@ -176,7 +176,8 @@ int32_t iar_write_framebuf_dma(uint32_t channel, phys_addr_t srcaddr, uint32_t s
 		return -EIO;
 	}
 	dma_async_issue_pending(ch);
-	ret = wait_for_completion_timeout(&g_iar_cdev->completion, msecs_to_jiffies(1000));
+	ret = (int)wait_for_completion_timeout(&g_iar_cdev->completion,
+			msecs_to_jiffies(1000));
 	dma_release_channel(ch);
 	if (!ret) {
 		printk(KERN_ERR"%s: timeout !!\n", __func__);
@@ -297,7 +298,7 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 					ret = config_hdmi(9, 4, 2);
 				} else {
 					pr_debug("iar_cdev: vmode = %d\n", vmode);
-					ret = config_hdmi(vmode, 0, 2);//CEA-VIC
+					ret = config_hdmi((short unsigned int)vmode, 0, 2);//CEA-VIC
 				}
 			} else {
 				pr_err("no sii902x HDMI device!!\n");
@@ -402,7 +403,7 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 #ifdef CONFIG_HOBOT_XJ2
 			ret = set_video_display_channel(channel_number);
 #else
-			iar_display_cam_no = channel_number;
+			iar_display_cam_no = (uint32_t)channel_number;
 #endif
 		}
 		break;
@@ -419,7 +420,7 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 #ifdef CONFIG_HOBOT_XJ2
 				ret = set_video_display_ddr_layer(ddr_layer_number);
 #else
-				iar_display_addr_type = ddr_layer_number;
+				iar_display_addr_type = (uint32_t)ddr_layer_number;
 #endif
 		}
 		break;
@@ -641,7 +642,7 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 	case IAR_WB_GET_CFG:
 		 {
 			int value = iar_wb_getcfg();
-			ret = copy_to_user((void __user *) arg, (char *) &value,
+			ret = (int)copy_to_user((void __user *) arg, (char *) &value,
 				 sizeof(int));
 			if (ret)
 				ret = -EFAULT;
@@ -681,7 +682,7 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		 {
 			struct frame_info frameinfo;
 
-			ret = copy_from_user((char *) &frameinfo, (u32 __user *) arg,
+			ret = (int)copy_from_user((char *) &frameinfo, (u32 __user *) arg,
 				   sizeof(struct frame_info));
 			if (ret) {
 				pr_err("IAR_WB_QBUF, copy failed\n");
@@ -696,7 +697,7 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 			struct frame_info frameinfo;
 
 			iar_wb_dqbuf(&frameinfo);
-			ret = copy_to_user((void __user *) arg, (char *) &frameinfo,
+			ret = (int)copy_to_user((void __user *) arg, (char *) &frameinfo,
 				 sizeof(struct frame_info));
 			if (ret)
 				ret = -EFAULT;
@@ -707,7 +708,7 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
       		struct frame_info frameinfo;
 
       		iar_output_dqbuf(0, &frameinfo);
-      		ret = copy_to_user((void __user *)arg, (char *)&frameinfo,
+      		ret = (int)copy_to_user((void __user *)arg, (char *)&frameinfo,
                          sizeof(struct frame_info));
       		if (ret)
 			ret = -EFAULT;
@@ -730,7 +731,7 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		 {
 			struct frame_info frameinfo;
 
-			ret = copy_from_user((char *)&frameinfo, (u32 __user *)arg,
+			ret = (int)copy_from_user((char *)&frameinfo, (u32 __user *)arg,
 							sizeof(struct frame_info));
 			if (ret) {
 				pr_err("IAR_OUTPUT_QBUF, copy failed\n");
@@ -745,7 +746,7 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 			struct frame_info frameinfo;
 
 			iar_output_dqbuf(1, &frameinfo);
-			ret = copy_to_user((void __user *)arg, (char *)&frameinfo,
+			ret = (int)copy_to_user((void __user *)arg, (char *)&frameinfo,
 								sizeof(struct frame_info));
 			if (ret)
 				ret = -EFAULT;
@@ -768,7 +769,7 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		 {
 			struct frame_info frameinfo;
 
-			ret = copy_from_user((char *)&frameinfo, (u32 __user *)arg,
+			ret = (int)copy_from_user((char *)&frameinfo, (u32 __user *)arg,
 								sizeof(struct frame_info));
 			if (ret) {
 				pr_err("IAR_WB_QBUF, copy failed\n");
@@ -893,7 +894,7 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 	unsigned long tmp_value = 0, pipeline = 0,
 		      disp_layer = 0, disp_vio_addr_type = 0;
 	char value[3];
-	int board_id = 0;
+	long unsigned int board_id = 0;
 
 	tmp = (char *)buf;
 	if (enable_sif_mclk() != 0) {
@@ -931,7 +932,7 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 				ret = error;
 				goto err;
 			}
-			set_video_display_channel(tmp_value);
+			set_video_display_channel((unsigned char)tmp_value);
 		} else {
 			pr_info("error input, exit!!\n");
 			ret = error;
@@ -988,11 +989,11 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 			goto err;
 		}
 		if (disp_layer == 0) {
-				iar_display_cam_no = pipeline;
-				iar_display_addr_type = disp_vio_addr_type;
+				iar_display_cam_no = (uint32_t)pipeline;
+				iar_display_addr_type = (uint32_t)disp_vio_addr_type;
 		} else if (disp_layer == 1) {
-				iar_display_cam_no_video1 = pipeline;
-				iar_display_addr_type_video1 = disp_vio_addr_type;
+				iar_display_cam_no_video1 = (uint32_t)pipeline;
+				iar_display_addr_type_video1 = (uint32_t)disp_vio_addr_type;
 		}
 	} else if (strncmp(tmp, "lcd", 3) == 0) {
 		pr_info("iar output lcd rgb panel config......\n");
@@ -1072,7 +1073,7 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 		ret = kstrtoul(tmp, 0, &tmp_value);
 		if (ret == 0) {
 			pr_info("enable channel %ld\n", tmp_value);
-			iar_layer_enable(tmp_value);
+			iar_layer_enable((int)tmp_value);
 			iar_update();
 		} else {
 			pr_err("error input, exit!!\n");
@@ -1085,7 +1086,7 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 		ret = kstrtoul(tmp, 0, &tmp_value);
 		if (ret == 0) {
 			pr_info("disable channel %ld\n", tmp_value);
-			iar_layer_disable(tmp_value);
+			iar_layer_disable((int)tmp_value);
 			iar_update();
 		} else {
 			pr_err("error input, exit!!\n");
@@ -1098,7 +1099,7 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 		if (ret == 0) {
 			if (tmp_value < 11) {
 				pr_info("set screen backlight level %ld\n", tmp_value);
-				set_screen_backlight(tmp_value);
+				set_screen_backlight((unsigned int)tmp_value);
 			} else {
 				pr_info("error backlight level!!\n");
 				goto err;

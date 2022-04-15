@@ -788,14 +788,14 @@ extern struct disp_timing video_720x1280_touch;
 extern struct disp_timing video_704x576;
 extern struct disp_timing video_1280x720;
 //extern uint32_t hb_disp_base_board_id;
-extern uint8_t iar_display_addr_type;
-extern uint8_t iar_display_cam_no;
+extern uint32_t iar_display_addr_type;
+extern uint32_t iar_display_cam_no;
 #ifdef CONFIG_HOBOT_XJ3
 #define X3_GPIO_BASE    (0xA6003000)
 #define X3_GPIO0_VALUE_REG      (0xC)
 #define X3_PWM0_PINMUX  (0xA6004010)
-extern uint8_t iar_display_addr_type_video1;
-extern uint8_t iar_display_cam_no_video1;
+extern uint32_t iar_display_addr_type_video1;
+extern uint32_t iar_display_cam_no_video1;
 #endif
 
 

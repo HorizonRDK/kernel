@@ -631,15 +631,16 @@ EXPORT_SYMBOL_GPL(dsi_panel_write_cmd_poll);
 int32_t user_set_dsi_panel_long_cmd(uint32_t len, uint8_t *tx_buf)
 {
 	int32_t pld_data_bytes = sizeof(uint32_t), ret;
-	int32_t len_tmp = len;
+	uint8_t len_tmp;
 	uint32_t remainder;
 	uint32_t val;
 
-	if (len < 3) {
+	if (len < 3 || len > 256) {
 		pr_err("wrong tx buf length %u for long write\n", len);
 		return -EINVAL;
 	}
 
+	len_tmp = (uint8_t)len;
 	while (DIV_ROUND_UP(len, pld_data_bytes)) {
 		if (len < pld_data_bytes) {
 			remainder = 0;
@@ -672,15 +673,16 @@ EXPORT_SYMBOL_GPL(user_set_dsi_panel_long_cmd);
 static int32_t dsi_panel_write_long_cmd(uint32_t len, uint8_t *tx_buf)
 {
 	int32_t pld_data_bytes = sizeof(uint32_t), ret;
-	int32_t len_tmp = len;
+	uint8_t len_tmp;
 	uint32_t remainder;
 	uint32_t val;
 
-	if (len < 3) {
+	if (len < 3 || len > 256) {
 		pr_err("wrong tx buf length %u for long write\n", len);
 		return -EINVAL;
 	}
 
+	len_tmp = (uint8_t)len;
 	while (DIV_ROUND_UP(len, pld_data_bytes)) {
 		if (len < pld_data_bytes) {
 			remainder = 0;
