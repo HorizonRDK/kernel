@@ -596,7 +596,7 @@ static int hobot_i2c_doxfer_smbus(struct hobot_i2c_dev *dev, u16 addr, bool writ
 	dcount_reg.all = 0;
 	if ((size == 0) & !write) {
 		dev->tx_remaining = 0;
-		dcount_reg.bit.r_dcount = size + 1;
+		dcount_reg.bit.r_dcount = (u16)(size + 1);
 		iowrite32(dcount_reg.all, &dev->i2c_regs->dcount);
 		dev->i2c_state = i2c_read;
 		dev->rx_buf = data;
@@ -604,7 +604,7 @@ static int hobot_i2c_doxfer_smbus(struct hobot_i2c_dev *dev, u16 addr, bool writ
 		ctl_reg.bit.rd = 1;
 	} else {
 		if (write) {
-			dcount_reg.bit.w_dcount = size + 1;
+			dcount_reg.bit.w_dcount = (u16)(size + 1);
 			iowrite32(dcount_reg.all, &dev->i2c_regs->dcount);
 			hobot_fill_txfifo(dev, 0);
 			if (data) {
@@ -620,7 +620,7 @@ static int hobot_i2c_doxfer_smbus(struct hobot_i2c_dev *dev, u16 addr, bool writ
 			iowrite32(dcount_reg.all, &dev->i2c_regs->dcount);
 			hobot_fill_txfifo(dev, 0);
 
-			dcount_reg.bit.r_dcount = size;
+			dcount_reg.bit.r_dcount = (u16)size;
 			iowrite32(dcount_reg.all, &dev->i2c_regs->dcount);
 			dev->i2c_state = i2c_read;
 			dev->rx_buf = data;
