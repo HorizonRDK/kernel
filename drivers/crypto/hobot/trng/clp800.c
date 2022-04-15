@@ -270,7 +270,7 @@ store_seed(struct device *dev, struct device_attribute *devattr,
                                const char *buf, size_t count)
 {
    struct elpclp800_priv *priv = dev_get_drvdata(dev);
-   int tmp[sizeof priv->nonce_buf] = {0};
+   unsigned char tmp[sizeof priv->nonce_buf] = {0};
    size_t i, pos;
    int cur = -1;
 
