@@ -176,7 +176,7 @@ static int spacc_cipher_process(struct skcipher_request *req, int enc)
 	struct spacc_crypto_ctx *tctx = crypto_skcipher_ctx(reqtfm);
 	struct spacc_crypto_reqctx *ctx = skcipher_request_ctx(req);
 	struct spacc_priv *priv = dev_get_drvdata(tctx->dev);
-	uint32_t chunk_size = (priv->max_msg_len & ~0xfff);
+	uint32_t chunk_size = (uint32_t)(priv->max_msg_len & ~0xfff);
 	int total = req->cryptlen;
 	struct scatterlist *sg_cur;
 	struct scatterlist *sg_src_last;
@@ -344,7 +344,7 @@ static int spacc_cipher_cra_init(struct crypto_tfm *tfm)
 	reqsize = align + sizeof(struct spacc_crypto_reqctx)
 						 + crypto_skcipher_reqsize(tctx->fb.cipher);
 
-	tctx->fb.cipher->reqsize = reqsize;
+	tctx->fb.cipher->reqsize = (unsigned int)reqsize;
 
 	return 0;
 }

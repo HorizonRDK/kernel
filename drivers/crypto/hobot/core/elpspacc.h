@@ -132,8 +132,8 @@ typedef struct {
    int      ncontig;          // number of contexts following related to this one
 } spacc_ctx;
 
-#define SPACC_CTRL_MASK(field)  (1UL << spacc->config.ctrl_map[(field)])
-#define SPACC_CTRL_SET(field, value)  ((value) << spacc->config.ctrl_map[(field)])
+#define SPACC_CTRL_MASK(field)  (uint32_t)(1UL << spacc->config.ctrl_map[(field)])
+#define SPACC_CTRL_SET(field, value)  (uint32_t)((value) << spacc->config.ctrl_map[(field)])
 
 enum {
    SPACC_CTRL_VER_0,
@@ -202,7 +202,7 @@ typedef struct _spacc_device {
           stat_fifo_depth, // depth of STATUS FIFO
           fifo_cnt,
           ideal_stat_level;
-      uint32_t
+      uint64_t
           wd_timer;
       const uint8_t *ctrl_map; // map of ctrl register field offsets
    } config;
@@ -296,7 +296,7 @@ void spacc_irq_rc4_dma_disable (spacc_device *spacc);
 void spacc_irq_glbl_enable (spacc_device *spacc);
 void spacc_irq_glbl_disable (spacc_device *spacc);
 uint32_t spacc_process_irq(spacc_device *spacc);
-void spacc_set_wd_count(spacc_device *spacc, uint32_t val);
+void spacc_set_wd_count(spacc_device *spacc, uint64_t val);
 
 /* Context Manager */
 void spacc_ctx_init_all (spacc_device *spacc);

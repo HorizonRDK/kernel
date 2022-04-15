@@ -349,7 +349,7 @@ int __init pka_class_init(void)
    pka_class = class_create(THIS_MODULE, CLASSNAME);
    if (!pka_class) {
       unregister_chrdev(pka_major, CLASSNAME);
-      return PTR_ERR(pka_class);
+      return PTR_ERR_OR_ZERO(pka_class);
    }
 
    return 0;

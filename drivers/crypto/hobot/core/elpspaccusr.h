@@ -114,28 +114,31 @@ struct elp_spacc_features {
 struct elp_spacc_ioctl {
    unsigned char
                 cmd,           // ioctl command
-                cipher_mode,   // cipher mode
+                auxinfo_align, // bit align for 3G modes
+                auxinfo_dir,   // direction for 3G modes
+                partial;       // MSG_BEGIN/MSG_END flags
+   int
+                map_hint,
                 aad_copy,      // copy the AAD or not
-                hash_mode,     // hash mode
                 icv_len,       // ICV length (0 for default)
                 icv_mode,      // how to handle the ICV
-                encrypt,       // 1 to set encrypt mode
                 ckeylen,       // cipher key length
                 civlen,        // cipher IV length
                 hkeylen,       // hash key length
                 hivlen,        // hash IV length
-                auxinfo_align, // bit align for 3G modes
-                auxinfo_dir,   // direction for 3G modes
-                partial,       // MSG_BEGIN/MSG_END flags
-                map_hint;
-   int
+                encrypt,       // 1 to set encrypt mode
+                cipher_mode,   // cipher mode
+                hash_mode,     // hash mode
                 err;
 
    struct elp_spacc_usr_ddt
                 src[ELP_SPACC_USR_MAX_DDT+1],
                 dst[ELP_SPACC_USR_MAX_DDT+1];
 
-   int          srclen, dstlen,              // despite the DDTs above these need to be filled in to make things simpler inside the kernel
+   unsigned long          srclen, dstlen;
+// despite the DDTs above these need to be filled in to
+// make things simpler inside the kernel
+   int
                 src_offset, dst_offset,      // offsets into buffers
                 pre_aad_len, post_aad_len,   // AAD lengths before and after plaintext (if any)
                 ivoffset;                    // offset in packet for IV, or -1 to not use import

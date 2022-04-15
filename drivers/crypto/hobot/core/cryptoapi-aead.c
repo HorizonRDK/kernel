@@ -135,7 +135,7 @@ static int spacc_aead_init_dma(struct device *dev, struct aead_request *req, u64
 							M = tctx->auth_size;
 
 							/* CTR block */
-							p[0] = L-1;
+							p[0] = (unsigned char)(L-1);
 							memcpy(p+1, tctx->csalt, 3);
 							memcpy(p+4, &lseq,		 8);
 
@@ -145,15 +145,15 @@ static int spacc_aead_init_dma(struct device *dev, struct aead_request *req, u64
 							p[15] = 0;
 
 							/* store B0 block at p[16..31] */
-							p[16] = (1<<6)			 | /* AAD present */
+							p[16] = (unsigned char)((1<<6)			 | /* AAD present */
 									 (((M-2)>>1)<<3)  | /* ICV length encoding */
-									 (L-1);				 /* length of pt message */
+									 (L-1));				 /* length of pt message */
 							memcpy(p+1+16, tctx->csalt, 3);
 							memcpy(p+4+16, &lseq,		 ivsize);
-							p[16+12+0] = (lm >> 24) & 0xFF;
-							p[16+12+1] = (lm >> 16) & 0xFF;
-							p[16+12+2] = (lm >> 8) & 0xFF;
-							p[16+12+3] = (lm) & 0xFF;
+							p[16+12+0] = (unsigned char)(lm >> 24) & 0xFF;
+							p[16+12+1] = (unsigned char)(lm >> 16) & 0xFF;
+							p[16+12+2] = (unsigned char)(lm >> 8) & 0xFF;
+							p[16+12+3] = (unsigned char)(lm) & 0xFF;
 
 							#ifdef PRINT_IVS
 							{ int x; printk("CCM CIV ==\n"); for (x = 0; x < 32; x++) printk("%02X ", p[x]); printk("\n"); }
@@ -220,7 +220,7 @@ static int spacc_aead_init_dma(struct device *dev, struct aead_request *req, u64
 							M = tctx->auth_size;
 
 							/* CTR block */
-							p[0] = L-1;
+							p[0] = (unsigned char)(L-1);
 							memcpy(p+1, tctx->csalt, 3);
 							memcpy(p+4, req->iv,	  ivsize);
 
@@ -230,17 +230,17 @@ static int spacc_aead_init_dma(struct device *dev, struct aead_request *req, u64
 							p[15] = 1;
 
 							/* store B0 block at p[16..31] */
-							p[16] = (1<<6)			 | /* AAD present */
+							p[16] = (unsigned char)((1<<6)			 | /* AAD present */
 									 (((M-2)>>1)<<3) | /* ICV length encoding */
-									 (L-1);				/* length of pt message */
+									 (L-1));				/* length of pt message */
 							memcpy(p+1+16, tctx->csalt, 3);
 							memcpy(p+4+16, req->iv,	  ivsize);
 
 							/* now store length */
-							p[16+12+0] = (lm >> 24) & 0xFF;
-							p[16+12+1] = (lm >> 16) & 0xFF;
-							p[16+12+2] = (lm >> 8) & 0xFF;
-							p[16+12+3] = (lm) & 0xFF;
+							p[16+12+0] = (unsigned char)(lm >> 24) & 0xFF;
+							p[16+12+1] = (unsigned char)(lm >> 16) & 0xFF;
+							p[16+12+2] = (unsigned char)(lm >> 8) & 0xFF;
+							p[16+12+3] = (unsigned char)(lm) & 0xFF;
 
 							/* now store the pre-formatted AAD ... */
 							p[32] = (req->assoclen >> 8) & 0xFF;

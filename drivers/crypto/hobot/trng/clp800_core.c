@@ -30,7 +30,7 @@ static uint32_t clp800_mmio_readreg(void *base, unsigned offset)
 {
    uint32_t *regs = base;
 
-   return pdu_io_read32(&regs[offset]);
+   return (uint32_t)pdu_io_read32(&regs[offset]);
 }
 
 void elpclp800_setup(struct elpclp800_state *clp800, uint32_t *regbase)
@@ -50,22 +50,23 @@ void elpclp800_setup(struct elpclp800_state *clp800, uint32_t *regbase)
 
    /* Parse out BUILD_ID register */
    tmp = elpclp800_readreg(clp800, CLP800_BUILD_ID);
-   clp800->epn       = (tmp >> CLP800_BUILD_ID_EPN);
-   clp800->epn      &= (1ul << CLP800_BUILD_ID_EPN_BITS) - 1;
-   clp800->stepping  = (tmp >> CLP800_BUILD_ID_STEPPING);
-   clp800->stepping &= (1ul << CLP800_BUILD_ID_STEPPING_BITS) - 1;
+   clp800->epn       = (uint16_t)(tmp >> CLP800_BUILD_ID_EPN);
+   clp800->epn      &= (uint16_t)((1ul << CLP800_BUILD_ID_EPN_BITS) - 1);
+   clp800->stepping  = (uint16_t)(tmp >> CLP800_BUILD_ID_STEPPING);
+   clp800->stepping &= (uint16_t)((1ul << CLP800_BUILD_ID_STEPPING_BITS) - 1);
 
    /* Parse out FEATURES register */
    tmp = elpclp800_readreg(clp800, CLP800_FEATURES);
    clp800->secure_reset = (tmp >> CLP800_FEATURES_SECURE_RST) & 1;
    clp800->rings_avail = (tmp >> CLP800_FEATURES_RAND_SEED) & 1;
 
-   clp800->output_len  = tmp >> CLP800_FEATURES_RAND_LEN;
-   clp800->output_len &= (1ul << CLP800_FEATURES_RAND_LEN_BITS) - 1;
-   clp800->output_len  = 16ul << clp800->output_len;
+   clp800->output_len  = (uint16_t)(tmp >> CLP800_FEATURES_RAND_LEN);
+   clp800->output_len &= (uint16_t)((1ul << CLP800_FEATURES_RAND_LEN_BITS) - 1);
+   clp800->output_len  = (uint16_t)(16ul << clp800->output_len);
 
-   clp800->diag_level  = tmp >> CLP800_FEATURES_DIAG_LEVEL;
-   clp800->diag_level &= (1ul << CLP800_FEATURES_DIAG_LEVEL_BITS) - 1;
+   clp800->diag_level  = (uint16_t)(tmp >> CLP800_FEATURES_DIAG_LEVEL);
+   clp800->diag_level &= (uint16_t)((1ul << CLP800_FEATURES_DIAG_LEVEL_BITS)
+		 - 1);
 }
 
 int elpclp800_reseed(struct elpclp800_state *clp800, const void *nonce)
@@ -82,10 +83,12 @@ int elpclp800_reseed(struct elpclp800_state *clp800, const void *nonce)
       } while (((stat >> CLP800_STAT_NONCE_MODE) & 1) == 0);
 
       for (i = 0; i < sizeof nonce_buf / sizeof nonce_buf[0]; i++) {
-         elpclp800_writereg(clp800, CLP800_SEED_BASE+i, nonce_buf[i]);
+         elpclp800_writereg(clp800, (uint32_t)(CLP800_SEED_BASE+i),
+		nonce_buf[i]);
       }
       elpclp800_writereg(clp800, CLP800_CTRL, CLP800_CMD_NONCE_RESEED);
-      elpclp800_writereg(clp800, CLP800_SMODE, smode & ~(1ul<<CLP800_SMODE_NONCE));
+      elpclp800_writereg(clp800, CLP800_SMODE,
+	smode & (uint32_t)(~(1ul<<CLP800_SMODE_NONCE)));
    } else {
       if (!clp800->rings_avail)
          return CRYPTO_MODULE_DISABLED;
@@ -107,7 +110,7 @@ int elpclp800_get_seed(struct elpclp800_state *clp800, void *out)
       return CRYPTO_NOT_INITIALIZED;
 
    for (i = 0; i < sizeof seed_buf / sizeof seed_buf[0]; i++) {
-      seed_buf[i] = elpclp800_readreg(clp800, CLP800_SEED_BASE+i);
+      seed_buf[i] = elpclp800_readreg(clp800, (uint32_t)(CLP800_SEED_BASE+i));
    }
 
    memcpy(out, seed_buf, sizeof seed_buf);
@@ -176,7 +179,7 @@ int elpclp800_set_request_reminder(struct elpclp800_state *clp800,
    if (val >= 1ul << CLP800_AUTO_RQST_RQSTS_BITS)
       return CRYPTO_INVALID_ARGUMENT;
 
-   elpclp800_writereg(clp800, CLP800_AUTO_RQST, val);
+   elpclp800_writereg(clp800, CLP800_AUTO_RQST, (uint32_t)val);
    return 0;
 }
 
@@ -190,7 +193,7 @@ int elpclp800_set_age_reminder(struct elpclp800_state *clp800,
    if (val >= 1ul << CLP800_AUTO_AGE_AGE_BITS)
       return CRYPTO_INVALID_ARGUMENT;
 
-   elpclp800_writereg(clp800, CLP800_AUTO_AGE, val);
+   elpclp800_writereg(clp800, CLP800_AUTO_AGE, (uint32_t)val);
    return 0;
 }
 
@@ -212,7 +215,8 @@ int elpclp800_get_random(struct elpclp800_state *clp800, void *out)
 
    outlen = (stat >> CLP800_STAT_R256) & 1 ? 8 : 4;
    for (i = 0; i < outlen; i++) {
-      rand_buf[i] = elpclp800_readreg(clp800, CLP800_RAND_BASE + i);
+      rand_buf[i] = elpclp800_readreg(clp800,
+		(uint32_t)(CLP800_RAND_BASE + i));
    }
 
    elpclp800_writereg(clp800, CLP800_ISTAT, CLP800_IRQ_RAND_RDY_MASK);
@@ -221,5 +225,5 @@ int elpclp800_get_random(struct elpclp800_state *clp800, void *out)
       memcpy(out, rand_buf, i * sizeof rand_buf[0]);
    }
 
-   return i * sizeof rand_buf[0];
+   return (int)(i * sizeof rand_buf[0]);
 }

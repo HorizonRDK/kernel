@@ -184,7 +184,7 @@ static int spacc_hash_ex(spacc_device *spacc,
    //               if we set pre_aad_sz to less than proc_len then it'll still produce the valid hash but it will also output
    //               some of the plaintext to the output buffer which we do not want
    // post_aad_sz == 0 since we consume all of the message in the pre_aad_sz
-   spacc_packet_enqueue_ddt (spacc, handle, &src, &dst, src_len, 0, src_len, 0, 0, SPACC_SW_CTRL_PRIO_HI);
+   spacc_packet_enqueue_ddt (spacc, handle, &src, &dst, (uint32_t)src_len, 0, (uint32_t)src_len, 0, 0, SPACC_SW_CTRL_PRIO_HI);
    // sleep the calling thread until the job finishes.  In this context a user can abort the job by pressing CTRL+C
    // in the terminal they used to load the module
    
@@ -278,7 +278,8 @@ static int spacc_cipher_ex(spacc_device *spacc,
    // start the job
    // here we set the pre_aad_sz/post_aad_sz to zero since we are treating
    // the entire source as plaintext
-   spacc_packet_enqueue_ddt (spacc, handle, &src, &dst, src_len, 0, 0, 0, 0, SPACC_SW_CTRL_PRIO_HI);
+   spacc_packet_enqueue_ddt (spacc, handle, &src, &dst,
+	(uint32_t)src_len, 0, 0, 0, 0, SPACC_SW_CTRL_PRIO_HI);
    // wait for the job to complete and allow the user to abort if need be
    if (unlikely(wait_for_completion_interruptible(&comp))) {
       printk("User aborted task...\n");
@@ -355,7 +356,8 @@ static void run_hmac(spacc_device *spacc, int mode, int len)
    unsigned char buf[64];
 
    // EXAMPLE 1, HMAC-MD5 processing a message
-   err = spacc_hash(spacc, msg, buf, strlen(msg), len, mode, hmackey, strlen(hmackey));
+   err = spacc_hash(spacc, msg, buf, strlen(msg), len, mode, hmackey,
+	(unsigned int)(strlen(hmackey)));
    for (x = 0; x < len; x++) {
       printk(KERN_CONT "%02x ", buf[x]);
    }

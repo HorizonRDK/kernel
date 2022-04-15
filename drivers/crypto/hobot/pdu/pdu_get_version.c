@@ -61,7 +61,7 @@
 #define SPACC_ID_AUX(x)     (((x) >> 11) & 0x01)
 #define SPACC_ID_VIDX(x)    (((x) >> 12) & 0x07)
 #define SPACC_ID_PARTIAL(x) (((x) >> 15) & 0x01)
-#define SPACC_ID_PROJECT(x) ((x)>>16)
+#define SPACC_ID_PROJECT(x) (uint32_t)((x)>>16)
 
 #define SPACC_TYPE_SPACCQOS 0
 #define SPACC_TYPE_PDU      1

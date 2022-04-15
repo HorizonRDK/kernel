@@ -364,11 +364,11 @@ static int get_userbufs (struct State *ses, struct elp_spacc_usr_ddt *src, struc
 
 
    for (x = src_pagecount = 0; x < ELP_SPACC_USR_MAX_DDT && src[x].ptr != NULL; x++) {
-      src_pagecount += (src_pg_counts[x] = PAGECOUNT(src[x].ptr, src[x].len));
+      src_pagecount += (src_pg_counts[x] = (int)PAGECOUNT(src[x].ptr, src[x].len));
    }
 
    for (x = dst_pagecount = 0; x < ELP_SPACC_USR_MAX_DDT && dst[x].ptr != NULL; x++) {
-      dst_pagecount += (dst_pg_counts[x] = PAGECOUNT(dst[x].ptr, dst[x].len));
+      dst_pagecount += (dst_pg_counts[x] = (int)PAGECOUNT(dst[x].ptr, dst[x].len));
    }
 
    // are these the same array
@@ -596,7 +596,8 @@ static long spacc_dev_ioctl2 (int si, struct file *fp, unsigned int cmd, unsigne
    void __user *arg = (void __user *) arg_;
    struct elp_spacc_ioctl io;
    struct elp_spacc_features features;
-   int outlen, inlen, withicv, copied, ctxid;
+   int withicv, copied, ctxid;
+   long outlen, inlen;
 
 #ifdef PERF_MON
    uint32_t t3, t2, t1 = perf_counter();
@@ -679,7 +680,7 @@ static long spacc_dev_ioctl2 (int si, struct file *fp, unsigned int cmd, unsigne
             return -EFAULT;
          }
 // *** this scans for the matching state, note this function LOCKS dev_lock upon success so we must up it here!!!
-         ctxid =  scan_state(si, io.state_key);
+         ctxid = (int)(scan_state(si, io.state_key));
          if (ctxid < 0) {
             return ctxid;
          }
@@ -843,11 +844,11 @@ t1 = t2;
 
 retry:
          io.err = spacc_packet_enqueue_ddt (spacc, states[si].spacc_handle, &states[si].src_ddt, &states[si].dst_ddt,
-            io.srclen + withicv,                                                         // proc_sz (PROC_LEN)
+            (uint32_t)(io.srclen + withicv),// proc_sz (PROC_LEN)
             (io.src_offset<<SPACC_OFFSET_SRC_O)|(io.dst_offset<<SPACC_OFFSET_DST_O),     // aad_offset
             io.pre_aad_len | (io.aad_copy ? SPACC_AADCOPY_FLAG : 0),                     // pre_aad_sz + flag for AAD COPY
             io.post_aad_len,                                                             // post_aad_sz
-            io.ivoffset == -1 ? 0 : (io.ivoffset | 0x80000000UL),                        // iv_offset
+            io.ivoffset == -1 ? 0 : (uint32_t)(io.ivoffset | 0x80000000UL),                        // iv_offset
             SPACC_SW_CTRL_PRIO_HI);
          // CMD FIFO is full so let's wait until at least one job clears up to see if we can program another
          // we hijack the IRQ callbacks during module init so we get informed when other users of the SDK

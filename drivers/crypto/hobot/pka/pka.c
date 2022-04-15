@@ -135,7 +135,7 @@ static void pka_put_firmware(struct pka_fw_priv *fw_priv)
 static irqreturn_t pka_irq_handler(int irq, void *dev)
 {
    struct pka_priv *priv = dev_get_drvdata(dev);
-   u32 status;
+   u64 status;
 
    status = pdu_io_read32(&priv->regs[PKA_STATUS]);
    if (!(status & (1 << PKA_STAT_IRQ))) {
@@ -143,7 +143,7 @@ static irqreturn_t pka_irq_handler(int irq, void *dev)
    }
 
    pdu_io_write32(&priv->regs[PKA_STATUS], 1 << PKA_STAT_IRQ);
-   priv->saved_flags = pdu_io_read32(&priv->regs[PKA_FLAGS]);
+   priv->saved_flags = (u32)pdu_io_read32(&priv->regs[PKA_FLAGS]);
    priv->work_flags = 0;
 
    up(&priv->core_running);
@@ -290,7 +290,7 @@ static long pka_ioc_setf(struct device *dev, struct pka_flag *flag)
    if (rc < 0)
       return rc;
 
-   mask = 1ul << rc;
+   mask = (u32)(1ul << rc);
    prev_flags = priv->work_flags;
 
    switch (flag->op) {
@@ -1022,10 +1022,10 @@ static int pka_probe(struct platform_device *pdev)
 
    priv->regs = pdu_linux_map_regs(&pdev->dev, mem_resource);
    if (IS_ERR(priv->regs))
-      return PTR_ERR(priv->regs);
+      return PTR_ERR_OR_ZERO(priv->regs);
 
-   rc = devm_request_irq(&pdev->dev, irq_resource->start, pka_irq_handler,
-                         IRQF_SHARED, dev_name(&pdev->dev), &pdev->dev);
+   rc = devm_request_irq(&pdev->dev, (uint32_t)(irq_resource->start),
+	pka_irq_handler, IRQF_SHARED, dev_name(&pdev->dev), &pdev->dev);
    if (rc < 0)
       return rc;
 
@@ -1056,7 +1056,7 @@ static int pka_probe(struct platform_device *pdev)
 
    priv->slave_device = pka_chrdev_register(&pdev->dev, &pka_class_ops);
    if (IS_ERR(priv->slave_device))
-      return PTR_ERR(priv->slave_device);
+      return PTR_ERR_OR_ZERO(priv->slave_device);
 
    pdu_io_write32(&priv->regs[PKA_IRQ_EN], 1 << PKA_IRQ_EN_STAT);
 

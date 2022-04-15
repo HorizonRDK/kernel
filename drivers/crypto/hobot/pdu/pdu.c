@@ -162,7 +162,7 @@ void pdu_io_cached_write32(void *addr, unsigned long val, uint32_t *cache)
       return;
    }
 
-   *cache = val;
+   *cache = (uint32_t)val;
    pdu_io_write32(addr, val);
 }
 EXPORT_SYMBOL(pdu_io_cached_write32);
@@ -283,7 +283,7 @@ void pdu_mem_deinit(void *device)
 
 int pdu_ddt_init (pdu_ddt * ddt, unsigned long limit)
 {
-   int flag = (limit & 0x80000000);  // set the MSB if we want to use an ATOMIC allocation required for top half processing
+   int flag = (int)(limit & 0x80000000);  // set the MSB if we want to use an ATOMIC allocation required for top half processing
    limit &= 0x7FFFFFFF;
 
    if (limit+1 >= SIZE_MAX/8) {
@@ -328,7 +328,7 @@ int pdu_ddt_add (pdu_ddt * ddt, PDU_DMA_ADDR_T phys, unsigned long size)
    }
 
    ddt->virt[ddt->idx * 2 + 0] = (uint32_t) phys;
-   ddt->virt[ddt->idx * 2 + 1] = size;
+   ddt->virt[ddt->idx * 2 + 1] = (uint32_t)size;
    ddt->virt[ddt->idx * 2 + 2] = 0;
    ddt->virt[ddt->idx * 2 + 3] = 0;
    ddt->len += size;

@@ -702,7 +702,7 @@ int spacc_autodetect(spacc_device *spacc)
 
    pdu_ddt_add(&ddt, dma, 256);
 
-   for (x = 0; x < 64; x++) key[x] = x;
+   for (x = 0; x < 64; x++) key[x] = (u8)x;
 
    for (x = 0; x < sizeof template / sizeof template[0]; x++) {
       spacc->config.modes[x] = template[x];
@@ -727,7 +727,7 @@ int spacc_autodetect(spacc_device *spacc)
 
                h = spacc_open(spacc, enc, hash, -1, 0, NULL, NULL);
                if (h < 0) {
-                  spacc->config.modes[x] &= ~(1<<y);
+                  spacc->config.modes[x] &= (u8)(~(1<<y));
                   continue;
                }
 
@@ -808,7 +808,7 @@ int spacc_autodetect(spacc_device *spacc)
                   } while (err == CRYPTO_INPROGRESS);
                }
                if (err != CRYPTO_OK || !testdata[x].test[y].outlen || memcmp(testdata[x].test[y].data, virt, testdata[x].test[y].outlen)) {
-                  spacc->config.modes[x] &= ~(1<<y);
+                  spacc->config.modes[x] &= (u8)(~(1<<y));
 #if 0
                   printk("Failed to detect %s with key size %3d bits, err=%d\n", names[x], keysizes[template[x]>>7][y]*8, err);
                   { unsigned i; unsigned char *vp = (unsigned char *)virt;

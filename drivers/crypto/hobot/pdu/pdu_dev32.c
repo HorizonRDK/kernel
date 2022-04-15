@@ -60,7 +60,7 @@ void pdu_from_dev32(uint32_t *dst, void *addr_, unsigned long nword)
    unsigned char *addr = addr_;
 
    while (nword--) {
-      *dst++ = pdu_io_read32(addr);
+      *dst++ = (uint32_t)pdu_io_read32(addr);
       addr += 4;
    }
 }

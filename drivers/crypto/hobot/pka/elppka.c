@@ -200,7 +200,7 @@ static void elppka_get_config_type1(uint32_t bc, struct pka_config *out)
 /* Read out PKA H/W configuration into config structure. */
 static int elppka_get_config(uint32_t *regs, struct pka_config *out)
 {
-   uint32_t bc = pdu_io_read32(&regs[PKA_BUILD_CONF]);
+   uint32_t bc = (uint32_t)pdu_io_read32(&regs[PKA_BUILD_CONF]);
 
    unsigned type = bc >> PKA_BC_FORMAT_TYPE;
    type &= (1ul << PKA_BC_FORMAT_TYPE_BITS) - 1;
@@ -271,7 +271,7 @@ void elppka_abort(struct pka_state *pka)
 
 int elppka_get_status(struct pka_state *pka, unsigned *code)
 {
-   uint32_t status = pdu_io_read32(&pka->regbase[PKA_RC]);
+   uint64_t status = pdu_io_read32(&pka->regbase[PKA_RC]);
 
    if (status & (1 << PKA_RC_BUSY)) {
       return CRYPTO_INPROGRESS;
@@ -325,7 +325,8 @@ int elppka_load_operand(struct pka_state *pka, unsigned bank, unsigned index,
 int elppka_unload_operand(struct pka_state *pka, unsigned bank, unsigned index,
                                                  unsigned size, uint8_t *data)
 {
-   uint32_t *opbase, tmp;
+   uint32_t *opbase;
+   uint64_t tmp;
    unsigned i, n;
    int rc;
 
@@ -351,7 +352,7 @@ int elppka_unload_operand(struct pka_state *pka, unsigned bank, unsigned index,
 
 void elppka_set_byteswap(struct pka_state *pka, int swap)
 {
-   uint32_t val = pdu_io_read32(&pka->regbase[PKA_CONF]);
+   uint64_t val = pdu_io_read32(&pka->regbase[PKA_CONF]);
 
    if (swap) {
       val |= 1 << PKA_CONF_BYTESWAP;

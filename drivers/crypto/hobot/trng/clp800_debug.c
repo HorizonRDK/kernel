@@ -260,7 +260,7 @@ store_enable(struct device *dev, struct device_attribute *devattr,
                                  const char *buf, size_t count)
 {
    unsigned ring_id = ring_attr_id(devattr);
-   u32 val, mask = 1ul << ring_id;
+   u32 val, mask = (u32)(1ul << ring_id);
    bool enable;
    int rc;
 
@@ -473,7 +473,7 @@ read_dpd_data(struct file *filp, struct kobject *kobj,
 {
    struct device *dev = container_of(kobj, struct device, kobj);
    unsigned char blob[256];
-   size_t i;
+   uint32_t i;
 
    /* DPD data memory consists of 256 bytes (64 * 32-bit words) */
    if (off >= sizeof blob)

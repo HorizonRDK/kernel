@@ -446,7 +446,9 @@ int spacc_ctx_request(spacc_device *spacc, int ctx_id, int ncontig)
 
       /* wait for ready flag */
       timeout = 100000UL;
-      while (--timeout && (((ctx_id = pdu_io_read32(spacc->regmap + SPACC_REG_HSM_CTX_STAT)) & SPACC_CTX_STAT_RDY) != SPACC_CTX_STAT_RDY)){};
+      while (--timeout && (((ctx_id = (int)pdu_io_read32(spacc->regmap
+	+ SPACC_REG_HSM_CTX_STAT))
+	& SPACC_CTX_STAT_RDY) != SPACC_CTX_STAT_RDY)){};
       if (!timeout) {
          ELPHW_PRINT("spacc_ctx_request::Timeout requesting handle from HSM CTX manager\n");
          ret = CRYPTO_FAILED;

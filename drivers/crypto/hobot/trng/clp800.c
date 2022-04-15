@@ -270,7 +270,7 @@ store_seed(struct device *dev, struct device_attribute *devattr,
                                const char *buf, size_t count)
 {
    struct elpclp800_priv *priv = dev_get_drvdata(dev);
-   unsigned char tmp[sizeof priv->nonce_buf] = {0};
+   int tmp[sizeof priv->nonce_buf] = {0};
    size_t i, pos;
    int cur = -1;
 
@@ -544,8 +544,7 @@ retry:
 static ssize_t elpclp800_read(struct device *dev, void *out, size_t outlen)
 {
    unsigned char buf[ELPCLP800_MAXLEN];
-   size_t ret;
-   int rc;
+   size_t ret, rc;
 
    if (outlen > INT_MAX)
       return -EINVAL;
@@ -781,7 +780,7 @@ elpclp800_hwrng_read(struct hwrng *rng, void *data, size_t max, bool wait)
    if (!priv->hwrng_setup)
       return -EAGAIN;
 
-   return elpclp800_read(dev, data, max);
+   return (int)elpclp800_read(dev, data, max);
 }
 
 static int __devinit elpclp800_setup_hwrng(struct device *dev)
@@ -858,11 +857,11 @@ static int __devinit elpclp800_probe(struct platform_device *pdev)
 
    regbase = pdu_linux_map_regs(&pdev->dev, mem);
    if (IS_ERR(regbase))
-      return PTR_ERR(regbase);
+      return PTR_ERR_OR_ZERO(regbase);
    elpclp800_setup(&priv->elpclp800, regbase);
 
    if (irq) {
-      rc = devm_request_irq(&pdev->dev, irq->start, elpclp800_irq, IRQF_SHARED,
+      rc = devm_request_irq(&pdev->dev, (uint32_t)(irq->start), elpclp800_irq, IRQF_SHARED,
                                         dev_name(&pdev->dev), &pdev->dev);
       if (rc < 0) {
          dev_err(&pdev->dev, "failed to request IRQ %u: %d\n",

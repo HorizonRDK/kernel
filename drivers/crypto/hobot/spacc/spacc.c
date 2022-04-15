@@ -87,7 +87,7 @@ static inline uint32_t _spacc_get_stat_cnt (spacc_device * spacc)
    return fifo;
 }
 
-static int _spacc_fifo_full(spacc_device *spacc, uint32_t prio)
+static long _spacc_fifo_full(spacc_device *spacc, uint32_t prio)
 {
    if (spacc->config.is_qos) {
       return pdu_io_read32(spacc->regmap + SPACC_REG_FIFO_STAT) & SPACC_FIFO_STAT_CMDX_FULL(prio);
@@ -119,7 +119,8 @@ void spacc_free_hsm_semaphore(spacc_device *spacc)
 int spacc_packet_enqueue_ddt_ex (spacc_device * spacc, int use_jb, int job_idx, pdu_ddt * src_ddt, pdu_ddt * dst_ddt, uint32_t proc_sz, uint32_t aad_offset, uint32_t pre_aad_sz,
                               uint32_t post_aad_sz, uint32_t iv_offset, uint32_t prio)
 {
-   int ret = CRYPTO_OK, proc_len;
+   int ret = CRYPTO_OK;
+   long unsigned proc_len;
    spacc_job *job;
    spacc_ctx *ctx;
 
@@ -337,7 +338,8 @@ int spacc_pop_packets_ex (spacc_device * spacc, int *num_popped, unsigned long *
    int ret = CRYPTO_INPROGRESS;
   // spacc_ctx *ctx = NULL;
    spacc_job *job = NULL;
-   uint32_t cmdstat, swid;
+   uint32_t swid;
+   uint64_t cmdstat;
    int jobs;
 
    *num_popped = 0;
@@ -600,7 +602,7 @@ void spacc_virtual_set_weight (spacc_device * spacc, int weight)
    }
 }
 
-void spacc_set_wd_count(spacc_device *spacc, uint32_t val)
+void spacc_set_wd_count(spacc_device *spacc, uint64_t val)
 {
    pdu_io_write32(spacc->regmap + SPACC_REG_STAT_WD_CTRL, val);
 }
@@ -620,7 +622,7 @@ uint32_t spacc_process_irq(spacc_device *spacc)
 
    PDU_LOCK(&spacc->lock, lock_flag);
 
-   temp = pdu_io_read32(spacc->regmap + SPACC_REG_IRQ_STAT);
+   temp = (uint32_t)pdu_io_read32(spacc->regmap + SPACC_REG_IRQ_STAT);
 
    /* clear interrupt pin and run registered callback */
    if (temp & SPACC_IRQ_STAT_STAT) {
@@ -892,7 +894,7 @@ int spacc_init (void *baseaddr, spacc_device * spacc, pdu_info * info)
 
 /* determine max PROClen value */
    pdu_io_write32(spacc->regmap + SPACC_REG_PROC_LEN, 0xFFFFFFFF);
-   spacc->config.max_msg_size = pdu_io_read32(spacc->regmap + SPACC_REG_PROC_LEN);
+   spacc->config.max_msg_size = (uint32_t)pdu_io_read32(spacc->regmap + SPACC_REG_PROC_LEN);
 
    // read config info
    if (spacc->config.is_pdu) {
@@ -1077,7 +1079,7 @@ int spacc_compute_xcbc_key(spacc_device *spacc, int job_idx, const unsigned char
 
          // set to 1111...., 2222...., 333...
          for (i = 0; i < 48; i++) {
-            buf[i] = (i >> 4) + 1;
+            buf[i] = (u8)((i >> 4) + 1);
          }
 
          // build DDT ...
@@ -1146,7 +1148,7 @@ xcbc_err:
 /* cmdx_cnt must be 2^6 or less */
 void spacc_irq_cmdx_enable (spacc_device *spacc, int cmdx, int cmdx_cnt)
 {
-   uint32_t temp;
+   uint64_t temp;
 
    //printk("CMDX enable\n");
    /* read the reg, clear the bit range and set the new value */
@@ -1167,7 +1169,7 @@ void spacc_irq_cmdx_disable (spacc_device *spacc, int cmdx)
 
 void spacc_irq_stat_enable (spacc_device *spacc, int stat_cnt)
 {
-   uint32_t temp;
+   uint64_t temp;
 
    temp = pdu_io_read32(spacc->regmap + SPACC_REG_IRQ_CTRL);
    if (spacc->config.is_qos) {
@@ -1318,13 +1320,13 @@ static const struct { unsigned addr; char *name; } reg_names[] = {
 };
 #undef HW_ENTRY
 
-static uint32_t reg_epn = 0x0, reg_virt = 0;
+static uint64_t reg_epn = 0x0, reg_virt = 0;
 
 static ssize_t show_reg(struct device *dev, struct device_attribute *devattr, char *buf)
 {
    char *name, out[128];
    unsigned x, reg_addr;
-   spacc_device *spacc = get_spacc_device_by_epn(reg_epn, reg_virt);
+   spacc_device *spacc = get_spacc_device_by_epn((uint32_t)reg_epn, (uint32_t)reg_virt);
 
    if (!spacc) {
       return sprintf(buf, "Could not find SPAcc device (EPN=%lx,%lu), please write to this file first in the form <epn,virt>\n",
@@ -1371,6 +1373,7 @@ static const struct attribute_group spacc_attr_group = {
 static int __devinit spacc_probe(struct platform_device *pdev)
 {
    void *baseaddr;
+	uint64_t t;
    struct resource *mem, *irq;
    int x, err, oldmode;
    struct spacc_priv   *priv;
@@ -1402,7 +1405,7 @@ static int __devinit spacc_probe(struct platform_device *pdev)
    baseaddr = pdu_linux_map_regs(&pdev->dev, mem);
    if (IS_ERR(baseaddr)) {
       dev_err(&pdev->dev, "unable to map iomem\n");
-      return PTR_ERR(baseaddr);
+      return PTR_ERR_OR_ZERO(baseaddr);
    }
 
    x = pdev->id;
@@ -1434,7 +1437,8 @@ static int __devinit spacc_probe(struct platform_device *pdev)
    /* Determine configured maximum message length. */
    priv->max_msg_len = priv->spacc.config.max_msg_size;
 
-   if (devm_request_irq(&pdev->dev, irq->start, spacc_irq_handler, IRQF_SHARED, dev_name(&pdev->dev), &pdev->dev)) {
+   if (devm_request_irq(&pdev->dev, (uint32_t)irq->start, spacc_irq_handler,
+	IRQF_SHARED, dev_name(&pdev->dev), &pdev->dev)) {
       dev_err(&pdev->dev, "failed to request IRQ\n");
       return -EBUSY;
    }
@@ -1485,7 +1489,6 @@ static int __devinit spacc_probe(struct platform_device *pdev)
 
    // unlock normal
    if (priv->spacc.config.is_hsm_shared && priv->spacc.config.is_secure_port) {
-      uint32_t t;
       t = pdu_io_read32(baseaddr + SPACC_REG_SECURE_CTRL);
       t &= ~(1UL<<31);
       pdu_io_write32(baseaddr + SPACC_REG_SECURE_CTRL, t);

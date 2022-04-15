@@ -420,12 +420,12 @@ static int spacc_hash_cra_init(struct crypto_tfm *tfm)
 		if (tctx->handle >= 0)
 			spacc_close(&priv->spacc, tctx->handle);
 		put_device(tctx->dev);
-		return PTR_ERR(tctx->fb.hash);
+		return PTR_ERR_OR_ZERO(tctx->fb.hash);
 	}
 
 	crypto_ahash_set_reqsize(__crypto_ahash_cast(tfm),
-							sizeof (struct spacc_hash_reqctx)
-							+ crypto_ahash_reqsize(tctx->fb.hash));
+			(unsigned int)(sizeof (struct spacc_hash_reqctx)
+			+ crypto_ahash_reqsize(tctx->fb.hash)));
 
 	return 0;
 }
@@ -704,7 +704,7 @@ static int spacc_hash_update(struct ahash_request *req)
 	struct spacc_crypto_ctx *tctx = crypto_ahash_ctx(reqtfm);
 	struct spacc_hash_reqctx *ctx = ahash_request_ctx(req);
 	struct spacc_priv *priv = dev_get_drvdata(tctx->dev);
-	uint32_t max_size = priv->max_msg_len & ~0xfff;
+	uint32_t max_size = (uint32_t)(priv->max_msg_len & ~0xfff);
 	int ret;
 	int total = req->nbytes;
 	struct scatterlist *sg_last = NULL;

@@ -60,8 +60,8 @@ struct elppka_fw_priv {
 
 static uint16_t read_le16(const unsigned char *buf)
 {
-   return (buf[0] & 0xff)
-       | ((buf[1] & 0xff) << 8);
+   return (uint16_t)((buf[0] & 0xff)
+       | ((buf[1] & 0xff) << 8));
 }
 
 static uint32_t read_le32(const unsigned char *buf)
@@ -211,7 +211,7 @@ static int pka_fw_read_shdr(struct pka_fw *fw,
    if (fw->priv->ehdr.e_shnum <= index)
       return CRYPTO_INVALID_ARGUMENT;
 
-   pos += index * fw->priv->ehdr.e_shentsize;
+   pos += (uint32_t)(index * fw->priv->ehdr.e_shentsize);
    copy_shdr(shdr, base + pos);
 
    /* Alignment of 0 means the same thing as 1. */
@@ -255,7 +255,7 @@ static int pka_fw_read_shdr(struct pka_fw *fw,
  */
 static int lookup_symbol(struct pka_fw *fw, const char *name)
 {
-   unsigned long i;
+   int i;
 
    for (i = 0; i < fw->priv->nsyms && i <= INT_MAX; i++) {
       if (fw->priv->symtab[i].st_name < fw->priv->nstr
@@ -519,8 +519,8 @@ void elppka_fw_free(struct pka_fw *fw)
 
 int elppka_fw_load(struct pka_state *pka, struct pka_fw *fw)
 {
-   uint32_t tmp, *rambase, *rombase;
-   unsigned long i;
+   uint32_t *rambase, *rombase;
+   unsigned long i, tmp;
 
    rambase = &pka->regbase[pka->cfg.ram_offset];
    rombase = &pka->regbase[pka->cfg.rom_offset];
