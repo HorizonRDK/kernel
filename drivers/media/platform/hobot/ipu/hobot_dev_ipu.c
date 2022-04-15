@@ -4066,7 +4066,10 @@ static irqreturn_t ipu_isr(int irq, void *data)
 			 (status & (1 << INTR_IPU_DS3_FRAME_DONE)) ||
 			 (status & (1 << INTR_IPU_DS4_FRAME_DONE)) ||
 			 (status & (1 << INTR_IPU_US_FRAME_DROP)))) {
-		if (!vio_check_all_online_state(group)) {
+		src_subdev = group->sub_ctx[GROUP_ID_SRC];
+
+		if ((!vio_check_all_online_state(group)) && (src_subdev != NULL) &&
+		(src_subdev->ipu_cfg.ctrl_info.source_sel == IPU_FROM_ISP_YUV420)) {
 			vio_get_sif_frame_info(instance, &frmid);
 			vio_warn("[S%d] FS and FE occur at same time update"
 					" frameid in advance (%d->%d)\n", instance,
