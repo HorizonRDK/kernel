@@ -44,5 +44,11 @@
         "Describe" :    "baseboard for sdb_v4",
         "dtb_name"  :   "hobot-x3-sdb_v4.dtb",
         "gpio_id"   :   "0"
+    },
+
+    "504": {
+        "Describe" :    "baseboard for X3 PI",
+        "dtb_name"  :   "hobot-x3-pi.dtb",
+        "gpio_id"   :   "0"
     }
 }
