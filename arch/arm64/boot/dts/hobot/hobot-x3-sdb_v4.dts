@@ -75,7 +75,7 @@
 
 		gpios = &gpios;
 		usb_id = &usb_id;
-
+		extcon_vbus = &extcon_vbus;
 		pwm_c0 = &pwm_c0;
 		pwm_c1 = &pwm_c1;
 
@@ -169,13 +169,6 @@
 		startup-delay-us = <3000>;
 		regulator-boot-on;
 		enable-active-high;
-	};
-
-	extcon_vbus {
-		compatible = "linux,extcon-vbus-gpio";
-		gpio-mode = <0x1>;
-		vbus-gpio = <&gpios 40 GPIO_ACTIVE_HIGH>;
-		status = "okay";
 	};
 };
 
@@ -312,8 +305,17 @@
 	/* vbus-gpio = <>; */
 	id-gpio = <&gpios 65 GPIO_ACTIVE_HIGH>;
 	host-rst-gpio = <&gpios 115 GPIO_ACTIVE_HIGH>;
-	/*host-exrst-gpio = <&gpios 4 GPIO_ACTIVE_LOW>;*/
 	host-exrst-gpio = <&gpios 38 GPIO_ACTIVE_LOW>;
+};
+
+&extcon_vbus {
+	status = "okay";
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&vbus_detect_function>;
+
+	gpio-mode = <0x1>;	/* 1: poll mode, 2: interrupt mode */
+	vbus-gpio = <&gpios 40 GPIO_ACTIVE_HIGH>;
 };
 
 &gpios {

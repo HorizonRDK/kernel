@@ -169,13 +169,6 @@
 		regulator-boot-on;
 		enable-active-high;
 	};
-
-	extcon_vbus {
-		compatible = "linux,extcon-vbus-gpio";
-		gpio-mode = <0x1>;
-		vbus-gpio = <&gpios 40 GPIO_ACTIVE_HIGH>;
-		status = "okay";
-	};
 };
 
 /*
