@@ -83,9 +83,6 @@ def str2hex(s):
 dtb_header_path   = r"dtb_header.json"
 dtb_file_out_path = r"dtb_file_out.json"
 bootDtb     = r"dtb_mapping_xj3.json"
-if os.getenv('TARGET_MODE') == 'quickboot':
-    bootDtb = r"dtb_mapping_xj3_quick.json"
-    print("Using DTB file from: %s" % (bootDtb))
 
 alignment = 4 * 1024
 
