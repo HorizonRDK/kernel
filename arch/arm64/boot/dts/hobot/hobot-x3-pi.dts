@@ -438,6 +438,8 @@
 	mmc-hs200-1_8v;
 	non-removable;
 	disable-wp;
+	pinctrl-names = "";
+	pinctrl-0 = <>;
 };
 
 &sdio1 {
