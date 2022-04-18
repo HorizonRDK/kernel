@@ -975,7 +975,7 @@ static int __init hobot_i2c_init(void)
 	return platform_driver_register(&hobot_i2c_driver);
 }
 
-static void __init hobot_i2c_exit(void)
+static void __exit hobot_i2c_exit(void)
 {
 	platform_driver_unregister(&hobot_i2c_driver);
 }
