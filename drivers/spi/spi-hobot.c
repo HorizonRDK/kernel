@@ -766,8 +766,12 @@ static void hb_spi_init_hw(struct hb_spi *hbspi)
 		val |= HB_SPI_SLAVE_MODE;
 	else
 		val &= (~HB_SPI_SLAVE_MODE);
-	if (hbspi->isslave == MASTER_MODE)
-		val &= (~HB_SPI_SAMP_SEL);
+
+	/* using the spi protocol to sampling the data for master mode,
+	 * for slave mode, it will send out the data right after the tx edge
+	 */
+	val &= (~HB_SPI_SAMP_SEL);
+
 	hb_spi_wr(hbspi, HB_SPI_CTRL_REG, (u32)val);
 
 	if (debug)
