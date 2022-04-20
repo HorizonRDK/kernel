@@ -1,5 +1,5 @@
 /*
- * dtsi file for Hobot XJ3 SDB
+ * dtsi file for Hobot X3 PI
  *
  * (C) Copyright 2018, Horizon, Inc.
  *
@@ -18,7 +18,7 @@
 #include <dt-bindings/phy/phy.h>
 
 / {
-	model = "Hobot XJ3 SOC SDB";
+	model = "Hobot X3 PI";
 
 	aliases {
 		serial0 = &uart0;
@@ -76,6 +76,9 @@
 		gpios = &gpios;
 		usb_id = &usb_id;
 		extcon_vbus = &extcon_vbus;
+
+		pwm_c0 = &pwm_c0;
+		pwm_c1 = &pwm_c1;
 
 		power = &power;
 	};
@@ -170,12 +173,6 @@
 	};
 };
 
-/*
-&cr5_service {
-	status = "ok";
-};
-*/
-
 &power {
     vdd_core_on_cnt = <0xffff>;
     sysctrl_rst_dis_cnt = <0xffff>;
@@ -184,15 +181,15 @@
 };
 
 &socinfo {
-	board_name = "X3SDB";
+	board_name = "X3PI";
 	board_id = "00000000";
 	origin_board_id = "00000000";
-	ddr_vender = "Hynix";
+	ddr_vender = "Samsung";
 	ddr_type = "LPDDR4";
-	ddr_freq = "2666";
-	ddr_size = "1GB";
-	som_name = "X3SODIMM";
-	base_board_name = "X3SDB";
+	ddr_freq = "3200";
+	ddr_size = "2GB";
+	som_name = "X3PI";
+	base_board_name = "X3PI";
 	boot_mode = "0";
 	socuid = "00000000000000000000000000000000";
 };
@@ -248,8 +245,12 @@
 	pinctrl-0 = <&uart1_func_rtscts>; /* <&uart1_func>;  uart 1 connect to bt with rtscts*/
 };
 
+&uart3 {
+	status = "okay";
+};
+
 &spi2 {
-	status = "disabled";
+	status = "okay";
 	pinctrl-names = "default";
 	spidev@0x00 {
 		compatible = "rohm,dh2228fv";
@@ -368,6 +369,16 @@
 
 &pwm_c0 {
 	status = "okay";
+	pinctrl-0 = <&pwm0_func>;
+	pinctrl-1 = <>;
+	pinctrl-2 = <>;
+};
+
+&pwm_c1 {
+	status = "okay";
+	pinctrl-0 = <>;
+	pinctrl-1 = <&pwm4_func>;
+	pinctrl-2 = <>;
 };
 
 &ethernet {
@@ -489,16 +500,16 @@
 };
 
 &i2s0 {
-        status = "disabled";
+        status = "okay";
         #sound-dai-cells = <0>;
         clocks = <&i2s0_mclk>, <&i2s0_bclk>;
         clock-names = "i2s-mclk", "i2s-bclk";
-		ms = <1>;
+	ms = <1>;
         bclk_set = <1536000>; //duplex
 };
 
 &i2s1 {
-        status = "disabled";
+        status = "okay";
         #sound-dai-cells = <0>;
         clocks = <&i2s1_mclk>, <&i2s1_bclk>;
         clock-names = "i2s-mclk", "i2s-bclk";
@@ -506,20 +517,11 @@
 };
 
 &i2sidma0 {
-        status = "disabled";
+        status = "okay";
 };
 
 &i2sidma1 {
-        status = "disabled";
-};
-
-&codec0 {
-	status = "disabled";
-	#sound-dai-cells = <0>;
-};
-
-&snd4 {
-        status = "disabled";
+        status = "okay";
 };
 
 &jpu {

@@ -746,7 +746,7 @@ static int dw_mci_set_sel18(struct dw_mci *host, bool val)
 			ret |= gpio_direction_output(priv->uhs_180v_gpio, logic_val);
 		}
 
-		usleep_range(5000, 10000);
+		usleep_range(80000, 100000);
 	} else if (priv->mmc_fixed_voltage != 0) {
 		if (val) {
 			if (priv->pin_ctrl && priv->pin_state_1_8v) {
