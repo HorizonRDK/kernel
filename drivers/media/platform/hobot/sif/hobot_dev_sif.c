@@ -470,6 +470,7 @@ void sif_write_frame_work(struct vio_group *group)
 	frame = peek_frame(framemgr, FS_REQUEST);
 	if (frame) {
 		buf_index = sif->buff_count[mux_index] % SIF_MUX_BUFF_CNT;
+		hw_idx = sif_get_current_bufindex(sif->base_reg, mux_index);
 		yuv_format = (frame->frameinfo.format == HW_FORMAT_YUV422);
 		if (!subdev->fps_ctrl.skip_frame) {
 			sif_set_wdma_buf_addr(sif->base_reg, mux_index, buf_index,
@@ -1196,7 +1197,6 @@ static void sif_clear_yuv422_proc_a_mux_mask(struct x3_sif_dev *sif,
 {
 	clear_bit(subdev->mux_index, &sif->yuv422_mux_mask_a);
 	clear_bit(subdev->ddr_mux_index, &sif->yuv422_mux_mask_a);
-	clear_bit(subdev->ddr_mux_index, &sif->yuv_multiplex_a_state);
 	if (subdev->mux_nums > 1) {
 		clear_bit(subdev->mux_index + 1, &sif->yuv422_mux_mask_a);
 		clear_bit(subdev->ddr_mux_index + 1, &sif->yuv422_mux_mask_a);
@@ -1208,7 +1208,6 @@ static void sif_clear_yuv422_proc_b_mux_mask(struct x3_sif_dev *sif,
 {
 	clear_bit(subdev->mux_index, &sif->yuv422_mux_mask_b);
 	clear_bit(subdev->ddr_mux_index, &sif->yuv422_mux_mask_b);
-	clear_bit(subdev->ddr_mux_index, &sif->yuv_multiplex_b_state);
 	if (subdev->mux_nums > 1) {
 		clear_bit(subdev->mux_index + 1, &sif->yuv422_mux_mask_b);
 		clear_bit(subdev->ddr_mux_index + 1, &sif->yuv422_mux_mask_b);
@@ -1754,9 +1753,11 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 			 * HW_FORMAT_YUV422 multiplexing use the other handles, plus 1.
 			 * Set the instance mask for marking which way use the multiplexing bit
 			 */
-			sif->sif_mux_multiplex[mux_index + 1] = group;
+			sif->sif_mux_multiplexb[mux_index] = group;
+			sif->sif_mux_multiplexb[subdev->mux_index1] = group;
 		} else {
-			sif->sif_mux_multiplex[mux_index] = group;
+			sif->sif_mux_multiplexa[mux_index] = group;
+			sif->sif_mux_multiplexa[subdev->mux_index1] = group;
 		}
 	}
 	if(splice_enable) {
@@ -1801,23 +1802,7 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 		cfg = ips_get_bus_ctrl() | 0x9002 << 16;
 
 		gtask = &sif->sifout_task[mux_index];
-		if ((YUV422_MULTIPLEXING_PROC_A == multiplexing_proc || \
-			YUV422_MULTIPLEXING_PROC_B == multiplexing_proc) && \
-			HW_FORMAT_YUV422 == subdev->format) {
-			if(yuv_multiplexing) {
-				/*
-				 * HW_FORMAT_YUV422 multiplexing use the other handles, plus 1.
-				 * Set the instance mask for marking which way use the multiplexing bit
-				 */
-				gtask = &sif->sifout_task[mux_index + 1];
-			}
-			if (YUV422_MULTIPLEXING_PROC_A == multiplexing_proc)
-				set_bit(ddr_mux_index, &sif->yuv_multiplex_a_state);
-			else
-				set_bit(ddr_mux_index, &sif->yuv_multiplex_b_state);
-		} else {
-			set_bit(ddr_mux_index, &sif->state);
-		}
+		set_bit(ddr_mux_index, &sif->state);
 		gtask->id = group->id;
 		group->gtask = gtask;
 		group->frame_work = sif_write_frame_work;
@@ -1829,6 +1814,9 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 
 	sif->buff_count[subdev->ddr_mux_index] = \
 		sif_get_current_bufindex(sif->base_reg, ddr_mux_index);
+	subdev->last_hwidx = sif_get_current_bufindex(sif->base_reg,
+					ddr_mux_index);
+	subdev->fdone = 0;
 	if ((format == HW_FORMAT_YUV422) ||
 		(subdev->splice_info.splice_enable)) {
 		sif->buff_count1[subdev->ddr_mux_index + 1] =
@@ -2468,12 +2456,12 @@ int sif_video_dqbuf(struct sif_video_ctx *sif_ctx,
 	} else {
 		ret = -EFAULT;
 		sif_ctx->event = 0;
-		vio_err("[S%d][V%d] %s (p%d) complete empty.",
-			sif_ctx->group->instance, sif_ctx->id, __func__,
-			sif_ctx->ctx_index);
 		if (sif_ctx->ctx_index == 0)
 			sif->statistic.dq_err\
 				[sif_ctx->group->instance][sif_ctx->id]++;
+		vio_err("[S%d][V%d] %s (p%d) complete empty.",
+			sif_ctx->group->instance, sif_ctx->id, __func__,
+			sif_ctx->ctx_index);
 		framemgr_x_barrier_irqr(framemgr, 0, flags);
 		return ret;
 	}
@@ -2688,7 +2676,7 @@ static int sif_reset_mipi_hw_config(struct sif_video_ctx *sif_ctx)
 		return -EINVAL;
 
 	mutex_lock(&sif->shared_mutex);
-	mux_index = subdev->mux_index;
+	mux_index = subdev->ddr_mux_index % SIF_MUX_MAX;
 	multiplexing_proc = \
 	subdev->sif_cfg.input.mux_multiplexing.yuv_multiplexing_proc;
 	yuv_multiplexing = \
@@ -2697,9 +2685,13 @@ static int sif_reset_mipi_hw_config(struct sif_video_ctx *sif_ctx)
 		YUV422_MULTIPLEXING_PROC_B == multiplexing_proc) && \
 		HW_FORMAT_YUV422 == subdev->format) {
 		if (yuv_multiplexing) {
-			sif->sif_mux[mux_index] = sif->sif_mux_multiplex[mux_index + 1];
+			sif->sif_mux[mux_index] = sif->sif_mux_multiplexb[mux_index];
+			sif->sif_mux[subdev->mux_index1] =
+					sif->sif_mux_multiplexb[subdev->mux_index1];
 		} else {
-			sif->sif_mux[mux_index] = sif->sif_mux_multiplex[mux_index];
+			sif->sif_mux[mux_index] = sif->sif_mux_multiplexa[mux_index];
+			sif->sif_mux[subdev->mux_index1] =
+				sif->sif_mux_multiplexa[subdev->mux_index1];
 		}
 		sif_hw_mipi_rx_out_select(sif->base_reg, subdev);
 		sif_recover_buff(subdev);
@@ -3098,6 +3090,9 @@ static void sif_frame_done_process(struct sif_subdev *subdev,
 	} else {
 		sif->statistic.fe_lack_buf[group->instance][subdev->id]++;
 		event = VIO_FRAME_NDONE;
+		vio_set_stat_info(group->instance, SIF_MOD,
+				  event_err, group->frameid.frame_id,
+				  0, framemgr->queued_count);
 		vio_err("[S%d][V%d]SIF PROCESS queue has no member;\n",
 				group->instance, subdev->id);
 		vio_err("[S%d][V%d][FRM][NDONE](FREE[%d] REQUEST[%d]"
@@ -3109,9 +3104,6 @@ static void sif_frame_done_process(struct sif_subdev *subdev,
 				framemgr->queued_count[2],
 				framemgr->queued_count[3],
 				framemgr->queued_count[4]);
-		vio_set_stat_info(group->instance, SIF_MOD,
-						  event_err, group->frameid.frame_id,
-						  0, framemgr->queued_count);
 	}
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 	spin_lock_irqsave(&subdev->slock, flags);
@@ -3125,6 +3117,13 @@ static void sif_frame_done_process(struct sif_subdev *subdev,
 	spin_unlock_irqrestore(&subdev->slock, flags);
 }
 
+static void sif_reset_ipi_process(struct sif_subdev *subdev)
+{
+	mipi_host_reset_ipi(subdev->rx_index, subdev->vc_index, 0);
+	sif_transfer_frame_to_request(subdev);
+	/* clear the flag whatever if it is set */
+	subdev->ipi_disable = false;
+}
 /*
   * @brief
   * SIF frame done
@@ -3150,9 +3149,13 @@ void sif_frame_done(struct sif_subdev *subdev) {
 			subdev->splice_info.frame_done = 0;
 		}
 	} else if (subdev->format == HW_FORMAT_YUV422) {
-		if(subdev->fdone == 0x3) {
+		if(subdev->fdone == SIF_FE_BOTH) {
 			subdev->fdone = 0;
-			sif_frame_done_process(subdev, sif_ctx);
+			if (subdev->ipi_disable == true) {
+				sif_reset_ipi_process(subdev);
+			} else {
+				sif_frame_done_process(subdev, sif_ctx);
+			}
 			vio_dbg("%s: mux_index = %d mux_index1 %d  subdev->last index %d\n",
 				__func__, subdev->ddr_mux_index,
 				subdev->ddr_mux_index + 1, subdev->last_hwidx);
@@ -3499,7 +3502,7 @@ static void sif_enwdma_and_ownerel(struct sif_subdev *subdev,
 			vio_dbg("[S%d] mux_index %d splice_flow_clr is 0x%x",
 				group->instance, mux_index, subdev->splice_flow_clr);
 		}
-		if (subdev->splice_flow_clr == SIF_SPLICE_ENWDMA_BOTH) {
+		if (subdev->splice_flow_clr == SIF_FE_BOTH) {
 			vio_dbg("[S%d] mux_index %d splice_flow_clr is 0x%x",
 				group->instance, mux_index, subdev->splice_flow_clr);
 			subdev->splice_flow_clr = 0;
@@ -3530,8 +3533,12 @@ void sif_frame_overflow_process(u32 mux_index, struct vio_group *group)
 
 	subdev = group->sub_ctx[0];
 	if (subdev->format == HW_FORMAT_YUV422) {
-		if (subdev->fdone == SIF_SPLICE_ENWDMA_BOTH) {
-			sif_frame_ndone(subdev);
+		if (subdev->fdone == SIF_FE_BOTH) {
+			if (subdev->ipi_disable == true) {
+				sif_reset_ipi_process(subdev);
+			} else {
+				sif_frame_ndone(subdev);
+			}
 			subdev->fdone = 0;
 			temp_flow &= ~(subdev->overflow);
 			subdev->overflow = 0;
@@ -3609,16 +3616,9 @@ static void sif_fe_process(u32 mux_index, struct sif_subdev *subdev,
 {
 	u32 instance = 0;
 	struct x3_sif_dev *sif;
-	u8 multiplexing_proc = 0;
 
 	sif = subdev->sif_dev;
 	instance = subdev->group->instance;
-	if(subdev->ipi_disable == true) {
-		vio_info("%s : rx_index = %d vc_index %d ipi_index %d instance %d \n",
-				__func__, subdev->rx_index, subdev->vc_index,
-				subdev->ipi_index, instance);
-		mipi_host_reset_ipi(subdev->rx_index, subdev->vc_index, 0);
-	}
 	if (subdev->format == HW_FORMAT_YUV422) {
 		if (test_bit(mux_index + SIF_YUV_MODE, &sif->frame_state)) {		/* uv*/
 			subdev->fdone |= 1 << 1;
@@ -3640,20 +3640,8 @@ static void sif_fe_process(u32 mux_index, struct sif_subdev *subdev,
 	if (subdev->overflow != 0) {
 		sif_frame_overflow_process(mux_index, group);
 	} else {
-		multiplexing_proc = \
-			subdev->sif_cfg.input.mux_multiplexing.yuv_multiplexing_proc;
-		if(subdev->ipi_disable == true && \
-			(YUV422_MULTIPLEXING_PROC_A == multiplexing_proc || \
-			YUV422_MULTIPLEXING_PROC_B == multiplexing_proc) && \
-			HW_FORMAT_YUV422 == subdev->format) {
-			sif_transfer_frame_to_request(subdev);
-		} else {
-			sif_frame_done(subdev);
-		}
+		sif_frame_done(subdev);
 	}
-	/* clear the flag whatever if it is set */
-	if(subdev->ipi_disable == true)
-		subdev->ipi_disable = false;
 }
 
 /*
@@ -3829,23 +3817,8 @@ static irqreturn_t sif_isr(int irq, void *data)
 				sif_print_buffer_owner(sif->base_reg);
 				if(sif_fs_process(mux_index, subdev) < 0)
 					continue;
-
-				multiplexing_proc = \
-					subdev->sif_cfg.input.mux_multiplexing.yuv_multiplexing_proc;
-				if ((YUV422_MULTIPLEXING_PROC_A == multiplexing_proc || \
-					YUV422_MULTIPLEXING_PROC_B == multiplexing_proc) && \
-					HW_FORMAT_YUV422 == subdev->format) {
-					if (YUV422_MULTIPLEXING_PROC_A == multiplexing_proc)
-						multiplex_state = sif->yuv_multiplex_a_state;
-					else
-						multiplex_state = sif->yuv_multiplex_b_state;
-					if (test_bit(mux_index, &multiplex_state)) {
-						sif_hw_resource_process(sif, group);
-					}
-				} else {
-					if (test_bit(mux_index, &sif->state)) {
-						sif_hw_resource_process(sif, group);
-					}
+				if (test_bit(mux_index, &sif->state)) {
+					sif_hw_resource_process(sif, group);
 				}
 				/* fps_ctrl:FS:if not lost next frame,transfer owner to HW */
 				if (subdev->fps_ctrl.skip_frame) {

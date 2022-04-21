@@ -25,7 +25,7 @@
 #define MAX_DEVICE  2
 #define SIF_ERR_COUNT  10
 #define SIF_MUX_BUFF_CNT 4
-#define SIF_SPLICE_ENWDMA_BOTH 0x3
+#define SIF_FE_BOTH 0x3
 
 #define SIF_SEQ_TASK_PRIORITY  39
 
@@ -354,8 +354,6 @@ struct x3_sif_dev {
 
 	unsigned long		state;
 	unsigned long 		frame_state; /*used for yuv intr*/
-	unsigned long		yuv_multiplex_a_state;
-	unsigned long		yuv_multiplex_b_state;
 	atomic_t			instance;
 	atomic_t			rsccount;
 	atomic_t			isp_init_cnt;
@@ -380,7 +378,8 @@ struct x3_sif_dev {
 
 	struct vio_group		*sif_input[VIO_MAX_STREAM];
 	struct vio_group		*sif_mux[SIF_MUX_MAX];
-	struct vio_group		*sif_mux_multiplex[SIF_MUX_MAX];
+	struct vio_group		*sif_mux_multiplexa[SIF_MUX_MAX];
+	struct vio_group		*sif_mux_multiplexb[SIF_MUX_MAX];
 
 	struct sif_subdev		sif_in_subdev[VIO_MAX_STREAM];
 	struct sif_subdev		sif_mux_subdev[VIO_MAX_STREAM];
