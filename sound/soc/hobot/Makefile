@@ -20,6 +20,9 @@ obj-$(CONFIG_HOBOT_102)   += hobot-snd-102.o
 obj-$(CONFIG_HOBOT_DUMMY) += hobot-snd-dummy.o
 obj-$(CONFIG_HOBOT_101) += hobot-snd-101.o
 obj-$(CONFIG_HOBOT_96BOARD) += hobot-snd-96.o
+
+# es7210 card
+obj-$(CONFIG_HOBOT_AUDIO_ES7210) += hobot-snd-7210.o
 endif
 endif
 

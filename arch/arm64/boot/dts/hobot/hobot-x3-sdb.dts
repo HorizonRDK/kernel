@@ -124,24 +124,24 @@
 */
 		/*Reserved 1M memory for CR5*/
 		image_r5_mem: image_r5_mem {
-                        reg = <0x0 0x80000000 0x0 0x10000>;
-                        no-map;
-                };
+			reg = <0x0 0x80000000 0x0 0x10000>;
+			no-map;
+		};
 
-                msg_r5_mem: msg_r5_mem {
-                        reg = <0x0 0x8000f000 0x0 0x1000>;
-                        no-map;
-                };
+		msg_r5_mem: msg_r5_mem {
+			reg = <0x0 0x8000f000 0x0 0x1000>;
+			no-map;
+		};
 
 		rpmsg_r5_code: rpmsg_r5_code {
-                        reg = <0x0 0x3E00000 0x0 0xFF000>;
-                        no-map;
-                };
+			reg = <0x0 0x3E00000 0x0 0xFF000>;
+			no-map;
+		};
 
-                rpmsg_r5_vring: rpmsg_r5_vring {
-                        reg = <0x0 0x3EFF000 0x0 0x1000>;
-                        no-map;
-                };
+		rpmsg_r5_vring: rpmsg_r5_vring {
+			reg = <0x0 0x3EFF000 0x0 0x1000>;
+			no-map;
+		};
 	};
 
 	cnn0_pd_reg: cnn0_pd_reg@2 {
@@ -231,6 +231,25 @@
 		compatible = "nxp,pcf8563";
 		reg = <0x51>;
 		clock-output-names = "wifi-32k-clk";
+	};
+
+	es7210_0:es7210_0@0x40 {
+		compatible = "MicArray_0";
+		reg = <0x40>;
+		#sound-dai-cells = <1>;
+	};
+	es7210_1@0x41 {
+		compatible = "MicArray_1";
+		reg = <0x41>;
+	};
+	es7210_2@0x42{
+		compatible = "MicArray_2";
+		reg = <0x42>;
+	};
+	es8156:es8156_0@0x08{
+		compatible="everest,es8156";
+		reg = <0x08>;
+		#sound-dai-cells = <0>;
 	};
 };
 
@@ -509,28 +528,29 @@
 };
 
 &i2s0 {
-        status = "disabled";
-        #sound-dai-cells = <0>;
-        clocks = <&i2s0_mclk>, <&i2s0_bclk>;
-        clock-names = "i2s-mclk", "i2s-bclk";
-		ms = <1>;
-        bclk_set = <1536000>; //duplex
+	status = "okay";
+	#sound-dai-cells = <0>;
+	clocks = <&i2s0_mclk>, <&i2s0_bclk>;
+	clock-names = "i2s-mclk", "i2s-bclk";
+	ms = <1>;
+	bclk_set = <1536000>; //duplex
 };
 
 &i2s1 {
-        status = "disabled";
-        #sound-dai-cells = <0>;
-        clocks = <&i2s1_mclk>, <&i2s1_bclk>;
-        clock-names = "i2s-mclk", "i2s-bclk";
-        bclk_set = <1536000>;
+	status = "okay";
+	#sound-dai-cells = <0>;
+	clocks = <&i2s1_mclk>, <&i2s1_bclk>;
+	clock-names = "i2s-mclk", "i2s-bclk";
+	ms = <1>;
+	bclk_set = <1536000>;
 };
 
 &i2sidma0 {
-        status = "disabled";
+	status = "okay";
 };
 
 &i2sidma1 {
-        status = "disabled";
+	status = "okay";
 };
 
 &codec0 {
@@ -539,7 +559,10 @@
 };
 
 &snd4 {
-        status = "disabled";
+	status = "disabled";
+};
+&snd5 {
+	status = "okay";
 };
 
 &jpu {
@@ -570,7 +593,7 @@
 			temperature = <80000>;
 			hysteresis = <0>;
 			type = "passive";
-	        };
+		};
 		target: trip-point@1 {
 			temperature = <95000>;
 			hysteresis = <0>;
@@ -597,37 +620,75 @@
 };
 
 &snd4 {
-        model = "hobotsnd4";
-        dai-link@0 {
-                dai-format = "i2s";
-                bitclock-master;
-                frame-master;
-                frame-inversion;
-                link-name = "hobotdailink0";
-                cpu {
-                        sound-dai = <&i2s0>;
-                };
-                codec {
-                        sound-dai = <&es8311>;
-                };
-                platform {
-                        sound-dai = <&i2sidma0>;
-                };
-        };
-		dai-link@1 {
-                dai-format = "dsp_a";
-                bitclock-master;
-                frame-master;
-                frame-inversion;
-                link-name = "hobotdailink1";
-                cpu {
-                        sound-dai = <&i2s1>;
-                };
-                codec {
-                        sound-dai = <&codec0>;
-                };
-                platform {
-                        sound-dai = <&i2sidma1>;
-                };
-        };
+	model = "hobotsnd4";
+	dai-link@0 {
+		dai-format = "i2s";
+		bitclck-master;
+		frame-master;
+		frame-inversion;
+		link-name = "hobotdailink0";
+		cpu {
+			sound-dai = <&i2s0>;
+		};
+		codec {
+			sound-dai = <&es8311>;
+		};
+		platform {
+			sound-dai = <&i2sidma0>;
+		};
+	};
+	dai-link@1 {
+		dai-format = "dsp_a";
+		bitclock-master;
+		frame-master;
+		frame-inversion;
+		link-name = "hobotdailink1";
+		cpu {
+			sound-dai = <&i2s1>;
+		};
+		codec {
+			sound-dai = <&codec0>;
+		};
+		platform {
+			sound-dai = <&i2sidma1>;
+		};
+	};
 };
+
+&snd5 {
+	model = "hobotsnd5";
+	work_mode = <0>; /*0:simple mode; 1:duplex mode*/
+	dai-link@0 {
+		dai-format = "dsp_a";
+		bitclock-master;
+		frame-master;
+		frame-inversion;
+		link-name = "hobotdailink0";
+		cpu {
+			sound-dai = <&i2s0>;
+		};
+		codec {
+			sound-dai = <&es7210_0 0>;
+		};
+		platform {
+			sound-dai = <&i2sidma0>;
+		};
+	};
+	dai-link@1 {
+		dai-format = "i2s";
+		bitclock-master;
+		frame-master;
+		//frame-inversion;
+		link-name = "hobotdailink1";
+		cpu {
+			sound-dai = <&i2s1>;
+		};
+		codec {
+			sound-dai = <&es8156>;
+		};
+		platform {
+			sound-dai = <&i2sidma1>;
+		};
+	};
+};
+

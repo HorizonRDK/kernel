@@ -387,7 +387,7 @@ static int i2s_hw_params(struct snd_pcm_substream *substream,
 		case SNDRV_PCM_FORMAT_S16_LE:
 			mod |= MOD_WORD_LEN;
 			i2s->wordlength = 16;
-			i2s->slot_width = 128;
+			i2s->slot_width = 256;
 			break;
 		case SNDRV_PCM_FORMAT_S8:
 
@@ -601,7 +601,7 @@ static struct snd_soc_dai_driver hobot_i2s_dai_drv[2] = {
 		.capture = {
 			     .stream_name = "Capture",
 			     .channels_min = 1,
-			     .channels_max = 8,
+			     .channels_max = 12,
 			     .rates = HOBOT_I2S_RATES,
 			     .formats = HOBOT_I2S_FMTS,
 			     },

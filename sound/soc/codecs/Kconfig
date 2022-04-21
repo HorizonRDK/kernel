@@ -1199,4 +1199,10 @@ config HOBOT_SOC
 config SND_SOC_TI1864
 	tristate "TI1864 AudioCodec"
 	depends on I2C
+config SND_SOC_ES7210
+	tristate "ES7210 AudioCodec"
+	depends on I2C
+config SND_SOC_ES8156
+	tristate "ES8156 AudioCodec"
+	depends on I2C
 endmenu

@@ -37,3 +37,8 @@ config HOBOT_96BOARD
         tristate "hobot audio use dts 96board"
         depends on ARCH_HOBOT
         default n
+
+config HOBOT_AUDIO_ES7210
+	tristate "hobot audio es7210 sound card"
+	depends on ARCH_HOBOT
+	default n
