@@ -1506,6 +1506,7 @@ static void xhci_handle_cmd_config_ep(struct xhci_hcd *xhci, int slot_id,
 	 */
 	if (xhci->quirks & XHCI_RESET_EP_QUIRK &&
 			ep_index != (unsigned int) -1 &&
+			add_flags != 0 &&
 			add_flags - SLOT_FLAG == drop_flags) {
 		ep_state = virt_dev->eps[ep_index].ep_state;
 		if (!(ep_state & EP_HALTED))

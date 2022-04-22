@@ -3218,10 +3218,10 @@ static void dwc3_endpoint_interrupt(struct dwc3 *dwc,
 		const struct dwc3_event_depevt *event)
 {
 	struct dwc3_ep		*dep;
-	u8			epnum;
+	int			epnum;
 
 	epnum = dwc3_gadget_physical_to_mapping_endpoint(dwc, event->endpoint_number);
-	if (epnum < 0)
+	if (epnum < 0 || epnum > DWC3_ENDPOINTS_NUM - 1)
 		return;
 
 	dep = dwc->eps[epnum];
