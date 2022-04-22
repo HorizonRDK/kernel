@@ -194,8 +194,8 @@ static int copy_usr_interleaved(struct snd_pcm_substream *substream,
             bytes, DMA_TO_DEVICE);
 	} else {
 		dma_sync_single_for_cpu(hobot_i2sidma[dma_ctrl->id].dev,
-				runtime->dma_addr + hwoff,
-				bytes, DMA_FROM_DEVICE);
+			runtime->dma_addr + hwoff,
+			bytes, DMA_FROM_DEVICE);
 		for (i = 0; i < bytes;) {
 			for (j = 0; j < dma_ctrl->ch_num; j++) {
 				memcpy(&dma_ctrl->tmp_buf[i+j*dma_ctrl->word_len],
@@ -332,7 +332,10 @@ static int i2sidma_enqueue(struct snd_pcm_substream *substream)
 			hobot_i2sidma[dma_ctrl->id].regaddr_rx +
 				I2S_BUF1_ADDR);
 		dma_ctrl->buffer_int_index = 0;
-		dma_ctrl->buffer_set_index = 2;
+		if (dma_ctrl->buffer_num > 2)
+			dma_ctrl->buffer_set_index = 2;
+		else
+			dma_ctrl->buffer_int_index = 0;
 		val = (dma_addr_t)((dma_ctrl->periodsz) / (dma_ctrl->ch_num));
 		writel(val, hobot_i2sidma[dma_ctrl->id].regaddr_rx +
 			I2S_BUF_SIZE);
@@ -799,7 +802,10 @@ static irqreturn_t iis_irq0(int irqno, void *dev_id)
 			hobot_i2sidma[dma_ctrl->id].regaddr_rx +I2S_BUF1_ADDR);
 
 		dma_ctrl->buffer_int_index = 0;
-		dma_ctrl->buffer_set_index = 2;
+		if (dma_ctrl->buffer_num > 2)
+			dma_ctrl->buffer_set_index = 2;
+		else
+			dma_ctrl->buffer_set_index = 0;
 
 		writel(0x1, hobot_i2sidma[dma_ctrl->id].regaddr_rx +I2S_BUF0_RDY);
 		writel(0x1, hobot_i2sidma[dma_ctrl->id].regaddr_rx + I2S_BUF1_RDY);
