@@ -1730,9 +1730,9 @@ static int xj3_dma_reset(void __iomem *ioaddr) {
     limit = 10;
     while (limit--) {
 	/*The DMA_BUS_MODE_SFT_RESET must be read at least 4 CSR clock cycles after it is written to 1.*/
-        udelay(2);
+        mdelay(10);
         if (!(readl(ioaddr + DMA_BUS_MODE) & DMA_BUS_MODE_SFT_RESET)) break;
-    }
+	}
     if (limit < 0) return -EBUSY;
 
     return 0;
@@ -5086,6 +5086,64 @@ static void hobot_reset_queues_param(struct xj3_priv *priv) {
 
 #ifdef CONFIG_HOBOT_DMC_CLK
 
+static int xj3_dfs_dma_reset(void __iomem *ioaddr) {
+    u32 value = readl(ioaddr + DMA_BUS_MODE);
+    int limit;
+
+    value |= DMA_BUS_MODE_SFT_RESET;
+    writel(value, ioaddr + DMA_BUS_MODE);
+    limit = 10;
+    while (limit--) {
+    /*The DMA_BUS_MODE_SFT_RESET must be read at least 4 CSR clock cycles after it is written to 1.*/
+        udelay(2);
+        if (!(readl(ioaddr + DMA_BUS_MODE) & DMA_BUS_MODE_SFT_RESET)) break;
+	}
+    if (limit < 0) return -EBUSY;
+
+    return 0;
+}
+
+static int xj3_dfs_init_dma_engine(struct xj3_priv *priv) {
+    int ret;
+    u32 rx_channel_count = priv->plat->rx_queues_to_use;
+    u32 tx_channel_count = priv->plat->tx_queues_to_use;
+    struct xj3_rx_queue *rx_q;
+    struct xj3_tx_queue *tx_q;
+    u32 chan = 0;
+
+    ret = xj3_dfs_dma_reset(priv->ioaddr);
+    if (ret) {
+        dev_info(priv->device, "%s: Failed to reset dma\n", __func__);
+        return ret;
+    }
+
+    xj3_dma_init(priv->ioaddr, priv->plat->dma_cfg, 0, 0, 0);
+
+    for (chan = 0; chan < rx_channel_count; chan++) {
+        rx_q = &priv->rx_queue[chan];
+        xj3_init_rx_chan(priv->ioaddr, priv->plat->dma_cfg, rx_q->dma_rx_phy,
+                         chan);
+
+        rx_q->rx_tail_addr =
+            rx_q->dma_rx_phy + (DMA_RX_SIZE * sizeof(struct dma_desc));
+        xj3_set_rx_tail_ptr(priv->ioaddr, rx_q->rx_tail_addr, chan);
+    }
+
+    for (chan = 0; chan < tx_channel_count; chan++) {
+        tx_q = &priv->tx_queue[chan];
+
+        xj3_init_chan(priv->ioaddr, priv->plat->dma_cfg, chan);
+        xj3_init_tx_chan(priv->ioaddr, priv->plat->dma_cfg, tx_q->dma_tx_phy,
+                         chan);
+        tx_q->tx_tail_addr =
+            tx_q->dma_tx_phy;  // + (DMA_TX_SIZE *sizeof(struct dma_desc));
+        xj3_set_tx_tail_ptr(priv->ioaddr, tx_q->tx_tail_addr, chan);
+    }
+
+    xj3_set_dma_axi(priv->ioaddr, priv->plat->axi);
+    return 0;
+}
+
 static inline bool is_hobot_eth_dma_stop(struct xj3_priv *priv) {
     u32 value;
     value = readl((void __iomem *)priv->dev->base_addr + DMA_DEBUG_STATUS);
@@ -5111,7 +5169,7 @@ static void xj3_dfs_clear_rx_descriptors(struct xj3_priv *priv, u32 queue) {
 static int xj3_dfs_hw_setup(struct net_device *ndev) {
     struct xj3_priv *priv = netdev_priv(ndev);
     int ret;
-    ret = xj3_init_dma_engine(priv);
+    ret = xj3_dfs_init_dma_engine(priv);
     if (ret < 0) {
         dev_info(priv->device, "%s, DMA engine initilization failed\n",
                  __func__);
