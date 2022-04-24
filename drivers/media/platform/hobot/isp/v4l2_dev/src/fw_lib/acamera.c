@@ -87,6 +87,7 @@
 static acamera_firmware_t g_firmware;
 
 extern wait_queue_head_t isp_init_done_wq;
+extern void sif_get_frameinfo(u32 instance, struct vio_frame_id *vinfo);
 
 typedef int (*isp_callback)(int);
 extern void isp_register_callback(isp_callback func);
@@ -1635,6 +1636,19 @@ int32_t acamera_interrupt_handler()
                 }
                 if ( p_ctx->p_gfw->sif_isp_offline == 0 && irq_bit == ISP_INTERRUPT_EVENT_ISP_START_FRAME_START ) {
 					vio_get_sif_frame_info(cur_ctx_id, &frmid);
+
+                    /* handle case like: isp isr may execute before sif isr
+                    while sif isr and isp isr bind to different cpu-core in rt-kernel */
+                    if (p_ctx->isp_frame_counter &&
+                        frmid.frame_id == p_ctx->isp_frame_counter &&
+                        frmid.tv.tv_sec == p_ctx->tv.tv_sec &&
+                        frmid.tv.tv_usec == p_ctx->tv.tv_usec) {
+                        sif_get_frameinfo(cur_ctx_id, &frmid);
+                        pr_warn("[s%d] duplicate frameid %d, "
+                        "read from register, new frameid %d\n",
+                        cur_ctx_id, p_ctx->isp_frame_counter, frmid.frame_id);
+                    }
+
 					p_ctx->isp_frame_counter = frmid.frame_id;
 					p_ctx->timestamps = frmid.timestamps;
 					p_ctx->tv = frmid.tv;
