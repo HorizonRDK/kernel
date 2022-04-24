@@ -219,7 +219,7 @@ void iridix_initialize( iridix_fsm_t *p_fsm )
     } else {
         // 16 bit tables
         for ( i = 0; i < _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_IRIDIX_ASYMMETRY ); i++ ) {
-            acamera_isp_iridix_lut_asymmetry_lut_write( p_fsm->cmn.isp_base, (uint8_t)i, _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_IRIDIX_ASYMMETRY )[i] );
+            acamera_isp_iridix_lut_asymmetry_lut_write( p_fsm->cmn.isp_base, (uint8_t)i, _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_IRIDIX_ASYMMETRY )[i] );
         }
     }
 
@@ -263,7 +263,7 @@ void iridix_lut_reload( iridix_fsm_t *p_fsm )
     } else {
         // 16 bit tables
         for ( i = 0; i < _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_IRIDIX_ASYMMETRY ); i++ ) {
-            acamera_isp_iridix_lut_asymmetry_lut_write( p_fsm->cmn.isp_base, (uint8_t)i, _GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_IRIDIX_ASYMMETRY )[i] );
+            acamera_isp_iridix_lut_asymmetry_lut_write( p_fsm->cmn.isp_base, (uint8_t)i, _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_IRIDIX_ASYMMETRY )[i] );
         }
     }
 
