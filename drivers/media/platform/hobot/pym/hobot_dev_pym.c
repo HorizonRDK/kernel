@@ -468,12 +468,14 @@ static void pym_frame_work(struct vio_group *group)
 {
 	struct x3_pym_dev *pym;
 	struct vio_framemgr *framemgr;
-	struct vio_framemgr *in_framemgr;
+	struct vio_framemgr *in_framemgr = NULL;
 	struct vio_frame *frame;
 	struct vio_frame *src_frame = NULL;
 	struct pym_subdev * subdev;
-	struct pym_subdev *in_subdev;
+	struct pym_subdev *in_subdev = NULL;
 	unsigned long flags;
+	unsigned long src_flags;
+	bool src_valid = false;
 	u32 instance = 0;
 	u8 shadow_index = 0;
 
@@ -509,20 +511,22 @@ static void pym_frame_work(struct vio_group *group)
 	/* offline and have src subdev */
 	if ( test_bit(PYM_DMA_INPUT, &pym->state) ) {
 		in_subdev = group->sub_ctx[SUBDEV_ID_SRC];
-		if (in_subdev != NULL) {
-			in_framemgr = &in_subdev->framemgr;
-			src_frame = peek_frame(in_framemgr, FS_REQUEST);
-			if (src_frame == NULL) {
-				framemgr_x_barrier_irqr(framemgr, 0UL, flags);
-				vio_err("%s there is no frame in src FS_REQUEST queue\n", __func__);
-				vio_group_done(group);
-				return;
-			}
-		} else {
+		if (in_subdev == NULL) {
 			framemgr_x_barrier_irqr(framemgr, 0, flags);
 			vio_group_done(group);
 			return;
 		}
+		in_framemgr = &in_subdev->framemgr;
+		framemgr_e_barrier_irqs(in_framemgr, 0UL, src_flags);
+		src_frame = peek_frame(in_framemgr, FS_REQUEST);
+		if (src_frame == NULL) {
+			framemgr_x_barrier_irqr(in_framemgr, 0UL, src_flags);
+			framemgr_x_barrier_irqr(framemgr, 0UL, flags);
+			vio_warn("[S%d] there is no frame in src FS_REQUEST\n", instance);
+			vio_group_done(group);
+			return;
+		}
+		src_valid = true;
 	}
 
 	frame = peek_frame(framemgr, FS_REQUEST);
@@ -577,14 +581,22 @@ static void pym_frame_work(struct vio_group *group)
 
 		trans_frame(framemgr, frame, FS_PROCESS);
 	} else {
-		framemgr_x_barrier_irqr(framemgr, 0, flags);
-		vio_err("pym dev no FS_REQUEST\n");
 		/* dma input vio_group_done trigger */
-		if (test_bit(PYM_DMA_INPUT, &pym->state)) {
+		framemgr_x_barrier_irqr(framemgr, 0UL, flags);
+		if (src_valid) {
+			if ((atomic_read(&subdev->refcount) > 0) &&
+				(atomic_read(&in_subdev->refcount) > 0)) {
+				vio_group_start_trigger_mp(group, src_frame);
+			}
+			framemgr_x_barrier_irqr(in_framemgr, 0UL, src_flags);
 			vio_group_done(group);
-			vio_group_start_trigger_mp(group, src_frame);
 		}
+		vio_warn("[S%d]pym dev no FS_REQUEST\n", instance);
 		return;
+	}
+
+	if (src_valid) {
+		framemgr_x_barrier_irqr(in_framemgr, 0UL, src_flags);
 	}
 end_req_to_pro:
 	vio_dbg("[S%d] work (%d %d %d %d %d)",
@@ -1323,6 +1335,7 @@ int pym_video_qbuf(struct pym_video_ctx *pym_ctx, struct frame_info *frameinfo)
 	if ( group->leader && (test_bit(PYM_OTF_INPUT, &pym->state)) ) {
 		vio_group_start_trigger_mp(group, frame);
 	}
+
 	if (pym_ctx->ctx_index == 0)
 		pym->statistic.q_normal[pym_ctx->group->instance][SUBDEV_ID_OUT]++;
 	vio_dbg("[S%d] %s index %d\n", group->instance,
