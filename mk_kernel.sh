@@ -92,6 +92,10 @@ helper()
     echo "    -e: extract rootfs to kernel root folder"
     echo "    -r: pack rootfs from kernel root folder"
     echo "    -m: make menuconfig by specified defconfig (define as cfg above)"
+    echo "    -M: make menuconfig by xj3_debug_defconfig"
+    echo "    -P: make menuconfig by xj3_perf_defconfig"
+    echo "    -Q: make menuconfig by xj3_quick_defconfig"
+    echo "    -C: make menuconfig by xj3_soc_cv_defconfig"
     echo "    -o: make menuconfig without specified defconfig (define as cfg above)"
     echo "    -i: make modules_install (to INSTALL_MOD_PATH)"
     echo "    -h: helper prompt"
@@ -103,7 +107,7 @@ helper()
 ####################################
 
 #"uh" > "u:h:" if need args
-while getopts "MPCmjcheroid" opt; do
+while getopts "MPQCmjcheroid" opt; do
   case $opt in
        m)
 			mk_cfg
@@ -117,6 +121,12 @@ while getopts "MPCmjcheroid" opt; do
 			;;
        P)
 			cfg=xj3_perf_defconfig
+			echo $cfg
+			mk_cfg
+			exit
+			;;
+       Q)
+			cfg=xj3_quick_defconfig
 			echo $cfg
 			mk_cfg
 			exit
