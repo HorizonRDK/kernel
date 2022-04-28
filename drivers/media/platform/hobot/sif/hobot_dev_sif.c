@@ -3011,27 +3011,30 @@ void sif_frame_ndone(struct sif_subdev *subdev) {
 	}
 }
 
-static int32_t sif_check_frameid_correct(struct vio_frame *frame,
-		struct vio_group *group)
+static int32_t sif_check_frameid_correct(struct sif_subdev *subdev,
+		struct vio_frame *frame, struct vio_group *group)
 {
 	void* base = NULL;
+	uint32_t enable_id_decoder;
 
+	enable_id_decoder = subdev->sif_cfg.input.mipi.func.enable_id_decoder;
+	if(enable_id_decoder)
+		return 0;
+	ion_dcache_invalid(frame->frameinfo.addr[0], SIF_L1_CACHE_BYTES);
 	base = phys_to_virt(frame->frameinfo.addr[0]);
-	if (((*((char*)base) << 8 | *((char*)base + 1)) !=
-		(group->frameid.frame_id % FRAME_ID_SHIFT))) {
-		vio_err("[S%d] image frame_id = %d, while soft frame_id = %d\n",
+	if ((*((char*)base) << 8 | *((char*)base + 1)) ==
+		(group->frameid.frame_id % FRAME_ID_SHIFT)) {
+		vio_dbg("[S%d] frameid is correct, frame is right",
+				group->instance);
+		return 0;
+	} else {
+		vio_err("[S%d] frameid no match ddr_frame_id = %d, while_soft_frame_id = %d\n",
 			group->instance,
 			*((char*)base) << 8 | *((char*)base + 1),
 			group->frameid.frame_id % FRAME_ID_SHIFT);
-	}
-	if ((*((char*)base) << 8 | *((char*)base + 1)) ==
-		(group->frameid.frame_id % FRAME_ID_SHIFT)) {
-		vio_dbg("[S%d] frameid is correct, frame is right", group->instance);
-		return 0;
-	} else {
-		vio_dbg("[S%d] frameid isn't correct, frame lost", group->instance);
 		return -1;
 	}
+	return 0;
 }
 
 static void sif_frame_done_process(struct sif_subdev *subdev,
@@ -3072,11 +3075,11 @@ static void sif_frame_done_process(struct sif_subdev *subdev,
 		frame->frameinfo.timestamps = group->frameid.timestamps;
 		frame->frameinfo.tv = group->frameid.tv;
 		vio_set_stat_info(group->instance, SIF_MOD,
-						  event_sif_cap_fe + group->id * 2, group->frameid.frame_id,
-						  frame->frameinfo.addr[0], framemgr->queued_count);
+					event_sif_cap_fe + group->id * 2, group->frameid.frame_id,
+					frame->frameinfo.addr[0], framemgr->queued_count);
 		if(group->id == GROUP_ID_SIF_OUT) {
 			if(enable_frame_id &&
-				(!sif_check_frameid_correct(frame, group))) {
+				(!sif_check_frameid_correct(subdev, frame, group))) {
 				trans_frame(framemgr, frame, FS_COMPLETE);
 			} else {
 				if (!subdev->fps_ctrl.skip_frame)
@@ -3758,8 +3761,6 @@ static irqreturn_t sif_isr(int irq, void *data)
 	struct vio_group *group;
 	struct vio_group_task *gtask;
 	struct sif_subdev *subdev;
-	u8 multiplexing_proc = 0;
-	unsigned long multiplex_state = 0;
 
 	sif = (struct x3_sif_dev *) data;
 	memset(&irq_src, 0x0, sizeof(struct sif_irq_src));

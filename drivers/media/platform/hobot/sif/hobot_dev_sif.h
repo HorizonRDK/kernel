@@ -22,6 +22,7 @@
 #define FRAME_ID_MAXIMUM 65535u
 #define FRAME_ID_SHIFT 65536u
 
+#define SIF_L1_CACHE_BYTES  64
 #define MAX_DEVICE  2
 #define SIF_ERR_COUNT  10
 #define SIF_MUX_BUFF_CNT 4

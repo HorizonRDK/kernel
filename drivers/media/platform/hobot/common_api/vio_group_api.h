@@ -314,6 +314,8 @@ extern int vio_clk_disable(const char *name);
 extern int vio_set_clk_rate(const char *name, ulong frequency);
 extern ulong vio_get_clk_rate(const char *name);
 extern int ion_check_in_heap_carveout(phys_addr_t start, size_t size);
+extern void ion_dcache_invalid(phys_addr_t paddr, size_t size);
+
 extern void vio_irq_affinity_set(int irq, enum MOD_ID id, int suspend,
 		int input_online);
 

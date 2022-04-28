@@ -478,6 +478,13 @@ int ion_check_in_heap_carveout(phys_addr_t start, size_t size)
 
 EXPORT_SYMBOL_GPL(ion_check_in_heap_carveout);
 
+void ion_dcache_invalid(phys_addr_t paddr, size_t size)
+{
+	dma_sync_single_for_cpu(NULL, paddr, size, DMA_FROM_DEVICE);
+	__inval_dcache_area(phys_to_virt(paddr), size);
+}
+EXPORT_SYMBOL_GPL(ion_dcache_invalid);
+
 static int __init ion_dummy_init(void)
 {
 	struct device_node *node, *rnode;
