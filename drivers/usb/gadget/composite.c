@@ -880,7 +880,7 @@ static int set_config(struct usb_composite_dev *cdev,
 		result = 0;
 	}
 
-	DBG(cdev, "%s config #%d: %s\n",
+	INFO(cdev, "%s config #%d: %s\n",
 	    usb_speed_string(gadget->speed),
 	    number, c ? c->label : "unconfigured");
 
