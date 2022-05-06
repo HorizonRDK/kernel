@@ -554,12 +554,12 @@
 };
 
 &codec0 {
-	status = "disabled";
-	#sound-dai-cells = <0>;
+	status = "okay";
+	#sound-dai-cells = <1>;
 };
 
 &snd4 {
-	status = "disabled";
+	status = "okay";
 };
 &snd5 {
 	status = "okay";
@@ -619,26 +619,27 @@
 	max_freq = /bits/ 64 <1000000000>;
 };
 
-&snd4 {
+&snd4 { //dummy-codec
 	model = "hobotsnd4";
+	work_mode = <1>; /*0:simple mode; 1:duplex mode*/
 	dai-link@0 {
 		dai-format = "i2s";
-		bitclck-master;
-		frame-master;
+		//bitclock-master;
+		//frame-master;
 		frame-inversion;
 		link-name = "hobotdailink0";
 		cpu {
 			sound-dai = <&i2s0>;
 		};
 		codec {
-			sound-dai = <&es8311>;
+			sound-dai = <&codec0 0>;
 		};
 		platform {
 			sound-dai = <&i2sidma0>;
 		};
 	};
 	dai-link@1 {
-		dai-format = "dsp_a";
+		dai-format = "i2s";
 		bitclock-master;
 		frame-master;
 		frame-inversion;
@@ -647,7 +648,7 @@
 			sound-dai = <&i2s1>;
 		};
 		codec {
-			sound-dai = <&codec0>;
+			sound-dai = <&codec0 1>;
 		};
 		platform {
 			sound-dai = <&i2sidma1>;
