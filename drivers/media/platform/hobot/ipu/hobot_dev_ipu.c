@@ -1193,7 +1193,7 @@ int ipu_update_osd_color_map(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 		return -EFAULT;
 	}
 	color_map = &subdev->osd_cfg.color_map;
-	ret = (int32_t)copy_from_user((char *) color_map, (u32 __user *) arg,
+	ret = (int32_t)copy_from_user((char *) &color_map_tmp, (u32 __user *) arg,
 			   sizeof(osd_color_map_t));
 	if (ret)
 		return -EFAULT;
@@ -1223,7 +1223,7 @@ int ipu_update_osd_addr(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 		return -EFAULT;
 	}
 	osd_buf = subdev->osd_cfg.osd_buf;
-	ret = (int32_t)copy_from_user((char *) osd_buf, (u32 __user *) arg,
+	ret = (int32_t)copy_from_user((char *) osd_buf_tmp, (u32 __user *) arg,
 			   MAX_OSD_LAYER * sizeof(u32));
 	if (ret)
 		return -EFAULT;
@@ -1253,7 +1253,7 @@ int ipu_update_osd_roi(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 		return -EFAULT;
 	}
 	osd_box = subdev->osd_cfg.osd_box;
-	ret = (int32_t)copy_from_user((char *) osd_box, (u32 __user *) arg,
+	ret = (int32_t)copy_from_user((char *) osd_box_tmp, (u32 __user *) arg,
 			  MAX_OSD_NUM * sizeof(osd_box_t));
 	if (ret)
 		return -EFAULT;
@@ -1672,7 +1672,7 @@ int ipu_update_osd_sta_roi(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 
 	subdev = ipu_ctx->subdev;
 	osd_sta = subdev->osd_cfg.osd_sta;
-	ret = (int32_t)copy_from_user((char *) osd_sta, (u32 __user *) arg,
+	ret = (int32_t)copy_from_user((char *) osd_sta_tmp, (u32 __user *) arg,
 			   MAX_STA_NUM * sizeof(osd_sta_box_t));
 	if (ret)
 		return -EFAULT;
@@ -1697,7 +1697,7 @@ int ipu_update_osd_sta_level(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 
 	subdev = ipu_ctx->subdev;
 	osd_sta_level = subdev->osd_cfg.osd_sta_level;
-	ret = (int32_t)copy_from_user((char *) osd_sta_level, (u32 __user *) arg,
+	ret = (int32_t)copy_from_user((char *) osd_sta_level_tmp, (u32 __user *) arg,
 			   MAX_OSD_STA_LEVEL_NUM * sizeof(u8));
 	if (ret)
 		return -EFAULT;
