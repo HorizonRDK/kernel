@@ -335,7 +335,7 @@ static int i2sidma_enqueue(struct snd_pcm_substream *substream)
 		if (dma_ctrl->buffer_num > 2)
 			dma_ctrl->buffer_set_index = 2;
 		else
-			dma_ctrl->buffer_int_index = 0;
+			dma_ctrl->buffer_set_index = 0;
 		val = (dma_addr_t)((dma_ctrl->periodsz) / (dma_ctrl->ch_num));
 		writel(val, hobot_i2sidma[dma_ctrl->id].regaddr_rx +
 			I2S_BUF_SIZE);
