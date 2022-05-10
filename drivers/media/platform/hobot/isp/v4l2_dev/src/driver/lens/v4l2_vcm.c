@@ -68,7 +68,7 @@ static void lens_update_parameters( void *ctx )
     lens_context_t *p_ctx = ctx;
     int32_t rc = 0;
     if ( p_ctx != NULL ) {
-        struct soc_lens_ioctl_args settings;
+        struct soc_lens_ioctl_args settings = {0};
         struct v4l2_subdev *sd = p_ctx->soc_lens;
         uint32_t ctx_num = get_ctx_num( ctx );
         if ( sd != NULL && ctx_num < FIRMWARE_CONTEXT_NUMBER ) {

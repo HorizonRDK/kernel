@@ -343,7 +343,7 @@ static void __init _of_hobot_endiv_clk_setup(struct device_node *node,
 
 	if(of_clk_get_parent_count(node) != 1) {
 		pr_err("%s: %s must have 1 parent\n", __func__, node->name);
-		return;
+		goto err;
 	}
 
 	parent_name = of_clk_get_parent_name(node, 0);
@@ -352,13 +352,13 @@ static void __init _of_hobot_endiv_clk_setup(struct device_node *node,
 	reg_base = clk_get_register_base(node);
 	if (!reg_base) {
 		pr_err("%s: %s failed to get the reg base!\n", __func__, node->name);
-		return;
+		goto err;
 	}
 
 	ret = of_property_read_u32_array(node, "bits", data, 6);
 	if (ret) {
 		pr_err("%s:%s no bits property", __func__, node->name);
-		return;
+		goto err;
 	}
 	div_reg.div_bits = data[0];
 	gate_reg.gt_reg.clken_sta_bit = data[1];
@@ -370,7 +370,7 @@ static void __init _of_hobot_endiv_clk_setup(struct device_node *node,
 	ret = of_property_read_u32_array(node, "offset", data, 6);
 	if (ret) {
 		pr_err("%s: %s no offset property", __func__, node->name);
-		return;
+		goto err;
 	}
 	div_reg.divider_reg = reg_base + data[0];
 	gate_reg.gt_reg.clken_sta_reg = reg_base + data[1];
@@ -383,7 +383,7 @@ static void __init _of_hobot_endiv_clk_setup(struct device_node *node,
 		ret = of_property_read_u32_array(node, "field", data, 6);
 		if (ret) {
 			pr_err("%s:%s no field property", __func__, node->name);
-			return;
+			goto err;
 		}
 		div_reg.div_field = data[0];
 		gate_reg.gt_reg.clken_sta_field = data[1];
@@ -395,7 +395,7 @@ static void __init _of_hobot_endiv_clk_setup(struct device_node *node,
 		ret = of_property_read_u32_array(node, "field", data, 5);
 		if (ret) {
 			pr_err("%s:%s no field property", __func__, node->name);
-			return;
+			goto err;
 		}
 		div_reg.div_field = data[0];
 		gate_reg.gt_reg.clken_sta_field = data[1];
@@ -423,6 +423,11 @@ static void __init _of_hobot_endiv_clk_setup(struct device_node *node,
 		of_clk_add_provider(node, of_clk_src_simple_get, clk);
 
 	pr_debug("%s: %s endiv clock set up.\n", __func__, node->name);
+
+	return;
+err:
+	kfree(lock);
+	return;
 }
 
 static void __init of_hobot_endiv_clk_setup(struct device_node *node)

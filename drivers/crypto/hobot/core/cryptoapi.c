@@ -98,7 +98,8 @@ int spacc_sgs_to_ddt(struct device *dev,
 						  pdu_ddt *ddt, int dma_direction)
 {
 	struct scatterlist *sg_entry, *foo_sg[4];
-	int nents[4], onents[4], tents;
+	int nents[4] = {0};
+	int onents[4], tents;
 	int i, j, k, rc, *vents[4];
 	unsigned foo_len[4];
 

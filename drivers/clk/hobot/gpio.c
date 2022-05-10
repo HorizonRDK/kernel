@@ -170,7 +170,7 @@ static void __init _of_hobot_gpio_clk_setup(struct device_node *node,
 
 	if(of_clk_get_parent_count(node) != 1){
 		pr_err("%s: %s must have 1 parent\n", __func__, node->name);
-		return;
+		goto err;
 	}
 
 	parent_name = of_clk_get_parent_name(node, 0);
@@ -178,20 +178,20 @@ static void __init _of_hobot_gpio_clk_setup(struct device_node *node,
 	reg_base = clk_get_register_base(node);
 	if(!reg_base){
 		pr_err("%s: %s failed to get the reg base!\n", __func__, node->name);
-		return;
+		goto err;
 	}
 
 	ret = of_property_read_u32(node, "offset", &val);
 	if(ret){
 		pr_err("%s: %s missing offset property", __func__, node->name);
-		return;
+		goto err;
 	}
 	reg = reg_base + val;
 
 	ret = of_property_read_u32(node, "bits", &val);
 	if(ret){
 		pr_err("%s: %s missing bits property", __func__, node->name);
-		return;
+		goto err;
 	}
 	bit = val;
 
@@ -206,6 +206,11 @@ static void __init _of_hobot_gpio_clk_setup(struct device_node *node,
 		of_clk_add_provider(node, of_clk_src_simple_get, clk);
 	}
 	//pr_info("%s: %s gpio clock set up.\n", __func__, node->name);
+
+	return;
+err:
+	kfree(lock);
+	return;
 }
 
 static void __init of_hobot_gpio_clk_setup(struct device_node *node)

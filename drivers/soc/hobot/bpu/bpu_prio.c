@@ -120,7 +120,7 @@ struct bpu_prio *bpu_prio_init(struct bpu_core *core, uint32_t levels)
 					* sizeof(struct bpu_fc));
 		if (prio->prios[i].bpu_fc_fifo_buf == NULL) {
 			for (j = 0; j < i; j++) {
-				vfree(&prio->prios[i].bpu_fc_fifo_buf);/*PRQA S ALL*/
+				vfree(prio->prios[i].bpu_fc_fifo_buf);/*PRQA S ALL*/
 			}
 
 			kfree((void *)prio->prios);/*PRQA S ALL*/

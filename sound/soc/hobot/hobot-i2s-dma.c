@@ -970,8 +970,11 @@ static int i2sidma_open(struct snd_pcm_substream *substream)
 			if (!global_info[hobot_dma->id].process_info[i].substream)
 				break;
 		}
-		if (i == I2S_PROCESS_NUM)
+		if (i == I2S_PROCESS_NUM) {
+			kfree(dma_ctrl);
+			spin_unlock_irqrestore(&global_info[hobot_dma->id].lock, flags);
 			return -EPERM;
+		}
 
 		global_info[hobot_dma->id].process_info[i].substream = substream;
 		dev_dbg(hobot_dma->dev,
@@ -1019,6 +1022,8 @@ static int i2sidma_open(struct snd_pcm_substream *substream)
 
 	dma_ctrl->tmp_buf = kzalloc(i2sidma_hardware.buffer_bytes_max, GFP_KERNEL);
 	if (!dma_ctrl->tmp_buf) {
+		kfree(dma_ctrl->tmp_buf);
+		kfree(dma_ctrl);
 		spin_unlock_irqrestore(&global_info[hobot_dma->id].lock, flags);
 		return -ENOMEM;
 	}

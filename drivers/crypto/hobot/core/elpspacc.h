@@ -176,7 +176,7 @@ typedef struct _spacc_device {
           max_msg_size;    // max PROCLEN value;
 
       unsigned char
-          modes[CRYPTO_MODE_LAST];
+          modes[CRYPTO_MODE_LAST + 1];
 
       int num_ctx,         // # of contexts
           num_rc4_ctx,     // # of RC4 contexts

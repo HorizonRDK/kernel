@@ -168,6 +168,7 @@ static int calib_create(camera_calib_t *ptr)
 	
 	return ret;
 copy_err:
+	kfree(calib_data);
 	calib_destory(ptr->port);
 	return ret;
 }

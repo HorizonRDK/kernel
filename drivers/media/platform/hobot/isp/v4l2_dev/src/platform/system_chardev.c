@@ -160,7 +160,7 @@ void system_chardev_unlock(void)
 
 static int isp_fops_open( struct inode *inode, struct file *f )
 {
-    int rc;
+    int rc = 0;
     struct isp_dev_context *p_ctx = NULL;
     int minor = iminor( inode );
 
@@ -425,7 +425,7 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 {
 	long ret = 0;
 	uint32_t ret_value = 0;
-	struct metadata_t md;
+	struct metadata_t md = {0};
 	struct metadata_t *pmd = (struct metadata_t *)arg;
 
 	if (!isp_dev_ctx.dev_inited) {

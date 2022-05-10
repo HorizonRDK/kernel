@@ -561,6 +561,9 @@ static ssize_t elpclp800_read(struct device *dev, void *out, size_t outlen)
       if (rc > outlen-ret)
          rc = outlen-ret;
 
+      if (rc > ELPCLP800_MAXLEN)
+         return -ENOMEM;
+
       memcpy(out+ret, buf, rc);
       ret += rc;
    }

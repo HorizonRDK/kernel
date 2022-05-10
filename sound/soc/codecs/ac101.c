@@ -1107,10 +1107,12 @@ int ac101_hw_params(struct snd_pcm_substream *substream,
 	#endif
 	for (i = 0; i < ARRAY_SIZE(codec_aif1_lrck); i++) {
 		if (codec_aif1_lrck[i].val == aif1_lrck_div) {
+			ac101_update_bits(codec, AIF_CLK_CTRL,
+				(0x7 << AIF1_LRCK_DIV),
+				codec_aif1_lrck[i].bit << AIF1_LRCK_DIV);
 			break;
 		}
 	}
-	ac101_update_bits(codec, AIF_CLK_CTRL, (0x7<<AIF1_LRCK_DIV), codec_aif1_lrck[i].bit<<AIF1_LRCK_DIV);
 
 	/* set PLL output freq */
 	freq_out = _FREQ_24_576K;
@@ -1130,10 +1132,12 @@ int ac101_hw_params(struct snd_pcm_substream *substream,
 	/* set I2S word size */
 	for (i = 0; i < ARRAY_SIZE(codec_aif1_wsize); i++) {
 		if (codec_aif1_wsize[i].val == aif1_word_size) {
+			ac101_update_bits(codec, AIF_CLK_CTRL,
+				(0x3 << AIF1_WORK_SIZ),
+				((codec_aif1_wsize[i].bit) << AIF1_WORK_SIZ));
 			break;
 		}
 	}
-	ac101_update_bits(codec, AIF_CLK_CTRL, (0x3<<AIF1_WORK_SIZ), ((codec_aif1_wsize[i].bit)<<AIF1_WORK_SIZ));
 
 	/* set TDM slot size */
 	/*

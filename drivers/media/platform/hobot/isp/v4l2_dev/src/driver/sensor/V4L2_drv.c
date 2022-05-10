@@ -147,7 +147,7 @@ static void sensor_update_parameters(void *ctx, sensor_param_t *param)
     int32_t rc = 0;
     //int32_t result = 0;
     if ((p_ctx != NULL) && (param != NULL)) {
-        struct soc_sensor_ioctl_args settings;
+        struct soc_sensor_ioctl_args settings = {0};
         struct v4l2_subdev *sd = p_ctx->soc_sensor;
         uint32_t ctx_num = get_ctx_num( ctx );
         if ( sd != NULL && ctx_num < FIRMWARE_CONTEXT_NUMBER ) {
