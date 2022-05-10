@@ -499,6 +499,7 @@ void acamera_reload_isp_calibratons( general_fsm_ptr_t p_fsm )
 //#if FW_HAS_CUSTOM_SETTINGS
     // the custom initialization may be required for a context
     const acam_reg_t *p_custom_settings_context = (const acam_reg_t *)_GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CUSTOM_SETTINGS_CONTEXT );
+    /* coverity[callee_ptr_arith] */
     acamera_load_sw_sequence( ACAMERA_FSM2CTX_PTR( p_fsm )->settings.isp_base, &p_custom_settings_context, 0 );
 }
 

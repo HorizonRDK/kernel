@@ -353,6 +353,7 @@ int32_t mipi_dphy_register(int type, int port, mipi_phy_sub_t *sub)
 		mipiinfo("dphy register error");
 		return -EFAULT;
 	}
+	/* coverity[overrun-buffer-arg] */
 	memset(&phy[port], 0, sizeof(mipi_phy_t));
 	memcpy(&phy[port].sub, sub, sizeof(mipi_phy_sub_t));
 	if (type == MIPI_DPHY_TYPE_DEV) {

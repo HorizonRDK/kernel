@@ -1708,6 +1708,7 @@ static int uvc_ctrl_init_xu_ctrl(struct uvc_device *dev,
 	if (ret < 0)
 		return ret;
 
+	/* coverity[uninit_use_in_call] */
 	ret = uvc_ctrl_add_info(dev, ctrl, &info);
 	if (ret < 0)
 		uvc_trace(UVC_TRACE_CONTROL, "Failed to initialize control "

@@ -426,6 +426,7 @@ int frame_manager_open_mp(struct vio_framemgr *this, u32 buffers,
 		if (this->index_state[i] == FRAME_IND_FREE &&
 				((i + buffers) <= VIO_MP_MAX_FRAMES)) {
 			for (j = i; j < (i + buffers); j++) {
+				/* coverity[overrun-local] */
 				if (this->index_state[j] != FRAME_IND_FREE)
 					break;
 			}
@@ -495,6 +496,7 @@ int frame_manager_open_mp(struct vio_framemgr *this, u32 buffers,
 
 	vio_dbg("%s first index %d, num %d, num_frames %d max index %d.vmalloc start:%p", /*PRQA S ALL*/
 		__func__, ind_fst, buffers, this->num_frames, this->max_index, frames);
+	/* coverity[leaked_storage] */
 	return 0;
 }
 EXPORT_SYMBOL(frame_manager_open_mp);
