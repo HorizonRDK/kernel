@@ -450,23 +450,27 @@ static void sif_set_dvp_input(u32 __iomem *base_reg, sif_input_dvp_t* p_dvp)
 			sif_set_pattern_gen(base_reg, 0, &p_dvp->data, 0);
 
 		if (yuv_format == HW_FORMAT_YUV422) {
-			switch (mux_out_index / 2) {
-			case 0:
-				vio_hw_set_field(base_reg, &sif_regs[SIF_YUV422_TRANS],
-						&sif_fields[SW_YUV422TO420SP_MUX01_ENABLE], 1);
-				break;
-			case 1:
-				vio_hw_set_field(base_reg, &sif_regs[SIF_YUV422_TRANS],
-						&sif_fields[SW_YUV422TO420SP_MUX23_ENABLE], 1);
-				break;
-			case 2:
-				vio_hw_set_field(base_reg, &sif_regs[SIF_YUV422_TRANS],
-						&sif_fields[SW_YUV422TO420SP_MUX45_ENABLE], 1);
-				break;
-			case 3:
-				vio_hw_set_field(base_reg, &sif_regs[SIF_YUV422_TRANS],
-						&sif_fields[SW_YUV422TO420SP_MUX67_ENABLE], 1);
-				break;
+			if (mux_out_index % 1) {
+				vio_err("The mux_out_index should be even if using YUV format");
+			} else {
+				switch (mux_out_index / 2) {
+					case 0:
+						vio_hw_set_field(base_reg, &sif_regs[SIF_YUV422_TRANS],
+								&sif_fields[SW_YUV422TO420SP_MUX01_ENABLE], 1);
+						break;
+					case 1:
+						vio_hw_set_field(base_reg, &sif_regs[SIF_YUV422_TRANS],
+								&sif_fields[SW_YUV422TO420SP_MUX23_ENABLE], 1);
+						break;
+					case 2:
+						vio_hw_set_field(base_reg, &sif_regs[SIF_YUV422_TRANS],
+								&sif_fields[SW_YUV422TO420SP_MUX45_ENABLE], 1);
+						break;
+					case 3:
+						vio_hw_set_field(base_reg, &sif_regs[SIF_YUV422_TRANS],
+								&sif_fields[SW_YUV422TO420SP_MUX67_ENABLE], 1);
+						break;
+				}
 			}
 		}
 	}
@@ -1554,6 +1558,12 @@ void sif_disable_isp_out_config(u32 __iomem *base_reg)
 			&sif_fields[SIF_ISP0_OUT_FS_INT_EN], 0);
 	vio_hw_set_field(base_reg, &sif_regs[SIF_OUT_BUF_CTRL],
 			&sif_fields[SW_SIF_ISP0_FLYBY_ENABLE], 0);
+}
+
+void sif_get_idx_and_owner(u32 __iomem *base_reg, int32_t *idx, int32_t *owner)
+{
+	*idx = vio_hw_get_reg(base_reg, &sif_regs[SIF_AXI_BUF_STATUS]);
+	*owner = vio_hw_get_reg(base_reg, &sif_regs[SIF_AXI_BUS_OWNER]);
 }
 
 void sif_hw_disable(u32 __iomem *base_reg)

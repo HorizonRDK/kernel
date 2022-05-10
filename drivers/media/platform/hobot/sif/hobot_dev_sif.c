@@ -1338,6 +1338,8 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 			subdev->frame_drop = 0;
 			subdev->fdone = 0;
 			subdev->last_hwidx = 0;
+			subdev->arbit_dead = 0;	 /*arbit deadlock happens*/
+			subdev->splice_flow_clr = 0;   /*close wdma for splice*/
 #ifdef CONFIG_HOBOT_DIAG
 			subdev->diag_state = 0;
 #endif
@@ -1651,6 +1653,8 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 	subdev->splice_info.splice_enable = splice_enable;
 	subdev->splice_info.splice_mode = sif_config->input.splice.splice_mode;
 	subdev->splice_info.pipe_num = sif_config->input.splice.pipe_num;
+	subdev->splice_info.splice_done = 0;
+	subdev->splice_info.frame_done = 0;
 
 	if (isp_flyby && !test_bit(SIF_OTF_OUTPUT, &sif->state))
 		set_bit(SIF_OTF_OUTPUT, &sif->state);
@@ -1676,7 +1680,9 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 	subdev->mux_index = mux_index;
 	ddr_mux_index = mux_index;
 	subdev->format = format;
-
+	subdev->frame_drop = 0;  /*y/uv done*/
+	subdev->arbit_dead = 0;  /*arbit deadlock happens*/
+	subdev->splice_flow_clr = 0;   /*close wdma for splice*/
 	if (isp_flyby && ddr_enable) {
 		vio_info("ddr output enable in online mode\n");
 		ddr_mux_index = get_free_mux(subdev, 4, format, dol_exp_num,
@@ -1775,13 +1781,17 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 			}
 		}
 	}
-	if(splice_enable) {
+	if (splice_enable) {
+		subdev->splice_info.mux_tgt_flag = 0;
+		subdev->splice_info.mux_cur_flag = 0;
+		subdev->splice_info.mux_tgt_flag |= BIT(mux_index);
 		for (i = 0; i < pipe_num; i++) {
-			if(mux_index + 1 + i > 7) {
-				vio_err("splice mode, mux_index %d exceed 8 mux", mux_index);
+			if (mux_index + 1 + i > 7) {
+			    vio_err("splice mode, mux_index %d exceed 8 mux", mux_index);
 				return -1;
 			}
 			subdev->splice_info.mux_index[i] = mux_index + 1 + i;
+			subdev->splice_info.mux_tgt_flag |= BIT(mux_index + 1 + i);
 			subdev->splice_info.splice_rx_index[i] =
 				sif_config->input.splice.mipi_rx_index[i];
 			subdev->splice_info.splice_vc_index[i] =
@@ -1797,7 +1807,8 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 
 		sif->sif_mux[mux_index + 1 + i] = group;
 		set_bit(SIF_SPLICE_OP + mux_index + 1 + i, &sif->state);
-
+		// subdev->mux_index1 = mux_index + 1 + i;
+		subdev->mux_nums = 2;
 		vio_info("splice_mode %d pipe_num %d \n",
 				subdev->splice_info.splice_mode, pipe_num);
 		vio_info("[S%d] %s ipi_index %d splice_ipi_index = %d splice_vc_index %d\n",
@@ -3254,24 +3265,109 @@ static void subdev_balance_lost_next_frame(struct sif_subdev *subdev)
 
 	return;
 }
+
+static bool subdev_get_idx_and_owner(struct sif_subdev *subdev,
+		u32 mux_index, u32 *buf_index, u32 *ownerbit)
+{
+	bool owner_enable = true;
+	int32_t buf_owner[2] = {0};
+	int32_t mux, i, idx, owner;
+	u32 instance = subdev->group->instance;
+
+	sif_get_idx_and_owner(subdev->sif_dev->base_reg, &idx, &owner);
+	if (subdev->splice_info.splice_enable) {
+		mux = subdev->ddr_mux_index;
+		for (i = 0; i <= subdev->splice_info.pipe_num; i++) {
+			buf_index[i] = (idx >> ((mux + i) * BUF_IDX_BIT_WIDTH)) &
+				BUF_IDX_BIT_MASK;
+			buf_owner[i] = (owner >> ((mux + i) * BUF_OWNER_BIT_WIDTH)) &
+				BUF_OWNER_BIT_MASK;
+			ownerbit[i] = buf_owner[i] & (1 << buf_index[i]);
+		}
+		if (!ownerbit[0] && !ownerbit[1]) {
+			owner_enable = false;
+		} else if (!ownerbit[0] || !ownerbit[1]) {
+			vio_err("[S%d] mux %d idx(%d:%d) bit(%d:%d) owner(%x:%x)\n",
+					instance, mux_index, buf_index[0], buf_index[1],
+					ownerbit[0], ownerbit[1], buf_owner[0], buf_owner[1]);
+		}
+	} else {
+		buf_index[0] =
+			(idx >> (mux_index * BUF_IDX_BIT_WIDTH)) & BUF_IDX_BIT_MASK;
+		buf_owner[0] = (owner >> (mux_index * BUF_OWNER_BIT_WIDTH)) &
+			BUF_OWNER_BIT_MASK;
+		ownerbit[0] = buf_owner[0] & (1 << buf_index[0]);
+		if (!ownerbit[0]) {
+			owner_enable = false;
+		}
+	}
+	vio_dbg("[S%d] mux %d idx %d %d ownerbit %d %d owner %x %x\n",
+			instance, mux_index, buf_index[0], buf_index[1],
+			ownerbit[0], ownerbit[1], buf_owner[0], buf_owner[1]);
+
+	return owner_enable;
+}
+
 static void subdev_set_frm_owner(struct sif_subdev *subdev,
 					struct x3_sif_dev *sif, u32 mux_index)
 {
+	unsigned long flags;
 	struct vio_framemgr *framemgr;
 	struct vio_frame *frame;
-	u32 yuv_format = 0;
+	u32 yuv_format = 0, i;
+	int32_t instance;
+	bool set_next_buf;
+	u32 ownerbit[2] = {0};
+	u32 buf_index[2] = {0};
 
+	set_next_buf = subdev_get_idx_and_owner(subdev,
+			mux_index, &buf_index[0], &ownerbit[0]);
+	if (atomic_read(&subdev->fps_ctrl.lost_this_frame))
+		set_next_buf = false;
+
+	instance = subdev->group->instance;
 	framemgr = &subdev->framemgr;
+	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_PROCESS);
+	if (frame && set_next_buf)
+		frame = list_next_entry(frame, list);
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
 	if (frame) {
-		sif_transfer_ddr_owner(sif->base_reg, mux_index, frame->hw_idx);
-		yuv_format = (frame->frameinfo.format == HW_FORMAT_YUV422);
-		if (yuv_format || subdev->dol_num > 1) {
-			sif_transfer_ddr_owner(sif->base_reg, mux_index+1, frame->hw_idx);
+		if (subdev->splice_info.splice_enable) {
+			for (i = 0; i <= subdev->splice_info.pipe_num; i++) {
+				u32 mux = subdev->ddr_mux_index + i;
+				if (set_next_buf && ownerbit[i]) {
+					buf_index[i] = (buf_index[i] + 1) & BUF_IDX_BIT_MASK;
+				}
+				vio_dbg("[S%d] set_frm_owner mux %d buf_index %d\n",
+								subdev->group->instance, mux, buf_index[i]);
+				sif_set_wdma_buf_addr(sif->base_reg, mux,
+						buf_index[i], frame->frameinfo.addr[i]);
+				sif_transfer_ddr_owner(sif->base_reg, mux, buf_index[i]);
+			}
+		} else {
+			if (set_next_buf) {
+				buf_index[0] = (buf_index[0] + 1) & BUF_IDX_BIT_MASK;
+			}
+			sif_set_wdma_buf_addr(sif->base_reg, mux_index,
+							buf_index[0], frame->frameinfo.addr[0]);
+			sif_transfer_ddr_owner(sif->base_reg, mux_index, buf_index[0]);
+			yuv_format = (frame->frameinfo.format == HW_FORMAT_YUV422);
+			if (yuv_format || subdev->dol_num > 1) {
+				sif_set_wdma_buf_addr(sif->base_reg, mux_index + 1,
+							buf_index[0], frame->frameinfo.addr[1]);
+				sif_transfer_ddr_owner(sif->base_reg, mux_index + 1, buf_index[0]);
+			}
+			if (subdev->dol_num > 2) {
+				sif_set_wdma_buf_addr(sif->base_reg, mux_index + 2,
+						buf_index[0], frame->frameinfo.addr[2]);
+				sif_transfer_ddr_owner(sif->base_reg, mux_index+2, buf_index[0]);
+			}
+			vio_dbg("[S%d] set_frm_owner mux_index %d buf_index %d\n",
+							subdev->group->instance, mux_index, buf_index[0]);
 		}
-		if (subdev->dol_num > 2) {
-			sif_transfer_ddr_owner(sif->base_reg, mux_index+2, frame->hw_idx);
-		}
+	}  else {
+		vio_err("[S%d] FS_PROCESS is NULL", subdev->group->instance);
 	}
 	return;
 }
@@ -3396,7 +3492,7 @@ static void sif_transfer_frame_to_request(struct sif_subdev *subdev)
 }
 
 static void sif_hw_resource_process(struct x3_sif_dev *sif,
-			struct vio_group *group)
+			struct vio_group *group, bool lost_cur_frame)
 {
 	struct vio_group_task *gtask;
 	struct sif_subdev *subdev;
@@ -3412,9 +3508,8 @@ static void sif_hw_resource_process(struct x3_sif_dev *sif,
 			atomic_read(&group->rcount));
 		sif->statistic.fs_lack_task[group->instance]++;
 	} else {
-		if ((subdev->fps_ctrl.skip_frame)
-			&&(atomic_read(&subdev->fps_ctrl.lost_this_frame))) {
-			vio_dbg("fps_ctrl:FS:lost_this_frame\n");
+		if ((subdev->fps_ctrl.skip_frame) && lost_cur_frame) {
+			vio_dbg("[S%d] FS: lost_this_frame\n", group->instance);
 		} else {
 			up(&gtask->hw_resource);
 		}
@@ -3586,7 +3681,7 @@ void sif_frame_overflow_process(u32 mux_index, struct vio_group *group)
 		sif_frame_ndone(subdev);
 		temp_flow &= ~(subdev->overflow);
 		subdev->overflow = 0;
-		vio_err("FE overflow %d mux_index %d temp_flow 0x%x\n",
+		vio_info("FE overflow %d mux_index %d temp_flow 0x%x\n",
 			subdev->overflow, mux_index, temp_flow);
 	}
 }
@@ -3683,6 +3778,7 @@ static void sif_abnormal_recover(struct sif_subdev *subdev)
 	sif_recover_buff(subdev);
 	subdev->frame_drop = 0;
 	subdev->fdone = 0;
+	subdev->arbit_dead = 0;
 	subdev->splice_info.frame_done = 0;
 	subdev->splice_info.splice_done = 0;
 	atomic_set(&sif->wdma_used_cnt, 0);
@@ -3771,6 +3867,34 @@ static int32_t sif_fs_process(u32 mux_index, struct sif_subdev *subdev)
 	return 0;
 }
 
+static bool sif_skip_frame(struct x3_sif_dev *sif,
+		struct sif_subdev *subdev, u32 mux_index)
+{
+	bool condi = true;
+	bool lost_cur_frame = false;
+
+	/* splice mode need to receive all mux FS */
+	if (subdev->splice_info.splice_enable) {
+		subdev->splice_info.mux_cur_flag |= BIT(mux_index);
+		if (subdev->splice_info.mux_cur_flag !=
+				subdev->splice_info.mux_tgt_flag)
+			condi = false;
+		else
+			subdev->splice_info.mux_cur_flag = 0;
+	}
+
+	if (atomic_read(&subdev->fps_ctrl.lost_this_frame))
+		lost_cur_frame = true;
+
+	if (condi) {
+		if (!atomic_read(&subdev->fps_ctrl.lost_next_frame))
+			subdev_set_frm_owner(subdev, sif, mux_index);
+		subdev_balance_lost_next_frame(subdev);
+	}
+
+	return lost_cur_frame;
+}
+
 static irqreturn_t sif_isr(int irq, void *data)
 {
 	int ret = 0;
@@ -3784,6 +3908,7 @@ static irqreturn_t sif_isr(int irq, void *data)
 	struct vio_group *group;
 	struct vio_group_task *gtask;
 	struct sif_subdev *subdev;
+	bool lost_cur_frame = 0;
 
 	sif = (struct x3_sif_dev *) data;
 	memset(&irq_src, 0x0, sizeof(struct sif_irq_src));
@@ -3820,11 +3945,6 @@ static irqreturn_t sif_isr(int irq, void *data)
 				}
 				subdev = group->sub_ctx[0];
 				sif_fe_process(mux_index, subdev, group);
-				/* fps_ctrl:FDone:if not lost next frame,transfer owner to HW */
-				if ((subdev->fps_ctrl.skip_frame)&&
-						(!atomic_read(&subdev->fps_ctrl.lost_this_frame))) {
-					subdev_set_frm_owner(subdev, sif, mux_index);
-				}
 			}
 		}
 
@@ -3841,15 +3961,11 @@ static irqreturn_t sif_isr(int irq, void *data)
 				sif_print_buffer_owner(sif->base_reg);
 				if(sif_fs_process(mux_index, subdev) < 0)
 					continue;
-				if (test_bit(mux_index, &sif->state)) {
-					sif_hw_resource_process(sif, group);
-				}
-				/* fps_ctrl:FS:if not lost next frame,transfer owner to HW */
 				if (subdev->fps_ctrl.skip_frame) {
-					if (!atomic_read(&subdev->fps_ctrl.lost_next_frame)) {
-						subdev_set_frm_owner(subdev, sif, mux_index);
-					}
-					subdev_balance_lost_next_frame(subdev);
+					lost_cur_frame = sif_skip_frame(sif, subdev, mux_index);
+				}
+				if (test_bit(mux_index, &sif->state)) {
+					sif_hw_resource_process(sif, group, lost_cur_frame);
 				}
 			}
 		}

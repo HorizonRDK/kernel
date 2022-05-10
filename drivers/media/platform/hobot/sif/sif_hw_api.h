@@ -71,4 +71,6 @@ u32 sif_get_current_ownerbit(u32 __iomem *base_reg,
 u32 sif_get_wdma_reg(u32 __iomem *base_reg);
 void sif_print_buffer_owner(u32 __iomem *base_reg);
 
+void sif_get_idx_and_owner(u32 __iomem *base_reg, int32_t *idx, int32_t *owner);
+
 #endif

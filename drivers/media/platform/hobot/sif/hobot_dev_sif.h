@@ -28,6 +28,11 @@
 #define SIF_MUX_BUFF_CNT 4
 #define SIF_FE_BOTH 0x3
 
+#define BUF_IDX_BIT_WIDTH   (0x2)
+#define BUF_IDX_BIT_MASK    (0x3)
+#define BUF_OWNER_BIT_WIDTH (0x4)
+#define BUF_OWNER_BIT_MASK  (0xf)
+
 #define SIF_SEQ_TASK_PRIORITY  39
 
 #define X3_VIO_MP_NAME  "vio-mp"
@@ -244,6 +249,8 @@ struct splice_info {
 	u32 pipe_num;			// How many pipes spliced
 	u32 splice_done;
 	u32 frame_done;
+	u32 mux_tgt_flag;
+	u32 mux_cur_flag;
 	u32 mux_index[SPLICE_PIPE_NUM]; 	// mux occupied by splicing
 	u32 splice_rx_index[SPLICE_PIPE_NUM];	// mipi_rx occupied by splicing
 	u8	splice_vc_index[SPLICE_PIPE_NUM];	// vc_index occupied by splicing
