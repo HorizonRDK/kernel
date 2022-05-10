@@ -1705,7 +1705,12 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 		} else
 			vio_err("sif input format is yuv, but mux is wrong = %d\n",
 			     mux_index);
-		sif->sif_mux[subdev->mux_index1] = group;
+		if (subdev->mux_index1 < SIF_MUX_MAX) {
+			sif->sif_mux[subdev->mux_index1] = group;
+		} else {
+			vio_err("array is out of bounds mux_index1 %d", subdev->mux_index1);
+			return -1;
+		}
 		set_bit(SIF_YUV_MODE + mux_index + 1, &sif->frame_state);
 	}
 
@@ -1754,10 +1759,20 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 			 * Set the instance mask for marking which way use the multiplexing bit
 			 */
 			sif->sif_mux_multiplexb[mux_index] = group;
-			sif->sif_mux_multiplexb[subdev->mux_index1] = group;
+			if (subdev->mux_index1 < SIF_MUX_MAX) {
+				sif->sif_mux_multiplexb[subdev->mux_index1] = group;
+			} else {
+				vio_err("array is out of bounds mux_index1 %d", subdev->mux_index1);
+				return -1;
+			}
 		} else {
 			sif->sif_mux_multiplexa[mux_index] = group;
-			sif->sif_mux_multiplexa[subdev->mux_index1] = group;
+			if (subdev->mux_index1 < SIF_MUX_MAX) {
+				sif->sif_mux_multiplexa[subdev->mux_index1] = group;
+			} else {
+				vio_err("array is out of bounds mux_index1 %d", subdev->mux_index1);
+				return -1;
+			}
 		}
 	}
 	if(splice_enable) {
@@ -1819,8 +1834,13 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 	subdev->fdone = 0;
 	if ((format == HW_FORMAT_YUV422) ||
 		(subdev->splice_info.splice_enable)) {
-		sif->buff_count1[subdev->ddr_mux_index + 1] =
-			sif_get_current_bufindex(sif->base_reg, ddr_mux_index + 1);
+		if (subdev->mux_index1 < SIF_MUX_MAX) {
+			sif->buff_count1[subdev->mux_index1] =
+				sif_get_current_bufindex(sif->base_reg, subdev->mux_index1);
+		} else {
+			vio_err("array is out of bounds mux_index1 %d", subdev->mux_index1);
+			return -1;
+		}
 	}
 	sif->mismatch_cnt = 0;
 
@@ -1905,7 +1925,10 @@ int sif_video_init(struct sif_video_ctx *sif_ctx, unsigned long arg)
 
 	mutex_lock(&sif->shared_mutex);
 	if (sif_ctx->id == GROUP_ID_SIF_OUT) {
-		ret = sif_mux_init(subdev, sif_config);
+		if(sif_mux_init(subdev, sif_config) < 0) {
+			mutex_unlock(&sif->shared_mutex);
+			return -EFAULT;
+		}
 		sif_fps_ctrl_init(subdev, sif_config);
 	} else if (sif_ctx->id == GROUP_ID_SIF_IN) {
 		if (seq_kthread_init(sif_ctx) < 0) {
@@ -2032,7 +2055,7 @@ p_err:
 
 int sif_get_frame_id(u32 instance, u32 *frame_id)
 {
-	if (instance > VIO_MAX_STREAM)
+	if (instance >= VIO_MAX_STREAM)
 		return -1;
 
 	*frame_id = sif_frame_info[instance].frame_id;
@@ -2042,7 +2065,7 @@ EXPORT_SYMBOL(sif_get_frame_id);
 
 int sif_set_frame_id(u32 instance, u32 frame_id)
 {
-	if (instance > VIO_MAX_STREAM)
+	if (instance >= VIO_MAX_STREAM)
 		return -1;
 
 	unsigned long flags;
@@ -2061,7 +2084,7 @@ EXPORT_SYMBOL(sif_set_frame_id);
 
 int sif_set_frame_id_nr(u32 instance, u32 nr)
 {
-	if (instance > VIO_MAX_STREAM || nr > 0xF)
+	if (instance >= VIO_MAX_STREAM || nr > 0xF)
 		return -1;
 
 	unsigned long flags;
@@ -2390,13 +2413,13 @@ int sif_video_qbuf(struct sif_video_ctx *sif_ctx,
 		/*TODO: get the phy address from ion handle @kaikai */
 		memcpy(&frame->frameinfo, frameinfo, sizeof(struct frame_info));
 		trans_frame(framemgr, frame, FS_REQUEST);
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
 	} else {
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
 		vio_err("frame(%d) is invalid state(%d)\n", index,
 			frame->state);
 		ret = -EINVAL;
 	}
-
-	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
 	group = sif_ctx->group;
 

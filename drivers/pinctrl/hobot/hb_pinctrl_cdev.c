@@ -128,29 +128,24 @@ static u16 drive_strength_round(u8 drive_val, u8 drive_type, u8 round_type)
         return max_index;
     else if (drive_val <= driver_strength_map[drive_type][min_index])
         return min_index;
-    for (i = min_index; i <= max_index; i++) {
+    for (i = min_index; i < max_index; i++) {
         if (drive_val >= driver_strength_map[drive_type][i]
             && drive_val < driver_strength_map[drive_type][i+1])
+            res = i;
             break;
     }
     switch (round_type) {
     case DRIVE_SET_CEIL:
-        res = i;
         break;
     case DRIVE_SET_FLOOR:
-        if (drive_val == driver_strength_map[drive_type][i])
-            res = i;
-        else
-            res = i+1;
-        res = i + 1;
+        if (drive_val != driver_strength_map[drive_type][i])
+            res += 1;
         break;
     case DRIVE_SET_ROUND:
     default:
         if (drive_val - driver_strength_map[drive_type][i]
-            <= driver_strength_map[drive_type][i+1] - drive_val)
-            res = i;
-        else
-            res = i+1;
+            > driver_strength_map[drive_type][i+1] - drive_val)
+            res += 1;
         break;
     }
     return res;
@@ -700,7 +695,7 @@ static int hb_pinctrl_probe(struct platform_device *pdev)
     }
 
     dev_dbg(dev->dev, "%-10s %-10s %-10s %-10s", s[0], s[1], s[2], s[3]);
-    for (i = 0; i <= dev->pin_range; ++i) {
+    for (i = 0; i < dev->pin_range; ++i) {
         dev->pin_type[i].drive = !!(drive_strength_type[i/16] & (0x1 << i%16));
         dev->pin_type[i].pull = !!(pull_sechmitt_type[i/16] & (0x1 << i%16));
         dev->pin_type[i].sechmitt = dev->pin_type[i].pull;

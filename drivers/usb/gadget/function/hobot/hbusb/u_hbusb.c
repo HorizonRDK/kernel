@@ -610,6 +610,11 @@ static int hbusb_open(struct inode *inode, struct file *filp)
 	int minor = iminor(inode);
 	struct hbusb_channel *chan;
 
+	if (minor >= HBUSB_MINOR_MAX_COUNT) {
+		pr_err("Invalid inode minor\n");
+		return -EINVAL;
+	}
+
 	hbusb_dev = global_hbusb_dev;
 	chan = &hbusb_dev->chan[minor];
 
