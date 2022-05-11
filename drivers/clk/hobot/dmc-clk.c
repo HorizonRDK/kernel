@@ -445,6 +445,7 @@ static void park_other_cpus(void)
 	smp_mb();
 
 	for_each_cpu(cpu, &mask) {
+		/* coverity[overrun-local] */
 		csd = &per_cpu(dfs_csd, cpu);
 		csd->func = spin_on_cpu;
         ret = smp_call_function_single_async(cpu, csd);
