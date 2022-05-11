@@ -509,6 +509,7 @@ static void hobot_wdt_ipi_ping(struct hobot_wdt *hbwdt)
 
 	cpumask_clear(&hbwdt->alive_mask);
 	for_each_cpu(cpu, cpu_online_mask) {
+		/* coverity[overrun-local] */
 		hbwdt->ping_start[cpu] = sched_clock();
 		/* wait until ipi is reponsed */
 		smp_call_function_single(cpu, ipi_report_alive, hbwdt, 1);
