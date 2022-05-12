@@ -272,7 +272,7 @@ int vio_group_init_mp(u32 group_id)
 	struct vio_group *group = NULL;
 	u8 i;
 
-	if (group_id > GROUP_ID_NUMBER) {
+	if (group_id >= GROUP_ID_NUMBER) {
 		vio_err("[%s]wrong group_id (%d)\n", __func__, group_id);
 		return -EINVAL;
 	}
