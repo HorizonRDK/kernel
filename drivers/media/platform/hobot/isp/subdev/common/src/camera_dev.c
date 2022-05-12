@@ -40,6 +40,8 @@
 camera_charmod_s *camera_mod[CAMERA_TOTAL_NUMBER];
 extern void sif_get_mismatch_status(void);
 extern int mipi_host_int_fatal_show(int port);
+extern void sif_wait_frame_done(u32 instance);
+
 static int camera_fop_open(struct inode *pinode, struct file *pfile)
 {
 	uint32_t tmp = 0;
@@ -87,6 +89,7 @@ static int camera_fop_release(struct inode *pinode, struct file *pfile)
 		camera_cdev->user_num--;
 	if (camera_cdev->user_num <= 0) {
 		camera_cdev->pre_state = SENSOR_PRE_STATE_UNLOCK;
+		sif_wait_frame_done(camera_cdev->port);
 		camera_sys_stream_off(camera_cdev->port);
 		camera_sys_tuning_release(camera_cdev->port);
 		camera_i2c_release(camera_cdev->port);

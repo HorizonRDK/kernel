@@ -297,6 +297,7 @@ struct sif_subdev {
 	volatile bool ipi_disable;
 	u32 md_refresh_count;
 	u32 id;
+	u32 frame_done;
 	struct splice_info  splice_info;
 	fps_ctrl_t fps_ctrl;
 #ifdef CONFIG_HOBOT_DIAG

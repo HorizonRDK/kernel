@@ -2631,7 +2631,7 @@ static int hobot_mipi_host_close(struct inode *inode, struct file *file)
 	mutex_lock(&user->open_mutex);
 	if (user->open_cnt > 0)
 		user->open_cnt--;
-	mipidbg("close as %d", user->open_cnt);
+	mipiinfo("close as %d", user->open_cnt);
 	if (user->open_cnt == 0) {
 		if (host->state != MIPI_STATE_DEFAULT) {
 			mipi_host_stop(hdev);
@@ -2648,7 +2648,6 @@ static int hobot_mipi_host_close(struct inode *inode, struct file *file)
 		mipi_host_snrclk_close_freq(hdev, 1);
 	}
 	mutex_unlock(&user->open_mutex);
-
 	return 0;
 }
 
