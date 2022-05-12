@@ -3547,7 +3547,18 @@ static long x3_ipu_ioctl(struct file *file, unsigned int cmd,
 		ret = get_user(instance, (u32 __user *) arg);
 		if (ret)
 			return -EFAULT;
-		vio_bind_group_done(instance);
+
+		struct ipu_subdev *subdev;
+		struct x3_ipu_dev *ipu;
+		ipu = ipu_ctx->ipu_dev;
+		subdev = &ipu->subdev[instance][0];
+		/*
+		 * only the main process call bind_group
+		 * to build the relationship
+		 */
+		if (subdev->val_ctx_mask == 1)
+			vio_bind_group_done(instance);
+
 		ipu_init_end(ipu_ctx, instance);
 		break;
 	case IPU_IOC_USER_STATS:
