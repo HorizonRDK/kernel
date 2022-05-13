@@ -355,7 +355,7 @@ void system_reg_rw(struct regs_t *rg, uint8_t dir)
 	flags = system_spinlock_lock(g_hobot_dma.dma_ctrl_lock);
 	while (g_hobot_dma.is_busy == 1 && retry_times < 5) {
 		system_spinlock_unlock(g_hobot_dma.dma_ctrl_lock, flags);
-		msleep(5);
+		udelay(1000);
 		flags = system_spinlock_lock(g_hobot_dma.dma_ctrl_lock);
 		retry_times++;
 	}
