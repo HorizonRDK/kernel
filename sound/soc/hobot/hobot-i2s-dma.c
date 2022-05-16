@@ -990,6 +990,7 @@ static int i2sidma_open(struct snd_pcm_substream *substream)
 	else
 		snd_soc_set_runtime_hwparams(substream, &pdma_hardware);
 
+	spin_unlock_irqrestore(&global_info[hobot_dma->id].lock, flags);
 	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
 		if (i2s) {
 			ret = request_irq(hobot_i2sidma[dma_ctrl->id].idma_irq, iis_irq0,
@@ -998,7 +999,6 @@ static int i2sidma_open(struct snd_pcm_substream *substream)
 				dev_err(hobot_dma->dev,
 					"fail to claim i2s irq , ret = %d\n", ret);
 				kfree(dma_ctrl);
-				spin_unlock_irqrestore(&global_info[hobot_dma->id].lock, flags);
 				return ret;
 			}
 			g_dma_ctrl[dma_ctrl->id] = dma_ctrl;
@@ -1010,7 +1010,6 @@ static int i2sidma_open(struct snd_pcm_substream *substream)
 			dev_err(hobot_dma->dev,
 				"fail to claim i2s irq , ret = %d\n", ret);
 			kfree(dma_ctrl);
-			spin_unlock_irqrestore(&global_info[hobot_dma->id].lock, flags);
 			return ret;
 		}
 	}
@@ -1024,13 +1023,11 @@ static int i2sidma_open(struct snd_pcm_substream *substream)
 	if (!dma_ctrl->tmp_buf) {
 		kfree(dma_ctrl->tmp_buf);
 		kfree(dma_ctrl);
-		spin_unlock_irqrestore(&global_info[hobot_dma->id].lock, flags);
 		return -ENOMEM;
 	}
 
 	/* this critical action */
 	runtime->private_data = dma_ctrl;
-	spin_unlock_irqrestore(&global_info[hobot_dma->id].lock, flags);
 
 	return 0;
 }
