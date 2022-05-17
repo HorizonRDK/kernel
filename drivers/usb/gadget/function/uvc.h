@@ -73,6 +73,12 @@ extern unsigned int uvc_gadget_trace_param;
  * Structures
  */
 
+struct uvc_request {
+	struct usb_request *req;
+	u8 *req_buffer;
+	struct uvc_video *video;
+};
+
 struct uvc_video {
 	struct uvc_device *uvc;
 	struct usb_ep *ep;
@@ -87,10 +93,11 @@ struct uvc_video {
 	unsigned int imagesize;
 	struct mutex mutex;	/* protects frame parameters */
 
+	unsigned int uvc_num_requests;
+
 	/* Requests */
 	unsigned int req_size;
-	struct usb_request *req[UVC_NUM_REQUESTS];
-	__u8 *req_buffer[UVC_NUM_REQUESTS];
+	struct uvc_request *ureq;
 	struct list_head req_free;
 	spinlock_t req_lock;
 
