@@ -378,9 +378,9 @@ static int i2s_hw_params(struct snd_pcm_substream *substream,
 			mod |= MOD_1_CH_C;
 			chan |= 0x1;
 		} else {
+			spin_unlock_irqrestore(&i2s->lock, flags);
 			dev_err(i2s->dev, "%d channels not supported\n",
 				params_channels(params));
-			spin_unlock_irqrestore(&i2s->lock, flags);
 			return -EINVAL;
 		}
 		switch (params_format(params)) {	/* 16bit or 8bit. */

@@ -452,9 +452,9 @@ static int i2sidma_hw_params(struct snd_pcm_substream *substream,
 				global_info[dma_ctrl->id].pcm_param.samplerate != params_rate(params) ||
 				global_info[dma_ctrl->id].pcm_param.channels != params_channels(params) ||
 				global_info[dma_ctrl->id].pcm_param.buffer_size != params_buffer_bytes(params)) {
+				spin_unlock_irqrestore(&global_info[hobot_dma->id].lock, flags);
 				dev_err(hobot_dma->dev,
 					"pcm format is not match with different process\n");
-				spin_unlock_irqrestore(&global_info[hobot_dma->id].lock, flags);
 				return -EINVAL;
 			}
 		}
@@ -1021,7 +1021,6 @@ static int i2sidma_open(struct snd_pcm_substream *substream)
 
 	dma_ctrl->tmp_buf = kzalloc(i2sidma_hardware.buffer_bytes_max, GFP_KERNEL);
 	if (!dma_ctrl->tmp_buf) {
-		kfree(dma_ctrl->tmp_buf);
 		kfree(dma_ctrl);
 		return -ENOMEM;
 	}
