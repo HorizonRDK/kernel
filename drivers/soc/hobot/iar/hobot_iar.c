@@ -61,7 +61,11 @@ module_param(display_out_width, uint, 0644);
 module_param(display_out_height, uint, 0644);
 module_param(fb_num, uint, 0644);
 module_param(logo, uint, 0644);
-
+static unsigned int frame_input_fps = 30;
+static unsigned int frame_output_fps = 30;
+module_param(frame_input_fps, uint, 0644);
+module_param(frame_output_fps, uint, 0644);
+static int frame_output = 0;
 #define IAR_ENABLE 1
 #define IAR_DISABLE 0
 #define IARIONTYPE 13
@@ -2544,6 +2548,23 @@ int iar_output_qbuf(int layer_no, struct frame_info *frameinfo)
 	frame = &framemgr->frames[index];
 	if (frame->state == FS_FREE) {
 		memcpy(&frame->frameinfo, frameinfo, sizeof(struct frame_info));
+		if ((frame_output_fps < 30) || (frame_output_fps > 60) ||
+			(frame_input_fps < 25) || (frame_input_fps > 60)) {
+			frame_output_fps = 30;
+			frame_input_fps  = 30;
+		}
+		frame_output += frame_output_fps;
+		if (frame_output > 2 * frame_input_fps) {
+			frame->frameinfo.dynamic_flag = 3;
+			frame_output -= (int)(3 * frame_input_fps);
+		} else if (frame_output > frame_input_fps) {
+			frame->frameinfo.dynamic_flag = 2;
+			frame_output -= (int)(2 * frame_input_fps);
+		} else {
+			frame->frameinfo.dynamic_flag = 1;
+			frame_output -= (int)(frame_input_fps);
+		}
+
 		trans_frame(framemgr, frame, FS_REQUEST);
 	} else {
 		pr_err("frame(%d) is invalid state(%d)\n", index,
@@ -2665,7 +2686,10 @@ int iar_output_start(int layer_no)
 		display_addr.Vaddr = 0;
 		iar_set_bufaddr(layer_no, &display_addr);
 		iar_update();
-		trans_frame(framemgr, frame, FS_PROCESS);
+		frame->frameinfo.dynamic_flag--;
+		if (frame->frameinfo.dynamic_flag == 0) {
+			trans_frame(framemgr, frame, FS_PROCESS);
+		}
 	} else {
 		// printk
 	}
