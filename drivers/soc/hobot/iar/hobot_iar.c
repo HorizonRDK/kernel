@@ -3268,6 +3268,62 @@ static const struct file_operations iar_debug_fops = {
         .release = single_release,
 };
 
+int user_config_image_res(uint32_t width, uint32_t height)
+{
+	channel_base_cfg_t channel_base_cfg[2] = {{0}, {0}};
+	uint32_t value = 0;
+
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init, exit!!\n", __func__);
+		return -1;
+	}
+	enable_sif_mclk();
+	iar_pixel_clk_enable();
+
+	channel_base_cfg[0].enable = 1;
+	channel_base_cfg[1].enable = 0;
+	channel_base_cfg[0].channel = IAR_CHANNEL_3;
+	channel_base_cfg[0].pri = 0;
+	channel_base_cfg[0].width = width;
+	channel_base_cfg[0].height = height;
+	channel_base_cfg[0].buf_width = width;
+	channel_base_cfg[0].buf_height = height;
+	channel_base_cfg[0].format = 4;
+	channel_base_cfg[0].alpha_sel = 0;
+	channel_base_cfg[0].ov_mode = 0;
+	channel_base_cfg[0].alpha_en = 1;
+	channel_base_cfg[0].alpha = 255;
+	channel_base_cfg[0].crop_width = width;
+	channel_base_cfg[0].crop_height = height;
+	channel_base_cfg[1].channel = IAR_CHANNEL_4;
+	channel_base_cfg[1].pri = 1;
+	channel_base_cfg[1].width = width;
+	channel_base_cfg[1].height = height;
+	channel_base_cfg[1].buf_width = width;
+	channel_base_cfg[1].buf_height = height;
+	channel_base_cfg[1].format = 4;//ARGB8888
+	channel_base_cfg[1].alpha_sel = 0;
+	channel_base_cfg[1].ov_mode = 0;
+	channel_base_cfg[1].alpha_en = 1;
+	channel_base_cfg[1].alpha = 255;
+	channel_base_cfg[1].crop_width = width;
+	channel_base_cfg[1].crop_height = height;
+
+	iar_channel_base_cfg(&channel_base_cfg[0]);
+	iar_channel_base_cfg(&channel_base_cfg[1]);
+
+	value = IAR_REG_SET_FILED(IAR_PANEL_WIDTH, width, 0);
+	value = IAR_REG_SET_FILED(IAR_PANEL_HEIGHT, height, value);
+	writel(value, g_iar_dev->regaddr + REG_IAR_PANEL_SIZE);
+
+	iar_update();
+
+	iar_pixel_clk_disable();
+	disable_sif_mclk();
+	return 0;
+}
+EXPORT_SYMBOL_GPL(user_config_image_res);
+
 /**
  * Config IAR module accroding to target display panel
  * this interface mainly used for fb(frame-buffer) driver

@@ -894,6 +894,7 @@ int iar_output_stream_on(int layer_no);
 int iar_output_stream_off(int layer_no);
 int disp_set_interlace_mode(void);
 int user_config_display(enum DISPLAY_TYPE d_type);
+int user_config_image_res(uint32_t width, uint32_t height);
 int disp_set_display_crop(struct position_cfg_t *crop_cfg);
 int disp_set_display_position(struct position_cfg_t *position_cfg);
 int32_t user_set_dsi_panel_long_cmd(uint32_t len, uint8_t *tx_buf);

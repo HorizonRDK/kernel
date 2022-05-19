@@ -964,16 +964,29 @@ static int iar_get_framesize(void)
 }
 */
 
-static int hbfb_set_par(struct fb_info *fb)
+static int hbfb_set_par(struct fb_info *info)
 {
 	uint32_t regval = 0;
+	struct hbfb_info *fbi =
+		container_of(info, struct hbfb_info, fb);
+	uint32_t width;
+	uint32_t height;
 
 	if (start_flag == 0) {
-		pr_debug("start_flag = %d\n", start_flag);
 		start_flag = 1;
-		//iar_stop();
 		if (logo == 0)
 			user_config_display(display_type);
+	} else {
+		pr_info("%s: user set fb par through ioctl!!\n", __func__);
+		if (fbi == NULL) {
+			pr_err("%s: unavilible fbi poiter!!\n", __func__);
+			return -1;
+		}
+		width = info->var.xres;
+		height = info->var.yres;
+		pr_info("%s: hobot_fbi->fb width is %d, height is %d\n", __func__,
+				fbi->fb.var.xres, fbi->fb.var.yres);
+		user_config_image_res(width, height);
 	}
 
 	return regval;
