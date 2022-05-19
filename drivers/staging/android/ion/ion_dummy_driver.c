@@ -485,6 +485,13 @@ void ion_dcache_invalid(phys_addr_t paddr, size_t size)
 }
 EXPORT_SYMBOL_GPL(ion_dcache_invalid);
 
+void ion_dcache_flush(phys_addr_t paddr, size_t size)
+{
+	dma_sync_single_for_device(NULL, paddr, size, DMA_TO_DEVICE);
+    __flush_dcache_area(phys_to_virt(paddr), size);
+}
+EXPORT_SYMBOL_GPL(ion_dcache_flush);
+
 static int __init ion_dummy_init(void)
 {
 	struct device_node *node, *rnode;

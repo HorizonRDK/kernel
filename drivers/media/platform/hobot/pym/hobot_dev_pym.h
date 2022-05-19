@@ -148,6 +148,8 @@ struct pym_subdev {
 	bool update_ch;
 
 	u32 poll_mask;
+
+	struct vio_osd_info osd_info;
 };
 
 /**

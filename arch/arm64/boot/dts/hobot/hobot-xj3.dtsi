@@ -793,6 +793,10 @@
 		    //interrupts = <0 77 4>;
 		    status = "okay";
 		};
+		osd: osd {
+		    compatible = "hobot,x3-osd";
+		    status = "okay";
+		};
 
 		jpu: jpu@0xA8010000 {
 			compatible = "hobot,hobot_jpu";

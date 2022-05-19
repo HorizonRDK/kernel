@@ -263,6 +263,7 @@ struct ipu_subdev {
 	u32 			id;
 
 	struct ipu_osd_cfg osd_cfg;
+	struct vio_osd_info osd_info;
 	struct ipu_info_cfg info_cfg;
 	struct ipu_src_cfg src_cfg;
 	ipu_cfg_t ipu_cfg;

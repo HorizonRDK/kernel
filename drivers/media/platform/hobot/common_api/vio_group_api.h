@@ -30,6 +30,7 @@
 #define SIF_DDRIN_TASK_PRIORITY  37
 #define IPU_TASK_PRIORITY        36
 #define PYM_TASK_PRIORITY        35
+#define OSD_TASK_PRIORITY        34
 
 #define IPU0_IDLE    BIT(12)
 #define PYM_IDLE	BIT(14)
@@ -234,9 +235,33 @@ struct vio_frame_id {
 	spinlock_t id_lock;
 };
 
+enum osd_chn {
+    OSD_IPU_US,
+    OSD_IPU_DS0,
+    OSD_IPU_DS1,
+    OSD_IPU_DS2,
+    OSD_IPU_DS3,
+    OSD_IPU_DS4,
+    OSD_IPU_SRC,
+    OSD_PYM_OUT,
+    OSD_CHN_MAX,
+};
+
+struct vio_osd_info {
+	atomic_t need_sw_osd;
+	// osd chn number
+	uint32_t id;
+	// frame count which is processing by osd
+	atomic_t frame_count;
+
+	void (*return_frame)(struct vio_osd_info *osd_info, struct vio_frame *frame);
+};
+
 typedef int (*isp_callback)(int);
 typedef int (*iar_get_type_callback)(u8 *pipeline, u8 *channel);
 typedef int (*iar_set_addr_callback)(uint32_t disp_layer, u32 yaddr, u32 caddr);
+typedef void (*osd_send_frame_callback)(struct vio_osd_info *osd_info, struct vio_frame *frame);
+typedef int (*osd_get_sta_bin_callback)(void *subdev, uint16_t (*sta_bin)[4]);
 
 int vio_group_task_start(struct vio_group_task *group_task);
 int vio_group_task_stop(struct vio_group_task *group_task);
@@ -288,6 +313,8 @@ extern int sif_set_frame_id_nr(u32 instance, u32 nr);
 extern iar_get_type_callback iar_get_type;
 extern iar_set_addr_callback iar_set_addr;
 extern isp_callback sif_isp_ctx_sync;
+extern osd_send_frame_callback osd_send_frame;
+extern osd_get_sta_bin_callback osd_get_sta_bin;
 
 extern int isp_status_check(void);
 extern int ldc_status_check(void);
@@ -315,6 +342,7 @@ extern int vio_set_clk_rate(const char *name, ulong frequency);
 extern ulong vio_get_clk_rate(const char *name);
 extern int ion_check_in_heap_carveout(phys_addr_t start, size_t size);
 extern void ion_dcache_invalid(phys_addr_t paddr, size_t size);
+extern void ion_dcache_flush(phys_addr_t paddr, size_t size);
 
 extern void vio_irq_affinity_set(int irq, enum MOD_ID id, int suspend,
 		int input_online);

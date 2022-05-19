@@ -59,9 +59,11 @@ enum buffer_owner ipu_index_owner(struct ipu_video_ctx *ipu_ctx, u32 index);
 void ipu_disable_all_channels(void __iomem *base_reg, u8 shadow_index);
 int ipu_hw_enable_channel(struct ipu_subdev *subdev, bool enable);
 void ipu_frame_ndone(struct ipu_subdev *subdev);
-void ipu_frame_done(struct ipu_subdev *subdev);
+void ipu_hw_frame_done(struct ipu_subdev *subdev);
+void ipu_frame_done(struct ipu_subdev *subdev, struct vio_frame *frame);
 extern void sif_get_frameinfo(u32 instance, struct vio_frame_id *vinfo);
-
+extern void osd_set_info(int32_t instance, int32_t chn, struct vio_osd_info *info);
+extern void osd_get_sta_callback(osd_get_sta_bin_callback func);
 
 extern struct ion_device *hb_ion_dev;
 static struct pm_qos_request ipu_pm_qos_req;
@@ -100,7 +102,7 @@ static int x3_ipu_open(struct inode *inode, struct file *file)
 	ipu_ctx->state = BIT(VIO_VIDEO_OPEN);
 	/**
 	 * DONE_NODE_ID is /dev/ipu_done minor number
-	 * /dev/ipu_done used to notify HAL of ipu_frame_done(ds0/1/2/3/4 done)
+	 * /dev/ipu_done used to notify HAL of ipu_hw_frame_done(ds0/1/2/3/4 done)
 	 */
 	if (ipu_ctx->id == DONE_NODE_ID)
 		goto p_err;
@@ -1044,7 +1046,7 @@ end_req_to_pro:
 		ipu_set_all_lost_next_frame_flags(group);
 		if (all_subdev_skip) {
 			vio_group_done(group);
-			ipu_frame_done(group->sub_ctx[0]);
+			ipu_hw_frame_done(group->sub_ctx[0]);
 		} else {
 			//vio_dbg("[%d]before read, begin dump register\n", instance);
 			//ipu_hw_dump(ipu->base_reg);
@@ -1291,7 +1293,7 @@ void ipu_hw_set_osd_cfg(struct ipu_subdev *subdev, u32 shadow_index)
 	}
 
 	if(id == GROUP_ID_US)
-		osd_index = 2;
+		osd_index = IPU_OSD_INDEX_US;
 	else
 		osd_index = id - GROUP_ID_DS0;
 
@@ -1729,7 +1731,7 @@ int ipu_get_osd_bin(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 		return -EFAULT;
 
 	if(id == GROUP_ID_US)
-		osd_index = 2;
+		osd_index = IPU_OSD_INDEX_US;
 	else
 		osd_index = id - GROUP_ID_DS0;
 
@@ -1745,6 +1747,36 @@ int ipu_get_osd_bin(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 		return -EFAULT;
 
 	vio_dbg("[S%d][V%d] %s\n", ipu_ctx->group->instance, ipu_ctx->id,
+		 __func__);
+
+	return ret;
+}
+
+int ipu_get_osd_bin_by_subdev(void *subdev, uint16_t (*sta_bin)[4])
+{
+	int ret = 0;
+	u32 i = 0;
+	u32 osd_index = 0;
+	u32 id = 0;
+	u32 __iomem *base_reg;
+	struct ipu_subdev *ipu_subdev = (struct ipu_subdev *)subdev;
+
+	id = ipu_subdev->id;
+	if(id < GROUP_ID_US || id > GROUP_ID_DS1)
+		return -EFAULT;
+
+	if(id == GROUP_ID_US)
+		osd_index = IPU_OSD_INDEX_US;
+	else
+		osd_index = id - GROUP_ID_DS0;
+
+
+	base_reg = ipu_subdev->ipu_dev->base_reg;
+	for (i = 0; i < MAX_STA_NUM; i++) {
+		ipu_get_osd_sta_bin(base_reg, osd_index, i, sta_bin[i]);
+	}
+
+	vio_dbg("[S%d][V%d] %s\n", ipu_subdev->group->instance, ipu_subdev->id,
 		 __func__);
 
 	return ret;
@@ -2490,6 +2522,7 @@ int ipu_video_streamoff(struct ipu_video_ctx *ipu_ctx)
 	struct x3_ipu_dev *ipu_dev;
 	struct vio_group *group;
 	struct ipu_subdev *subdev;
+	int i;
 
 	if (!(ipu_ctx->state & BIT(VIO_VIDEO_START))) {
 		vio_err("[%s][V%02d] invalid STREAM_OFF is requested(%lX)\n",
@@ -2520,6 +2553,17 @@ p_dec:
 	}
 
 	ipu_ctx->state = BIT(VIO_VIDEO_STOP);
+
+	for (i = 0; i < 30; i++) {
+		// wait for osd process end
+		if (atomic_read(&subdev->osd_info.frame_count) == 0) {
+			break;
+		}
+		msleep(1);
+		if (i == 30 - 1) {
+			vio_err("wait osd process end timeout\n");
+		}
+	}
 
 	vio_info("[S%d][V%d]%s:proc %d, fst_ind %d, num:%d\n", group->instance,
 						ipu_ctx->id, __func__, ipu_ctx->ctx_index,
@@ -2607,6 +2651,35 @@ int ipu_video_getindex(struct ipu_video_ctx *ipu_ctx)
 	return buf_index;
 }
 
+void ipu_frame_prepare(struct ipu_subdev *subdev, struct vio_frame *frame)
+{
+	struct vio_group *group;
+	struct x3_ipu_dev *ipu;
+	struct vio_framemgr *framemgr;
+	unsigned long flags;
+
+	if (frame == NULL) {
+		vio_err("%s frame:%p was null\n", __func__, frame);
+		return;
+	}
+
+	group = subdev->group;
+	ipu = subdev->ipu_dev;
+	framemgr = &subdev->framemgr;
+
+	framemgr_e_barrier_irqs(framemgr, 0UL, flags);
+	put_frame(&subdev->framemgr, frame, FS_REQUEST);
+	framemgr_x_barrier_irqr(framemgr, 0UL, flags);
+
+	if (group->leader && test_bit(IPU_DMA_INPUT, &ipu->state)
+			&& subdev->id == GROUP_ID_SRC) {
+		// ddr->ipu, qbuf is src
+		vio_dbg("[S%d]ddr->ipu src frame q index%d\n", group->instance,
+					frame->frameinfo.bufferindex);
+		vio_group_start_trigger_mp(group, frame);
+	}
+}
+
 int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 {
 	int ret = 0;
@@ -2624,6 +2697,7 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	u16 mask = 0x0000;
 	int tmp_num = 0;
 	struct vio_frame *release_frame;
+	int need_osd_process = 0;
 
 	index = frameinfo->bufferindex;
 	framemgr = ipu_ctx->framemgr;
@@ -2676,7 +2750,13 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 		}
 		memcpy(&frame->frameinfo, frameinfo, sizeof(struct frame_info));
 		frame->dispatch_mask |= 0xFF00;
-		trans_frame(framemgr, frame, FS_REQUEST);
+		if ((subdev->id == GROUP_ID_SRC) &&
+			atomic_read(&subdev->osd_info.need_sw_osd) && osd_send_frame) {
+			osd_send_frame(&subdev->osd_info, frame);
+			need_osd_process = 1;
+		} else {
+			trans_frame(framemgr, frame, FS_REQUEST);
+		}
 		vio_dbg("[S%d][V%d] q:FREE->REQ,proc%d bidx%d,(%d %d %d %d %d)",
 			group->instance, ipu_ctx->id,
 			ipu_ctx->ctx_index, index,
@@ -2703,7 +2783,13 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 			memcpy(&frame->frameinfo, frameinfo,
 				sizeof(struct frame_info));
 			frame->dispatch_mask |= 0xFF00;
-			trans_frame(framemgr, frame, FS_REQUEST);
+			if ((subdev->id == GROUP_ID_SRC) &&
+				atomic_read(&subdev->osd_info.need_sw_osd) && osd_send_frame) {
+				osd_send_frame(&subdev->osd_info, frame);
+				need_osd_process = 1;
+			} else {
+				trans_frame(framemgr, frame, FS_REQUEST);
+			}
 			vio_dbg("[S%d][V%d] q:USED->REQ,proc%d bidx%d,(%d %d %d %d %d)",
 				group->instance, ipu_ctx->id,
 				ipu_ctx->ctx_index, index,
@@ -2749,7 +2835,7 @@ int ipu_video_qbuf(struct ipu_video_ctx *ipu_ctx, struct frame_info *frameinfo)
 	 */
 
 	if (group->leader && test_bit(IPU_DMA_INPUT, &ipu->state)
-			&& subdev->id == GROUP_ID_SRC) {
+			&& subdev->id == GROUP_ID_SRC && need_osd_process == 0) {
 		// ddr->ipu, qbuf is src
 		vio_dbg("[S%d]ddr->ipu src frame q index%d\n", group->instance,
 					index);
@@ -3748,10 +3834,33 @@ void ipu_set_iar_output(struct ipu_subdev *subdev, struct vio_frame *frame)
 #endif
 }
 
-void ipu_frame_done(struct ipu_subdev *subdev)
+void ipu_hw_frame_done(struct ipu_subdev *subdev)
+{
+	if ((subdev->id != GROUP_ID_SRC) &&
+		atomic_read(&subdev->osd_info.need_sw_osd) && osd_send_frame) {
+		osd_send_frame(&subdev->osd_info, NULL);
+	} else {
+		ipu_frame_done(subdev, NULL);
+	}
+}
+
+void ipu_osd_frame_done(struct vio_osd_info *osd_info, struct vio_frame *frame)
+{
+	struct ipu_subdev *subdev;
+
+	subdev = container_of(osd_info, struct ipu_subdev, osd_info);
+
+	if (osd_info->id == OSD_IPU_SRC) {
+		ipu_frame_prepare(subdev, frame);
+	} else {
+		ipu_frame_done(subdev, frame);
+	}
+}
+
+void ipu_frame_done(struct ipu_subdev *subdev, struct vio_frame *frame)
 {
 	struct vio_framemgr *framemgr;
-	struct vio_frame *frame;
+	// struct vio_frame *frame;
 	struct vio_group *group;
 	struct ipu_video_ctx *ipu_ctx;
 	struct x3_ipu_dev *ipu;
@@ -3761,12 +3870,16 @@ void ipu_frame_done(struct ipu_subdev *subdev)
 	int cache_bufindex;
 	struct vio_frame *cache_frame;
 	unsigned long poll_mask = 0;
+	int is_osd_done = 1;
 
 	group = subdev->group;
 	ipu = subdev->ipu_dev;
 	framemgr = &subdev->framemgr;
 	framemgr_e_barrier_irqs(framemgr, 0UL, flags);
-	frame = peek_frame(framemgr, FS_PROCESS);
+	if (frame == NULL) {
+		frame = peek_frame(framemgr, FS_PROCESS);
+		is_osd_done = 0;
+	}
 	if (frame) {
 		frame->frameinfo.frame_id = group->frameid.frame_id;
 		frame->frameinfo.timestamps = group->frameid.timestamps;
@@ -3795,7 +3908,11 @@ void ipu_frame_done(struct ipu_subdev *subdev)
 			frame->frameinfo.timestamps);
 		ipu_set_iar_output(subdev, frame);
 		event = VIO_FRAME_DONE;
-		trans_frame(framemgr, frame, FS_COMPLETE);
+		if (is_osd_done == 1) {
+			put_frame(framemgr, frame, FS_COMPLETE);
+		} else {
+			trans_frame(framemgr, frame, FS_COMPLETE);
+		}
 		frame->poll_mask = subdev->poll_mask;
 		poll_mask = subdev->poll_mask;
 		subdev->poll_mask = 0x00;
@@ -4185,7 +4302,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 			vio_group_done(group);
 			subdev = group->sub_ctx[GROUP_ID_SRC];
 			if (subdev)
-				ipu_frame_done(subdev);
+				ipu_hw_frame_done(subdev);
 		}
 	}
 
@@ -4200,7 +4317,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 					vio_err("[s%d]-us ldc frame drop\n", instance);
 				ipu_frame_ndone(subdev);
 			} else {
-				ipu_frame_done(subdev);
+				ipu_hw_frame_done(subdev);
 			}
 		}
 	}
@@ -4216,7 +4333,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 					vio_err("[s%d]-ds0 ldc frame drop\n", instance);
 				ipu_frame_ndone(subdev);
 			} else {
-				ipu_frame_done(subdev);
+				ipu_hw_frame_done(subdev);
 			}
 		}
 	}
@@ -4232,7 +4349,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 					vio_err("[s%d]-ds1 ldc frame drop\n", instance);
 				ipu_frame_ndone(subdev);
 			} else {
-				ipu_frame_done(subdev);
+				ipu_hw_frame_done(subdev);
 			}
 		}
 	}
@@ -4250,7 +4367,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 					vio_err("[s%d]-ds2 ldc frame drop\n", instance);
 				ipu_frame_ndone(subdev);
 			} else {
-				ipu_frame_done(subdev);
+				ipu_hw_frame_done(subdev);
 			}
 		} else {
 			if(subdev)
@@ -4269,7 +4386,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 					vio_err("[s%d]-ds3 ldc frame drop\n", instance);
 				ipu_frame_ndone(subdev);
 			} else {
-				ipu_frame_done(subdev);
+				ipu_hw_frame_done(subdev);
 			}
 		}
 	}
@@ -4285,7 +4402,7 @@ static irqreturn_t ipu_isr(int irq, void *data)
 					vio_err("[s%d]-ds4 ldc frame drop\n", instance);
 				ipu_frame_ndone(subdev);
 			} else {
-				ipu_frame_done(subdev);
+				ipu_hw_frame_done(subdev);
 			}
 		}
 	}
@@ -4507,6 +4624,16 @@ int x3_ipu_subdev_init(struct x3_ipu_dev *ipu)
 		for (j = 0; j < (MAX_DEVICE - 1); j++) {
 			subdev = &ipu->subdev[i][j];
 			ret = ipu_subdev_init(subdev);
+
+			atomic_set(&subdev->osd_info.need_sw_osd, 0);
+			atomic_set(&subdev->osd_info.frame_count, 0);
+			subdev->osd_info.return_frame = ipu_osd_frame_done;
+			if (j == GROUP_ID_SRC) {
+				subdev->osd_info.id = OSD_IPU_SRC;
+			} else {
+				subdev->osd_info.id = j - 1;
+			}
+			osd_set_info(i, subdev->osd_info.id, &subdev->osd_info);
 		}
 	}
 
@@ -5154,6 +5281,7 @@ static int x3_ipu_probe(struct platform_device *pdev)
 
 	x3_ipu_subdev_init(ipu);
 	vio_group_init_mp(GROUP_ID_IPU);
+	osd_get_sta_callback(ipu_get_osd_bin_by_subdev);
 #ifdef CONFIG_HOBOT_DIAG
 	if (diag_register(ModuleDiag_VIO, EventIdVioIpuErr,
 			4, DIAG_MSG_INTERVAL_MIN, DIAG_MSG_INTERVAL_MAX, NULL) < 0)

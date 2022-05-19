@@ -10,6 +10,7 @@
 #define MAX_DS_NUM      5
 #define MAX_ADJ_NUM     3
 
+#define IPU_OSD_INDEX_US 2
 #define MAX_OSD_LAYER   3
 #define MAX_OSD_NUM     3
 #define MAX_OSD_COLOR_NUM   15

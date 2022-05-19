@@ -43,6 +43,8 @@ static __kernel_time_t g_pym_fps_lasttime[VIO_MAX_STREAM] = {0, };
 void pym_update_param(struct pym_subdev *subdev);
 void pym_update_param_ch(struct pym_subdev *subdev);
 int pym_video_streamoff(struct pym_video_ctx *pym_ctx);
+void pym_frame_done(struct pym_subdev *subdev, struct vio_frame *frame);
+extern void osd_set_info(int32_t instance, int32_t chn, struct vio_osd_info *info);
 
 extern struct ion_device *hb_ion_dev;
 static struct pm_qos_request pym_pm_qos_req;
@@ -1081,6 +1083,7 @@ int pym_video_streamoff(struct pym_video_ctx *pym_ctx)
 	struct x3_pym_dev *pym_dev;
 	struct pym_subdev *subdev;
 	struct vio_group *group;
+	int i;
 
 	if (pym_ctx->id == SUBDEV_ID_SRC) {
 		return 0;
@@ -1111,6 +1114,17 @@ p_dec:
 		}
 	}
 	pym_ctx->state = BIT(VIO_VIDEO_STOP);
+
+	for (i = 0; i < 30; i++) {
+		// wait for osd process end
+		if (atomic_read(&subdev->osd_info.frame_count) == 0) {
+			break;
+		}
+		msleep(1);
+		if (i == 30 - 1) {
+			vio_err("wait osd process end timeout\n");
+		}
+	}
 
 	vio_info("[S%d]%s\n", group->instance, __func__);
 
@@ -2023,10 +2037,28 @@ void pym_set_iar_output(struct pym_subdev *subdev, struct vio_frame *frame)
 #endif
 }
 
-void pym_frame_done(struct pym_subdev *subdev)
+void pym_hw_frame_done(struct pym_subdev *subdev)
+{
+	if ((subdev->id == SUBDEV_ID_OUT) &&
+		atomic_read(&subdev->osd_info.need_sw_osd) && osd_send_frame) {
+		osd_send_frame(&subdev->osd_info, NULL);
+	} else {
+		pym_frame_done(subdev, NULL);
+	}
+}
+
+void pym_osd_frame_done(struct vio_osd_info *osd_info, struct vio_frame *frame)
+{
+	struct pym_subdev *subdev;
+
+	subdev = container_of(osd_info, struct pym_subdev, osd_info);
+	pym_frame_done(subdev, frame);
+}
+
+void pym_frame_done(struct pym_subdev *subdev, struct vio_frame *frame)
 {
 	struct vio_framemgr *framemgr;
-	struct vio_frame *frame;
+	// struct vio_frame *frame;
 	struct vio_group *group;
 	struct pym_video_ctx *pym_ctx;
 	struct x3_pym_dev *pym;
@@ -2041,12 +2073,16 @@ void pym_frame_done(struct pym_subdev *subdev)
 	struct pym_subdev *in_subdev;
 	struct vio_framemgr *in_framemgr;
 	struct vio_frame *src_frame;
+	int is_osd_done = 1;
 
 	group = subdev->group;
 	pym = subdev->pym_dev;
 	framemgr = &subdev->framemgr;
 	framemgr_e_barrier_irqs(framemgr, 0UL, flags);
-	frame = peek_frame(framemgr, FS_PROCESS);
+	if (frame == NULL) {
+		frame = peek_frame(framemgr, FS_PROCESS);
+		is_osd_done = 0;
+	}
 	if (frame) {
 		if(subdev->pym_cfg.img_scr) {
 			vio_get_ipu_frame_info(group->instance, &frmid);
@@ -2073,7 +2109,11 @@ void pym_frame_done(struct pym_subdev *subdev)
 
 		pym_set_iar_output(subdev, frame);
 		event = VIO_FRAME_DONE;
-		trans_frame(framemgr, frame, FS_COMPLETE);
+		if (is_osd_done == 1) {
+			put_frame(framemgr, frame, FS_COMPLETE);
+		} else {
+			trans_frame(framemgr, frame, FS_COMPLETE);
+		}
 		frame->poll_mask = subdev->poll_mask;
 		poll_mask = subdev->poll_mask;
 		subdev->poll_mask = 0x00;
@@ -2286,7 +2326,7 @@ static irqreturn_t pym_isr(int irq, void *data)
 		if (test_bit(PYM_DMA_INPUT, &pym->state)) {
 			vio_group_done(group);
 		}
-		pym_frame_done(subdev);
+		pym_hw_frame_done(subdev);
 	}
 
 	if (status & (1 << INTR_PYM_FRAME_START)) {
@@ -2419,6 +2459,13 @@ int x3_pym_subdev_init(struct x3_pym_dev *pym)
 		for (j = 0; j < MAX_DEVICE; j++) {
 			subdev = &pym->subdev[i][j];
 			ret = pym_subdev_init(subdev);
+			if (j == SUBDEV_ID_OUT) {
+				subdev->osd_info.return_frame = pym_osd_frame_done;
+				atomic_set(&subdev->osd_info.need_sw_osd, 0);
+				atomic_set(&subdev->osd_info.frame_count, 0);
+				subdev->osd_info.id = OSD_PYM_OUT;
+				osd_set_info(i, subdev->osd_info.id, &subdev->osd_info);
+			}
 		}
 	}
 

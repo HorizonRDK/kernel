@@ -25,6 +25,7 @@ struct mutex rst_mutex;
 static u32 stat_info_update = 1;
 struct vio_frame_id  sif_frame_info[VIO_MAX_STREAM];
 struct vio_frame_id  ipu_frame_info[VIO_MAX_STREAM];
+struct vio_osd_info *osd_info[VIO_MAX_STREAM][MAX_SUB_DEVICE];
 
 EXPORT_SYMBOL(sif_frame_info);
 EXPORT_SYMBOL(ipu_frame_info);
@@ -115,6 +116,36 @@ void iar_register_set_callback(iar_set_addr_callback func)
        iar_set_addr = func;
 }
 EXPORT_SYMBOL(iar_register_set_callback);
+
+void osd_set_info(int32_t instance, int32_t chn, struct vio_osd_info *info)
+{
+    osd_info[instance][chn] = info;
+}
+EXPORT_SYMBOL(osd_set_info);
+
+struct vio_osd_info* osd_get_info(int32_t instance, int32_t chn)
+{
+    return osd_info[instance][chn];
+}
+EXPORT_SYMBOL(osd_get_info);
+
+osd_send_frame_callback osd_send_frame;
+EXPORT_SYMBOL(osd_send_frame);
+
+void osd_send_callback(osd_send_frame_callback func)
+{
+       osd_send_frame = func;
+}
+EXPORT_SYMBOL(osd_send_callback);
+
+osd_get_sta_bin_callback osd_get_sta_bin;
+EXPORT_SYMBOL(osd_get_sta_bin);
+
+void osd_get_sta_callback(osd_get_sta_bin_callback func)
+{
+       osd_get_sta_bin = func;
+}
+EXPORT_SYMBOL(osd_get_sta_callback);
 
 void vio_irq_affinity_set(int irq, enum MOD_ID id, int suspend,
 		int input_online)
