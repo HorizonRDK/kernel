@@ -962,8 +962,6 @@ int8_t disp_set_pixel_clk(uint64_t pixel_clk)
 {
 	int32_t ret = 0;
 	uint64_t pixel_rate;
-	void __iomem *iar_clk_reg_addr;
-	uint32_t reg_val = 0;
 
 	if (g_iar_dev == NULL) {
 		pr_err("%s: iar not init!!\n", __func__);
@@ -3165,6 +3163,97 @@ static int display_color_bar(unsigned int width, unsigned height,
 	return 0;
 }
 
+#define CON_EN_OFFSET (5u)
+#define CON_OFFSET (16u)
+#define CON_VAL_OFFSET (10u)
+#define SIZE_8_BIT_WIDTH (0xffu)
+#define SIZE_6_BIT_WIDTH (0x3fu)
+#define BRI_EN_OFFSET (6u)
+#define BRI_VAL_OFFSET (24u)
+#define SAT_EN_OFFSET (4u)
+#define SAT_VAL_OFFSET (8u)
+#define HUE_EN_OFFSET (3u)
+#define HUE_ABS_OFFSET (9u)
+#define DITH_EN_OFFSET (1u)
+#define DITH_FLAG_OFFSET (1u)
+#define SCALE_EN_OFFSET (8u)
+#define SIZE_11_BIT_WIDTH (0x7ffu)
+#define SOURCE_HEIGHT_OFFSET (16u)
+#define TARGET_HEIGHT_OFFSET (16u)
+#define HBP_OFFSET (20u)
+#define HFP_OFFSET (10u)
+#define VBP_OFFSET (20u)
+#define VFP_OFFSET (10u)
+#define SIZE_10_BIT_WIDTH (0x3ffu)
+#define SIZE_16_BIT_WIDTH (0xffffu)
+
+static void iar_debug_outcfg_show(struct seq_file *s)
+{
+	uint8_t __iomem *regaddr;
+	uint32_t reg_value_ppcon1, reg_value_ppcon2;
+
+	regaddr = (uint8_t __iomem *)g_iar_dev->regaddr;
+	reg_value_ppcon1 = readl(&regaddr[REG_IAR_PP_CON_1]);
+	reg_value_ppcon2 = readl(&regaddr[REG_IAR_PP_CON_2]);
+	seq_printf(s, "Contrast: the contrast enable is %d,",
+			(reg_value_ppcon1 >> CON_EN_OFFSET) & 0x1u);
+	seq_printf(s, " the contrast offset is %d, the contrast value is %d\n",
+			(reg_value_ppcon2 >> CON_OFFSET) & SIZE_8_BIT_WIDTH,
+			(reg_value_ppcon1 >> CON_VAL_OFFSET) & SIZE_6_BIT_WIDTH);
+	seq_printf(s, "Bright: the bright enable is %d, the bright value is %d\n",
+			(reg_value_ppcon1 >> BRI_EN_OFFSET) & 0x1u,
+			(reg_value_ppcon2 >> BRI_VAL_OFFSET) & SIZE_8_BIT_WIDTH);
+	seq_printf(s, "Saturation: the saturation enable is %d, the saturation value is %d\n",
+			(reg_value_ppcon1 >> SAT_EN_OFFSET) & 0x1u,
+			(reg_value_ppcon2 >> SAT_VAL_OFFSET) & SIZE_8_BIT_WIDTH);
+	seq_printf(s, "Hue: the hue enable is %d, the hue sign is %d, the hue abs is %d\n",
+			(reg_value_ppcon1 >> HUE_EN_OFFSET) & 0x1u,
+			(reg_value_ppcon1 >> HUE_ABS_OFFSET) & 0x1u,
+                        reg_value_ppcon2 & SIZE_8_BIT_WIDTH);
+	seq_printf(s, "Dithering: the dithering enable is %d, the dithering flag is %d\n",
+			(reg_value_ppcon1 >> DITH_EN_OFFSET) & 0x1u,
+			reg_value_ppcon1 & DITH_FLAG_OFFSET);
+}
+
+static void iar_debug_scalecfg_show(struct seq_file *s)
+{
+	uint8_t __iomem *regaddr;
+	uint32_t reg_value_ppcon1;
+
+	regaddr = (uint8_t __iomem *)g_iar_dev->regaddr;
+	reg_value_ppcon1 = readl(&regaddr[REG_IAR_PP_CON_1]);
+	seq_printf(s, "Upscale: the upscale enable is %d\n",
+			(reg_value_ppcon1 >> SCALE_EN_OFFSET) & 0x1u);
+	reg_value_ppcon1 = readl(&regaddr[REG_IAR_SRC_SIZE_UP]);
+	seq_printf(s, "         the source with is %d, the source height is %d\n",
+			reg_value_ppcon1 & SIZE_11_BIT_WIDTH,
+			(reg_value_ppcon1 >> SOURCE_HEIGHT_OFFSET) & SIZE_11_BIT_WIDTH);
+	reg_value_ppcon1 = readl(&regaddr[REG_IAR_TGT_SIZE_UP]);
+	seq_printf(s, "         the target with is %d, the target height is %d\n",
+			reg_value_ppcon1 & SIZE_11_BIT_WIDTH,
+			(reg_value_ppcon1 >> TARGET_HEIGHT_OFFSET) & SIZE_11_BIT_WIDTH);
+}
+
+static void iar_debug_timing_show(struct seq_file *s)
+{
+	uint8_t __iomem *regaddr;
+	uint32_t reg_value;
+
+	regaddr = (uint8_t __iomem *)g_iar_dev->regaddr;
+	seq_printf(s, "\nPixel clk: the pixel clk rate is %ld\n",
+			clk_get_rate(g_iar_dev->iar_pixel_clk));
+	reg_value = readl(&regaddr[REG_IAR_PARAMETER_HTIM_FIELD1]);
+	seq_printf(s, "Output timing: hbp is %d\n", (reg_value >> HBP_OFFSET) & SIZE_10_BIT_WIDTH);
+	seq_printf(s, "               hfp is %d\n", (reg_value >> HFP_OFFSET) & SIZE_10_BIT_WIDTH);
+	seq_printf(s, "               hsw is %d\n", reg_value & SIZE_10_BIT_WIDTH);
+	reg_value = readl(&regaddr[REG_IAR_PARAMETER_VTIM_FIELD1]);
+	seq_printf(s, "               vbp is %d\n", (reg_value >> VBP_OFFSET) & SIZE_10_BIT_WIDTH);
+	seq_printf(s, "               vfp is %d\n", (reg_value >> VFP_OFFSET) & SIZE_10_BIT_WIDTH);
+	seq_printf(s, "               vsw is %d\n", reg_value & SIZE_10_BIT_WIDTH);
+	reg_value = readl(&regaddr[REG_IAR_PARAMETER_VFP_CNT_FIELD12]);
+	seq_printf(s, "               vfp cnt is %d\n", reg_value & SIZE_16_BIT_WIDTH);
+}
+
 static int iar_debug_show(struct seq_file *s, void *unused)
 {
         int iar_open = 0;
@@ -3246,6 +3335,10 @@ static int iar_debug_show(struct seq_file *s, void *unused)
 	reg_value = readl(g_iar_dev->regaddr + 0x200);
 	seq_printf(s, "        output resolution width is %d, height is %d\n",
 			reg_value & 0x7ff, (reg_value >> 16) & 0x7ff);
+
+	iar_debug_outcfg_show(s);
+	iar_debug_scalecfg_show(s);
+	iar_debug_timing_show(s);
 
 	if (disable_sif_mclk() != 0)
 		return -1;
