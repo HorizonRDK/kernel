@@ -614,6 +614,7 @@
 			bits = <16>;
 			field = <5>;
 			clk-flags = <CLK_SET_RATE_PARENT>;
+			clk-divider-flags = <CLK_DIVIDER_ROUND_CLOSEST>;
 		};
 
 		iar_pix_clk: iar_pix_clk {
@@ -624,6 +625,7 @@
 			bits = <21 2 2 2 1 12>;
 			field = <3 1 1 1 1 1>;
 			clk-flags = <CLK_SET_RATE_PARENT>;
+			clk-divider-flags = <CLK_DIVIDER_ROUND_CLOSEST>;
 		};
 
 		iar_ipi_clk: iar_ipi_clk{

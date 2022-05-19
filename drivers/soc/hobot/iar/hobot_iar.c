@@ -978,27 +978,11 @@ int8_t disp_set_pixel_clk(uint64_t pixel_clk)
 	else
 		ips_set_iar_clk32(0);
 #endif
-	if (pixel_clk == 148350000) {
-		iar_clk_reg_addr = ioremap_nocache(0xA1000000 + 0x240, 4);
-                reg_val = readl(iar_clk_reg_addr);
-		reg_val = reg_val & 0x7fffffff;
-		reg_val = (reg_val & 0xff00ffff) | 0xa0000;
-		writel(reg_val, iar_clk_reg_addr);
-		iounmap(iar_clk_reg_addr);
-	} else if (pixel_clk == 74175000) {
-		iar_clk_reg_addr = ioremap_nocache(0xA1000000 + 0x240, 4);
-                reg_val = readl(iar_clk_reg_addr);
-		reg_val = reg_val & 0x7fffffff;
-		reg_val = (reg_val & 0xff00ffff) | 0x002a0000;
-		writel(reg_val, iar_clk_reg_addr);
-		iounmap(iar_clk_reg_addr);
-	} else {
-		pixel_rate = clk_round_rate(g_iar_dev->iar_pixel_clk, pixel_clk);
-		ret = clk_set_rate(g_iar_dev->iar_pixel_clk, pixel_rate);
-		if (ret) {
-			pr_err("%s: err checkout iar pixel clock rate!!\n", __func__);
-			return -1;
-		}
+	pixel_rate = clk_round_rate(g_iar_dev->iar_pixel_clk, pixel_clk);
+	ret = clk_set_rate(g_iar_dev->iar_pixel_clk, pixel_rate);
+	if (ret) {
+		pr_err("%s: err checkout iar pixel clock rate!!\n", __func__);
+		return -1;
 	}
 
 	pixel_rate = clk_get_rate(g_iar_dev->iar_pixel_clk);
