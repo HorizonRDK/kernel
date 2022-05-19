@@ -18,6 +18,6 @@ struct uvc_video;
 
 int uvcg_video_enable(struct uvc_video *video, int enable);
 
-int uvcg_video_init(struct uvc_video *video, struct uvc_device *uvc);
+int uvcg_video_init(struct uvc_video *video, struct uvc_device *uvc, bool is_bulk);
 
 #endif /* __UVC_VIDEO_H__ */

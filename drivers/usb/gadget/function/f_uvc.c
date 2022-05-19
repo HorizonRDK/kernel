@@ -1123,7 +1123,7 @@ uvc_function_bind(struct usb_configuration *c, struct usb_function *f)
 	}
 
 	/* Initialise video. */
-	ret = uvcg_video_init(&uvc->video, uvc);
+	ret = uvcg_video_init(&uvc->video, uvc, opts->streaming_bulk);
 	if (ret < 0)
 		goto v4l2_error;
 

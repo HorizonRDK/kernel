@@ -114,6 +114,8 @@ struct uvc_video {
 
 	struct uvc_video_queue queue;
 	unsigned int fid;
+
+	bool is_bulk;
 };
 
 enum uvc_state {
