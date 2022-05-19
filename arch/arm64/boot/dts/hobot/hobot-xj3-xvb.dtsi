@@ -342,8 +342,9 @@
 		#size-cells = <0x0>;
 		/* EPHY_CLK(gpio2.6) is in gpio mode and use it as RESET for PHY */
 		reset-gpios = <&gpios 38 GPIO_ACTIVE_LOW>;
-		/* reset pin must assert at least 10ms for MARVELL 88Exx */
+		/* reset pin must assert at least extra delay 50ms for MARVELL 88EA1512 */
 		reset-delay-us = <20000>;
+		reset_extra_us = <60000>;
 		phy1: phy@e {
 			compatible = "marvell,88E1111","ethernet-phy-ieee802.3-c22";
 			reg = <0xe>;
