@@ -895,6 +895,7 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 		      disp_layer = 0, disp_vio_addr_type = 0;
 	char value[3];
 	long unsigned int board_id = 0;
+	struct disp_timing timing = {0};
 
 	tmp = (char *)buf;
 	if (enable_sif_mclk() != 0) {
@@ -938,6 +939,209 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 			ret = error;
 			goto err;
 		}
+	} else if (strncmp(tmp, "hbp", 3) == 0) {
+		tmp = tmp + 3;
+		ret = kstrtoul(tmp, 0, &tmp_value);
+		if (ret != 0) {
+			pr_info("error input value, exit!!\n");
+			ret = error;
+			goto err;
+		}
+		iar_get_timing(&timing);
+		timing.hbp = tmp_value;
+		disp_set_panel_timing(&timing);
+		pr_info("hbp=%d, hfp=%d, hs=%d, vbp=%d, vfp=%d, vs=%d\n",
+				timing.hbp, timing.hfp, timing.hs,
+				timing.vbp, timing.vfp, timing.vs);
+	} else if (strncmp(tmp, "hfp", 3) == 0) {
+		tmp = tmp + 3;
+		ret = kstrtoul(tmp, 0, &tmp_value);
+		if (ret != 0) {
+			pr_info("error input value, exit!!\n");
+			ret = error;
+			goto err;
+		}
+		iar_get_timing(&timing);
+		timing.hfp = tmp_value;
+		disp_set_panel_timing(&timing);
+		pr_info("hbp=%d, hfp=%d, hs=%d, vbp=%d, vfp=%d, vs=%d\n",
+				timing.hbp, timing.hfp, timing.hs,
+				timing.vbp, timing.vfp, timing.vs);
+	} else if (strncmp(tmp, "hs", 2) == 0) {
+		tmp = tmp + 2;
+		ret = kstrtoul(tmp, 0, &tmp_value);
+		if (ret != 0) {
+			pr_info("error input value, exit!!\n");
+			ret = error;
+			goto err;
+		}
+		iar_get_timing(&timing);
+		timing.hs = tmp_value;
+		disp_set_panel_timing(&timing);
+		pr_info("hbp=%d, hfp=%d, hs=%d, vbp=%d, vfp=%d, vs=%d\n",
+				timing.hbp, timing.hfp, timing.hs,
+				timing.vbp, timing.vfp, timing.vs);
+	} else if (strncmp(tmp, "vbp", 3) == 0) {
+		tmp = tmp + 3;
+		ret = kstrtoul(tmp, 0, &tmp_value);
+		if (ret != 0) {
+			pr_info("error input value, exit!!\n");
+			ret = error;
+			goto err;
+		}
+		iar_get_timing(&timing);
+		timing.vbp = tmp_value;
+		disp_set_panel_timing(&timing);
+		pr_info("hbp=%d, hfp=%d, hs=%d, vbp=%d, vfp=%d, vs=%d\n",
+				timing.hbp, timing.hfp, timing.hs,
+				timing.vbp, timing.vfp, timing.vs);
+	} else if (strncmp(tmp, "vfp", 3) == 0) {
+		tmp = tmp + 3;
+		ret = kstrtoul(tmp, 0, &tmp_value);
+		if (ret != 0) {
+			pr_info("error input value, exit!!\n");
+			ret = error;
+			goto err;
+		}
+		iar_get_timing(&timing);
+		timing.vfp = tmp_value;
+		disp_set_panel_timing(&timing);
+		pr_info("hbp=%d, hfp=%d, hs=%d, vbp=%d, vfp=%d, vs=%d\n",
+				timing.hbp, timing.hfp, timing.hs,
+				timing.vbp, timing.vfp, timing.vs);
+	} else if (strncmp(tmp, "vs", 2) == 0) {
+		tmp = tmp + 2;
+		ret = kstrtoul(tmp, 0, &tmp_value);
+		if (ret != 0) {
+			pr_info("error input value, exit!!\n");
+			ret = error;
+			goto err;
+		}
+		iar_get_timing(&timing);
+		timing.vs = tmp_value;
+		disp_set_panel_timing(&timing);
+		pr_info("hbp=%d, hfp=%d, hs=%d, vbp=%d, vfp=%d, vs=%d\n",
+				timing.hbp, timing.hfp, timing.hs,
+				timing.vbp, timing.vfp, timing.vs);
+	} else if (strncmp(tmp, "clock", 5) == 0) {
+		tmp = tmp + 5;
+		ret = kstrtoul(tmp, 0, &tmp_value);
+		if (ret != 0) {
+			pr_info("error input value, exit!!\n");
+			ret = error;
+			goto err;
+		}
+		tmp_value = tmp_value * 100000;
+		pr_info("%s: begin set pixel clock is %ld\n", __func__, tmp_value);
+		disp_set_pixel_clk(tmp_value);
+	} else if (strncmp(tmp, "mhsa", 4) == 0) {
+		tmp = tmp + 4;
+		ret = kstrtoul(tmp, 0, &tmp_value);
+		if (ret != 0) {
+			pr_info("error input value, exit!!\n");
+			ret = error;
+			goto err;
+		}
+		mipi_timing.vid_hsa = tmp_value;
+		pr_info("mipi: vid_hsa=%d, vid_hbp=%d, vid_hline_time=%d, vid_vsa=%d, vid_vbp=%d, vid_vfp=%d\n",
+			mipi_timing.vid_hsa,
+			mipi_timing.vid_hbp,
+			mipi_timing.vid_hline_time,
+			mipi_timing.vid_vsa,
+			mipi_timing.vid_vbp,
+			mipi_timing.vid_vfp);
+		mipi_dsi_video_config(&mipi_timing);
+	} else if (strncmp(tmp, "mhbp", 4) == 0) {
+		tmp = tmp + 4;
+		ret = kstrtoul(tmp, 0, &tmp_value);
+		if (ret != 0) {
+			pr_info("error input value, exit!!\n");
+			ret = error;
+			goto err;
+		}
+		mipi_timing.vid_hbp = tmp_value;
+		pr_info("mipi: vid_hsa=%d, vid_hbp=%d, vid_hline_time=%d, vid_vsa=%d, vid_vbp=%d, vid_vfp=%d\n",
+			mipi_timing.vid_hsa,
+			mipi_timing.vid_hbp,
+			mipi_timing.vid_hline_time,
+			mipi_timing.vid_vsa,
+			mipi_timing.vid_vbp,
+			mipi_timing.vid_vfp);
+		mipi_dsi_video_config(&mipi_timing);
+	} else if (strncmp(tmp, "mhline", 6) == 0) {
+		tmp = tmp + 6;
+		ret = kstrtoul(tmp, 0, &tmp_value);
+		if (ret != 0) {
+			pr_info("error input value, exit!!\n");
+			ret = error;
+			goto err;
+		}
+		mipi_timing.vid_hline_time = tmp_value;
+		pr_info("mipi: vid_hsa=%d, vid_hbp=%d, vid_hline_time=%d, vid_vsa=%d, vid_vbp=%d, vid_vfp=%d\n",
+			mipi_timing.vid_hsa,
+			mipi_timing.vid_hbp,
+			mipi_timing.vid_hline_time,
+			mipi_timing.vid_vsa,
+			mipi_timing.vid_vbp,
+			mipi_timing.vid_vfp);
+		mipi_dsi_video_config(&mipi_timing);
+	} else if (strncmp(tmp, "mvsa", 4) == 0) {
+		tmp = tmp + 4;
+		ret = kstrtoul(tmp, 0, &tmp_value);
+		if (ret != 0) {
+			pr_info("error input value, exit!!\n");
+			ret = error;
+			goto err;
+		}
+		mipi_timing.vid_vsa = tmp_value;
+                mipi_timing.vid_vactive_line = mipi_timing.vid_pkt_size +
+			mipi_timing.vid_vsa + mipi_timing.vid_vbp + mipi_timing.vid_vfp;
+		pr_info("mipi: vid_hsa=%d, vid_hbp=%d, vid_hline_time=%d, vid_vsa=%d, vid_vbp=%d, vid_vfp=%d\n",
+			mipi_timing.vid_hsa,
+			mipi_timing.vid_hbp,
+			mipi_timing.vid_hline_time,
+			mipi_timing.vid_vsa,
+			mipi_timing.vid_vbp,
+			mipi_timing.vid_vfp);
+		mipi_dsi_video_config(&mipi_timing);
+	} else if (strncmp(tmp, "mvbp", 4) == 0) {
+		tmp = tmp + 4;
+		ret = kstrtoul(tmp, 0, &tmp_value);
+		if (ret != 0) {
+			pr_info("error input value, exit!!\n");
+			ret = error;
+			goto err;
+		}
+		mipi_timing.vid_vbp = tmp_value;
+		mipi_timing.vid_vactive_line = mipi_timing.vid_pkt_size +
+			mipi_timing.vid_vsa + mipi_timing.vid_vbp + mipi_timing.vid_vfp;
+		pr_info("mipi: vid_hsa=%d, vid_hbp=%d, vid_hline_time=%d, vid_vsa=%d, vid_vbp=%d, vid_vfp=%d\n",
+			mipi_timing.vid_hsa,
+			mipi_timing.vid_hbp,
+			mipi_timing.vid_hline_time,
+			mipi_timing.vid_vsa,
+			mipi_timing.vid_vbp,
+			mipi_timing.vid_vfp);
+		mipi_dsi_video_config(&mipi_timing);
+	} else if (strncmp(tmp, "mvfp", 4) == 0) {
+		tmp = tmp + 4;
+		ret = kstrtoul(tmp, 0, &tmp_value);
+		if (ret != 0) {
+			pr_info("error input value, exit!!\n");
+			ret = error;
+			goto err;
+		}
+		mipi_timing.vid_vfp = tmp_value;
+		mipi_timing.vid_vactive_line = mipi_timing.vid_pkt_size +
+			mipi_timing.vid_vsa + mipi_timing.vid_vbp + mipi_timing.vid_vfp;
+		pr_info("mipi: vid_hsa=%d, vid_hbp=%d, vid_hline_time=%d, vid_vsa=%d, vid_vbp=%d, vid_vfp=%d\n",
+			mipi_timing.vid_hsa,
+			mipi_timing.vid_hbp,
+			mipi_timing.vid_hline_time,
+			mipi_timing.vid_vsa,
+			mipi_timing.vid_vbp,
+			mipi_timing.vid_vfp);
+		mipi_dsi_video_config(&mipi_timing);
 	} else if (strncmp(tmp, "pipe", 4) == 0) {
 		tmp = tmp + 4;
 		memcpy((void *)(value), (void *)(tmp), 1);

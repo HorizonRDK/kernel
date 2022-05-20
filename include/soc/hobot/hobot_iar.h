@@ -790,6 +790,7 @@ extern struct disp_timing video_1280x720;
 //extern uint32_t hb_disp_base_board_id;
 extern uint32_t iar_display_addr_type;
 extern uint32_t iar_display_cam_no;
+extern struct video_timing mipi_timing;
 #ifdef CONFIG_HOBOT_XJ3
 #define X3_GPIO_BASE    (0xA6003000)
 #define X3_GPIO0_VALUE_REG      (0xC)
@@ -902,6 +903,8 @@ int dsi_panel_write_cmd_poll(uint8_t cmd, uint8_t data, uint8_t header);
 int user_init_mipi_dsi_core(struct mipi_dsi_core_init_data *init);
 int mipi_dsi_set_mode(uint8_t mode);
 void mipi_dsi_panel_config_begin(void);
+int32_t iar_get_timing(struct disp_timing *timing);
+int mipi_dsi_video_config(struct video_timing *video_timing_config);
 // Supported rotation.
 enum RotationMode {
 	kRotate0 = 0,		// No rotation.

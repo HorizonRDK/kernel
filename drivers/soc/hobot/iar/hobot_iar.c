@@ -3254,6 +3254,34 @@ static void iar_debug_timing_show(struct seq_file *s)
 	seq_printf(s, "               vfp cnt is %d\n", reg_value & SIZE_16_BIT_WIDTH);
 }
 
+int32_t iar_get_timing(struct disp_timing *timing)
+{
+	uint8_t __iomem *regaddr;
+	uint32_t reg_value;
+
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init, exit!!\n", __func__);
+		return -1;
+	}
+	if (timing == NULL) {
+		pr_err("%s: input timing pointer is null, exit!!\n", __func__);
+		return -1;
+	}
+	regaddr = (uint8_t __iomem *)g_iar_dev->regaddr;
+	reg_value = readl(&regaddr[REG_IAR_PARAMETER_HTIM_FIELD1]);
+	timing->hbp = (reg_value >> HBP_OFFSET) & SIZE_10_BIT_WIDTH;
+	timing->hfp = (reg_value >> HFP_OFFSET) & SIZE_10_BIT_WIDTH;
+	timing->hs = reg_value & SIZE_10_BIT_WIDTH;
+	reg_value = readl(&regaddr[REG_IAR_PARAMETER_VTIM_FIELD1]);
+	timing->vbp = (reg_value >> VBP_OFFSET) & SIZE_10_BIT_WIDTH;
+	timing->vfp = (reg_value >> VFP_OFFSET) & SIZE_10_BIT_WIDTH;
+	timing->vs = reg_value & SIZE_10_BIT_WIDTH;
+	reg_value = readl(&regaddr[REG_IAR_PARAMETER_VFP_CNT_FIELD12]);
+	timing->vfp_cnt = reg_value & SIZE_16_BIT_WIDTH;
+	return 0;
+}
+EXPORT_SYMBOL(iar_get_timing);
+
 static int iar_debug_show(struct seq_file *s, void *unused)
 {
         int iar_open = 0;

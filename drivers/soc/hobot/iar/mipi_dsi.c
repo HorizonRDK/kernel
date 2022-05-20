@@ -27,7 +27,8 @@
 #include <soc/hobot/hobot_mipi_dphy.h>
 
 extern struct iar_dev_s *g_iar_dev;
-
+struct video_timing mipi_timing;
+EXPORT_SYMBOL(mipi_timing);
 #define VERSION	0x0
 #define PWR_UP	0x4
 #define CLKMGR_CFG	0x8
@@ -534,7 +535,7 @@ static struct mipi_init_para init_para_720x1280_sdb[] = {
 	{MIPI_OFF, 0x00, {0x00}},
 };
 
-static int mipi_dsi_video_config(struct video_timing *video_timing_config)
+int mipi_dsi_video_config(struct video_timing *video_timing_config)
 {
 	uint32_t value;
 
@@ -592,6 +593,7 @@ static int mipi_dsi_video_config(struct video_timing *video_timing_config)
 	mipi_dsi_vid_mode_cfg(0);//normal mode
 	return 0;
 }
+EXPORT_SYMBOL(mipi_dsi_video_config);
 
 void dsi_panel_write_cmd(uint8_t cmd, uint8_t data, uint8_t header)
 {
@@ -1566,14 +1568,19 @@ int set_mipi_display(uint8_t panel_no)
 	pr_info("mipi: set mipi display begin!\n");
 	mipi_dsi_core_pre_init(panel_no);
 	mipi_dsi_dpi_config(panel_no);
-	if (panel_no == 0)
+	if (panel_no == 0) {
 		mipi_dsi_video_config(&video_1080_1920);
-	else if (panel_no == 1)
+		memcpy(&mipi_timing, &video_1080_1920, sizeof(struct video_timing));
+	} else if (panel_no == 1) {
 		mipi_dsi_video_config(&video_720_1280);
-	else if (panel_no == 2)
+		memcpy(&mipi_timing, &video_720_1280, sizeof(struct video_timing));
+	} else if (panel_no == 2) {
 		mipi_dsi_video_config(&video_720_1280_sdb);
-	else if (panel_no == 3)
+		memcpy(&mipi_timing, &video_720_1280_sdb, sizeof(struct video_timing));
+	} else if (panel_no == 3) {
 		mipi_dsi_video_config(&video_1280_720);
+		memcpy(&mipi_timing, &video_1280_720, sizeof(struct video_timing));
+	}
 
 	msleep(100);
 	//mipi_dsi_set_mode(0);//video mode
@@ -1608,6 +1615,7 @@ int user_init_mipi_dsi_core(struct mipi_dsi_core_init_data *init)
 		return -1;
 	}
 	mipi_dsi_video_config(&init->timing);
+	memcpy(&mipi_timing, &init->timing, sizeof(struct video_timing));
 	msleep(100);
 	return 0;
 }
