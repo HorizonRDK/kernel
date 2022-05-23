@@ -56,13 +56,13 @@
  */
 
 /*Default initialize configuration*/
-static bool speaker_double_used = 1;
+static bool speaker_double_used = true;
 static int double_speaker_val	= 0x1B;
 static int single_speaker_val	= 0x19;
 static int headset_val		= 0x3B;
 static int mainmic_val		= 0x4;
 static int headsetmic_val	= 0x4;
-static bool dmic_used		= 1;
+static bool dmic_used		= true;
 static int adc_digital_val	= 0xb0b0;
 static bool drc_used		= true;
 
@@ -903,7 +903,7 @@ static int ac101_aif_play(struct ac10x_priv* ac10x) {
 	late_enable_dac(codec, SND_SOC_DAPM_PRE_PMU);
 	ac101_headphone_event(codec, SND_SOC_DAPM_POST_PMU);
 	if (drc_used) {
-		drc_enable(codec, 1);
+		drc_enable(codec, true);
 	}
 
 	/* Enable Left & Right Speaker */
