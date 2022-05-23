@@ -466,6 +466,11 @@ static int i2s_startup(struct snd_pcm_substream *substream,
 	//dev_dbg(i2s->dev, "i2s_startup S, i2s->id is %d\n", i2s->id);
 	spin_lock_irqsave(&i2s->lock, flags);
 
+	if (i2s->open_flag) {
+		spin_unlock_irqrestore(&i2s->lock, flags);
+		return -EBUSY;
+	}
+
 	/* enable mclk, first disable bclk, if master, enable it later */
 	//clk_enable(i2s->mclk);
 
@@ -478,6 +483,8 @@ static int i2s_startup(struct snd_pcm_substream *substream,
 		i2s->streamflag = 0;
 	else
 		i2s->streamflag = 1;
+
+	i2s->open_flag = true;
 
 	spin_unlock_irqrestore(&i2s->lock, flags);
 	return 0;
@@ -540,7 +547,12 @@ static int i2s_set_clkdiv(struct snd_soc_dai *dai, int div_id, int div)
 
 static int i2s_hw_free(struct snd_pcm_substream *substream,
 		struct snd_soc_dai *dai) {
-	//struct hobot_i2s *i2s = snd_soc_dai_get_drvdata(dai);
+	struct hobot_i2s *i2s = snd_soc_dai_get_drvdata(dai);
+	unsigned long flags;
+
+	spin_lock_irqsave(&i2s->lock, flags);
+	i2s->open_flag = false;
+	spin_unlock_irqrestore(&i2s->lock, flags);
 
 	return 0;
 }
@@ -829,6 +841,8 @@ static int hobot_i2s_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Missing reset controller!\n");
 		return PTR_ERR_OR_ZERO(i2s->rst);
 	}
+
+	i2s->open_flag = false;
 
 	/* hobot_i2s is set to cpudai dev data */
 	dev_set_drvdata(&pdev->dev, i2s);

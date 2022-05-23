@@ -212,6 +212,7 @@ struct hobot_i2s {
 #endif
 
 	u32 work_mode;
+	bool open_flag;
 };
 
 #define INT_BUF1_DONE   (1 << 3)
