@@ -495,7 +495,6 @@ static int wave_sleep_wake(hb_vpu_dev_t *dev, u32 core, int mode)
 			}
 		}
 	} else {
-		int i;
 		u32 val;
 		u32 remapSize;
 		u32 codeBase;
@@ -1936,6 +1935,8 @@ static int vpu_open(struct inode *inode, struct file *filp)
 {
 	hb_vpu_dev_t *dev;
 	hb_vpu_priv_t *priv;
+	u32 open_count = 0;
+
 	vpu_debug_enter();
 
 	priv = kzalloc(sizeof(hb_vpu_priv_t), GFP_KERNEL);
@@ -1949,9 +1950,9 @@ static int vpu_open(struct inode *inode, struct file *filp)
 	}
 
 	spin_lock(&dev->vpu_spinlock);
+	open_count = dev->open_count;
 	if (dev->open_count == 0) {
 		dev->vpu_freq = vpu_clk_freq;
-		pm_qos_add_request(&dev->vpu_pm_qos_req, PM_QOS_DEVFREQ, 10000);
 	}
 	dev->open_count++;
 	priv->vpu_dev = dev;
@@ -1959,6 +1960,9 @@ static int vpu_open(struct inode *inode, struct file *filp)
 	priv->is_irq_poll = 0;
 	filp->private_data = (void *)priv;
 	spin_unlock(&dev->vpu_spinlock);
+	if (open_count == 0) {
+		pm_qos_add_request(&dev->vpu_pm_qos_req, PM_QOS_DEVFREQ, 10000);
+	}
 	hb_vpu_clk_enable(dev, dev->vpu_freq);
 
 	vpu_debug_leave();

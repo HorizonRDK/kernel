@@ -367,6 +367,7 @@ static int jpu_open(struct inode *inode, struct file *filp)
 {
 	hb_jpu_dev_t *dev;
 	hb_jpu_priv_t *priv;
+	u32 open_count = 0;
 	jpu_debug_enter();
 
 	priv = kzalloc(sizeof(hb_jpu_priv_t), GFP_KERNEL);
@@ -379,15 +380,16 @@ static int jpu_open(struct inode *inode, struct file *filp)
 	}
 
 	spin_lock(&dev->jpu_spinlock);
-	if (dev->open_count == 0) {
-		pm_qos_add_request(&dev->jpu_pm_qos_req, PM_QOS_DEVFREQ, 10000);
-	}
+	open_count = dev->open_count;
 	dev->open_count++;
 	priv->jpu_dev = dev;
 	priv->inst_index = -1;
 	priv->is_irq_poll = 0;
 	filp->private_data = (void *)priv;
 	spin_unlock(&dev->jpu_spinlock);
+	if (open_count == 0) {
+		pm_qos_add_request(&dev->jpu_pm_qos_req, PM_QOS_DEVFREQ, 10000);
+	}
 	hb_jpu_clk_enable(dev);
 
 	jpu_debug_leave();
@@ -1046,6 +1048,7 @@ static int jpu_release(struct inode *inode, struct file *filp)
 		jpu_debug(5, "open_count: %d\n", dev->open_count);
 		dev->open_count--;
 		open_count = dev->open_count;
+		spin_unlock(&dev->jpu_spinlock);
 		if (open_count == 0) {
 			if (dev->instance_pool.base) {
 				jpu_debug(5, "free instance pool\n");
@@ -1063,7 +1066,6 @@ static int jpu_release(struct inode *inode, struct file *filp)
 			dev->total_poll = 0;
 			dev->total_release = 0;
 		}
-		spin_unlock(&dev->jpu_spinlock);
 	}
 	kfree(priv);
 	up(&dev->jpu_sem);
