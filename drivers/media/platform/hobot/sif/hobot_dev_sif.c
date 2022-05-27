@@ -598,6 +598,7 @@ static int x3_sif_open(struct inode *inode, struct file *file)
 		pm_qos_add_request(&sif_pm_qos_req, PM_QOS_DEVFREQ, 10000);
 		/*4 ddr in channel can not be 0 together*/
 		sif_enable_dma(sif->base_reg, 0x10000);
+		ips_set_module_reset(IRAM_RST);
 	}
 	mutex_unlock(&sif->shared_mutex);
 p_err:
