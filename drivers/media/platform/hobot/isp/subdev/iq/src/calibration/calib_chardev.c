@@ -45,9 +45,10 @@ extern uint32_t get_calibrations_dynamic_fs_lin_dummy( ACameraCalibrations *c );
 
 extern void *soc_iq_get_lut_data_ptr(uint8_t ctx_id);
 
-static int calib_destory(uint8_t port)
+static int calib_destory(uint8_t port, const uint32_t lut_c)
 {
 	uint32_t tmp = 0;
+	uint32_t count = lut_c > CALIBRATION_TOTAL_SIZE ? CALIBRATION_TOTAL_SIZE : lut_c;
 
 	if (port >= FIRMWARE_CONTEXT_NUMBER) {
 		LOG( LOG_ERR, "port %d is not existance.", port );
@@ -68,7 +69,7 @@ static int calib_destory(uint8_t port)
 		get_calibrations_static_fs_lin_dummy(c);
 	}
 
-	for(tmp = 0; tmp < CALIBRATION_TOTAL_SIZE; tmp++) {
+	for(tmp = 0; tmp < count; tmp++) {
 		if (calib_data->plut[tmp].ptr == NULL) {
 			LOG( LOG_DEBUG, "memory of port %d is not existance.", port );
 		} else {
@@ -103,7 +104,7 @@ static int calib_create(camera_calib_t *ptr)
 	}
 
 	if (calib_param_ctx.plist[ptr->port]) {
-		ret = calib_destory(ptr->port);
+		ret = calib_destory(ptr->port, CALIBRATION_TOTAL_SIZE);
 	}
 
 	calib_data = kzalloc(sizeof(struct calib_data_s), GFP_KERNEL);
@@ -169,7 +170,7 @@ static int calib_create(camera_calib_t *ptr)
 	return ret;
 copy_err:
 	kfree(calib_data);
-	calib_destory(ptr->port);
+	calib_destory(ptr->port, tmp);
 	return ret;
 }
 
@@ -429,7 +430,7 @@ static long calib_fops_ioctl(struct file *file, unsigned int cmd, unsigned long 
 			LOG( LOG_ERR, "%s -- %d copy data is failed.", __func__, __LINE__);
 			goto copy_err;
 		}
-		rc = calib_destory(pcalib.port);	
+		rc = calib_destory(pcalib.port, CALIBRATION_TOTAL_SIZE);
 	}
 	break;
 	case AC_CALIB_SETPART: {
@@ -539,7 +540,7 @@ void system_calib_destroy( void )
     
     if ( calib_dev_ctx.dev_inited ) {
 	for (tmp = 0; tmp < FIRMWARE_CONTEXT_NUMBER;tmp++) {
-		calib_destory(tmp);
+		calib_destory(tmp, CALIBRATION_TOTAL_SIZE);
 	}
         misc_deregister( &calib_dev_ctx.calib_dev );
         LOG( LOG_INFO, "misc_deregister dev: %s.", calib_dev_ctx.dev_name );
