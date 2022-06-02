@@ -1803,6 +1803,7 @@ static int jpu_suspend(struct platform_device *pdev, pm_message_t state)
 		jpu_err("The jpu dev is NULL!");
 		return -1;
 	}
+	irq_set_affinity_hint(dev->irq, NULL);
 	jpu_debug_leave();
 	return 0;
 

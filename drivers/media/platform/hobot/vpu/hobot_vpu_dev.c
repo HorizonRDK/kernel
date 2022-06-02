@@ -4840,6 +4840,7 @@ static int vpu_suspend(struct platform_device *pdev, pm_message_t state)
 	}
 
 	hb_vpu_clk_disable(dev);
+	irq_set_affinity_hint(dev->irq, NULL);
 	vpu_debug_leave();
 	return 0;
 
@@ -4874,118 +4875,120 @@ static int vpu_resume(struct platform_device *pdev)
 	dev = (hb_vpu_dev_t *) platform_get_drvdata(pdev);
 	hb_vpu_clk_enable(dev, dev->vpu_freq);
 
-	for (core = 0; core < MAX_NUM_VPU_CORE; core++) {
-		if (dev->bit_fm_info[core].size == 0) {
-			continue;
-		}
-#ifdef USE_VPU_CLOSE_INSTANCE_ONCE_ABNORMAL_RELEASE
-		ret = vpu_sleep_wake(dev, core, VPU_WAKE_MODE);
-		if (ret != VPUAPI_RET_SUCCESS) {
-			goto DONE_WAKEUP;
-		}
-#else
-		product_code = VPU_READL(VPU_PRODUCT_CODE_REGISTER);
-		if (PRODUCT_CODE_W_SERIES(product_code)) {
-			code_base = dev->common_memory.phys_addr;
-			/* ALIGN TO 4KB */
-			code_size = (W5_MAX_CODE_BUF_SIZE & ~0xfff);
-			if (code_size < dev->bit_fm_info[core].size * 2) {
+	if (dev->vpu_open_ref_count > 0) {
+		for (core = 0; core < MAX_NUM_VPU_CORE; core++) {
+			if (dev->bit_fm_info[core].size == 0) {
+				continue;
+			}
+	#ifdef USE_VPU_CLOSE_INSTANCE_ONCE_ABNORMAL_RELEASE
+			ret = vpu_sleep_wake(dev, core, VPU_WAKE_MODE);
+			if (ret != VPUAPI_RET_SUCCESS) {
 				goto DONE_WAKEUP;
 			}
-
-			regVal = 0;
-			VPU_WRITEL(W5_PO_CONF, regVal);
-
-			/* Reset All blocks */
-			regVal = W5_RST_BLOCK_ALL;
-			VPU_WRITEL(W5_VPU_RESET_REQ, regVal);
-
-			/* Waiting reset done */
-			while (VPU_READL(W5_VPU_RESET_STATUS)) {
-				if (time_after(jiffies, timeout))
+	#else
+			product_code = VPU_READL(VPU_PRODUCT_CODE_REGISTER);
+			if (PRODUCT_CODE_W_SERIES(product_code)) {
+				code_base = dev->common_memory.phys_addr;
+				/* ALIGN TO 4KB */
+				code_size = (W5_MAX_CODE_BUF_SIZE & ~0xfff);
+				if (code_size < dev->bit_fm_info[core].size * 2) {
 					goto DONE_WAKEUP;
-			}
+				}
 
-			VPU_WRITEL(W5_VPU_RESET_REQ, 0);
+				regVal = 0;
+				VPU_WRITEL(W5_PO_CONF, regVal);
 
-			/* remap page size */
-			remap_size = (code_size >> 12) & 0x1ff;
-			regVal =
-			    0x80000000 | (W5_REMAP_CODE_INDEX << 12) | (0 << 16)
-			    | (1 << 11) | remap_size;
-			VPU_WRITEL(W5_VPU_REMAP_CTRL, regVal);
-			VPU_WRITEL(W5_VPU_REMAP_VADDR, 0x00000000);	/* DO NOT CHANGE! */
-			VPU_WRITEL(W5_VPU_REMAP_PADDR, code_base);
-			VPU_WRITEL(W5_ADDR_CODE_BASE, code_base);
-			VPU_WRITEL(W5_CODE_SIZE, code_size);
-			VPU_WRITEL(W5_CODE_PARAM, 0);
-			//VPU_WRITEL(W5_INIT_VPU_TIME_OUT_CNT, timeout);
+				/* Reset All blocks */
+				regVal = W5_RST_BLOCK_ALL;
+				VPU_WRITEL(W5_VPU_RESET_REQ, regVal);
 
-			VPU_WRITEL(W5_HW_OPTION, hwOption);
+				/* Waiting reset done */
+				while (VPU_READL(W5_VPU_RESET_STATUS)) {
+					if (time_after(jiffies, timeout))
+						goto DONE_WAKEUP;
+				}
 
-			/* Interrupt */
-			if (product_code == WAVE521_CODE ||
-				product_code == WAVE521C_CODE) {
-				regVal  = (1 << INT_WAVE5_ENC_SET_PARAM);
-				regVal |= (1 << INT_WAVE5_ENC_PIC);
-				regVal |= (1 << INT_WAVE5_INIT_SEQ);
-				regVal |= (1 << INT_WAVE5_DEC_PIC);
-				regVal |= (1 << INT_WAVE5_BSBUF_EMPTY);
-			} else if (product_code == WAVE420_CODE) {
-				regVal  = (1 << W4_INT_DEC_PIC_HDR);
-				regVal |= (1 << W4_INT_DEC_PIC);
-				regVal |= (1 << W4_INT_QUERY_DEC);
-				regVal |= (1 << W4_INT_SLEEP_VPU);
-				regVal |= (1 << W4_INT_BSBUF_EMPTY);
+				VPU_WRITEL(W5_VPU_RESET_REQ, 0);
+
+				/* remap page size */
+				remap_size = (code_size >> 12) & 0x1ff;
+				regVal =
+					0x80000000 | (W5_REMAP_CODE_INDEX << 12) | (0 << 16)
+					| (1 << 11) | remap_size;
+				VPU_WRITEL(W5_VPU_REMAP_CTRL, regVal);
+				VPU_WRITEL(W5_VPU_REMAP_VADDR, 0x00000000);	/* DO NOT CHANGE! */
+				VPU_WRITEL(W5_VPU_REMAP_PADDR, code_base);
+				VPU_WRITEL(W5_ADDR_CODE_BASE, code_base);
+				VPU_WRITEL(W5_CODE_SIZE, code_size);
+				VPU_WRITEL(W5_CODE_PARAM, 0);
+				//VPU_WRITEL(W5_INIT_VPU_TIME_OUT_CNT, timeout);
+
+				VPU_WRITEL(W5_HW_OPTION, hwOption);
+
+				/* Interrupt */
+				if (product_code == WAVE521_CODE ||
+					product_code == WAVE521C_CODE) {
+					regVal  = (1 << INT_WAVE5_ENC_SET_PARAM);
+					regVal |= (1 << INT_WAVE5_ENC_PIC);
+					regVal |= (1 << INT_WAVE5_INIT_SEQ);
+					regVal |= (1 << INT_WAVE5_DEC_PIC);
+					regVal |= (1 << INT_WAVE5_BSBUF_EMPTY);
+				} else if (product_code == WAVE420_CODE) {
+					regVal  = (1 << W4_INT_DEC_PIC_HDR);
+					regVal |= (1 << W4_INT_DEC_PIC);
+					regVal |= (1 << W4_INT_QUERY_DEC);
+					regVal |= (1 << W4_INT_SLEEP_VPU);
+					regVal |= (1 << W4_INT_BSBUF_EMPTY);
+				} else {
+					// decoder
+					regVal  = (1 << INT_WAVE5_INIT_SEQ);
+					regVal |= (1 << INT_WAVE5_DEC_PIC);
+					regVal |= (1 << INT_WAVE5_BSBUF_EMPTY);
+				}
+
+				VPU_WRITEL(W5_VPU_VINT_ENABLE, regVal);
+
+				VPU_ISSUE_COMMAND(core, W5_CMD_INIT_VPU);
+				VPU_WRITEL(W5_VPU_REMAP_CORE_START, 1);
+
+				while (VPU_READL(W5_VPU_BUSY_STATUS)) {
+					if (time_after(jiffies, timeout))
+						goto DONE_WAKEUP;
+				}
+
+				if (VPU_READL(W5_RET_SUCCESS) == 0) {
+					vpu_err("WAKEUP_VPU failed [0x%x]",
+						VPU_READL(W5_RET_FAIL_REASON));
+					goto DONE_WAKEUP;
+				}
+			} else if (!PRODUCT_CODE_W_SERIES(product_code)) {
+				VPU_WRITEL(BIT_CODE_RUN, 0);
+
+				/*---- LOAD BOOT CODE*/
+				for (i = 0; i < 512; i++) {
+					val = dev->bit_fm_info[core].bit_code[i];
+					VPU_WRITEL(BIT_CODE_DOWN, ((i << 16) | val));
+				}
+
+				for (i = 0; i < 64; i++)
+					VPU_WRITEL(BIT_BASE + (0x100 + (i * 4)),
+						dev->vpu_reg_store[core][i]);
+
+				VPU_WRITEL(BIT_BUSY_FLAG, 1);
+				VPU_WRITEL(BIT_CODE_RESET, 1);
+				VPU_WRITEL(BIT_CODE_RUN, 1);
+
+				while (VPU_READL(BIT_BUSY_FLAG)) {
+					if (time_after(jiffies, timeout))
+						goto DONE_WAKEUP;
+				}
 			} else {
-				// decoder
-				regVal  = (1 << INT_WAVE5_INIT_SEQ);
-				regVal |= (1 << INT_WAVE5_DEC_PIC);
-				regVal |= (1 << INT_WAVE5_BSBUF_EMPTY);
-			}
-
-			VPU_WRITEL(W5_VPU_VINT_ENABLE, regVal);
-
-			VPU_ISSUE_COMMAND(core, W5_CMD_INIT_VPU);
-			VPU_WRITEL(W5_VPU_REMAP_CORE_START, 1);
-
-			while (VPU_READL(W5_VPU_BUSY_STATUS)) {
-				if (time_after(jiffies, timeout))
-					goto DONE_WAKEUP;
-			}
-
-			if (VPU_READL(W5_RET_SUCCESS) == 0) {
-				vpu_err("WAKEUP_VPU failed [0x%x]",
-					VPU_READL(W5_RET_FAIL_REASON));
+				vpu_err("[VPUDRV] Unknown product id : %08x\n",
+					product_code);
 				goto DONE_WAKEUP;
 			}
-		} else if (!PRODUCT_CODE_W_SERIES(product_code)) {
-			VPU_WRITEL(BIT_CODE_RUN, 0);
-
-			/*---- LOAD BOOT CODE*/
-			for (i = 0; i < 512; i++) {
-				val = dev->bit_fm_info[core].bit_code[i];
-				VPU_WRITEL(BIT_CODE_DOWN, ((i << 16) | val));
-			}
-
-			for (i = 0; i < 64; i++)
-				VPU_WRITEL(BIT_BASE + (0x100 + (i * 4)),
-					   dev->vpu_reg_store[core][i]);
-
-			VPU_WRITEL(BIT_BUSY_FLAG, 1);
-			VPU_WRITEL(BIT_CODE_RESET, 1);
-			VPU_WRITEL(BIT_CODE_RUN, 1);
-
-			while (VPU_READL(BIT_BUSY_FLAG)) {
-				if (time_after(jiffies, timeout))
-					goto DONE_WAKEUP;
-			}
-		} else {
-			vpu_err("[VPUDRV] Unknown product id : %08x\n",
-				product_code);
-			goto DONE_WAKEUP;
+	#endif
 		}
-#endif
 	}
 
 	if (dev->vpu_open_ref_count == 0)
