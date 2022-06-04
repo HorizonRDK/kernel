@@ -284,7 +284,7 @@
 };
 
 &extcon_vbus {
-	status = "disabled";
+	status = "okay";
 
 	pinctrl-names = "default";
 	pinctrl-0 = <&vbus_detect_function>;
@@ -356,6 +356,10 @@
 
 &mipi_host2 {
 	status = "okay";
+	pinctrl-names = "enable", "disable";
+	pinctrl-0 = <&sensor2_func>;
+	pinctrl-1 = <&sensor2_gpio_func>;
+	snrclk-idx = <2>;
 };
 
 &mipi_host3 {
