@@ -229,8 +229,6 @@ struct vio_frame_id {
 	u32 frame_id;
 	u64 timestamps;
 	struct timeval tv;
-	u32 base_frame_id;
-	u32 last_frame_id;
 	u32 frame_id_bits;
 	spinlock_t id_lock;
 };

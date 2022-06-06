@@ -2115,19 +2115,42 @@ EXPORT_SYMBOL(sif_get_frame_id);
 
 int sif_set_frame_id(u32 instance, u32 frame_id)
 {
+	int32_t i;
+	struct sif_subdev *subdev = NULL;
+	struct x3_sif_dev *sif_dev = NULL;
+	struct vio_group *group = NULL;
+	sif_input_mipi_t* p_mipi = NULL;
+	u8 ipi_index = 0;
+	u8 *vc_index = NULL;
+
 	if (instance >= VIO_MAX_STREAM)
 		return -1;
+	group = vio_get_chain_group(instance, GROUP_ID_SIF_OUT);
+	if (group == NULL || group->sub_ctx[0] == NULL
+		|| ((struct sif_subdev *)group->sub_ctx[0])->sif_dev == NULL)
+		return -1;
+	subdev = group->sub_ctx[0];
+	if(subdev == NULL)
+		return -1;
+	sif_dev = subdev->sif_dev;
+	p_mipi = &subdev->sif_cfg.input.mipi;
 
-	unsigned long flags;
-	spin_lock_irqsave(&sif_frame_info[instance].id_lock, flags);
-	frame_id &= FRAME_ID_MASK;
-	sif_frame_info[instance].base_frame_id = \
-		sif_frame_info[instance].last_frame_id;
-	sif_frame_info[instance].base_frame_id -= frame_id;
-	/* Here minus 1 to decrease the increment of the next frame */
-	sif_frame_info[instance].base_frame_id += 1;
-	spin_unlock_irqrestore(&sif_frame_info[instance].id_lock, flags);
-
+	mutex_lock(&sif_dev->shared_mutex);
+	subdev->initial_frameid = true;
+	if (frame_id > FRAME_ID_MAXIMUM) {
+		vio_err("max frameid is %d", frame_id);
+		return -1;
+	}
+	p_mipi->func.set_init_frame_id = frame_id;
+	vc_index = p_mipi->vc_index;
+	for (i = 0; i < p_mipi->channels; i++) {
+		ipi_index = vc_index[i];
+		sif_set_rx_ipi_frameid(sif_dev->base_reg,
+			p_mipi->mipi_rx_index, ipi_index, p_mipi);
+		vio_info("%s: vc_index[%d] = %d frame_id %d\n", __func__,
+				i, vc_index[i], frame_id);
+	}
+	mutex_unlock(&sif_dev->shared_mutex);
 	return 0;
 }
 EXPORT_SYMBOL(sif_set_frame_id);

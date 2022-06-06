@@ -73,4 +73,7 @@ void sif_print_buffer_owner(u32 __iomem *base_reg);
 
 void sif_get_idx_and_owner(u32 __iomem *base_reg, int32_t *idx, int32_t *owner);
 
+void sif_set_rx_ipi_frameid(u32 __iomem *base_reg, u32 index, u32 vc_channel,
+	sif_input_mipi_t* p_mipi);
+
 #endif

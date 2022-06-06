@@ -788,6 +788,64 @@ void sif_config_rx_ipi(u32 __iomem *base_reg, u32 index, u32 vc_channel,
 		sif_set_pattern_gen(base_reg, vc_channel + 1, &p_mipi->data, 0);
 }
 
+void sif_set_rx_ipi_frameid(u32 __iomem *base_reg, u32 index, u32 vc_channel,
+	sif_input_mipi_t* p_mipi)
+{
+	u32 init_frame_id	  = p_mipi->func.set_init_frame_id;
+	int ipi_shu_up;
+
+	switch(index) {
+		case 0:
+			vio_hw_set_field(base_reg,
+				&sif_regs[SIF_FRM_ID_RX0_IPI0_CFG + vc_channel],
+				&sif_fields[SW_RX0_IPI0_FRAME_ID_SET_EN + 3 * vc_channel],
+				1);
+			vio_hw_set_field(base_reg,
+				&sif_regs[SIF_FRM_ID_RX0_IPI0_CFG + vc_channel],
+				&sif_fields[SW_RX0_IPI0_FRAME_ID_INIT + 3 * vc_channel],
+				init_frame_id);
+			break;
+		case 1:
+			vio_hw_set_field(base_reg,
+				&sif_regs[SIF_FRM_ID_RX1_IPI0_CFG + vc_channel],
+				&sif_fields[SW_RX1_IPI0_FRAME_ID_SET_EN + 3 * vc_channel],
+				1);
+			vio_hw_set_field(base_reg,
+				&sif_regs[SIF_FRM_ID_RX1_IPI0_CFG + vc_channel],
+				&sif_fields[SW_RX1_IPI0_FRAME_ID_INIT + 3 * vc_channel],
+				init_frame_id);
+			break;
+		case 2:
+			vio_hw_set_field(base_reg,
+				&sif_regs[SIF_FRM_ID_RX2_IPI0_CFG + vc_channel],
+				&sif_fields[SW_RX2_IPI0_FRAME_ID_SET_EN + 3 * vc_channel],
+				1);
+			vio_hw_set_field(base_reg,
+				&sif_regs[SIF_FRM_ID_RX2_IPI0_CFG + vc_channel],
+				&sif_fields[SW_RX2_IPI0_FRAME_ID_INIT + 3 * vc_channel],
+				init_frame_id);
+			break;
+		case 3:
+			vio_hw_set_field(base_reg,
+				&sif_regs[SIF_FRM_ID_RX3_IPI0_CFG + vc_channel],
+				&sif_fields[SW_RX3_IPI0_FRAME_ID_SET_EN + 3 * vc_channel],
+				1);
+			vio_hw_set_field(base_reg,
+				&sif_regs[SIF_FRM_ID_RX3_IPI0_CFG + vc_channel],
+				&sif_fields[SW_RX3_IPI0_FRAME_ID_INIT + 3 * vc_channel],
+				init_frame_id);
+			break;
+		default:
+			vio_err("wrong mipi rx index(%d)\n", index);
+			break;
+	}
+
+	ipi_shu_up = vio_hw_get_reg(base_reg, &sif_regs[SIF_AXI_BUF_STATUS]);
+	ipi_shu_up |= (0x1 << (index * 4 + vc_channel));
+	vio_dbg("ipi_shu_up 0x%x\n", ipi_shu_up);
+	vio_hw_set_reg(base_reg, &sif_regs[SIF_SHD_UP_RDY], ipi_shu_up);
+}
+
 void sif_set_dol_channels(sif_input_mipi_t* p_mipi, sif_output_isp_t *p_isp,
 			u32 *ch_index)
 {
@@ -1736,8 +1794,6 @@ void sif_get_frameid_timestamps(u32 __iomem *base_reg, u32 mux, u32 ipi_index,
 	do_gettimeofday(&info->tv);
 
 	spin_lock_irqsave(&sif_frame_info[instance].id_lock, flags);
-	sif_frame_info[instance].last_frame_id = info->frame_id;
-	info->frame_id -= sif_frame_info[instance].base_frame_id;
 	info->frame_id |= sif_frame_info[instance].frame_id_bits;
 	sif_frame_info[instance].frame_id_bits = 0;
 
