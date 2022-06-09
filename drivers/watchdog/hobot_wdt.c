@@ -782,6 +782,8 @@ int hobot_wdt_suspend(struct device *dev)
 		hobot_wdt_stop(&hbwdt->hobot_wdd);
 
 	hbwdt->enabled = false;
+	clk_disable_unprepare(hbwdt->clock);
+
 	return 0;
 }
 
@@ -792,6 +794,8 @@ int hobot_wdt_resume(struct device *dev)
 	if (kthread_disabled)
 		return 0;
 
+	clk_prepare_enable(hbwdt->clock);
+	hobot_wdt_init_hw(hbwdt);
 	if (!hbwdt->enabled)
 		hobot_wdt_start(&hbwdt->hobot_wdd);
 
