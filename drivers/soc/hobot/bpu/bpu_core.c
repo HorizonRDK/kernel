@@ -575,6 +575,7 @@ static int bpu_core_resume(struct device *dev)/*PRQA S ALL*/
 		mutex_unlock(&core->mutex_lock);
 		return 0;
 	}
+	core->hw_enabled = 0u;
 	ret = bpu_core_enable(core);
 	if (ret != 0) {
 		mutex_unlock(&core->mutex_lock);
