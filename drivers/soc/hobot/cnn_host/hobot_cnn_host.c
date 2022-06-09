@@ -194,6 +194,7 @@ int fc_dump_info(struct seq_file *m, void *data)
 		if (i % 15 == 0)
 			seq_puts(m, "\n");
 	}
+	kfree(fc_buf);
 	return 0;
 }
 
@@ -2608,8 +2609,10 @@ static ssize_t fc_time_show(struct hobot_bpu_dev *dev, char *buf)
 	int cnt = 0;
 	struct hobot_fc_time *tmp = vmalloc(sizeof(struct hobot_fc_time) * FC_TIME_CNT);
 
-	if (!fc_time_enable)
+	if (!fc_time_enable) {
+		vfree(tmp);
 		return sprintf(buf, "Please enable get fc time feature\n");
+	}
 
 	spin_lock_irqsave(&dev->set_time_lock, flags);
 	memcpy(tmp, dev->fc_time, sizeof(struct hobot_fc_time) * FC_TIME_CNT);
