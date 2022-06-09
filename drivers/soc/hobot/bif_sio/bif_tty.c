@@ -325,7 +325,7 @@ static int bif_tty_open(struct inode *inode, struct file *filp)
 
 	tty_debug_log("enter\n");
 	minor = iminor(inode);
-	if (minor >= BIF_SIO_NR_PORTS)
+	if (minor >= BIF_SIO_NR_PORTS) {
 		tty_err_log("Sub device index(%d) should be less than %d\n",
 			minor, BIF_SIO_NR_PORTS);
 		return -1;
