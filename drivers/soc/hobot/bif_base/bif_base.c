@@ -509,7 +509,7 @@ static ssize_t bifrmode_store(struct kobject *kobj,
 	struct bifbase_local *pl = get_bifbase_local();
 
 	ret = kstrtol(buf, 0, &mode);
-	if (!ret && (mode >= BUFF_BASE) && (mode <= BUFF_MAX)) {
+	if (!ret && (mode >= BUFF_BASE) && (mode < BUFF_MAX)) {
 		if (!pl || !pl->start || !pl->plat || pl->irq_func[mode] == 0) {
 			pr_err("bifbase: Err unregister mode = %lu\n", mode);
 			error = -ENODEV;
@@ -590,7 +590,7 @@ static int bifbase_sync_ap(void *p)
 
 int bifbase_sync_cp(void *p)
 {
-	unsigned char tbuf[BIFBASE_BLOCK + 16];
+	unsigned char tbuf[BIFBASE_BLOCK + 16] = {0};
 	unsigned long cur_phy;
 	unsigned int cur_len;
 	struct bifbase_local *pl = (struct bifbase_local *)p;
