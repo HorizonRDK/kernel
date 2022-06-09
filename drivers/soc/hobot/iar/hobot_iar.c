@@ -3288,9 +3288,9 @@ static int iar_debug_show(struct seq_file *s, void *unused)
 	uint32_t reg_value = 0;
 	int channel_enable_status[4] = {0};
 	int channel_priority[4] = {0};
-	int channel_resolution[4][2];
-	int channel_crop_resolution[4][2];
-	int channel_display_position[4][2];
+	int channel_resolution[4][2] = {0};
+	int channel_crop_resolution[4][2] = {0};
+	int channel_display_position[4][2] = {0};
 	int i = 0;
 
 	if (g_iar_dev == NULL) {

@@ -328,7 +328,7 @@ struct vio_group *vio_get_chain_group(int instance, u32 group_id)
 
 	vio_init_chain(instance);
 
-	if (group_id > GROUP_ID_NUMBER) {
+	if (group_id >= GROUP_ID_NUMBER) {
 		vio_err("[%s]wrong group id (%d)\n", __func__, group_id);
 		return NULL;
 	}

@@ -72,7 +72,7 @@ static int g_vcam_get_flag;			// for weak up frame done
 
 static struct vcam_to_ipu_t vcam_to_ipu(struct hb_vcam_msg_t *vcam)
 {
-	struct vcam_to_ipu_t to_ipu;
+	struct vcam_to_ipu_t to_ipu = {0};
 	int size;
 
 	if (vcam == NULL) {
@@ -198,7 +198,7 @@ static int hb_vcam_get_next_group(struct hb_vcam_msg_t *next_group)
 
 static int group_to_busy(int g_id, int slot_id)
 {
-	if ((g_id < 0) | (g_id > VCAM_GROUP_MAX)) {
+	if ((g_id < 0) | (g_id >= VCAM_GROUP_MAX)) {
 		pr_err("g_id %d is bad\n", g_id);
 		return -EFAULT;
 	}
@@ -209,7 +209,7 @@ static int group_to_busy(int g_id, int slot_id)
 
 static int group_to_free(int g_id, int slot_id)
 {
-	if ((g_id < 0) | (g_id > VCAM_GROUP_MAX)) {
+	if ((g_id < 0) | (g_id >= VCAM_GROUP_MAX)) {
 		pr_err("g_id %d is bad\n", g_id);
 		return -EFAULT;
 	}
