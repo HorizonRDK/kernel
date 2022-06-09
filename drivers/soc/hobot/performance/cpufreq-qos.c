@@ -123,6 +123,7 @@ static int __init hb_performance_init(void)
 	unsigned int cpu;
 
 	for_each_present_cpu (cpu)
+		/* coverity[overrun-local] */
 		per_cpu(cpu_stats, cpu).max = UINT_MAX;
 
 	pm_qos_add_notifier(PM_QOS_CPU_FREQ_MIN, &cpufreq_min_qos_notifier);
