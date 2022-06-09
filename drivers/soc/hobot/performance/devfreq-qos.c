@@ -83,7 +83,8 @@ static int devfreq_pm_qos_callback(struct notifier_block *nb, unsigned long val,
 static int hb_devfreq_qos_probe(struct platform_device *pdev)
 {
 	struct hb_devfreq_qos_data *qos_data;
-	int classid, ret;
+	int classid;
+	int ret = 0;
 	struct blocking_notifier_head ;
 
 	qos_data = devm_kzalloc(&pdev->dev, sizeof(*qos_data), GFP_KERNEL);
@@ -124,6 +125,7 @@ static int hb_devfreq_qos_probe(struct platform_device *pdev)
 
 	classid = pm_qos_class_register(dev_name(&pdev->dev), &qos_data->cons);
 	if (classid < 0) {
+		ret = classid;
 		goto free_data;
 	}
 
