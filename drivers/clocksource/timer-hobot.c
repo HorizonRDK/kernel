@@ -308,6 +308,7 @@ static int __init hobot_timer_init (struct device_node *np)
 	hbtimer->iobase = of_iomap (np, 0);
 	if (!hbtimer->iobase) {
 		pr_err ("ERROR: invalid timer base address\n");
+		kfree(hbtimer);
 		return -ENXIO;
 	}
 
@@ -315,6 +316,7 @@ static int __init hobot_timer_init (struct device_node *np)
 	hbtimer->ce_irq = irq_of_parse_and_map (np, 1);
 	if (hbtimer->ce_irq <= 0) {
 		pr_err ("ERROR: invalid interrupt number\n");
+		kfree(hbtimer);
 		return -EINVAL;
 	}
 
