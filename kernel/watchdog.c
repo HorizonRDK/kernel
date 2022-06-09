@@ -310,6 +310,7 @@ void touch_all_softlockup_watchdogs(void)
 	 * the softlockup check.
 	 */
 	for_each_cpu(cpu, &watchdog_allowed_mask)
+		/* coverity[overrun-local] */
 		per_cpu(watchdog_touch_ts, cpu) = 0;
 	wq_watchdog_touch(-1);
 }
@@ -392,6 +393,7 @@ static unsigned int watchdog_next_cpu(unsigned int self)
 
 	next_cpu = cpumask_next_wrap(self, cpu_online_mask, self, true);
 	while (next_cpu < nr_cpu_ids) {
+		/* coverity[overrun-local] */
 		if (per_cpu(det_period_offline[self], next_cpu) == false) {
 			/*
 			 * find the target cpu which keeps online all
@@ -404,6 +406,7 @@ static unsigned int watchdog_next_cpu(unsigned int self)
 		 * the current hardlockup detection period and
 		 * reset the flag for next period
 		 */
+		/* coverity[overrun-local] */
 		per_cpu(det_period_offline[self], next_cpu) = false;
 		next_cpu = cpumask_next_wrap(next_cpu, cpu_online_mask, self, true);
 	}
