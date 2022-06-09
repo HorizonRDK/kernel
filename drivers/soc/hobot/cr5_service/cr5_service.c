@@ -588,7 +588,7 @@ static void unmap_cr5_service_reg_addr(struct platform_device *pdev)
 
 static int alloc_cr5_service_cdev(struct platform_device *pdev)
 {
-	int ret;
+	int ret = 0;
 	dev_t devno;
 	struct device *dev = &pdev->dev;
 	cr5_dev_info_t *cr5_dev = dev_get_drvdata(dev);
@@ -622,6 +622,7 @@ static int alloc_cr5_service_cdev(struct platform_device *pdev)
 	dev_info(dev, "cr5_service registered!\n");
 	if (cr5_dev->dev == NULL) {
 		dev_err(dev, "Cannot create device file.\n");
+		ret = -ENODEV;
 		goto err3;
 	}
 
