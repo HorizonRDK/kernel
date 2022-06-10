@@ -421,6 +421,7 @@ struct ion_heap *ion_heap_create(struct ion_platform_heap *heap_data)
 		pr_err("%s: error creating heap %s type %d base %lld size %zu\n",
 		       __func__, heap_data->name, heap_data->type,
 		       heap_data->base, heap_data->size);
+		// coverity[leaked_storage]
 		return ERR_PTR(-EINVAL);
 	}
 

@@ -83,7 +83,6 @@ struct ion_share_handle {
 static int32_t heap_id;
 
 /* static struct ion_device *internal_dev; */
-static int heap_id;
 static char *_vio_data_type[27] = {
 	"ipuds0_other", "ipuds1", "ipuds2", "ipuds3", "ipuds4",
 	"ipuus", "pymfb", "pymdata", "siffb", "sifraw",
@@ -1720,6 +1719,7 @@ long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 	if (_IOC_SIZE(cmd) > sizeof(data))
 		return -EINVAL;
+	memset(&data, 0, sizeof(data));
 
 	if (dir & _IOC_WRITE)
 		if (copy_from_user(&data, (void __user *)arg, _IOC_SIZE(cmd)))
