@@ -308,6 +308,89 @@ static void general_cac_memory_lut_reload( general_fsm_ptr_t p_fsm )
     return;
 }
 
+void acamera_gamma_set_param(acamera_fsm_mgr_t * p_fsm_mgr)
+{
+    int i = 0;
+    general_fsm_ptr_t p_fsm = p_fsm_mgr->fsm_arr[FSM_ID_GENERAL]->p_fsm;
+    const uint16_t *gamma_lut = _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_GAMMA );
+    const uint32_t gamma_lut_len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_GAMMA );
+
+    uint32_t exp_gamma_size = ( ( ACAMERA_FR_GAMMA_RGB_MEM_SIZE / ( ACAMERA_FR_GAMMA_RGB_MEM_ARRAY_DATA_DATASIZE >> 3 ) >> 1 ) + 1 );
+
+    if ( gamma_lut_len != exp_gamma_size )
+        LOG( LOG_ERR, "wrong elements number in gamma_rgb -> current size %d but expected %d", (int)gamma_lut_len, (int)exp_gamma_size );
+
+    for ( i = 0; i < gamma_lut_len; i++ ) {
+        acamera_fr_gamma_rgb_mem_array_data_write( p_fsm->cmn.isp_base, i, gamma_lut[i] );
+#if ISP_HAS_DS1
+        acamera_ds1_gamma_rgb_mem_array_data_write( p_fsm->cmn.isp_base, i, gamma_lut[i] );
+#endif
+    }
+}
+
+void acamera_demosaic_set_param(acamera_fsm_mgr_t * p_fsm_mgr)
+{
+    int i = 0;
+    general_fsm_ptr_t p_fsm = p_fsm_mgr->fsm_arr[FSM_ID_GENERAL]->p_fsm;
+    const uint8_t *demosaic_lut = _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_DEMOSAIC );
+
+    for ( i = 0; i < _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_DEMOSAIC ); i++ ) {
+        acamera_isp_demosaic_rgb_noise_profile_lut_weight_lut_write( p_fsm->cmn.isp_base, i, demosaic_lut[i] );
+    }
+}
+
+void acamera_noise_set_param(acamera_fsm_mgr_t * p_fsm_mgr)
+{
+    int i = 0;
+    general_fsm_ptr_t p_fsm = p_fsm_mgr->fsm_arr[FSM_ID_GENERAL]->p_fsm;
+    const uint8_t *np_lut_wdr = _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_WDR_NP_LUT );
+    const uint8_t *np_lut = _GET_UCHAR_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_NOISE_PROFILE );
+
+    for ( i = 0; i < _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_NOISE_PROFILE ); i++ ) {
+
+        acamera_isp_sinter_noise_profile_lut_weight_lut_write( p_fsm->cmn.isp_base, i, np_lut[i] );
+        // acamera_isp_temper_noise_profile_lut_weight_lut_write( p_fsm->cmn.isp_base, i, np_lut[i] );
+
+        acamera_isp_frame_stitch_np_lut_vs_weight_lut_write( p_fsm->cmn.isp_base, i, np_lut_wdr[i] );
+        acamera_isp_frame_stitch_np_lut_s_weight_lut_write( p_fsm->cmn.isp_base, i, np_lut_wdr[i] );
+        acamera_isp_frame_stitch_np_lut_m_weight_lut_write( p_fsm->cmn.isp_base, i, np_lut_wdr[i] );
+        acamera_isp_frame_stitch_np_lut_l_weight_lut_write( p_fsm->cmn.isp_base, i, np_lut_wdr[i] );
+    }
+}
+
+void acamera_shading_radial_set_param(acamera_fsm_mgr_t * p_fsm_mgr)
+{
+    int i = 0;
+    general_fsm_ptr_t p_fsm = p_fsm_mgr->fsm_arr[FSM_ID_GENERAL]->p_fsm;
+    uint32_t len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_RADIAL_R );
+    uint16_t *p_lut = _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_RADIAL_R );
+    uint32_t bank_offset = 0;
+    for ( i = 0; i < len; i++ ) {
+        acamera_radial_shading_mem_array_data_write( p_fsm->cmn.isp_base, bank_offset + i, p_lut[i] );
+    }
+
+    len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_RADIAL_G );
+    p_lut = _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_RADIAL_G );
+    bank_offset += 256;
+    for ( i = 0; i < len; i++ ) {
+        acamera_radial_shading_mem_array_data_write( p_fsm->cmn.isp_base, bank_offset + i, p_lut[i] );
+    }
+
+    len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_RADIAL_B );
+    p_lut = _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_RADIAL_B );
+    bank_offset += 256;
+    for ( i = 0; i < len; i++ ) {
+        acamera_radial_shading_mem_array_data_write( p_fsm->cmn.isp_base, bank_offset + i, p_lut[i] );
+    }
+
+    len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_RADIAL_IR );
+    p_lut = _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_RADIAL_IR );
+    bank_offset += 256;
+    for ( i = 0; i < len; i++ ) {
+        acamera_radial_shading_mem_array_data_write( p_fsm->cmn.isp_base, bank_offset + i, p_lut[i] );
+    }
+}
+
 void acamera_reload_isp_calibratons( general_fsm_ptr_t p_fsm )
 {
     int32_t i = 0;

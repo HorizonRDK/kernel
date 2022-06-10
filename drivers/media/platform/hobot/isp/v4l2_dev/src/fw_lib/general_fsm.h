@@ -36,6 +36,10 @@ typedef const struct _general_fsm_t *general_fsm_const_ptr_t;
 #include "acamera_sbus_api.h"
 #include "acamera_firmware_config.h"
 void acamera_reload_isp_calibratons( general_fsm_ptr_t p_fsm );
+void acamera_noise_set_param(acamera_fsm_mgr_t * p_fsm_mgr);
+void acamera_demosaic_set_param(acamera_fsm_mgr_t * p_fsm_mgr);
+void acamera_shading_radial_set_param(acamera_fsm_mgr_t * p_fsm_mgr);
+void acamera_gamma_set_param(acamera_fsm_mgr_t * p_fsm_mgr);
 void general_initialize( general_fsm_ptr_t p_fsm );
 void general_deinitialize( general_fsm_ptr_t p_fsm );
 void general_frame_start( general_fsm_ptr_t p_fsm );

@@ -4776,7 +4776,11 @@ uint8_t acamera_api_calibration( uint32_t ctx_id, uint8_t type, uint8_t id, uint
 #endif
                     break;
                 case CALIBRATION_GAMMA:
+                    acamera_gamma_set_param(instance);
+                    break;
                 case CALIBRATION_DEMOSAIC:
+                    acamera_demosaic_set_param(instance);
+                    break;
 #ifdef CALIBRATION_GAMMA_BE_0
                 case CALIBRATION_GAMMA_BE_0:
 #endif
@@ -4784,12 +4788,19 @@ uint8_t acamera_api_calibration( uint32_t ctx_id, uint8_t type, uint8_t id, uint
                 case CALIBRATION_GAMMA_BE_1:
 #endif
                 case CALIBRATION_NOISE_PROFILE:
+                    acamera_noise_set_param(instance);
+                    break;
 #ifdef CALIBRATION_GAMMA_FE_0
                 case CALIBRATION_GAMMA_FE_0:
 #endif
 #ifdef CALIBRATION_GAMMA_FE_1
                 case CALIBRATION_GAMMA_FE_1:
 #endif
+                case CALIBRATION_SHADING_RADIAL_R:
+                case CALIBRATION_SHADING_RADIAL_G:
+                case CALIBRATION_SHADING_RADIAL_B:
+                    acamera_shading_radial_set_param(instance);
+                    break;
                 case CALIBRATION_SHADING_LS_A_R:
                 case CALIBRATION_SHADING_LS_A_G:
                 case CALIBRATION_SHADING_LS_A_B:
@@ -4802,9 +4813,7 @@ uint8_t acamera_api_calibration( uint32_t ctx_id, uint8_t type, uint8_t id, uint
                 case CALIBRATION_SHADING_LS_D65_R:
                 case CALIBRATION_SHADING_LS_D65_G:
                 case CALIBRATION_SHADING_LS_D65_B:
-#if ISP_HAS_GENERAL_FSM
-                    acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_RELOAD_CALIBRATION, NULL, 0 );
-#endif
+                    acamera_fsm_mgr_set_param( instance, FSM_PARAM_SET_SHADING_MESH_RELOAD, NULL, 0 );
                     break;
                 case CALIBRATION_IRIDIX_ASYMMETRY:
 #if defined( ISP_HAS_IRIDIX_FSM ) || defined( ISP_HAS_IRIDIX_HIST_FSM ) || defined( ISP_HAS_IRIDIX_MANUAL_FSM ) || defined(ISP_HAS_IRIDIX8_MANUAL_FSM )
