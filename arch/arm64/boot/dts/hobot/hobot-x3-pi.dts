@@ -470,10 +470,10 @@
 	no-mmc;
 	no-sd;
 	cap-sdio-irq;
-        cap-sd-highspeed;
+	cap-sd-highspeed;
 	broken-cd;
 	disable-wp;
-        powerup-gpio =  <&gpios 16 GPIO_ACTIVE_HIGH>;
+	powerup-gpio =  <16>;
 	max-frequency = <50000000>;
 	mmc-fixed-voltage = <1800>;
 	non-removable;
