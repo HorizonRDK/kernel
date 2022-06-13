@@ -849,6 +849,7 @@ int8_t iar_checkout_display_camera(uint8_t camera_no);
 int user_set_fb(void);
 int set_video_display_channel(uint8_t channel_no);
 int set_video_display_ddr_layer(uint8_t ddr_layer_no);
+int iar_save_cur_buf(void);
 int32_t disp_set_timing(unsigned int resolution);
 int enable_iar_irq(void);
 int disable_iar_irq(void);

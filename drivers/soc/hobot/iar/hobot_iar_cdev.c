@@ -815,7 +815,19 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 		break;
 	case DISP_SET_VIDEO_PAUSE:
 		 {
-			iar_video_not_pause = !p;
+			int pause = 0;
+
+			ret = get_user(pause, (u32 __user *)arg);
+			pr_debug("DISP_SET_VIDEO_PAUSE in, pause:%d\n", pause);
+			if (ret) {
+				ret = -EFAULT;
+				break;
+			}
+			if (pause) {
+				iar_save_cur_buf();
+				iar_update();
+			}
+			iar_video_not_pause = !pause;
 		}
 		break;
 	default:

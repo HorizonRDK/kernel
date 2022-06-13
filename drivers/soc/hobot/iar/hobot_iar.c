@@ -1655,7 +1655,11 @@ int32_t iar_set_bufaddr(uint32_t channel, buf_addr_t *addr)
 		pr_err("IAR dev not inited!");
 		return -1;
 	}
-	IAR_DEBUG_PRINT("channel:%d addr:0x%x", channel, addr->Yaddr);
+	IAR_DEBUG_PRINT("channel:%d addr:0x%x not_pause:%d\n",
+		channel, addr->Yaddr, iar_video_not_pause);
+	if (!iar_video_not_pause) {
+		return 0;
+	}
 	switch (channel) {
 	case IAR_CHANNEL_1:
 		{
@@ -1848,6 +1852,50 @@ int set_video_display_ddr_layer(uint8_t ddr_layer_no)
 EXPORT_SYMBOL_GPL(set_video_display_ddr_layer);
 
 /**
+ * Save iar current buffer
+ */
+int iar_save_cur_buf(void)
+{
+	int ret = 0;
+	int layer = 0, size, index;
+	uint32_t y_addr = 0, uv_addr = 0;
+	buf_addr_t display_addr = {0};
+
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+	}
+
+	for (layer = 0; layer < IAR_CHANNEL_3; layer++) {
+		if (g_iar_dev->output_state[layer] == 1) {
+			index = g_iar_dev->cur_framebuf_id[layer];
+			if (layer == IAR_CHANNEL_1) {
+				y_addr = readl(g_iar_dev->regaddr + REG_IAR_FBUF_ADDR_RD1_Y);
+				uv_addr = readl(g_iar_dev->regaddr + REG_IAR_FBUF_ADDR_RD1_U);
+			} else if (layer == IAR_CHANNEL_2) {
+				y_addr = readl(g_iar_dev->regaddr + REG_IAR_FBUF_ADDR_RD2_Y);
+				uv_addr = readl(g_iar_dev->regaddr + REG_IAR_FBUF_ADDR_RD2_U);
+			}
+			pr_debug("%s save addr y_%x uv:%x\n", __func__, y_addr, uv_addr);
+			size = g_iar_dev->buf_w_h[layer][0] * g_iar_dev->buf_w_h[layer][1];
+			memcpy(g_iar_dev->pingpong_buf[layer].framebuf[!index].vaddr, __va(y_addr), size);
+			memcpy(g_iar_dev->pingpong_buf[layer].framebuf[!index].vaddr + size, __va(uv_addr), size / 2);
+
+			display_addr.Yaddr =
+			(uint32_t)g_iar_dev->pingpong_buf[layer].framebuf[!index].paddr;
+			display_addr.Uaddr =
+			(uint32_t)g_iar_dev->pingpong_buf[layer].framebuf[!index].paddr + size;
+			display_addr.Vaddr = 0;
+			iar_set_bufaddr(layer, &display_addr);
+			g_iar_dev->cur_framebuf_id[layer] = !index;
+		}
+	}
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(iar_save_cur_buf);
+
+/**
  * The thread that IAR display the output of VIO module
  */
 static int iar_thread(void *data)
@@ -1981,6 +2029,7 @@ int32_t iar_close(void)
 		return -1;
 	}
 	disp_user_config_done = 0;
+	iar_video_not_pause = true;
 
 	disable_irq(g_iar_dev->irq);
 	frame_manager_close(&g_iar_dev->framemgr);
