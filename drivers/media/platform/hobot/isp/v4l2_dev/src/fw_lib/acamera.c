@@ -23,6 +23,7 @@
 #include <linux/mutex.h>
 #include <linux/semaphore.h>
 #include <linux/kthread.h>
+#include <linux/delay.h>
 #include <linux/crc16.h>
 #include <linux/delay.h>
 
@@ -83,6 +84,7 @@
 
 #define GET_BYTE_V(v, pos)      (v >> pos % sizeof(v) * 8 & 0xff)
 #define MS_10   10000
+#define RESOLUTION_1080P    2073600 //1920 * 1080
 
 static acamera_firmware_t g_firmware;
 
@@ -1136,7 +1138,10 @@ int temper_dma_error[FIRMWARE_CONTEXT_NUMBER] = {0};
  */
 int sif_isp_ctx_sync_func(int ctx_id)
 {
+    int i = 0;
     int ret = 0;
+    int total_size = 0;
+    bool evt_process_done = false;
     acamera_context_ptr_t p_ctx;
     acamera_fsm_mgr_t *instance;
     struct timeval tv1, tv2;
@@ -1193,8 +1198,22 @@ int sif_isp_ctx_sync_func(int ctx_id)
 	ldc_set_ioctl(ctx_id, 0);
 	dis_set_ioctl(ctx_id, 0);
 
-	if (acamera_event_queue_empty(&p_ctx->fsm_mgr.event_queue)
-        || acamera_event_queue_has_mask_event(&p_ctx->fsm_mgr.event_queue)) {
+    total_size = p_ctx->inport.xtotal * p_ctx->inport.ytotal;
+    while (i < 5) {
+        if (acamera_event_queue_empty(&p_ctx->fsm_mgr.event_queue) ||
+            acamera_event_queue_has_mask_event(&p_ctx->fsm_mgr.event_queue)) {
+            evt_process_done = true;
+            break;
+        } else if (total_size >= RESOLUTION_1080P) {
+            evt_process_done = false;
+            break;
+        } else {
+            msleep(1);
+            i++;
+        }
+    }
+
+	if (evt_process_done) {
 
 		// these flags are used for sync of callbacks
 		g_firmware.dma_flag_isp_config_completed = 0;
