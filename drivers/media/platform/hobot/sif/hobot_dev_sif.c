@@ -595,7 +595,9 @@ static int x3_sif_open(struct inode *inode, struct file *file)
 		if (sif_mclk_freq)
 			vio_set_clk_rate("sif_mclk", sif_mclk_freq);
 		ips_set_clk_ctrl(SIF_CLOCK_GATE, true);
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
 		pm_qos_add_request(&sif_pm_qos_req, PM_QOS_DEVFREQ, 10000);
+#endif
 		/*4 ddr in channel can not be 0 together*/
 		sif_enable_dma(sif->base_reg, 0x10000);
 		ips_set_module_reset(IRAM_RST);
@@ -1355,7 +1357,9 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 		vio_info("[V%d] %s: only open.\n", sif_ctx->id, __func__);
 		if (atomic_dec_return(&sif->open_cnt) == 0) {
 			ips_set_clk_ctrl(SIF_CLOCK_GATE, false);
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
 			pm_qos_remove_request(&sif_pm_qos_req);
+#endif
 		}
 		kfree(sif_ctx);
 		return 0;
@@ -1415,7 +1419,9 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 		//vio_clk_disable("sif_mclk");
 		ips_set_module_reset(SIF_RST);
 		ips_set_clk_ctrl(SIF_CLOCK_GATE, false);
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
 		pm_qos_remove_request(&sif_pm_qos_req);
+#endif
 		vio_info("[S%d][V%d]%s SIF last process close \n",
 				sif_ctx->group->instance, sif_ctx->id, __func__);
 	}

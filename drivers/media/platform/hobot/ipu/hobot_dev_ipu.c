@@ -113,8 +113,10 @@ static int x3_ipu_open(struct inode *inode, struct file *file)
 		goto p_err;
 	}
 	if (atomic_inc_return(&ipu->open_cnt) == 1) {
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
 		pm_qos_add_request(&ipu_pm_qos_req, PM_QOS_DEVFREQ, 10000);
 		msleep(100);
+#endif
 		atomic_set(&ipu->backup_fcount, 0);
 		atomic_set(&ipu->sensor_fcount, 0);
 		atomic_set(&ipu->enable_cnt, 0);
@@ -330,7 +332,9 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 		mutex_lock(&ipu_mutex);
 		if (atomic_dec_return(&ipu->open_cnt) == 0) {
 			ips_set_clk_ctrl(IPU0_CLOCK_GATE, false);
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
 			pm_qos_remove_request(&ipu_pm_qos_req);
+#endif
 		}
 		mutex_unlock(&ipu_mutex);
 		subdev = &ipu->subdev[instance][ipu_ctx->id];
@@ -439,7 +443,9 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 		next_frame_disable_out = 0;
 		prev_fs_has_no_fe = 0;
 		group->abnormal_fs = 0;
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
 		pm_qos_remove_request(&ipu_pm_qos_req);
+#endif
 	}
 	mutex_unlock(&ipu_mutex);
 
@@ -2362,7 +2368,7 @@ int ipu_bind_chain_group(struct ipu_video_ctx *ipu_ctx, int instance)
 
 int ipu_video_streamon(struct ipu_video_ctx *ipu_ctx)
 {
-	u32 cnt = 20;
+	u32 cnt = VIO_RETRY_100;
 	u32 instance = 0;
 	struct x3_ipu_dev *ipu;
 	struct vio_group *group;
@@ -2401,7 +2407,7 @@ int ipu_video_streamon(struct ipu_video_ctx *ipu_ctx)
 			if (test_bit(IPU_HW_CONFIG, &ipu->state))
 				break;
 
-			msleep(5);
+			msleep(1);
 			cnt--;
 			if (cnt == 0) {
 				vio_info("%s timeout\n", __func__);

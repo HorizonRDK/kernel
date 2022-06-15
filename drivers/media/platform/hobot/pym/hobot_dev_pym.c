@@ -81,8 +81,10 @@ static int x3_pym_open(struct inode *inode, struct file *file)
 		goto p_err;
 	}
 	if (atomic_read(&pym->open_cnt) == 0) {
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
 		pm_qos_add_request(&pym_pm_qos_req, PM_QOS_DEVFREQ, 10000);
 		msleep(100);
+#endif
 		atomic_set(&pym->backup_fcount, 0);
 		atomic_set(&pym->sensor_fcount, 0);
 		atomic_set(&pym->enable_cnt, 0);
@@ -109,6 +111,16 @@ static ssize_t x3_pym_read(struct file *file, char __user *buf,
 {
 	return 0;
 
+}
+
+static void pym_stop_wake_up(struct pym_video_ctx *pym_ctx)
+{
+	if (pym_ctx) {
+		pym_ctx->event = VIO_FRAME_DONE;
+		wake_up(&pym_ctx->done_wq);
+	}
+
+	return;
 }
 
 static u32 x3_pym_poll(struct file *file, struct poll_table_struct *wait)
@@ -290,7 +302,9 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 			vio_reset_module(GROUP_ID_PYM);
 			vio_clk_disable("pym_mclk");
 			vio_clk_disable("sif_mclk");
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
 			pm_qos_remove_request(&pym_pm_qos_req);
+#endif
 		}
 		mutex_unlock(&pym_mutex);
 		kfree(pym_ctx);
@@ -361,7 +375,10 @@ static int x3_pym_close(struct inode *inode, struct file *file)
 		sema_init(&pym->gtask.hw_resource, 1);
 		atomic_set(&pym->gtask.refcount, 0);
 		atomic_set(&pym->reuse_shadow0_count, 0);
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
 		pm_qos_remove_request(&pym_pm_qos_req);
+#endif
+		clear_bit(PYM_HW_CONFIG, &pym->state);
 
 		vio_info("%s close pym dev done\n", __func__);
 	}
@@ -951,7 +968,7 @@ err:
 int pym_video_streamon(struct pym_video_ctx *pym_ctx)
 {
 	int ret = 0;
-	u32 cnt = 20;
+	u32 cnt = VIO_RETRY_100;
 	unsigned long flags;
 	struct x3_pym_dev *pym_dev;
 	struct vio_group *group;
@@ -974,7 +991,7 @@ int pym_video_streamon(struct pym_video_ctx *pym_ctx)
 			if (test_bit(PYM_HW_CONFIG, &pym_dev->state))
 				break;
 
-			msleep(5);
+			msleep(1);
 			cnt--;
 			if (cnt == 0) {
 				vio_info("%s timeout\n", __func__);
@@ -1927,6 +1944,9 @@ static long x3_pym_ioctl(struct file *file, unsigned int cmd,
 			return -EFAULT;
 		}
 		vfree(pym_ion);
+		break;
+	case PYM_IOC_STOP_WAKE_UP:
+		pym_stop_wake_up(pym_ctx);
 		break;
 	default:
 		vio_err("wrong ioctl command\n");

@@ -724,9 +724,9 @@ void acamera_isp_ctxsv(uint8_t ctx_id)
                     flags = system_spinlock_lock(g_hobot_dma.dma_ctrl_lock);
                     /* delay up to 5ms */
                     while (hobot_idma_is_busy()) {
-                        udelay(100);
+                        udelay(10);
                         timeout_cnt += 1;
-                        if (timeout_cnt > 50) {
+                        if (timeout_cnt > 500) {
                             pr_err("idma access sram now, wait to memcpy timeout\n");
                             system_chardev_unlock();
                             system_spinlock_unlock(g_hobot_dma.dma_ctrl_lock, flags);

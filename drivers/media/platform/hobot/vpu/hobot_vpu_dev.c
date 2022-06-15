@@ -1960,9 +1960,11 @@ static int vpu_open(struct inode *inode, struct file *filp)
 	priv->is_irq_poll = 0;
 	filp->private_data = (void *)priv;
 	spin_unlock(&dev->vpu_spinlock);
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
 	if (open_count == 0) {
 		pm_qos_add_request(&dev->vpu_pm_qos_req, PM_QOS_DEVFREQ, 10000);
 	}
+#endif
 	hb_vpu_clk_enable(dev, dev->vpu_freq);
 
 	vpu_debug_leave();
@@ -2928,7 +2930,9 @@ static int vpu_release(struct inode *inode, struct file *filp)
 			}
 #endif
 #endif
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
 			pm_qos_remove_request(&dev->vpu_pm_qos_req);
+#endif
 		}
 	}
 	kfree(priv);

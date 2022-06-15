@@ -57,6 +57,9 @@
 #define MAX_DELAY_FRAMES 5000
 #define MAX_SHOW_FRAMES 5
 
+#define VIO_RETRY_100	100
+#define VIO_RETRY_50	50
+
 enum vio_module {
 	SIF_MOD,
 	ISP_MOD,

@@ -184,11 +184,11 @@ static int isp_v4l2_fop_open( struct file *file )
     pr_debug("ctx_id %d +\n", dev->ctx_id);
 
     if (isp_open_check() == 0) {
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
         pm_qos_add_request(&isp_pm_qos_req, PM_QOS_DEVFREQ, 10000);
+#endif
         ips_set_clk_ctrl(ISP0_CLOCK_GATE, true);
-        mdelay(1);
         ips_set_module_reset(ISP0_RST);
-        mdelay(1);
     }
 
     /* update open counter */
@@ -254,7 +254,9 @@ fh_open_fail:
 	atomic_dec(&dev->opened);
 	//isp hardware stop
 	if (isp_open_check() == 0) {
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
 		pm_qos_remove_request(&isp_pm_qos_req);
+#endif
 		ips_set_clk_ctrl(ISP0_CLOCK_GATE, false);
 		acamera_fw_mem_free();
 	}
@@ -291,7 +293,9 @@ static int isp_v4l2_fop_close( struct file *file )
         dma_writer_disable(dev->ctx_id);
         ips_set_clk_ctrl(ISP0_CLOCK_GATE, false);
         acamera_fw_mem_free();
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
         pm_qos_remove_request(&isp_pm_qos_req);
+#endif
     }
     acamera_isp_deinit_context((uint8_t)dev->ctx_id);
 

@@ -34,6 +34,7 @@
 #define PYM_IOC_SCALE_INFO	 _IOR(PYM_IOC_MAGIC, 9, pym_cfg_t)
 #define PYM_IOC_SCALE_INFO_CH	 _IOR(PYM_IOC_MAGIC, 10, pym_scale_ch_t)
 #define PYM_IOC_KERNEL_ION       _IOWR(PYM_IOC_MAGIC, 11, kernel_ion_t)
+#define PYM_IOC_STOP_WAKE_UP	_IOWR(PYM_IOC_MAGIC, 12, int)
 
 
 struct pym_status_statistic {

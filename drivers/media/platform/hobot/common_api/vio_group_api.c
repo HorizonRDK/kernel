@@ -619,7 +619,7 @@ EXPORT_SYMBOL(vio_check_all_online_state);
 void vio_reset_module(u32 module)
 {
 	u32 cfg = 0;
-	u32 cnt = 20;
+	u32 cnt = VIO_RETRY_100;
 	u32 value = 0;
 	u32 bit = 0;
 	u32 reset = 0;
@@ -640,7 +640,7 @@ void vio_reset_module(u32 module)
 		if (value & bit << 16)
 			break;
 
-		msleep(5);
+		msleep(1);
 		cnt--;
 		if (cnt == 0) {
 			vio_info("%s timeout\n", __func__);

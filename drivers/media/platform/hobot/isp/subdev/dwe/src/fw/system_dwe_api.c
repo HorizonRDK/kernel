@@ -577,13 +577,13 @@ void dwe_sw_deinit(void)
 	uint32_t tmp_dis = 0;
 	uint32_t count = 0;
 
-	while (count < 5) {
+	while (count < VIO_RETRY_50) {
 		get_ldc_int_status(dev_ptr->ldc_dev->io_vaddr, &tmp);
 		get_dwe_int_status(dev_ptr->dis_dev->io_vaddr, &tmp_dis);
 		if ((tmp == 0) && (tmp_dis == 0)) {
 			break;
 		} else {
-			mdelay(10); /*PRQA S 2880 ++*/
+			mdelay(1); /*PRQA S 2880 ++*/
 		}
 		count++;
 	}

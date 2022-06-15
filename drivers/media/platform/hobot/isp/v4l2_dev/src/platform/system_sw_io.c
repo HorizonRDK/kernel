@@ -353,9 +353,9 @@ void system_reg_rw(struct regs_t *rg, uint8_t dir)
 
 #if FW_USE_HOBOT_DMA
 	flags = system_spinlock_lock(g_hobot_dma.dma_ctrl_lock);
-	while (g_hobot_dma.is_busy == 1 && retry_times < 5) {
+	while (g_hobot_dma.is_busy == 1 && retry_times < 500) {
 		system_spinlock_unlock(g_hobot_dma.dma_ctrl_lock, flags);
-		udelay(1000);
+		udelay(10);
 		flags = system_spinlock_lock(g_hobot_dma.dma_ctrl_lock);
 		retry_times++;
 	}

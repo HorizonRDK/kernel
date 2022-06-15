@@ -387,9 +387,11 @@ static int jpu_open(struct inode *inode, struct file *filp)
 	priv->is_irq_poll = 0;
 	filp->private_data = (void *)priv;
 	spin_unlock(&dev->jpu_spinlock);
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
 	if (open_count == 0) {
 		pm_qos_add_request(&dev->jpu_pm_qos_req, PM_QOS_DEVFREQ, 10000);
 	}
+#endif
 	hb_jpu_clk_enable(dev);
 
 	jpu_debug_leave();
@@ -1062,7 +1064,9 @@ static int jpu_release(struct inode *inode, struct file *filp)
 			}
 			for (i = 0; i < MAX_NUM_JPU_INSTANCE; i++)
 				clear_bit(i, jpu_inst_bitmap);
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
 			pm_qos_remove_request(&dev->jpu_pm_qos_req);
+#endif
 			dev->total_poll = 0;
 			dev->total_release = 0;
 		}
