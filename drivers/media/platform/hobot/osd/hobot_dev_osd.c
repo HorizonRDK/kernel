@@ -4,6 +4,7 @@
  *                     All rights reserved.
  ***************************************************************************/
 
+#define pr_fmt(fmt) "hobot_dev_osd: " fmt
 #include <linux/module.h>
 #include <linux/delay.h>
 #include <linux/kernel.h>
@@ -986,12 +987,19 @@ static int osd_create_handle(struct osd_video_ctx *osd_ctx, unsigned long arg)
     mutex_lock(&osd_dev->osd_list_mutex);
     tmp_handle = osd_find_handle_node(osd_dev, handle->info.handle_id);
     if (tmp_handle != NULL) {
-        atomic_inc(&tmp_handle->ref_cnt);
-        vio_info("[H%d] %s already create, count:%d\n",
-            handle->info.handle_id, __func__,
-            atomic_read(&tmp_handle->ref_cnt));
+        if (tmp_handle->info.proc_type != handle->info.proc_type)  {
+            vio_err("[H%d] %s proc_type:%d %d not match\n",
+                tmp_handle->info.handle_id, __func__,
+                tmp_handle->info.proc_type, handle->info.proc_type);
+            ret = -EINVAL;
+        } else {
+            atomic_inc(&tmp_handle->ref_cnt);
+            vio_info("[H%d] %s already create, count:%d\n",
+                handle->info.handle_id, __func__,
+                atomic_read(&tmp_handle->ref_cnt));
+        }
         mutex_unlock(&osd_dev->osd_list_mutex);
-        goto exit_unlock;
+        goto exit_destroy;
     }
     list_add_tail(&handle->node, &osd_dev->osd_list);
     mutex_unlock(&osd_dev->osd_list_mutex);
@@ -1001,7 +1009,7 @@ static int osd_create_handle(struct osd_video_ctx *osd_ctx, unsigned long arg)
 
     return ret;
 
-exit_unlock:
+exit_destroy:
     if (handle != NULL) {
         osd_buffer_destroy(osd_dev->ion_client, &handle->buffer);
     }
@@ -1133,16 +1141,14 @@ static int osd_set_attr(struct osd_video_ctx *osd_ctx, unsigned long arg)
     atomic_set(&tmp_handle->bind_cnt, atomic_read(&handle->bind_cnt));
     mutex_unlock(&osd_dev->osd_list_mutex);
 
-    tmp_handle->info.fill_color = handle_info.fill_color;
-    tmp_handle->info.proc_type = handle_info.proc_type;
+    if (tmp_handle->info.proc_type != handle_info.proc_type)  {
+        vio_err("[%d] %s proc_type:%d %d not match\n",
+            tmp_handle->info.handle_id, __func__,
+            tmp_handle->info.proc_type, handle_info.proc_type);
+        ret = -EINVAL;
+        goto exit_free;
+    }
     if (handle_info.proc_type <= OSD_PROC_NV12) {
-        if (tmp_handle->info.proc_type != handle_info.proc_type)  {
-            vio_err("[%d] %s proc_type:%d %d not match\n",
-                tmp_handle->info.handle_id, __func__,
-                tmp_handle->info.proc_type, handle_info.proc_type);
-            ret = -EINVAL;
-            goto exit_free;
-        }
         if ((tmp_handle->info.size.w != handle_info.size.w) ||
             (tmp_handle->info.size.h != handle_info.size.h)) {
             if (atomic_read(&tmp_handle->bind_cnt) == 0) {
@@ -1170,6 +1176,7 @@ static int osd_set_attr(struct osd_video_ctx *osd_ctx, unsigned long arg)
                 goto exit_free;
             }
         }
+        tmp_handle->info.fill_color = handle_info.fill_color;
         tmp_handle->info.yuv_bg_transparent = handle_info.yuv_bg_transparent;
     }
 
@@ -2137,7 +2144,9 @@ static int x3_osd_suspend(struct device *dev)
 
     vio_info("%s\n", __func__);
 	osd_dev = dev_get_drvdata(dev);
-    osd_stop_worker(osd_dev);
+    if (atomic_read(&osd_dev->open_cnt) > 0) {
+        osd_stop_worker(osd_dev);
+    }
 
     return ret;
 }
@@ -2149,7 +2158,9 @@ static int x3_osd_resume(struct device *dev)
 
     vio_info("%s\n", __func__);
 	osd_dev = dev_get_drvdata(dev);
-    ret = osd_start_worker(g_osd_dev);
+    if (atomic_read(&osd_dev->open_cnt) > 0) {
+        ret = osd_start_worker(g_osd_dev);
+    }
 
     return ret;
 }
