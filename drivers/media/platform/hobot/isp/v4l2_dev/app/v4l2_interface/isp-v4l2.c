@@ -1056,11 +1056,15 @@ int isp_v4l2_notify_event( int ctx_id, int stream_id, uint32_t event_type )
 
 int isp_init_iridix(uint32_t ctx_id, uint32_t ctrl_val)
 {
-	uint8_t i;
+	int i;
 	int iridix_no;
 	int ret = 0;
-	acamera_context_t *ptr_tmp;
+	acamera_context_t *ptr_tmp = NULL;
 	acamera_context_t *ptr = acamera_get_ctx_ptr(ctx_id);
+    if (ptr == NULL) {
+        pr_err("ctx %d not inited\n", ctx_id);
+        return -1;
+    }
 	mutex_lock(&ptr->p_gfw->ctx_chg_lock);
 	if (ptr->initialized == 1 && ptr->iridix_chn_idx == -1) {
 		for (i = 0; i < HW_CONTEXT_NUMBER; i++) {
@@ -1081,7 +1085,7 @@ int isp_init_iridix(uint32_t ctx_id, uint32_t ctrl_val)
 		} else if (ctrl_val == WDR_MODE_NATIVE) {
 			for (i = FIRMWARE_CONTEXT_NUMBER - 1; i >= 0; i--) {
 				ptr_tmp = acamera_get_ctx_ptr(i);
-				if (ptr_tmp->initialized == 1 &&
+				if (ptr_tmp && ptr_tmp->initialized == 1 &&
 					ptr_tmp->isp_sensor_mode == WDR_MODE_LINEAR &&
 					ptr_tmp->iridix_chn_idx != -1) {
 					pr_debug("giver_id = %d, accpter_id = %d, iridix_no = %d\n",
