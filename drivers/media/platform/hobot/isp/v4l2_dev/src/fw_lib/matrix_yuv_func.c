@@ -441,6 +441,22 @@ static void update_composite_matrix( int16_t *inp1, int16_t *res )
 
     vector_vector_add( inp1 + 9, res + 9, 3 );
 }
+
+static void modify_final_matrix(matrix_yuv_fsm_t *p_fsm, int16_t *final_composite_yuv_matrix)
+{
+    int32_t tp = 0;
+
+    tp = final_composite_yuv_matrix[3] + final_composite_yuv_matrix[4] + final_composite_yuv_matrix[5];
+    if (tp != 0) {
+        final_composite_yuv_matrix[3] = 0 - final_composite_yuv_matrix[4] - final_composite_yuv_matrix[5];
+    }
+
+    tp = final_composite_yuv_matrix[6] + final_composite_yuv_matrix[7] + final_composite_yuv_matrix[8];
+    if (tp != 0) {
+        final_composite_yuv_matrix[6] = 0 - final_composite_yuv_matrix[7] - final_composite_yuv_matrix[8];
+    }
+}
+
 static void compute_transfrom_matrix( matrix_yuv_fsm_t *p_fsm, int16_t *final_composite_yuv_matrix, uint8_t format )
 {
     uint8_t i = 0;
@@ -459,6 +475,7 @@ static void compute_transfrom_matrix( matrix_yuv_fsm_t *p_fsm, int16_t *final_co
             p_fsm->rgb2yuv_matrix[i] = color_matrix_direct_to_complement( ptr_rgb2yuv[i] );
         update_composite_matrix( p_fsm->rgb2yuv_matrix, final_composite_yuv_matrix );
     }
+    modify_final_matrix(p_fsm, final_composite_yuv_matrix);
     matrix_yuv_clip( final_composite_yuv_matrix );
 }
 void matrix_yuv_recompute( matrix_yuv_fsm_t *p_fsm )
