@@ -271,7 +271,7 @@ void sif_recover_buff(struct sif_subdev *subdev)
 	if((subdev->format == HW_FORMAT_YUV422) ||
 		(subdev->splice_info.splice_enable)) {
 		hw_idx1 = sif_get_current_bufindex(sif->base_reg, subdev->mux_index1);
-		sif->buff_count[subdev->mux_index1] = hw_idx1;
+		sif->buff_count1[subdev->mux_index1] = hw_idx1;
 		subdev->hw_gap = ((hw_idx - hw_idx1) + 4) % 4;
 	}
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
