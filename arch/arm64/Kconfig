@@ -444,6 +444,18 @@ config ARM64_ERRATUM_843419
 
 	  If unsure, say Y.
 
+config ARM64_ERRATUM_835769
+	bool "Cortex-A53: 835769: A Arch64 multiply-accumulate  instruction might produce incorrect result"
+	default y
+	select ARM64_MODULE_CMODEL_LARGE if MODULES
+	help
+	  This option links the kernel with '--fix-cortex-a53-835769' and
+	  Fix when executing in AArch64 state, some multiply-accumulate  instructions
+	  which read an accumulator operand from the result of an earlier multiply
+	  instruction might produce incorrect results.
+
+	  If unsure, say Y.
+
 config ARM64_ERRATUM_1024718
 	bool "Cortex-A55: 1024718: Update of DBM/AP bits without break before make might result in incorrect update"
 	default y
