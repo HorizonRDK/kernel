@@ -282,6 +282,9 @@ void osd_process_vga4_workfunc(struct kthread_work *work)
     struct timeval time_next = { 0 };
     time_t time_us;
     uint32_t crop_width, crop_height;
+    volatile uint32_t cache_height;
+    uint8_t * volatile cache_y_addr;
+    uint8_t * volatile cache_uv_addr;
 
     mutex_lock(&proc_info->proc_mutex);
 
@@ -299,6 +302,9 @@ void osd_process_vga4_workfunc(struct kthread_work *work)
     offset = proc_info->start_y * proc_info->image_width;
     tar_y_addr = proc_info->tar_y_addr + offset + proc_info->start_x;
     tar_uv_addr = proc_info->tar_uv_addr + offset / 2 + proc_info->start_x;
+    cache_height = crop_height;
+    cache_y_addr = tar_y_addr;
+    cache_uv_addr = tar_uv_addr;
 
     kernel_neon_begin();
     asm volatile (
@@ -390,13 +396,13 @@ void osd_process_vga4_workfunc(struct kthread_work *work)
     );
     kernel_neon_end();
 
-    if (__pa(tar_y_addr) != 0) {
-        ion_dcache_flush(__pa(tar_y_addr),
-            proc_info->image_width * crop_height);
+    if (__pa(cache_y_addr) != 0) {
+        ion_dcache_flush(__pa(cache_y_addr),
+            proc_info->image_width * cache_height);
     }
-    if (__pa(tar_uv_addr) != 0) {
-        ion_dcache_flush(__pa(tar_uv_addr),
-            proc_info->image_width * crop_height / 2);
+    if (__pa(cache_uv_addr) != 0) {
+        ion_dcache_flush(__pa(cache_uv_addr),
+            proc_info->image_width * cache_height / 2);
     }
 
     do_gettimeofday(&time_next);
@@ -411,7 +417,7 @@ void osd_process_vga4_workfunc(struct kthread_work *work)
         proc_info->image_width, proc_info->image_height,
         proc_info->start_x, proc_info->start_y, proc_info->width,
         proc_info->height, src_y_addr, src_y_or_addr, src_uv_addr, src_uv_or_addr,
-        tar_y_addr, tar_uv_addr, time_us);
+        cache_y_addr, cache_uv_addr, time_us);
 
 exit:
     osd_process_workfunc_done(proc_info);
@@ -427,6 +433,9 @@ void osd_process_nv12_workfunc(struct kthread_work *work)
     struct timeval time_next = { 0 };
     time_t time_us;
     uint32_t crop_width, crop_height;
+    volatile uint32_t cache_height;
+    uint8_t * volatile cache_y_addr;
+    uint8_t * volatile cache_uv_addr;
 
     mutex_lock(&proc_info->proc_mutex);
     if (osd_process_info_check(proc_info, &crop_width, &crop_height) < 0) {
@@ -441,6 +450,9 @@ void osd_process_nv12_workfunc(struct kthread_work *work)
     offset = proc_info->start_y * proc_info->image_width;
     tar_y_addr = proc_info->tar_y_addr + offset + proc_info->start_x;
     tar_uv_addr = proc_info->tar_uv_addr + offset / 2 + proc_info->start_x;
+    cache_height = crop_height;
+    cache_y_addr = tar_y_addr;
+    cache_uv_addr = tar_uv_addr;
 
     kernel_neon_begin();
     asm volatile (
@@ -548,13 +560,14 @@ void osd_process_nv12_workfunc(struct kthread_work *work)
             "x19", "x20", "x21", "x22", "x23", "x24"    // Clobber List
     );
     kernel_neon_end();
-    if (__pa(tar_y_addr) != 0) {
-        ion_dcache_flush(__pa(tar_y_addr),
-            proc_info->image_width * crop_height);
+
+    if (__pa(cache_y_addr) != 0) {
+        ion_dcache_flush(__pa(cache_y_addr),
+            proc_info->image_width * cache_height);
     }
-    if (__pa(tar_uv_addr) != 0) {
-        ion_dcache_flush(__pa(tar_uv_addr),
-            proc_info->image_width * crop_height / 2);
+    if (__pa(cache_uv_addr) != 0) {
+        ion_dcache_flush(__pa(cache_uv_addr),
+            proc_info->image_width * cache_height / 2);
     }
 
     do_gettimeofday(&time_next);
@@ -569,7 +582,7 @@ void osd_process_nv12_workfunc(struct kthread_work *work)
         proc_info->image_width, proc_info->image_height,
         proc_info->start_x, proc_info->start_y, proc_info->width,
         proc_info->height, proc_info->yuv_bg_transparent,
-        src_y_addr, src_uv_addr, tar_y_addr, tar_uv_addr, time_us);
+        src_y_addr, src_uv_addr, cache_y_addr, cache_uv_addr, time_us);
 
 exit:
     osd_process_workfunc_done(proc_info);
@@ -587,6 +600,9 @@ void osd_process_rect_workfunc(struct kthread_work *work)
     struct timeval time_next = { 0 };
     time_t time_us;
     uint32_t crop_width, crop_height;
+    volatile uint32_t cache_height;
+    uint8_t * volatile cache_y_addr;
+    uint8_t * volatile cache_uv_addr;
 
     mutex_lock(&proc_info->proc_mutex);
     if (osd_process_info_check(proc_info, &crop_width, &crop_height) < 0) {
@@ -609,6 +625,9 @@ void osd_process_rect_workfunc(struct kthread_work *work)
         y_color = (uint8_t)(OSD_FILL_FF - y_color);
         uv_color = (uint16_t)(OSD_FILL_FFFF - uv_color);
     }
+    cache_height = crop_height;
+    cache_y_addr = tar_y_addr;
+    cache_uv_addr = tar_uv_addr;
 
     kernel_neon_begin();
     asm volatile (
@@ -661,13 +680,13 @@ void osd_process_rect_workfunc(struct kthread_work *work)
     );
     kernel_neon_end();
 
-    if (__pa(tar_y_addr) != 0) {
-        ion_dcache_flush(__pa(tar_y_addr),
-            proc_info->image_width * crop_height);
+    if (__pa(cache_y_addr) != 0) {
+        ion_dcache_flush(__pa(cache_y_addr),
+            proc_info->image_width * cache_height);
     }
-    if (__pa(tar_uv_addr) != 0) {
-        ion_dcache_flush(__pa(tar_uv_addr),
-            proc_info->image_width * crop_height / 2);
+    if (__pa(cache_uv_addr) != 0) {
+        ion_dcache_flush(__pa(cache_uv_addr),
+            proc_info->image_width * cache_height / 2);
     }
 
     do_gettimeofday(&time_next);
@@ -682,7 +701,7 @@ void osd_process_rect_workfunc(struct kthread_work *work)
         proc_info->frame_id, proc_info->buffer_index,
         proc_info->image_width, proc_info->image_height,
         proc_info->start_x, proc_info->start_y, proc_info->width,
-        proc_info->height, tar_y_addr, tar_uv_addr, proc_info->fill_color,
+        proc_info->height, cache_y_addr, cache_uv_addr, proc_info->fill_color,
         yuv_color, time_us);
 
 exit:
@@ -703,6 +722,9 @@ void osd_process_polygon_workfunc(struct kthread_work *work)
     struct timeval time_next = { 0 };
     time_t time_us;
     uint32_t crop_width, crop_height;
+    volatile uint32_t cache_height;
+    uint8_t * volatile cache_y_addr;
+    uint8_t * volatile cache_uv_addr;
 
     mutex_lock(&proc_info->proc_mutex);
     if (osd_process_info_check(proc_info, &crop_width, &crop_height) < 0) {
@@ -725,6 +747,9 @@ void osd_process_polygon_workfunc(struct kthread_work *work)
         y_color = (uint8_t)(OSD_FILL_FF - y_color);
         uv_color = (uint16_t)(OSD_FILL_FFFF - uv_color);
     }
+    cache_height = crop_height;
+    cache_y_addr = tar_y_addr;
+    cache_uv_addr = tar_uv_addr;
 
     for (i = 0; i < OSD_NEON_PROC_U16; i++) {
         temp_index[i] = i;
@@ -818,13 +843,13 @@ void osd_process_polygon_workfunc(struct kthread_work *work)
     );
     kernel_neon_end();
 
-    if (__pa(tar_y_addr) != 0) {
-        ion_dcache_flush(__pa(tar_y_addr),
-            proc_info->image_width * crop_height);
+    if (__pa(cache_y_addr) != 0) {
+        ion_dcache_flush(__pa(cache_y_addr),
+            proc_info->image_width * cache_height);
     }
-    if (__pa(tar_uv_addr) != 0) {
-        ion_dcache_flush(__pa(tar_uv_addr),
-            proc_info->image_width * crop_height / 2);
+    if (__pa(cache_uv_addr) != 0) {
+        ion_dcache_flush(__pa(cache_uv_addr),
+            proc_info->image_width * cache_height / 2);
     }
 
     do_gettimeofday(&time_next);
@@ -839,7 +864,7 @@ void osd_process_polygon_workfunc(struct kthread_work *work)
         proc_info->frame_id, proc_info->buffer_index,
         proc_info->image_width, proc_info->image_height,
         proc_info->start_x, proc_info->start_y, proc_info->width,
-        proc_info->height, tar_y_addr, tar_uv_addr, proc_info->polygon_buf,
+        proc_info->height, cache_y_addr, cache_uv_addr, proc_info->polygon_buf,
         proc_info->fill_color, yuv_color, time_us);
 
 exit:
@@ -855,6 +880,9 @@ void osd_process_mosaic_workfunc(struct kthread_work *work)
     struct timeval time_next = { 0 };
     time_t time_us;
     uint32_t crop_width, crop_height;
+    volatile uint32_t cache_height;
+    uint8_t * volatile cache_y_addr;
+    uint8_t * volatile cache_uv_addr;
 
     mutex_lock(&proc_info->proc_mutex);
     if (osd_process_info_check(proc_info, &crop_width, &crop_height) < 0) {
@@ -867,6 +895,9 @@ void osd_process_mosaic_workfunc(struct kthread_work *work)
         proc_info->start_y * proc_info->image_width + proc_info->start_x;
     tar_uv_addr = proc_info->tar_uv_addr +
         proc_info->start_y * proc_info->image_width / 2 + proc_info->start_x;
+    cache_height = crop_height;
+    cache_y_addr = tar_y_addr;
+    cache_uv_addr = tar_uv_addr;
 
     kernel_neon_begin();
     asm volatile (
@@ -942,13 +973,13 @@ void osd_process_mosaic_workfunc(struct kthread_work *work)
     );
     kernel_neon_end();
 
-    if (__pa(tar_y_addr) != 0) {
-        ion_dcache_flush(__pa(tar_y_addr),
-            proc_info->image_width * crop_height);
+    if (__pa(cache_y_addr) != 0) {
+        ion_dcache_flush(__pa(cache_y_addr),
+            proc_info->image_width * cache_height);
     }
-    if (__pa(tar_uv_addr) != 0) {
-        ion_dcache_flush(__pa(tar_uv_addr),
-            proc_info->image_width * crop_height / 2);
+    if (__pa(cache_uv_addr) != 0) {
+        ion_dcache_flush(__pa(cache_uv_addr),
+            proc_info->image_width * cache_height / 2);
     }
 
     do_gettimeofday(&time_next);
@@ -962,7 +993,7 @@ void osd_process_mosaic_workfunc(struct kthread_work *work)
         proc_info->frame_id, proc_info->buffer_index,
         proc_info->image_width, proc_info->image_height,
         proc_info->start_x, proc_info->start_y, proc_info->width,
-        proc_info->height, tar_y_addr, tar_uv_addr, time_us);
+        proc_info->height, cache_y_addr, cache_uv_addr, time_us);
 
 exit:
     osd_process_workfunc_done(proc_info);

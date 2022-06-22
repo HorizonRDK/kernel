@@ -2048,6 +2048,10 @@ static int osd_proc_buf(struct osd_video_ctx *osd_ctx, unsigned long arg)
         proc_buf.image_width * proc_buf.image_height);
     ion_dcache_invalid(proc_buf.uv_paddr,
         proc_buf.image_width * proc_buf.image_height / 2);
+    ion_dcache_flush(proc_buf.y_paddr,
+        proc_buf.image_width * proc_buf.image_height);
+    ion_dcache_flush(proc_buf.uv_paddr,
+        proc_buf.image_width * proc_buf.image_height / 2);
 
     if (proc_buf.proc_type == OSD_PROC_POLYGON) {
         kfree(proc_info.polygon_buf);
