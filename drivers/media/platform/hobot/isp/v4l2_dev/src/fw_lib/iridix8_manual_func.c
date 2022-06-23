@@ -80,6 +80,21 @@ static void iridix_mointor_frame_end( iridix_fsm_ptr_t p_fsm )
     }
 }
 
+uint8_t iridix_fsm_process_event(iridix_fsm_t *p_fsm, event_id_t event_id)
+{
+    uint8_t b_event_processed = 0;
+    switch ( event_id ) {
+    default:
+        break;
+    case event_id_iridix_lut_reload:
+        iridix_lut_reload(p_fsm);
+        b_event_processed = 1;
+        break;
+    }
+
+    return b_event_processed;
+}
+
 void iridix_fsm_process_interrupt( iridix_fsm_const_ptr_t p_fsm, uint8_t irq_event )
 {
     if ( acamera_fsm_util_is_irq_event_ignored( (fsm_irq_mask_t *)( &p_fsm->mask ), irq_event ) )

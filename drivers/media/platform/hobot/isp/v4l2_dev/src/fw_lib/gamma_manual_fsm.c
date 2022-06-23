@@ -19,6 +19,7 @@
 
 #include "acamera_fw.h"
 #include "gamma_manual_fsm.h"
+#include "general_fsm.h"
 
 
 #if defined( CUR_MOD_NAME)
@@ -101,6 +102,10 @@ uint8_t gamma_manual_fsm_process_event( gamma_manual_fsm_t *p_fsm, event_id_t ev
         if (p_fsm->p_fsm_mgr->p_ctx->isp_ctxsv_on)
             acamera_isp_ctxsv(p_fsm->cmn.ctx_id);
 
+        b_event_processed = 1;
+        break;
+    case event_id_gamma_update:
+        acamera_gamma_set_param(p_fsm);
         b_event_processed = 1;
         break;
     }

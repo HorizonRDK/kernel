@@ -98,7 +98,7 @@ int iridix_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t in
 
         break;
     case FSM_PARAM_SET_IRIDIX_LUT_RELOAD:
-        iridix_lut_reload( p_fsm );
+        acamera_fw_raise_event(p_fsm->p_fsm_mgr->p_ctx, event_id_iridix_lut_reload);
         break;
 
     default:

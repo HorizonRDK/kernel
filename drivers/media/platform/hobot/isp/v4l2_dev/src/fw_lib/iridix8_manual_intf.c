@@ -51,7 +51,7 @@ fsm_common_t *iridix_get_fsm_common( uint8_t ctx_id )
     p_fsm_ctx->cmn.ops.run = NULL;
     p_fsm_ctx->cmn.ops.get_param = iridix_fsm_get_param;
     p_fsm_ctx->cmn.ops.set_param = iridix_fsm_set_param;
-    p_fsm_ctx->cmn.ops.proc_event = NULL;
+    p_fsm_ctx->cmn.ops.proc_event = (FUN_PTR_PROC_EVENT)iridix_fsm_process_event;
     p_fsm_ctx->cmn.ops.proc_interrupt = (FUN_PTR_PROC_INT)iridix_fsm_process_interrupt;
 
     return &( p_fsm_ctx->cmn );

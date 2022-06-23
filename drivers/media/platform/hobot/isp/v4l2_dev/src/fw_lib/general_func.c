@@ -308,10 +308,9 @@ static void general_cac_memory_lut_reload( general_fsm_ptr_t p_fsm )
     return;
 }
 
-void acamera_gamma_set_param(acamera_fsm_mgr_t * p_fsm_mgr)
+void acamera_gamma_set_param(gamma_manual_fsm_t * p_fsm)
 {
     int i = 0;
-    general_fsm_ptr_t p_fsm = p_fsm_mgr->fsm_arr[FSM_ID_GENERAL]->p_fsm;
     const uint16_t *gamma_lut = _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_GAMMA );
     const uint32_t gamma_lut_len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_GAMMA );
 
@@ -358,10 +357,9 @@ void acamera_noise_set_param(acamera_fsm_mgr_t * p_fsm_mgr)
     }
 }
 
-void acamera_shading_radial_set_param(acamera_fsm_mgr_t * p_fsm_mgr)
+void acamera_shading_radial_set_param(general_fsm_ptr_t p_fsm)
 {
     int i = 0;
-    general_fsm_ptr_t p_fsm = p_fsm_mgr->fsm_arr[FSM_ID_GENERAL]->p_fsm;
     uint32_t len = _GET_LEN( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_RADIAL_R );
     uint16_t *p_lut = _GET_USHORT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_SHADING_RADIAL_R );
     uint32_t bank_offset = 0;

@@ -158,6 +158,13 @@ const char * const event_name[] = {
     "event_id_frame_config",
     "event_id_frame_done",
     "event_id_frame_error",
+    "event_id_gamma_update",
+    "event_id_iridix_lut_reload",
+    "event_id_shading_radial",
+    "event_id_shading_mesh_reload",
+    "event_id_matrix_yuv_update",
+    "event_id_ae_roi_update",
+    "event_id_color_matrix_update",
     "unknown"
 };
 

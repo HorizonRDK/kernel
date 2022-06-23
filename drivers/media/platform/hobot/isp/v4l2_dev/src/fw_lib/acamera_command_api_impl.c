@@ -49,6 +49,7 @@
 #endif
 
 #include "acamera_logger.h"
+#include "sensor_fsm.h"
 
 
 #define D1E6 1000000
@@ -248,7 +249,11 @@ uint8_t sensor_preset( acamera_fsm_mgr_t *instance, uint32_t value, uint8_t dire
 
             //isp_safe_stop( ACAMERA_MGR2CTX_PTR( instance )->settings.isp_base );
 
-            acamera_fsm_mgr_raise_event( instance, event_id_acamera_reset_sensor_hw );
+            // acamera_fsm_mgr_raise_event( instance, event_id_acamera_reset_sensor_hw );
+            acamera_fsm_mgr_raise_event( instance, event_id_sensor_not_ready );
+            sensor_hw_init( instance->fsm_arr[FSM_ID_SENSOR]->p_fsm );
+            sensor_sw_init( instance->fsm_arr[FSM_ID_SENSOR]->p_fsm );
+            acamera_fsm_mgr_raise_event( instance, event_id_sensor_ready );
 
             result = SUCCESS;
         } else {
@@ -4776,7 +4781,7 @@ uint8_t acamera_api_calibration( uint32_t ctx_id, uint8_t type, uint8_t id, uint
 #endif
                     break;
                 case CALIBRATION_GAMMA:
-                    acamera_gamma_set_param(instance);
+                    acamera_fw_raise_event((acamera_context_t *)acamera_get_ctx_ptr( ctx_id ), event_id_gamma_update);
                     break;
                 case CALIBRATION_DEMOSAIC:
                     acamera_demosaic_set_param(instance);
@@ -4799,7 +4804,7 @@ uint8_t acamera_api_calibration( uint32_t ctx_id, uint8_t type, uint8_t id, uint
                 case CALIBRATION_SHADING_RADIAL_R:
                 case CALIBRATION_SHADING_RADIAL_G:
                 case CALIBRATION_SHADING_RADIAL_B:
-                    acamera_shading_radial_set_param(instance);
+                    acamera_fw_raise_event((acamera_context_t *)acamera_get_ctx_ptr( ctx_id ), event_id_shading_radial);
                     break;
                 case CALIBRATION_SHADING_LS_A_R:
                 case CALIBRATION_SHADING_LS_A_G:

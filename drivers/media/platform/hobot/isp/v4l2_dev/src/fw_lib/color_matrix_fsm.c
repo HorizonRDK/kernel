@@ -92,7 +92,7 @@ int color_matrix_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint3
         break;
 
     case FSM_PARAM_SET_SHADING_MESH_RELOAD:
-        color_matrix_shading_mesh_reload( p_fsm );
+        acamera_fw_raise_event(p_fsm->p_fsm_mgr->p_ctx, event_id_shading_mesh_reload);
         break;
 
     case FSM_PARAM_SET_MANUAL_CCM: {
@@ -196,6 +196,14 @@ uint8_t color_matrix_fsm_process_event( color_matrix_fsm_t *p_fsm, event_id_t ev
     case event_id_frame_end:
         color_matrix_update( p_fsm );
         color_matrix_request_interrupt( p_fsm, ACAMERA_IRQ_MASK( ACAMERA_IRQ_FRAME_END ) );
+        b_event_processed = 1;
+        break;
+    case event_id_shading_mesh_reload:
+        color_matrix_shading_mesh_reload( p_fsm );
+        b_event_processed = 1;
+        break;
+    case event_id_color_matrix_update:
+        color_matrix_update( p_fsm );
         b_event_processed = 1;
         break;
     }
