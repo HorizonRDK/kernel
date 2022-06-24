@@ -277,9 +277,12 @@ struct xj3_rx_queue {
 
 	unsigned int cur_rx;
 	unsigned int dirty_rx;
+	unsigned int refill_rx;
+	unsigned int reschedule_fill_flag;
 	dma_addr_t dma_rx_phy;
 	u32 rx_tail_addr;
 	struct napi_struct napi;
+	struct delayed_work work;
 
 	u32 rx_zeroc_thresh;
 };

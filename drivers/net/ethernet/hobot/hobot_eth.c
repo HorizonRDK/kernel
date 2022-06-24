@@ -89,6 +89,8 @@
 static int eth_err_flag;
 static bool tsn_enabled = false;
 
+static void xj3_refill_work(struct work_struct *work);
+
 static int xj3_mdio_read(struct mii_bus *bus, int mii_id, int phyreg) {
     struct net_device *ndev = bus->priv;
     struct xj3_priv *priv = netdev_priv(ndev);
@@ -1639,6 +1641,8 @@ static int init_dma_rx_desc_rings(struct net_device *ndev) {
             if (ret) goto err_init_rx_buffers;
         }
 
+		rx_q->reschedule_fill_flag = 0;
+		rx_q->refill_rx = 0;
         rx_q->cur_rx = 0;
         rx_q->dirty_rx = (unsigned int)(i - DMA_RX_SIZE);
 
@@ -3185,7 +3189,9 @@ static irqreturn_t xj3_interrupt(int irq, void *dev_id) {
         mtl_status = status | xj3_host_mtl_irq_status(priv, queue);
 
         if (mtl_status & CORE_IRQ_MTL_RX_OVERFLOW) {
-            xj3_set_rx_tail_ptr(priv->ioaddr, rx_q->rx_tail_addr, queue);
+            if (!rx_q->reschedule_fill_flag) {
+                xj3_set_rx_tail_ptr(priv->ioaddr, rx_q->rx_tail_addr, queue);
+            }
         }
     }
 
@@ -3838,6 +3844,9 @@ static void hobot_release_ptp(struct xj3_priv *priv) {
 
 static int xj3_release(struct net_device *ndev) {
     struct xj3_priv *priv = netdev_priv(ndev);
+	u32 rx_count = priv->plat->rx_queues_to_use;
+	struct xj3_rx_queue *rx_q;
+	u32 i;
 
     if (ndev->phydev) {
         phy_stop(ndev->phydev);
@@ -3860,6 +3869,12 @@ static int xj3_release(struct net_device *ndev) {
      * so after this , no poll will be called.
      */
     xj3_disable_all_queues(priv);
+
+	/* cancel all queues delayed work */
+	for (i = 0; i < rx_count; i++) {
+		rx_q = &priv->rx_queue[i];
+		cancel_delayed_work_sync(&rx_q->work);
+	}
 
     del_timer_sync(&priv->txtimer);
 
@@ -4742,6 +4757,66 @@ static inline u32 xj3_rx_dirty(struct xj3_priv *priv, u32 queue) {
     return dirty;
 }
 
+static bool xj3_try_fill_recv(struct xj3_priv *priv, u32 queue)
+{
+	struct xj3_rx_queue *rx_q = &priv->rx_queue[queue];
+	u32 i, refill_rx = rx_q->refill_rx;
+	int ret;
+
+	for (i = refill_rx; i < DMA_RX_SIZE; i++) {
+		struct dma_desc *p;
+
+		if (priv->extend_desc)
+			p = &((rx_q->dma_erx + i)->basic);
+		else
+			p = rx_q->dma_rx + i;
+
+		if (rx_q->rx_skbuff[i]) {
+			rx_q->refill_rx = 0;
+			return true;
+		}
+
+		ret = xj3_init_rx_buffers(priv, p, i, queue);
+		if (ret) {
+			rx_q->refill_rx = i;
+			return false;
+		}
+	}
+	rx_q->refill_rx = 0;
+	xj3_clear_rx_descriptors(priv, queue);
+
+	return true;
+}
+
+static void xj3_refill_work(struct work_struct *work) {
+	struct delayed_work *delayed_work = container_of(work,
+			struct delayed_work, work);
+	struct xj3_rx_queue *rx_q = container_of(delayed_work, struct xj3_rx_queue,
+			work);
+	u32 queue = rx_q->queue_index;
+	struct xj3_priv *priv = container_of(rx_q, struct xj3_priv,
+			rx_queue[queue]);
+	bool still_empty = true;
+
+	dev_info(priv->device,
+			"The ring buffer has been emptied, Now go to reallocate it.\n");
+
+	// start try to fill
+	still_empty = !xj3_try_fill_recv(priv, queue);
+	if (still_empty) {
+		// HZ/2: reference resources virtio-net
+		schedule_delayed_work(&rx_q->work, HZ/2);
+		return;
+	}
+
+	rx_q->reschedule_fill_flag = 0;
+
+	// write rx tail addr
+	xj3_set_rx_tail_ptr(priv->ioaddr, rx_q->rx_tail_addr, queue);
+
+	dev_info(priv->device, "refill finish!\n");
+}
+
 static inline void xj3_rx_refill(struct xj3_priv *priv, u32 queue) {
     struct xj3_rx_queue *rx_q = &priv->rx_queue[queue];
     int dirty = xj3_rx_dirty(priv, queue);
@@ -4818,6 +4893,11 @@ static int xj3_rx_packet(struct xj3_priv *priv, int limit, u32 queue) {
     unsigned int next_entry;
     unsigned int count = 0;
     struct net_device *ndev = priv->dev;
+	struct sk_buff *skb;
+
+	/* Exit if refill work is executing */
+	if (unlikely(rx_q->reschedule_fill_flag))
+		return count;
 
     while (count < limit) {
         int status;
@@ -4832,6 +4912,15 @@ static int xj3_rx_packet(struct xj3_priv *priv, int limit, u32 queue) {
 
         if (status & dma_own) break;
 
+        skb = rx_q->rx_skbuff[entry];
+        if (!skb) {
+            dev_err(priv->device, "%s: inconsistent Rx chain\n",
+					priv->dev->name);
+			rx_q->reschedule_fill_flag = 1;
+			schedule_delayed_work(&rx_q->work, 0);
+			priv->xstats.rx_pkt_n += count;
+			return count;
+        }
         count++;
         rx_q->cur_rx = XJ3_GET_ENTRY(rx_q->cur_rx, DMA_RX_SIZE);
         next_entry = rx_q->cur_rx;
@@ -4856,7 +4945,6 @@ static int xj3_rx_packet(struct xj3_priv *priv, int limit, u32 queue) {
                 rx_q->rx_skbuff[entry] = NULL;
             }
         } else {
-            struct sk_buff *skb;
             int frame_len;
             unsigned int des;
 
@@ -4874,15 +4962,6 @@ static int xj3_rx_packet(struct xj3_priv *priv, int limit, u32 queue) {
             }
             //			if (status != llc_snap)
             //				frame_len -= ETH_FCS_LEN;
-
-            skb = rx_q->rx_skbuff[entry];
-            if (!skb) {
-                dev_info(priv->device, "%s: inconsistent Rx chain\n",
-                         priv->dev->name);
-                priv->dev->stats.rx_dropped++;
-                break;
-            }
-
             prefetch(skb->data - NET_IP_ALIGN);
             rx_q->rx_skbuff[entry] = NULL;
             rx_q->rx_zeroc_thresh++;
@@ -5411,6 +5490,7 @@ static int xj3_dvr_probe(struct device *device,
 
     for (queue = 0; queue < priv->plat->rx_queues_to_use; queue++) {
         struct xj3_rx_queue *rx_q = &priv->rx_queue[queue];
+		INIT_DELAYED_WORK(&rx_q->work, xj3_refill_work);
 
         netif_napi_add(ndev, &rx_q->napi, xj3_poll,
                        (12 * priv->plat->rx_queues_to_use));
