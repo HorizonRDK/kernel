@@ -666,10 +666,12 @@ static int bpu_open(struct inode *inode, struct file *filp)/*PRQA S ALL*/
 	unsigned long flags;/*PRQA S ALL*/
 	int32_t ret;
 
+	mutex_lock(&bpu->mutex_lock);
 	if (atomic_read(&bpu->open_counter) == 0) {/*PRQA S ALL*/
 		/* first open init something files */
 		ret = bpu_sched_start(bpu);
 		if (ret != 0) {
+			mutex_unlock(&bpu->mutex_lock);
 			pr_err("BPU sched start failed\n");/*PRQA S ALL*/
 			return -EFAULT;
 		}
@@ -677,6 +679,7 @@ static int bpu_open(struct inode *inode, struct file *filp)/*PRQA S ALL*/
 
 	user = (struct bpu_user *)kzalloc(sizeof(struct bpu_user), GFP_KERNEL);/*PRQA S ALL*/
 	if (user == NULL) {
+		mutex_unlock(&bpu->mutex_lock);
 		pr_err("Can't alloc user mem");/*PRQA S ALL*/
 		return -ENOMEM;
 	}
@@ -686,6 +689,7 @@ static int bpu_open(struct inode *inode, struct file *filp)/*PRQA S ALL*/
 	/* init fifo which report to userspace */
 	ret = kfifo_alloc(&user->done_fcs, BPU_CORE_RECORE_NUM, GFP_KERNEL);/*PRQA S ALL*/
 	if (ret != 0) {
+		mutex_unlock(&bpu->mutex_lock);
 		kfree((void *)user);/*PRQA S ALL*/
 		pr_err("Can't alloc user fifo dev mem");/*PRQA S ALL*/
 		return ret;
@@ -706,6 +710,7 @@ static int bpu_open(struct inode *inode, struct file *filp)/*PRQA S ALL*/
 	filp->private_data = user;/*PRQA S ALL*/
 
 	atomic_inc(&bpu->open_counter);/*PRQA S ALL*/
+	mutex_unlock(&bpu->mutex_lock);
 
 	return ret;
 }
@@ -719,6 +724,7 @@ static int bpu_release(struct inode *inode, struct file *filp)/*PRQA S ALL*/
 	unsigned long flags;/*PRQA S ALL*/
 	int32_t ret;
 
+	mutex_lock(&bpu->mutex_lock);
 	user->is_alive = 0;
 
 	atomic_dec(&bpu->open_counter);/*PRQA S ALL*/
@@ -727,6 +733,7 @@ static int bpu_release(struct inode *inode, struct file *filp)/*PRQA S ALL*/
 		/* release the real bpu*/
 		ret = bpu_sched_stop(bpu);
 		if (ret != 0) {
+			mutex_unlock(&bpu->mutex_lock);
 			pr_err("BPU sched stop failed\n");/*PRQA S ALL*/
 			return -EFAULT;
 		}
@@ -747,6 +754,7 @@ static int bpu_release(struct inode *inode, struct file *filp)/*PRQA S ALL*/
 	kfree((void *)user);/*PRQA S ALL*/
 	filp->private_data = NULL;
 	spin_unlock_irqrestore(&bpu->spin_lock, flags);
+	mutex_unlock(&bpu->mutex_lock);
 
 	return 0;
 }
