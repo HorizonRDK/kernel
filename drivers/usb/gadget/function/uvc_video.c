@@ -224,11 +224,15 @@ static int uvcg_video_ep_queue(struct uvc_video *video, struct usb_request *req)
 			 ret);
 
 		/*
+		 * If the endpoint is disabled the descriptor may be NULL.
 		 * 1. Isochronous endpoints can't be halted.
 		 * 2. If shutdown, don't check video->ep->desc, otherwise abort
 		 */
-		if (ret != -ESHUTDOWN && usb_endpoint_xfer_bulk(video->ep->desc))
-			usb_ep_set_halt(video->ep);
+		if (video->ep->desc) {
+			/* Isochronous endpoints can't be halted. */
+			if (ret != -ESHUTDOWN && usb_endpoint_xfer_bulk(video->ep->desc))
+				usb_ep_set_halt(video->ep);
+		}
 	}
 
 	return ret;
