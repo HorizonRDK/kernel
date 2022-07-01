@@ -645,7 +645,7 @@ static int hbfb_mmap(struct fb_info *info, struct vm_area_struct *pvma)
 
 	pvma->vm_flags |= VM_IO;
 	pvma->vm_flags |= VM_LOCKED;
-	//pvma->vm_page_prot = pgprot_noncached(pvma->vm_page_prot);
+	pvma->vm_page_prot = pgprot_writecombine(pvma->vm_page_prot);
 	if (remap_pfn_range(pvma, pvma->vm_start,
 			info->fix.smem_start >> PAGE_SHIFT,
 			pvma->vm_end - pvma->vm_start, pvma->vm_page_prot)) {
