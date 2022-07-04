@@ -280,7 +280,11 @@ uvc_video_complete(struct usb_ep *ep, struct usb_request *req)
 	list_add_tail(&req->list, &video->req_free);
 	spin_unlock_irqrestore(&video->req_lock, flags);
 
-	if (uvc->state == UVC_STATE_STREAMING)
+	/*
+	 * Isoc: Only schedule stream in streaming state.
+	 * Bulk: No such limitation.
+	 */
+	if (video->is_bulk || uvc->state == UVC_STATE_STREAMING)
 		schedule_work(&video->pump);
 
 no_requeue:
