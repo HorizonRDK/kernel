@@ -248,6 +248,7 @@ void hobot_dma_rx_watchdog(struct xj3_priv *priv, u32 riwt, u32 number) {
         writel(riwt, priv->ioaddr + DMA_CHAN_RX_WATCHDOG(chan));
     }
 }
+EXPORT_SYMBOL_GPL(hobot_dma_rx_watchdog);
 
 static int hobot_set_coalesce(struct net_device *dev,
                               struct ethtool_coalesce *ec) {
@@ -308,3 +309,4 @@ static const struct ethtool_ops hobot_ethtool_ops = {
 void hobot_set_ethtool_ops(struct xj3_priv *priv) {
     priv->dev->ethtool_ops = &hobot_ethtool_ops;
 }
+EXPORT_SYMBOL_GPL(hobot_set_ethtool_ops);

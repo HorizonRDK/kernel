@@ -28,6 +28,7 @@ void hobot_mmc_ctrl(void __iomem *mmcaddr, unsigned int mode)
     writel(value, mmcaddr + MMC_CNTRL);
 
 }
+EXPORT_SYMBOL_GPL(hobot_mmc_ctrl);
 
 void hobot_mmc_intr_all_mask(void __iomem *mmcaddr)
 {
@@ -35,6 +36,8 @@ void hobot_mmc_intr_all_mask(void __iomem *mmcaddr)
     writel(MMC_DEFAULT_MASK, mmcaddr + MMC_TX_INTR_MASK);
     writel(MMC_DEFAULT_MASK, mmcaddr + MMC_RX_IPC_INTR_MASK);
 }
+EXPORT_SYMBOL_GPL(hobot_mmc_intr_all_mask);
+
 
 void hobot_mmc_read(void __iomem *mmcaddr, struct hobot_counters *mmc)
 {
@@ -149,3 +152,4 @@ void hobot_mmc_read(void __iomem *mmcaddr, struct hobot_counters *mmc)
     mmc->mmc_rx_icmp_err_octets += readl(mmcaddr + MMC_RX_ICMP_ERR_OCTETS);
 
 }
+EXPORT_SYMBOL_GPL(hobot_mmc_read);
