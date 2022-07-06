@@ -986,7 +986,8 @@ static void __dwc3_prepare_one_trb(struct dwc3_ep *dep, struct dwc3_trb *trb,
 		dma_addr_t dma, unsigned int length, unsigned int chain,
 		unsigned int node, unsigned int stream_id,
 		unsigned int short_not_ok, unsigned int no_interrupt,
-		unsigned int is_last, bool must_interrupt)
+		unsigned int is_last, bool must_interrupt,
+		bool is_sg, unsigned int sg_total)
 {
 	struct dwc3		*dwc = dep->dwc;
 	struct usb_gadget	*gadget = dwc->gadget;
@@ -1031,12 +1032,15 @@ static void __dwc3_prepare_one_trb(struct dwc3_ep *dep, struct dwc3_trb *trb,
 				struct usb_ep *ep = &dep->endpoint;
 				unsigned int mult = 2;
 				unsigned int maxp = usb_endpoint_maxp(ep->desc);
+				unsigned int total = is_sg ? sg_total : length;
 
-				if (length <= (2 * maxp))
+				if (total <= (2 * maxp))
 					mult--;
 
-				if (length <= maxp)
+				if (total <= maxp)
 					mult--;
+
+				mult = 2;
 
 				trb->size |= DWC3_TRB_SIZE_PCM1(mult);
 			}
@@ -1112,6 +1116,8 @@ static void dwc3_prepare_one_trb(struct dwc3_ep *dep,
 	unsigned int		short_not_ok = req->request.short_not_ok;
 	unsigned int		no_interrupt = req->request.no_interrupt;
 	unsigned int		is_last = req->request.is_last;
+	unsigned int		sg_total = req->request.length;
+	bool			is_sg = req->request.num_sgs ? true : false;
 
 	if (use_bounce_buffer)
 		dma = dep->dwc->bounce_addr;
@@ -1132,7 +1138,7 @@ static void dwc3_prepare_one_trb(struct dwc3_ep *dep,
 
 	__dwc3_prepare_one_trb(dep, trb, dma, trb_length, chain, node,
 			stream_id, short_not_ok, no_interrupt, is_last,
-			must_interrupt);
+			must_interrupt, is_sg, sg_total);
 }
 
 static bool dwc3_needs_extra_trb(struct dwc3_ep *dep, struct dwc3_request *req)
