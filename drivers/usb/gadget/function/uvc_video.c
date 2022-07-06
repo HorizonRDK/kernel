@@ -394,6 +394,7 @@ static void uvcg_video_pump(struct work_struct *work)
 {
 	struct uvc_video *video = container_of(work, struct uvc_video, pump);
 	struct uvc_video_queue *queue = &video->queue;
+	struct usb_composite_dev *cdev = video->uvc->func.config->cdev;
 	struct usb_request *req = NULL;
 	struct uvc_buffer *buf;
 	unsigned long flags;
@@ -428,7 +429,8 @@ static void uvcg_video_pump(struct work_struct *work)
 		/* Isoc Only: With usb3 we have more requests. This will decrease the
 		 * interrupt load to a quarter but also catches the corner
 		 * cases, which needs to be handled */
-		if (usb_endpoint_xfer_isoc(video->ep->desc)) {
+		if (usb_endpoint_xfer_isoc(video->ep->desc) &&
+				cdev->gadget->speed >= USB_SPEED_SUPER) {
 			if (list_empty(&video->req_free) ||
 			    buf->state == UVC_BUF_STATE_DONE ||
 			    !(video->req_int_count %
@@ -452,7 +454,8 @@ static void uvcg_video_pump(struct work_struct *work)
 			break;
 		}
 
-		if (usb_endpoint_xfer_isoc(video->ep->desc))
+		if (usb_endpoint_xfer_isoc(video->ep->desc) &&
+				cdev->gadget->speed >= USB_SPEED_SUPER)
 			video->req_int_count++;
 	}
 
