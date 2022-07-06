@@ -85,7 +85,8 @@ enum sif_frame_state {
 
 /*recover buff state*/
 enum sif_hwidx_process_state {
-	SIF_OWNERBIT_RELEASE = 1,
+	SIF_WDMA_DISABLE = 1,
+	SIF_OWNERBIT_RELEASE,
 	SIF_RECOVER_BUFF,
 };
 

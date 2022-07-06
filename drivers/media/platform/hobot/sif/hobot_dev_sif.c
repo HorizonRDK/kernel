@@ -3617,6 +3617,7 @@ static void sif_overflow_handle(struct x3_sif_dev *sif, u32 mux_index,
 			}
 			atomic_inc_return(&sif->wdma_used_cnt);
 			subdev->arbit_dead = 1;
+			subdev->frame_drop = SIF_WDMA_DISABLE;
 	}
 	vio_info("instance %d mux_index %d ovflow_cnt %d sif->wdma_used_cnt %d\n",
 		group->instance, mux_index, sif->ovflow_cnt,
