@@ -1449,9 +1449,8 @@ int32_t acamera_interrupt_handler()
 {
     int32_t result = 0;
     uint32_t irq_mask, sif_exit_flag;
-    unsigned long irq_interval;
 	struct vio_frame_id frmid;
-    static struct timeval tv1, tv2;
+    static unsigned long fs_jiffies = 0;
     int32_t irq_bit = ISP_INTERRUPT_EVENT_NONES_COUNT - 1;
     acamera_context_ptr_t p_ctx = (acamera_context_ptr_t)&g_firmware.fw_ctx[cur_ctx_id];
 
@@ -1503,17 +1502,8 @@ int32_t acamera_interrupt_handler()
     //isp irq jitter handler - step2
     if (p_ctx->p_gfw->sif_isp_offline == 0) {
 
-        do_gettimeofday(&tv2);
-
-        if (tv2.tv_usec > tv1.tv_usec)
-            irq_interval = tv2.tv_usec - tv1.tv_usec;
-        else
-            irq_interval = 1000000 + tv2.tv_usec - tv1.tv_usec;
-
-        pr_debug("irq_mask %x, tv1 %ld, tv2 %ld, irq interval %ld\n", /* PRQA S ALL */
-                irq_mask, tv1.tv_usec, tv2.tv_usec, irq_interval);
-
-        if (irq_interval < MS_10 &&
+        pr_debug("fs jif %lu, cur jif %lu\n", fs_jiffies, jiffies);
+        if (time_is_after_jiffies(fs_jiffies + HZ/100) &&
             (irq_mask & 1 << ISP_INTERRUPT_EVENT_ISP_START_FRAME_START ||
             irq_mask & 1 << ISP_INTERRUPT_EVENT_ISP_END_FRAME_END)) {
 
@@ -1531,7 +1521,7 @@ int32_t acamera_interrupt_handler()
 			p_ctx->tv = frmid.tv;
 			pr_debug("[s%d] frame id %d \n", cur_ctx_id, frmid.frame_id); /* PRQA S ALL */
 		}
-        do_gettimeofday(&tv1);
+        fs_jiffies = jiffies;
 	}
 
 #if IS_ENABLED(CONFIG_HOBOT_DIAG_INJECT)
