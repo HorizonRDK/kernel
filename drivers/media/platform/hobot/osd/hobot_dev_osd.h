@@ -214,7 +214,6 @@ struct osd_subdev {
     atomic_t osd_hw_cnt;
 
     struct list_head input_frame_list;
-    struct list_head work_frame_list;
     spinlock_t frame_slock;
 
     struct kthread_work work;

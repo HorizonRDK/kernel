@@ -33,72 +33,6 @@ extern osd_color_map_t g_osd_color;
 #define OSD_FILL_FFFF 0xffffu
 #define OSD_FILL_FF00 0xff00u
 
-extern int g_osd_fps[VIO_MAX_STREAM][VIO_MAX_STREAM];
-extern int g_osd_idx[VIO_MAX_STREAM][VIO_MAX_STREAM];
-extern long int g_osd_fps_lasttime[VIO_MAX_STREAM][VIO_MAX_STREAM];
-
-void osd_process_workfunc_done(osd_process_info_t *proc_info)
-{
-    struct osd_subdev *subdev = proc_info->subdev;
-    osd_work_frame_t *work_frame;
-    struct ipu_subdev *ipu_subdev;
-    struct pym_subdev *pym_subdev;
-    unsigned long flags;
-    int32_t instance;
-    struct timeval tmp_tv;
-
-    switch (proc_info->proc_type)
-    {
-    case OSD_PROC_VGA4:
-        osd_one_buffer_dec_by_addr(proc_info->src_vga_addr);
-        break;
-    case OSD_PROC_NV12:
-        osd_one_buffer_dec_by_addr(proc_info->src_addr);
-        break;
-    default:
-        break;
-    }
-
-    if (subdev != NULL) {
-        spin_lock_irqsave(&subdev->frame_slock, flags);
-        work_frame = osd_find_work_frame(&subdev->work_frame_list,
-                proc_info->buffer_index);
-        if (work_frame != NULL) {
-            if (atomic_dec_return(&work_frame->process_cnt) == 0) {
-                if (subdev->id == OSD_PYM_OUT) {
-                    pym_subdev = container_of(subdev->osd_info, struct pym_subdev, osd_info);
-                    instance = pym_subdev->group->instance;
-                } else {
-                    ipu_subdev = container_of(subdev->osd_info, struct ipu_subdev, osd_info);
-                    instance = ipu_subdev->group->instance;
-                }
-                do_gettimeofday(&tmp_tv);
-                g_osd_idx[instance][subdev->id]++;
-                if (tmp_tv.tv_sec > g_osd_fps_lasttime[instance][subdev->id]) {
-                    g_osd_fps[instance][subdev->id] =
-                            g_osd_idx[instance][subdev->id];
-                    g_osd_fps_lasttime[instance][subdev->id] =
-                            tmp_tv.tv_sec;
-                    g_osd_idx[instance][subdev->id] = 0;
-                }
-
-                if (subdev->osd_sta.sta_state == OSD_STA_PROCESS) {
-                    subdev->osd_sta.sta_state = OSD_STA_DONE;
-                }
-
-                list_del(&work_frame->node);
-
-                atomic_dec(&subdev->osd_info->frame_count);
-                subdev->osd_info->return_frame(subdev->osd_info, work_frame->frame);
-                kfree(work_frame);
-                work_frame = NULL;
-            }
-        }
-
-        spin_unlock_irqrestore(&subdev->frame_slock, flags);
-    }
-}
-
 /*
  *vga4:     pixel1  pixel0  pixel3  pixel2
  *          |---1byte----|  |---1byte----|
@@ -272,9 +206,8 @@ int32_t osd_process_info_check(osd_process_info_t *proc_info,
     return 0;
 }
 
-void osd_process_vga4_workfunc(struct kthread_work *work)
+void osd_process_vga4_workfunc(osd_process_info_t *proc_info)
 {
-    osd_process_info_t *proc_info = container_of(work, osd_process_info_t, work);
     uint8_t *tar_y_addr, *tar_uv_addr;
     uint8_t *src_y_addr, *src_y_or_addr, *src_uv_addr, *src_uv_or_addr;
     uint32_t offset;
@@ -286,10 +219,8 @@ void osd_process_vga4_workfunc(struct kthread_work *work)
     uint8_t * volatile cache_y_addr;
     uint8_t * volatile cache_uv_addr;
 
-    mutex_lock(&proc_info->proc_mutex);
-
     if (osd_process_info_check(proc_info, &crop_width, &crop_height) < 0) {
-        goto exit;
+        return;
     }
 
     do_gettimeofday(&time_now);
@@ -418,15 +349,10 @@ void osd_process_vga4_workfunc(struct kthread_work *work)
         proc_info->start_x, proc_info->start_y, proc_info->width,
         proc_info->height, src_y_addr, src_y_or_addr, src_uv_addr, src_uv_or_addr,
         cache_y_addr, cache_uv_addr, time_us);
-
-exit:
-    osd_process_workfunc_done(proc_info);
-    mutex_unlock(&proc_info->proc_mutex);
 }
 
-void osd_process_nv12_workfunc(struct kthread_work *work)
+void osd_process_nv12_workfunc(osd_process_info_t *proc_info)
 {
-    osd_process_info_t *proc_info = container_of(work, osd_process_info_t, work);
     uint8_t *tar_y_addr, *tar_uv_addr, *src_y_addr, *src_uv_addr;
     uint32_t offset;
     struct timeval time_now = { 0 };
@@ -437,9 +363,8 @@ void osd_process_nv12_workfunc(struct kthread_work *work)
     uint8_t * volatile cache_y_addr;
     uint8_t * volatile cache_uv_addr;
 
-    mutex_lock(&proc_info->proc_mutex);
     if (osd_process_info_check(proc_info, &crop_width, &crop_height) < 0) {
-        goto exit;
+        return;
     }
 
     do_gettimeofday(&time_now);
@@ -583,15 +508,10 @@ void osd_process_nv12_workfunc(struct kthread_work *work)
         proc_info->start_x, proc_info->start_y, proc_info->width,
         proc_info->height, proc_info->yuv_bg_transparent,
         src_y_addr, src_uv_addr, cache_y_addr, cache_uv_addr, time_us);
-
-exit:
-    osd_process_workfunc_done(proc_info);
-    mutex_unlock(&proc_info->proc_mutex);
 }
 
-void osd_process_rect_workfunc(struct kthread_work *work)
+void osd_process_rect_workfunc(osd_process_info_t *proc_info)
 {
-    osd_process_info_t *proc_info = container_of(work, osd_process_info_t, work);
     uint8_t *tar_y_addr, *tar_uv_addr;
     uint32_t yuv_color;
     uint8_t y_color;
@@ -604,9 +524,8 @@ void osd_process_rect_workfunc(struct kthread_work *work)
     uint8_t * volatile cache_y_addr;
     uint8_t * volatile cache_uv_addr;
 
-    mutex_lock(&proc_info->proc_mutex);
     if (osd_process_info_check(proc_info, &crop_width, &crop_height) < 0) {
-        goto exit;
+        return;
     }
 
     do_gettimeofday(&time_now);
@@ -675,7 +594,6 @@ void osd_process_rect_workfunc(struct kthread_work *work)
           [crop_height]"r"(crop_height),
           [y_color]"r"(y_color),
           [uv_color]"r"(uv_color)
-        //   [invert_en]"r"(proc_info->invert_en)
         : "cc", "memory", "v0", "v1", "x19", "x20", "x21", "x22"    // Clobber List
     );
     kernel_neon_end();
@@ -703,15 +621,10 @@ void osd_process_rect_workfunc(struct kthread_work *work)
         proc_info->start_x, proc_info->start_y, proc_info->width,
         proc_info->height, cache_y_addr, cache_uv_addr, proc_info->fill_color,
         yuv_color, time_us);
-
-exit:
-    osd_process_workfunc_done(proc_info);
-    mutex_unlock(&proc_info->proc_mutex);
 }
 
-void osd_process_polygon_workfunc(struct kthread_work *work)
+void osd_process_polygon_workfunc(osd_process_info_t *proc_info)
 {
-    osd_process_info_t *proc_info = container_of(work, osd_process_info_t, work);
     uint8_t *tar_y_addr, *tar_uv_addr;
     uint16_t temp_index[OSD_NEON_PROC_U16];
     int16_t i = 0;
@@ -726,9 +639,8 @@ void osd_process_polygon_workfunc(struct kthread_work *work)
     uint8_t * volatile cache_y_addr;
     uint8_t * volatile cache_uv_addr;
 
-    mutex_lock(&proc_info->proc_mutex);
     if (osd_process_info_check(proc_info, &crop_width, &crop_height) < 0) {
-        goto exit;
+        return;
     }
 
     do_gettimeofday(&time_now);
@@ -866,15 +778,10 @@ void osd_process_polygon_workfunc(struct kthread_work *work)
         proc_info->start_x, proc_info->start_y, proc_info->width,
         proc_info->height, cache_y_addr, cache_uv_addr, proc_info->polygon_buf,
         proc_info->fill_color, yuv_color, time_us);
-
-exit:
-    osd_process_workfunc_done(proc_info);
-    mutex_unlock(&proc_info->proc_mutex);
 }
 
-void osd_process_mosaic_workfunc(struct kthread_work *work)
+void osd_process_mosaic_workfunc(osd_process_info_t *proc_info)
 {
-    osd_process_info_t *proc_info = container_of(work, osd_process_info_t, work);
     uint8_t *tar_y_addr, *tar_uv_addr;
     struct timeval time_now = { 0 };
     struct timeval time_next = { 0 };
@@ -884,9 +791,8 @@ void osd_process_mosaic_workfunc(struct kthread_work *work)
     uint8_t * volatile cache_y_addr;
     uint8_t * volatile cache_uv_addr;
 
-    mutex_lock(&proc_info->proc_mutex);
     if (osd_process_info_check(proc_info, &crop_width, &crop_height) < 0) {
-        goto exit;
+        return;
     }
 
     do_gettimeofday(&time_now);
@@ -994,15 +900,10 @@ void osd_process_mosaic_workfunc(struct kthread_work *work)
         proc_info->image_width, proc_info->image_height,
         proc_info->start_x, proc_info->start_y, proc_info->width,
         proc_info->height, cache_y_addr, cache_uv_addr, time_us);
-
-exit:
-    osd_process_workfunc_done(proc_info);
-    mutex_unlock(&proc_info->proc_mutex);
 }
 
-void osd_process_sta_workfunc(struct kthread_work *work)
+void osd_process_sta_workfunc(osd_process_info_t *proc_info)
 {
-    osd_process_info_t *proc_info = container_of(work, osd_process_info_t, work);
     uint8_t *y_addr, *y_addr_temp;
     uint32_t h, w;
     struct timeval time_now = { 0 };
@@ -1017,7 +918,7 @@ void osd_process_sta_workfunc(struct kthread_work *work)
     if (proc_info->tar_y_addr == NULL) {
         vio_err("osd process type:%d tar_addr y:%p error\n",
             proc_info->proc_type, proc_info->tar_y_addr);
-        goto exit;
+        return;
     }
 
     if (proc_info->image_height > (proc_info->start_y + proc_info->height)) {
@@ -1070,18 +971,9 @@ void osd_process_sta_workfunc(struct kthread_work *work)
         proc_info->sta_level[2], proc_info->sta_bin_value[0],
         proc_info->sta_bin_value[1], proc_info->sta_bin_value[2],
         proc_info->sta_bin_value[3], time_us);
-
-exit:
-    osd_process_workfunc_done(proc_info);
 }
 
-void osd_process_null_workfunc(struct kthread_work *work)
+void osd_process_null_workfunc(osd_process_info_t *proc_info)
 {
-    osd_process_info_t *proc_info = container_of(work, osd_process_info_t, work);
-
-    mutex_lock(&proc_info->proc_mutex);
     vio_warn("osd process null work, proc_type:%d\n", proc_info->proc_type);
-
-    osd_process_workfunc_done(proc_info);
-    mutex_unlock(&proc_info->proc_mutex);
 }

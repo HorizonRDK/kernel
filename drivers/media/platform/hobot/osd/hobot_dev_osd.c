@@ -144,7 +144,6 @@ static void osd_subdev_clear(struct x3_osd_dev *osd_dev)
     struct osd_subdev *subdev;
     osd_bind_t *bind;
     struct vio_frame *frame;
-    osd_work_frame_t *work_frame;
 	unsigned long flags;
 
     for (i = 0; i < VIO_MAX_STREAM; i++) {
@@ -202,13 +201,9 @@ static void osd_subdev_clear(struct x3_osd_dev *osd_dev)
                 frame = osd_get_input_frame(&subdev->input_frame_list);
                 subdev->osd_info->return_frame(subdev->osd_info, frame);
             }
-            while (!list_empty(&subdev->work_frame_list)) {
-                work_frame = osd_get_work_frame(&subdev->work_frame_list, -1);
-                subdev->osd_info->return_frame(subdev->osd_info, work_frame->frame);
-                kfree(work_frame);
-                work_frame = NULL;
-            }
             spin_unlock_irqrestore(&subdev->frame_slock, flags);
+
+            g_osd_fps[i][j] = 0;
         }
     }
 }
@@ -260,30 +255,30 @@ exit:
     return ret;
 }
 
-static void osd_set_process_workfunc(osd_process_info_t *process_info)
+static void osd_run_process(osd_process_info_t *process_info)
 {
     switch (process_info->proc_type)
     {
     case OSD_PROC_VGA4:
-        kthread_init_work(&process_info->work, osd_process_vga4_workfunc);
+        osd_process_vga4_workfunc(process_info);
         break;
     case OSD_PROC_NV12:
-        kthread_init_work(&process_info->work, osd_process_nv12_workfunc);
+        osd_process_nv12_workfunc(process_info);
         break;
     case OSD_PROC_RECT:
-        kthread_init_work(&process_info->work, osd_process_rect_workfunc);
+        osd_process_rect_workfunc(process_info);
         break;
     case OSD_PROC_POLYGON:
-        kthread_init_work(&process_info->work, osd_process_polygon_workfunc);
+        osd_process_polygon_workfunc(process_info);
         break;
     case OSD_PROC_MOSAIC:
-        kthread_init_work(&process_info->work, osd_process_mosaic_workfunc);
+        osd_process_mosaic_workfunc(process_info);
         break;
     case OSD_PROC_STA:
-        kthread_init_work(&process_info->work, osd_process_sta_workfunc);
+        osd_process_sta_workfunc(process_info);
         break;
     default:
-        kthread_init_work(&process_info->work, osd_process_null_workfunc);
+        osd_process_null_workfunc(process_info);
         break;
     }
 }
@@ -310,9 +305,9 @@ static void osd_frame_process(struct vio_osd_info *osd_info, struct vio_frame *f
     }
     osd_subdev = &osd_dev->subdev[instance][osd_info->id];
     if (osd_dev->task_state >= OSD_TASK_REQUEST_STOP) {
+        vio_dbg("osd task request stop, exit\n");
         goto exit;
     }
-    vio_dbg("[S%d][V%d] start osd sw process\n", instance, osd_subdev->id);
 
     if (frame == NULL) {
         framemgr_e_barrier_irqs(framemgr, 0UL, flags);
@@ -325,10 +320,6 @@ static void osd_frame_process(struct vio_osd_info *osd_info, struct vio_frame *f
         framemgr->queued_count[frame->state]--;
     }
     if (frame != NULL) {
-        if (osd_dev->task_state >= OSD_TASK_REQUEST_STOP) {
-            osd_subdev->osd_info->return_frame(osd_subdev->osd_info, frame);
-        }
-
         spin_lock_irqsave(&osd_subdev->frame_slock, flags);
         osd_put_input_frame(&osd_subdev->input_frame_list, frame);
         spin_unlock_irqrestore(&osd_subdev->frame_slock, flags);
@@ -477,7 +468,7 @@ static void osd_hw_set_roi_addr_config(struct osd_subdev *subdev)
             osd_hw_cfg->osd_buf[hw_cnt] = (uint32_t)bind->proc_info.src_paddr;
             osd_one_buffer_inc_by_paddr(osd_hw_cfg->osd_buf[hw_cnt]);
             vio_dbg("[V%d][%d]osd hw set osd_en:%d mode:%d "
-                "x:%d y:%d w:%d h:%d paddr:%d \n",
+                "x:%d y:%d w:%d h:%d paddr:0x%x \n",
                 subdev->id, hw_cnt, osd_hw_cfg->osd_box[hw_cnt].osd_en,
                 osd_hw_cfg->osd_box[hw_cnt].overlay_mode,
                 osd_hw_cfg->osd_box[hw_cnt].start_x,
@@ -687,6 +678,21 @@ static void osd_process_addr_inc(osd_process_info_t *proc_info)
     }
 }
 
+static void osd_process_addr_dec(osd_process_info_t *proc_info)
+{
+    switch (proc_info->proc_type)
+    {
+    case OSD_PROC_VGA4:
+        osd_one_buffer_dec_by_addr(proc_info->src_vga_addr);
+        break;
+    case OSD_PROC_NV12:
+        osd_one_buffer_dec_by_addr(proc_info->src_addr);
+        break;
+    default:
+        break;
+    }
+}
+
 static void osd_set_process_info_workfunc(struct kthread_work *work)
 {
     int32_t i, j;
@@ -701,14 +707,14 @@ static void osd_set_process_info_workfunc(struct kthread_work *work)
     for (i = 0; i < VIO_MAX_STREAM; i++) {
         for (j = 0; j < OSD_CHN_MAX; j++) {
             subdev = &osd_dev->subdev[i][j];
+            if (g_osd_color.color_map_update == 1) {
+                osd_hw_set_color_map(subdev);
+                g_osd_color.color_map_update = 0;
+            }
             mutex_lock(&subdev->bind_mutex);
             list_for_each_entry_safe(bind, temp, &subdev->bind_list, node) {
                 mutex_lock(&bind->proc_info.proc_mutex);
                 handle_id = bind->bind_info.handle_id;
-                if (g_osd_color.color_map_update == 1) {
-                    osd_hw_set_color_map(subdev);
-                    g_osd_color.color_map_update = 0;
-                }
                 mutex_lock(&osd_dev->osd_list_mutex);
                 handle = osd_find_handle_node(osd_dev, handle_id);
                 if (handle == NULL) {
@@ -737,6 +743,38 @@ static void osd_set_process_info_workfunc(struct kthread_work *work)
     }
 }
 
+static void osd_process_workfunc_done(struct osd_subdev *subdev)
+{
+    struct ipu_subdev *ipu_subdev;
+    struct pym_subdev *pym_subdev;
+    struct x3_osd_dev *osd_dev;
+    int32_t instance;
+    struct timeval tmp_tv;
+
+    osd_dev = subdev->osd_dev;
+    if (subdev->id == OSD_PYM_OUT) {
+        pym_subdev = container_of(subdev->osd_info, struct pym_subdev, osd_info);
+        instance = pym_subdev->group->instance;
+    } else {
+        ipu_subdev = container_of(subdev->osd_info, struct ipu_subdev, osd_info);
+        instance = ipu_subdev->group->instance;
+    }
+    do_gettimeofday(&tmp_tv);
+    g_osd_idx[instance][subdev->id]++;
+    if (tmp_tv.tv_sec > g_osd_fps_lasttime[instance][subdev->id]) {
+        g_osd_fps[instance][subdev->id] =
+                g_osd_idx[instance][subdev->id];
+        g_osd_fps_lasttime[instance][subdev->id] =
+                tmp_tv.tv_sec;
+        g_osd_idx[instance][subdev->id] = 0;
+    }
+
+    if (atomic_dec_return(&subdev->osd_info->frame_count) > 0) {
+        kthread_queue_work(&osd_dev->worker, &subdev->work);
+    }
+    vio_dbg("[S%d][V%d] %s\n", instance, subdev->id, __func__);
+}
+
 static void osd_frame_process_workfunc(struct kthread_work *work)
 {
     int32_t i;
@@ -744,15 +782,20 @@ static void osd_frame_process_workfunc(struct kthread_work *work)
     struct osd_subdev *subdev;
     struct x3_osd_dev *osd_dev;
     struct pym_subdev *pym_subdev = NULL;
+    struct ipu_subdev *ipu_subdev = NULL;
     struct mp_vio_frame *frame;
     osd_process_info_t *process_info;
-    osd_work_frame_t *work_frame = NULL;
 	unsigned long flags;
+    int32_t instance;
 
     subdev = container_of(work, struct osd_subdev, work);
     osd_dev = subdev->osd_dev;
     if (subdev->id == OSD_PYM_OUT) {
         pym_subdev = container_of(subdev->osd_info, struct pym_subdev, osd_info);
+        instance = pym_subdev->group->instance;
+    } else {
+        ipu_subdev = container_of(subdev->osd_info, struct ipu_subdev, osd_info);
+        instance = ipu_subdev->group->instance;
     }
 
     spin_lock_irqsave(&subdev->frame_slock, flags);
@@ -762,20 +805,20 @@ static void osd_frame_process_workfunc(struct kthread_work *work)
         vio_err("osd input frame was null!\n");
         goto exit;
     }
-
-    work_frame = kzalloc(sizeof(osd_work_frame_t), GFP_ATOMIC);
-    if (work_frame == NULL) {
-        vio_err("osd kzalloc failed\n");
-        goto exit;
-    }
-    atomic_set(&work_frame->process_cnt, 0);
-    work_frame->frame = (struct vio_frame *)frame;
-    work_frame->buf_index = frame->common_frame.frameinfo.bufferindex;
+    vio_dbg("[S%d][V%d] %s, frame:%d index:%d\n",
+        instance, subdev->id, __func__,
+        frame->common_frame.frameinfo.frame_id,
+        frame->common_frame.frameinfo.bufferindex);
 
     mutex_lock(&subdev->sta_mutex);
     if (subdev->osd_sta.sta_state == OSD_STA_REQUEST) {
         if (subdev->id >= OSD_IPU_DS2) {
+            subdev->osd_sta.sta_state = OSD_STA_PROCESS;
             for (i = 0; i < MAX_STA_NUM; i++) {
+                if (osd_dev->task_state >= OSD_TASK_REQUEST_STOP) {
+                    vio_dbg("osd task request stop, exit\n");
+                    break;
+                }
                 if (subdev->osd_sta.sta_box[i].sta_en) {
                     // it means sw process sta
                     process_info = &subdev->osd_sta.sta_proc[i];
@@ -798,28 +841,28 @@ static void osd_frame_process_workfunc(struct kthread_work *work)
                         process_info->tar_uv_addr = __va(frame->common_frame.frameinfo.addr[1]);
                     }
                     process_info->proc_type = OSD_PROC_STA;
-                    osd_set_process_workfunc(process_info);
 
-                    kthread_queue_work(&osd_dev->worker, &process_info->work);
-                    atomic_inc(&work_frame->process_cnt);
+                    osd_run_process(process_info);
                 }
             }
+            subdev->osd_sta.sta_state = OSD_STA_DONE;
         }
         memset(subdev->osd_sta.sta_box, 0, MAX_STA_NUM * sizeof(osd_sta_box_t));
-        subdev->osd_sta.sta_state = OSD_STA_PROCESS;
     }
     mutex_unlock(&subdev->sta_mutex);
 
     mutex_lock(&subdev->bind_mutex);
     for (i = 0; i < OSD_LEVEL_NUM; i++) {
+        if (osd_dev->task_state >= OSD_TASK_REQUEST_STOP) {
+            vio_dbg("osd task request stop, exit\n");
+            break;
+        }
         list_for_each_entry_safe(bind, temp, &subdev->bind_list, node) {
             mutex_lock(&bind->proc_info.proc_mutex);
             if ((bind->proc_info.show_en == 0) || (bind->proc_info.osd_level != i)) {
                 mutex_unlock(&bind->proc_info.proc_mutex);
                 continue;
             }
-
-            osd_process_addr_inc(&bind->proc_info);
 
             bind->proc_info.frame_id = frame->common_frame.frameinfo.frame_id;
             bind->proc_info.buffer_index = frame->common_frame.frameinfo.bufferindex;
@@ -833,8 +876,9 @@ static void osd_frame_process_workfunc(struct kthread_work *work)
             }
 
             if (bind->proc_info.proc_type != OSD_PROC_HW_VGA4) {
-                kthread_queue_work(&osd_dev->worker, &bind->proc_info.work);
-                atomic_inc(&work_frame->process_cnt);
+                osd_process_addr_inc(&bind->proc_info);
+                osd_run_process(&bind->proc_info);
+                osd_process_addr_dec(&bind->proc_info);
             }
             mutex_unlock(&bind->proc_info.proc_mutex);
         }
@@ -842,22 +886,10 @@ static void osd_frame_process_workfunc(struct kthread_work *work)
 
     mutex_unlock(&subdev->bind_mutex);
 
+    osd_process_workfunc_done(subdev);
+
 exit:
-    if ((work_frame == NULL) ||
-        ((work_frame != NULL) && (atomic_read(&work_frame->process_cnt) == 0))) {
-        if (frame != NULL) {
-            subdev->osd_info->return_frame(subdev->osd_info, (struct vio_frame*)frame);
-        }
-        if (work_frame != NULL) {
-            kfree(work_frame);
-            work_frame = NULL;
-        }
-        vio_err("[V%d] osd process count was 0\n", subdev->id);
-    } else {
-        spin_lock_irqsave(&subdev->frame_slock, flags);
-        osd_put_work_frame(&subdev->work_frame_list, work_frame);
-        spin_unlock_irqrestore(&subdev->frame_slock, flags);
-    }
+    subdev->osd_info->return_frame(subdev->osd_info, (struct vio_frame *)frame);
 }
 
 static void handle_update_buffer(osd_handle_t *handle, int32_t index)
@@ -878,7 +910,7 @@ static void handle_update_buffer(osd_handle_t *handle, int32_t index)
             if (handle->buffer.vga_buf[i].state != OSD_BUF_NULL) {
                 handle->buffer.vga_buf[i].state = OSD_BUF_PROCESS;
             }
-            vio_dbg("[H%d] update buffer index:%d paddr:%lld vaddr:%p\n",
+            vio_dbg("[H%d] update buffer index:%d paddr:0x%llx vaddr:%p\n",
                 handle->info.handle_id, i, handle->buffer.buf[i].paddr,
                 handle->buffer.buf[i].vaddr);
         }
@@ -1034,6 +1066,9 @@ static int osd_destroy_handle(struct osd_video_ctx *osd_ctx, unsigned long arg)
         ret = -EFAULT;
         goto exit;
     }
+
+    // ensure update hw paddr work is done and osd_buffer_destroy can get newest buffer count
+    kthread_flush_work(&osd_dev->work);
 
     mutex_lock(&osd_dev->osd_list_mutex);
     handle = osd_find_handle_node(osd_dev, id);
@@ -1428,6 +1463,7 @@ static int osd_attach(struct osd_video_ctx *osd_ctx, unsigned long arg)
     if (bind->proc_info.proc_type == OSD_PROC_VGA4) {
         bind->proc_info.proc_type = osd_hw_check_limit(subdev, handle, bind);
     }
+    bind->proc_info.subdev = subdev;
     mutex_unlock(&bind->proc_info.proc_mutex);
 
     if (bind->proc_info.proc_type == OSD_PROC_VGA4) {
@@ -1465,10 +1501,6 @@ static int osd_attach(struct osd_video_ctx *osd_ctx, unsigned long arg)
         // hw level: 0, sw level: 1-3
         bind->bind_info.osd_level = 1;
     }
-    mutex_lock(&bind->proc_info.proc_mutex);
-    osd_set_process_workfunc(&bind->proc_info);
-    bind->proc_info.subdev = subdev;
-    mutex_unlock(&bind->proc_info.proc_mutex);
     atomic_set(&bind->need_update, 1);
 
     list_add_tail(&bind->node, &subdev->bind_list);
@@ -1540,7 +1572,6 @@ static int osd_detach(struct osd_video_ctx *osd_ctx, unsigned long arg)
         }
         osd_sw_set_process_flag(subdev);
         mutex_unlock(&subdev->bind_mutex);
-        kthread_flush_work(&bind->proc_info.work);
 
         mutex_lock(&osd_dev->osd_list_mutex);
         handle = osd_find_handle_node(osd_dev, bind_info.handle_id);
@@ -1633,6 +1664,7 @@ static int osd_set_bind_attr(struct osd_video_ctx *osd_ctx, unsigned long arg)
         goto exit;
     }
 
+    osd_print_bind_info(&bind_info);
     osd_dev = osd_ctx->osd_dev;
     subdev = &osd_dev->subdev[bind_info.instance][bind_info.chn];
 
@@ -1707,7 +1739,6 @@ static int osd_set_bind_attr(struct osd_video_ctx *osd_ctx, unsigned long arg)
 
         mutex_lock(&bind->proc_info.proc_mutex);
         bind->proc_info.proc_type = OSD_PROC_VGA4;
-        osd_set_process_workfunc(&bind->proc_info);
         mutex_unlock(&bind->proc_info.proc_mutex);
         atomic_set(&handle->need_update, 1);
         atomic_set(&subdev->osd_hw_need_update, 1);
@@ -1715,7 +1746,6 @@ static int osd_set_bind_attr(struct osd_video_ctx *osd_ctx, unsigned long arg)
     }
     mutex_unlock(&osd_dev->osd_list_mutex);
     if (bind->bind_info.polygon_buf != NULL) {
-        kthread_flush_work(&bind->proc_info.work);
         kfree(bind->bind_info.polygon_buf);
     }
     if ((bind->proc_info.proc_type != OSD_PROC_HW_VGA4) &&
@@ -1862,7 +1892,7 @@ static int osd_get_sta_bin_value(struct osd_video_ctx *osd_ctx, unsigned long ar
             // it means hw process sta
             osd_hw_get_sta_bin(subdev);
         } else {
-            kthread_flush_work(&subdev->osd_sta.sta_proc[enable_index].work);
+            kthread_flush_work(&subdev->work);
         }
         if ((subdev->osd_sta.sta_value[enable_index][0] != 0) ||
             (subdev->osd_sta.sta_value[enable_index][1] != 0) ||
@@ -1951,7 +1981,6 @@ static int osd_proc_buf(struct osd_video_ctx *osd_ctx, unsigned long arg)
 
     osd_dev = osd_ctx->osd_dev;
 
-    // ret = get_user(handle, (int32_t __user *) arg);
     ret = (int32_t)copy_from_user((void *) &proc_buf, (void __user *) arg,
         sizeof(osd_proc_buf_info_t));
     if (ret) {
@@ -1961,7 +1990,6 @@ static int osd_proc_buf(struct osd_video_ctx *osd_ctx, unsigned long arg)
     }
 
     proc_info.proc_type = proc_buf.proc_type;
-    osd_set_process_workfunc(&proc_info);
     switch (proc_buf.proc_type)
     {
     case OSD_PROC_NV12:
@@ -2039,10 +2067,10 @@ static int osd_proc_buf(struct osd_video_ctx *osd_ctx, unsigned long arg)
     proc_info.tar_y_addr = __va(proc_buf.y_paddr);
     proc_info.tar_uv_addr = __va(proc_buf.uv_paddr);
     proc_info.subdev = NULL;
-    osd_process_addr_inc(&proc_info);
 
-    kthread_queue_work(&osd_dev->worker, &proc_info.work);
-    kthread_flush_work(&proc_info.work);
+    osd_process_addr_inc(&proc_info);
+    osd_run_process(&proc_info);
+    osd_process_addr_dec(&proc_info);
 
     ion_dcache_invalid(proc_buf.y_paddr,
         proc_buf.image_width * proc_buf.image_height);
@@ -2268,7 +2296,7 @@ static ssize_t osd_handle_show(struct device *dev,
         offset += len;
         if (handle->buffer.buf[0].state != OSD_BUF_NULL) {
             len = snprintf(&buf[offset], PAGE_SIZE - offset,
-                "    buf[0]: state:%d pixel format:%d length:%ld paddr:%lld "
+                "    buf[0]: state:%d pixel format:%d length:%ld paddr:0x%llx "
                 "vaddr:%p ref_count:%d \n",
                 handle->buffer.buf[0].state, handle->buffer.buf[0].pixel_fmt,
                 handle->buffer.buf[0].length,
@@ -2278,7 +2306,7 @@ static ssize_t osd_handle_show(struct device *dev,
         }
         if (handle->buffer.buf[1].state != OSD_BUF_NULL) {
             len = snprintf(&buf[offset], PAGE_SIZE - offset,
-                "    buf[1]: state:%d pixel format:%d length:%ld paddr:%lld "
+                "    buf[1]: state:%d pixel format:%d length:%ld paddr:0x%llx "
                 "vaddr:%p ref_count:%d \n",
                 handle->buffer.buf[1].state, handle->buffer.buf[1].pixel_fmt,
                 handle->buffer.buf[1].length,
@@ -2288,7 +2316,7 @@ static ssize_t osd_handle_show(struct device *dev,
         }
         if (handle->buffer.vga_buf[0].state != OSD_BUF_NULL) {
             len = snprintf(&buf[offset], PAGE_SIZE - offset,
-                "    vga_buf[0]: state:%d pixel format:%d length:%ld paddr:%lld "
+                "    vga_buf[0]: state:%d pixel format:%d length:%ld paddr:0x%llx "
                 "vaddr:%p ref_count:%d \n",
                 handle->buffer.vga_buf[0].state, handle->buffer.vga_buf[0].pixel_fmt,
                 handle->buffer.vga_buf[0].length,
@@ -2298,7 +2326,7 @@ static ssize_t osd_handle_show(struct device *dev,
         }
         if (handle->buffer.vga_buf[1].state != OSD_BUF_NULL) {
             len = snprintf(&buf[offset], PAGE_SIZE - offset,
-                "    vga_buf[1]: state:%d pixel format:%d length:%ld paddr:%lld "
+                "    vga_buf[1]: state:%d pixel format:%d length:%ld paddr:0x%llx "
                 "vaddr:%p ref_count:%d \n",
                 handle->buffer.vga_buf[1].state, handle->buffer.vga_buf[1].pixel_fmt,
                 handle->buffer.vga_buf[1].length,
@@ -2393,14 +2421,17 @@ static ssize_t osd_bind_show(struct device *dev,
                         continue;
                     }
                     len = snprintf(&buf[offset], PAGE_SIZE - offset,
-                        "[S%d][V%d][%d]: hw en:%d mode:%d start:(%d, %d) size:(%d, %d)\n",
-                        bind->bind_info.instance, bind->bind_info.chn, m,
+                        "[V%d][%d]: hw en:%d mode:%d start:(%d, %d) size:(%d, %d)\n",
+                        subdev->id, m,
                         subdev->osd_hw_cfg->osd_box[m].osd_en,
                         subdev->osd_hw_cfg->osd_box[m].overlay_mode,
                         subdev->osd_hw_cfg->osd_box[m].start_x,
                         subdev->osd_hw_cfg->osd_box[m].start_y,
                         subdev->osd_hw_cfg->osd_box[m].width,
                         subdev->osd_hw_cfg->osd_box[m].height);
+                    offset += len;
+                    len = snprintf(&buf[offset], PAGE_SIZE - offset,
+                        "******************\n");
                     offset += len;
                 }
                 spin_unlock(&subdev->osd_hw_cfg->osd_cfg_slock);
@@ -2455,7 +2486,6 @@ void x3_osd_subdev_init(struct x3_osd_dev *osd)
             }
             INIT_LIST_HEAD(&subdev->bind_list);
             INIT_LIST_HEAD(&subdev->input_frame_list);
-            INIT_LIST_HEAD(&subdev->work_frame_list);
             mutex_init(&subdev->bind_mutex);
             mutex_init(&subdev->sta_mutex);
             spin_lock_init(&subdev->frame_slock);

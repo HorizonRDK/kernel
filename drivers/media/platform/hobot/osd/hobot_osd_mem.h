@@ -52,15 +52,6 @@ typedef struct osd_buffer_s {
     osd_one_buffer_t vga_buf[OSD_PING_PONG_BUF];
 } osd_buffer_t;
 
-typedef struct osd_work_frame_s {
-    struct list_head node;
-
-    struct vio_frame *frame;
-
-    int32_t buf_index;
-    atomic_t process_cnt;
-} osd_work_frame_t;
-
 void osd_one_buffer_inc(osd_one_buffer_t *one_buffer);
 void osd_one_buffer_inc_by_addr(uint8_t *vaddr);
 void osd_one_buffer_inc_by_paddr(uint64_t paddr);
@@ -80,8 +71,5 @@ void osd_buffer_flush(osd_buffer_t *osd_buffer);
 struct vio_frame *osd_get_frame(struct list_head *list, int32_t frame_index);
 void osd_put_input_frame(struct list_head *list, struct vio_frame *frame);
 struct vio_frame *osd_get_input_frame(struct list_head *list);
-void osd_put_work_frame(struct list_head *list, osd_work_frame_t *work_frame);
-osd_work_frame_t *osd_find_work_frame(struct list_head *list, int32_t frame_index);
-osd_work_frame_t *osd_get_work_frame(struct list_head *list, int32_t frame_index);
 
 #endif // __HOBOT_OSD_MEM_H__

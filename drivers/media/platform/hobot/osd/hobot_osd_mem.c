@@ -41,7 +41,7 @@ int32_t osd_ion_alloc(struct ion_client *client, osd_one_buffer_t *buf)
         goto EXIT;
     }
 
-    vio_dbg("osd alloc buffer paddr:%lld vaddr:%p length:%ld\n",
+    vio_dbg("osd alloc buffer paddr:0x%llx vaddr:%p length:%ld\n",
         buf->paddr, buf->vaddr, buf->length);
 
     return 0;
@@ -131,7 +131,7 @@ int32_t osd_one_buffer_create(struct ion_client *client, osd_one_buffer_t *buf)
     list_add_tail(&buf->node, &s_osd_buf_list);
     spin_unlock(&s_osd_buf_slock);
 
-    vio_dbg("osd create buffer format:%d, paddr:%lld addr:%p length:%ld\n",
+    vio_dbg("osd create buffer format:%d, paddr:0x%llx addr:%p length:%ld\n",
         buf->pixel_fmt, buf->paddr, buf->vaddr, buf->length);
 
     return 0;
@@ -148,7 +148,7 @@ void osd_one_buffer_destroy(struct ion_client *client, osd_one_buffer_t *buf)
         }
         msleep(10);
         if (i == 30 - 1) {
-            vio_err("osd one buffer paddr:%lld desroyed, but ref count is %d\n",
+            vio_err("osd one buffer paddr:0x%llx desroyed, but ref count is %d\n",
                 buf->paddr, atomic_read(&buf->ref_count));
         }
     }
@@ -157,7 +157,7 @@ void osd_one_buffer_destroy(struct ion_client *client, osd_one_buffer_t *buf)
     spin_unlock(&s_osd_buf_slock);
 
     if (buf->ion_handle != NULL) {
-        vio_dbg("osd destroy buffer format:%d, paddr:%lld addr:%p length:%ld\n",
+        vio_dbg("osd destroy buffer format:%d, paddr:0x%llx addr:%p length:%ld\n",
             buf->pixel_fmt, buf->paddr, buf->vaddr, buf->length);
         ion_free(client, buf->ion_handle);
         buf->ion_handle = NULL;
@@ -327,42 +327,4 @@ struct vio_frame *osd_get_input_frame(struct list_head *list)
     list_del(&frame->list);
 
     return frame;
-}
-
-void osd_put_work_frame(struct list_head *list, osd_work_frame_t *work_frame)
-{
-	list_add_tail(&work_frame->node, list);
-}
-
-osd_work_frame_t *osd_find_work_frame(struct list_head *list, int32_t frame_index)
-{
-    osd_work_frame_t *work_frame, *temp;
-
-    list_for_each_entry_safe(work_frame, temp, list, node) {
-		if (work_frame->buf_index == frame_index) {
-			return work_frame;
-        }
-	}
-
-	return NULL;
-}
-
-osd_work_frame_t *osd_get_work_frame(struct list_head *list, int32_t frame_index)
-{
-    osd_work_frame_t *work_frame, *temp;
-
-    if (frame_index >= 0) {
-        list_for_each_entry_safe(work_frame, temp, list, node) {
-            if (work_frame->buf_index == frame_index) {
-                list_del(&work_frame->node);
-                return work_frame;
-            }
-        }
-    } else {
-        work_frame = list_first_entry(list, osd_work_frame_t, node);
-        list_del(&work_frame->node);
-        return work_frame;
-    }
-
-	return NULL;
 }

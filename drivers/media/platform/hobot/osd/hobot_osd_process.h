@@ -55,19 +55,17 @@ typedef struct osd_process_info_s {
 
     struct mutex proc_mutex;
     struct osd_subdev *subdev;
-    struct kthread_work work;
 } osd_process_info_t;
 
 int32_t osd_vga4_to_sw(uint32_t *color_map, uint8_t *src_addr,
     uint8_t *tar_addr, uint32_t width, uint32_t height);
 int32_t osd_polygon_analyse(osd_polygon_t *polygon, osd_size_t *size);
-void osd_process_workfunc_done(osd_process_info_t *proc_info);
-void osd_process_vga4_workfunc(struct kthread_work *work);
-void osd_process_nv12_workfunc(struct kthread_work *work);
-void osd_process_rect_workfunc(struct kthread_work *work);
-void osd_process_polygon_workfunc(struct kthread_work *work);
-void osd_process_mosaic_workfunc(struct kthread_work *work);
-void osd_process_sta_workfunc(struct kthread_work *work);
-void osd_process_null_workfunc(struct kthread_work *work);
+void osd_process_vga4_workfunc(osd_process_info_t *proc_info);
+void osd_process_nv12_workfunc(osd_process_info_t *proc_info);
+void osd_process_rect_workfunc(osd_process_info_t *proc_info);
+void osd_process_polygon_workfunc(osd_process_info_t *proc_info);
+void osd_process_mosaic_workfunc(osd_process_info_t *proc_info);
+void osd_process_sta_workfunc(osd_process_info_t *proc_info);
+void osd_process_null_workfunc(osd_process_info_t *proc_info);
 
 #endif // __HOBOT_OSD_PROCESS_H__
