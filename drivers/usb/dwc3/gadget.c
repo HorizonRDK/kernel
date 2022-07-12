@@ -1038,8 +1038,6 @@ static void __dwc3_prepare_one_trb(struct dwc3_ep *dep, struct dwc3_trb *trb,
 				if (total <= maxp)
 					mult--;
 
-				mult = 2;
-
 				trb->size |= DWC3_TRB_SIZE_PCM1(mult);
 			}
 		} else {
