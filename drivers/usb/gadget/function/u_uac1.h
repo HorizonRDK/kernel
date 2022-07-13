@@ -21,8 +21,8 @@
 #define UAC1_DEF_REQ_NUM	2
 #define UAC1_DEF_INT_REQ_NUM	10
 
-#define UAC1_DEF_MUTE_PRESENT	1
-#define UAC1_DEF_VOLUME_PRESENT 1
+#define UAC1_DEF_MUTE_PRESENT	0
+#define UAC1_DEF_VOLUME_PRESENT 0
 #define UAC1_DEF_MIN_DB		(-100*256)	/* -100 dB */
 #define UAC1_DEF_MAX_DB		0		/* 0 dB */
 #define UAC1_DEF_RES_DB		(1*256)	/* 1 dB */
