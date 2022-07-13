@@ -89,6 +89,4 @@ struct f_uvc_opts {
 	int				refcnt;
 };
 
-void uvc_set_trace_param(unsigned int trace);
-
 #endif /* U_UVC_H */
