@@ -155,7 +155,6 @@ void ae_initialize( AE_fsm_ptr_t p_fsm )
 }
 
 extern int time_takes_check;
-uint32_t lumvar[512] = {0};
 void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
 {
     int i;
@@ -298,8 +297,7 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
     // read lumvar
     if (p_ctx->isp_lumvar_stats_on || p_ctx->antiflicker_enable) {
         for ( i = 0; i < 512; i++ ) {
-            lumvar[i] = acamera_lumvar_stats_mem_array_data_read(p_fsm->cmn.isp_base, i);
-            LOG(LOG_DEBUG, "lumvar: %u. data %d \n", i, lumvar[i]);
+            p_fsm->lumvar[i] = acamera_lumvar_stats_mem_array_data_read(p_fsm->cmn.isp_base, i);
         }
     }
 
@@ -314,8 +312,8 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
                 cn->ctx.frame_id = frmid.frame_id;
                 cn->ctx.timestamps = frmid.timestamps;
 				if(p_ctx->isp_lumvar_stats_on != 0) {
-					memcpy(cn->base, lumvar, sizeof(lumvar));
-					cn->ctx.crc16 = crc16(~0, cn->base, sizeof(lumvar));
+					memcpy(cn->base, p_fsm->lumvar, sizeof(p_fsm->lumvar));
+					cn->ctx.crc16 = crc16(~0, cn->base, sizeof(p_fsm->lumvar));
 				}
                 isp_ctx_put_node(fw_id, cn, ISP_LUMVAR, DONEQ);
 
@@ -350,12 +348,6 @@ void ae_read_full_histogram_data( AE_fsm_ptr_t p_fsm )
     }
 
     LOG( LOG_INFO, "AE flow: INPUT_READY: frame_id_tracking: %d, cur frame_id: %u.", ae_flow.frame_id_tracking, ae_flow.frame_id_current );
-}
-
-// get lumvar stats
-void get_lumvar_info(uint32_t *lumvard)
-{
-       memcpy(lumvard, lumvar, sizeof(lumvar));
 }
 
 void ae_update_zone_weight_data( AE_fsm_ptr_t p_fsm )

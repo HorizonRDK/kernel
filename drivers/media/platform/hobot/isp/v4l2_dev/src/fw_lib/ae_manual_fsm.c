@@ -179,6 +179,18 @@ int AE_fsm_get_param( void *fsm, uint32_t param_id, void *input, uint32_t input_
         break;
     }
 
+    case FSM_PARAM_GET_LUMVAR_STATS: {
+        if (!output || output_size != sizeof(p_fsm->lumvar)) {
+            LOG(LOG_ERR, "Invalid param, param_id: %d.", param_id);
+            rc = -1;
+            break;
+        }
+
+	memcpy(output, p_fsm->lumvar, sizeof(p_fsm->lumvar));
+
+        break;
+    }
+
     default:
         rc = -1;
         break;

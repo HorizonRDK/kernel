@@ -879,7 +879,11 @@ void cmos_fsm_process_interrupt( cmos_fsm_const_ptr_t p_fsm, uint8_t irq_event )
 void cmos_inttime_update( cmos_fsm_ptr_t p_fsm )
 {
     int32_t int_time = 0;
+    acamera_context_t *p_ctx = ACAMERA_FSM2CTX_PTR(p_fsm);
+
     cmos_control_param_t *param = (cmos_control_param_t *)_GET_UINT_PTR( ACAMERA_FSM2CTX_PTR( p_fsm ), CALIBRATION_CMOS_CONTROL );
+    p_ctx->antiflicker_enable = param->global_antiflicker_enable;
+
     if ( param->global_manual_integration_time == 0 ) {
         int i;
         int32_t exposure = 0, exp_target = p_fsm->exposure_log2;
@@ -1382,7 +1386,7 @@ uint32_t get_quantised_integration_time( cmos_fsm_ptr_t p_fsm, uint32_t int_time
 	}
 
 	/* get lumvar info */
-	get_lumvar_info(p_fsm->lumvar);
+	acamera_fsm_mgr_get_param(p_fsm->cmn.p_fsm_mgr, FSM_PARAM_GET_LUMVAR_STATS, NULL, 0, p_fsm->lumvar, sizeof(p_fsm->lumvar));
 
 	if (p_fsm->outdoor_flag == 1) {
 		p_fsm->count1 = 0;
