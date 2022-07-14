@@ -1243,6 +1243,14 @@ static void v4l_fill_fmtdesc(struct v4l2_fmtdesc *fmt)
 	case V4L2_TCH_FMT_TU08:		descr = "8-bit unsigned touch data"; break;
 	case V4L2_META_FMT_VSP1_HGO:	descr = "R-Car VSP1 1-D Histogram"; break;
 	case V4L2_META_FMT_VSP1_HGT:	descr = "R-Car VSP1 2-D Histogram"; break;
+	/* Librealsense formats*/
+	case V4L2_PIX_FMT_RW16:		descr = "16-bit Raw data"; break;
+	case V4L2_PIX_FMT_W10:		descr = "10-bit packed 8888[2222]"; break;
+	case V4L2_PIX_FMT_CONFIDENCE_MAP:	descr = "4-bit per pixel packed"; break;
+	case V4L2_PIX_FMT_FG:		descr = "Frame Grabber (FG  )"; break;
+	case V4L2_PIX_FMT_INZC:		descr = "Planar Depth/Confidence (INZC)"; break;
+	case V4L2_PIX_FMT_PAIR:		descr = "Relative IR (PAIR)"; break;
+	case V4L2_PIX_FMT_Z16H:		descr = "Z16 Huffman Compression"; break;
 
 	default:
 		/* Compressed formats */
