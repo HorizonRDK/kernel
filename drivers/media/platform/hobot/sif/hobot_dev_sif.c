@@ -27,7 +27,11 @@
 #include <linux/io.h>
 #include <linux/timer.h>
 #include <linux/poll.h>
-
+#ifdef CONFIG_HOBOT_XJ3
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
+#include <linux/devfreq.h>
+#endif
+#endif
 #ifdef CONFIG_HOBOT_DIAG
 #include <soc/hobot/diag.h>
 #endif
@@ -595,8 +599,18 @@ static int x3_sif_open(struct inode *inode, struct file *file)
 		if (sif_mclk_freq)
 			vio_set_clk_rate("sif_mclk", sif_mclk_freq);
 		ips_set_clk_ctrl(SIF_CLOCK_GATE, true);
+#ifdef CONFIG_HOBOT_XJ3
 #ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
 		pm_qos_add_request(&sif_pm_qos_req, PM_QOS_DEVFREQ, 10000);
+
+		if (!hobot_dmcfreq_checkup_max()) {
+			vio_err("set ddr freq max failed");
+			atomic_dec(&sif->open_cnt);
+			kfree(sif_ctx);
+			mutex_unlock(&sif->shared_mutex);
+			goto p_err;
+		}
+#endif
 #endif
 		/*4 ddr in channel can not be 0 together*/
 		sif_enable_dma(sif->base_reg, 0x10000);

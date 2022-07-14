@@ -25,6 +25,11 @@
 #include <asm/cacheflush.h>
 #include <linux/io.h>
 #include <linux/poll.h>
+#ifdef CONFIG_HOBOT_XJ3
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
+#include <linux/devfreq.h>
+#endif
+#endif
 #ifdef CONFIG_HOBOT_DIAG
 #include <soc/hobot/diag.h>
 #endif
@@ -81,9 +86,18 @@ static int x3_pym_open(struct inode *inode, struct file *file)
 		goto p_err;
 	}
 	if (atomic_read(&pym->open_cnt) == 0) {
+#ifdef CONFIG_HOBOT_XJ3
 #ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
 		pm_qos_add_request(&pym_pm_qos_req, PM_QOS_DEVFREQ, 10000);
-		msleep(100);
+
+		if (!hobot_dmcfreq_checkup_max()) {
+			vio_err("set ddr freq max failed");
+			ret = -1;
+			kfree(pym_ctx);
+			mutex_unlock(&pym_mutex);
+			goto p_err;
+		}
+#endif
 #endif
 		atomic_set(&pym->backup_fcount, 0);
 		atomic_set(&pym->sensor_fcount, 0);

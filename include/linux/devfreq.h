@@ -223,6 +223,11 @@ extern void devm_devfreq_unregister_notifier(struct device *dev,
 				unsigned int list);
 extern struct devfreq *devfreq_get_devfreq_by_phandle(struct device *dev,
 						int index);
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
+#ifdef CONFIG_HOBOT_XJ3
+extern bool hobot_dmcfreq_checkup_max(void);
+#endif
+#endif
 
 #if IS_ENABLED(CONFIG_DEVFREQ_GOV_SIMPLE_ONDEMAND)
 /**

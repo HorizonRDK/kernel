@@ -27,6 +27,8 @@
 
 #include "governor.h"
 
+#define RETRY_TIMES 10000
+
 struct hobot_dmcfreq {
 	struct device *dev;
 	struct devfreq *devfreq;
@@ -39,6 +41,7 @@ struct hobot_dmcfreq {
 	int suspend_event;
 	int pre_state;
 };
+extern char *dmc_clk_get_method(void);
 #ifdef CONFIG_HOBOT_XJ3
 struct hobot_dmcfreq *g_hobot_dmcfreq;
 
@@ -49,6 +52,24 @@ ssize_t hobot_dmc_governor(char *buf)
 
 	return sprintf(buf, "%s\n", g_hobot_dmcfreq->devfreq->governor->name);
 }
+bool hobot_dmcfreq_checkup_max(void)
+{
+	int retry_times = 0;
+	if (strcmp(dmc_clk_get_method(), "cr5"))
+		return true;
+	while(retry_times < RETRY_TIMES) {
+		if (g_hobot_dmcfreq->rate == g_hobot_dmcfreq->devfreq->max_freq) {
+			return true;
+		} else {
+			msleep(5);
+			retry_times++;
+		}
+	}
+	pr_emerg("dmcfreq_checkup_max cur_freq = %ld  max_freq = %ld \n",
+				g_hobot_dmcfreq->rate, g_hobot_dmcfreq->devfreq->max_freq);
+	return false;
+}
+EXPORT_SYMBOL_GPL(hobot_dmcfreq_checkup_max);
 #endif
 
 /*
@@ -231,7 +252,7 @@ static SIMPLE_DEV_PM_OPS(hobot_dmcfreq_pm, hobot_dmcfreq_suspend,
 			hobot_dmcfreq_resume);
 
 extern int dmc_clk_set_method(char *method);
-extern char *dmc_clk_get_method(void);
+
 
 #define DMC_METHOD_LEN 32
 static ssize_t method_show(struct device *dev,

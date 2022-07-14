@@ -30,6 +30,11 @@
 #endif
 #include <linux/ion.h>
 #include <linux/pm_qos.h>
+#ifdef CONFIG_HOBOT_XJ3
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
+#include <linux/devfreq.h>
+#endif
+#endif
 #include <linux/sched/signal.h>
 
 #include "hobot_dev_ipu.h"
@@ -113,9 +118,17 @@ static int x3_ipu_open(struct inode *inode, struct file *file)
 		goto p_err;
 	}
 	if (atomic_inc_return(&ipu->open_cnt) == 1) {
+#ifdef CONFIG_HOBOT_XJ3
 #ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
 		pm_qos_add_request(&ipu_pm_qos_req, PM_QOS_DEVFREQ, 10000);
-		msleep(100);
+		if (!hobot_dmcfreq_checkup_max()) {
+			vio_err("set ddr freq max failed");
+			atomic_dec(&ipu->open_cnt);
+			kfree(ipu_ctx);
+			mutex_unlock(&ipu_mutex);
+			return -EAGAIN;
+		}
+#endif
 #endif
 		atomic_set(&ipu->backup_fcount, 0);
 		atomic_set(&ipu->sensor_fcount, 0);

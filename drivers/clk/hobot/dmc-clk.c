@@ -455,8 +455,12 @@ static void park_other_cpus(void)
 	put_cpu();
 }
 
+#ifdef CONFIG_HOBOT_XJ3
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
 #define POWERSAVE	"powersave"
 extern ssize_t hobot_dmc_governor(char *buf);
+#endif
+#endif
 
 static int dmc_set_rate(struct clk_hw *hw,
 			unsigned long rate, unsigned long parent_rate)
@@ -489,10 +493,13 @@ static int dmc_set_rate(struct clk_hw *hw,
 		ret = -EBUSY;
 		goto err1;
 	}
-
+#ifdef CONFIG_HOBOT_XJ3
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
 	if (hobot_dmc_governor(buf) >= 0)
 		if (!strncmp(buf, POWERSAVE, strlen(POWERSAVE)))
 			is_powersave = 1;
+#endif
+#endif
 
 	if (rate == 100)
 		rate = 333000000;

@@ -28,7 +28,11 @@
 #include <media/v4l2-fh.h>
 #include <media/v4l2-event.h>
 #include <linux/pm_qos.h>
-
+#ifdef CONFIG_HOBOT_XJ3
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
+#include <linux/devfreq.h>
+#endif
+#endif
 #include "acamera_logger.h"
 
 #include "isp-v4l2-common.h"
@@ -184,8 +188,16 @@ static int isp_v4l2_fop_open( struct file *file )
     pr_debug("ctx_id %d +\n", dev->ctx_id);
 
     if (isp_open_check() == 0) {
+#ifdef CONFIG_HOBOT_XJ3
 #ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
         pm_qos_add_request(&isp_pm_qos_req, PM_QOS_DEVFREQ, 10000);
+        if (!hobot_dmcfreq_checkup_max()) {
+            pr_err("set ddr freq max failed\n");
+            rc = -1;
+            mutex_unlock(&init_lock);
+            return rc;
+        }
+#endif
 #endif
         ips_set_clk_ctrl(ISP0_CLOCK_GATE, true);
         ips_set_module_reset(ISP0_RST);

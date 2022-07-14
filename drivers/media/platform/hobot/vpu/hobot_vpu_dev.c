@@ -21,7 +21,11 @@
 #include <linux/eventpoll.h>
 #include <linux/debugfs.h>
 #include <linux/sched/signal.h>
-
+#ifdef CONFIG_HOBOT_XJ3
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
+#include <linux/devfreq.h>
+#endif
+#endif
 #include "hobot_vpu_ctl.h"
 #include "hobot_vpu_debug.h"
 #include "hobot_vpu_pm.h"
@@ -1960,10 +1964,19 @@ static int vpu_open(struct inode *inode, struct file *filp)
 	priv->is_irq_poll = 0;
 	filp->private_data = (void *)priv;
 	spin_unlock(&dev->vpu_spinlock);
+#ifdef CONFIG_HOBOT_XJ3
 #ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
 	if (open_count == 0) {
 		pm_qos_add_request(&dev->vpu_pm_qos_req, PM_QOS_DEVFREQ, 10000);
+
+		if (!hobot_dmcfreq_checkup_max()) {
+			vpu_err("set ddr freq max failed");
+			dev->open_count--;
+			kfree(priv);
+			return -1;
+		}
 	}
+#endif
 #endif
 	hb_vpu_clk_enable(dev, dev->vpu_freq);
 
