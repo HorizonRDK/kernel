@@ -964,17 +964,24 @@ int iar_cdev_release(struct inode *inode, struct file *filp)
 		pr_err("%s: iar cdev not init!\n", __func__);
 		return -1;
 	}
-	mutex_lock(&g_iar_cdev->iar_mutex);
-	iar_open_cnt--;
-	if (iar_open_cnt == 0) {
-		if (iar_start_cnt > 0u) {
-			iar_stop();
-			iar_start_cnt = 0;
+	if (ubuntu_desktop == 0) {
+		mutex_lock(&g_iar_cdev->iar_mutex);
+		iar_open_cnt--;
+		if (iar_open_cnt == 0) {
+			if (iar_start_cnt > 0u) {
+				iar_stop();
+				iar_start_cnt = 0;
+			}
+			iar_close();
+			filp->private_data = NULL;
 		}
-		iar_close();
-		filp->private_data = NULL;
+		mutex_unlock(&g_iar_cdev->iar_mutex);
+	} else {
+		iar_layer_disable(0);
+		iar_layer_disable(1);
+		iar_layer_enable(2);
+		iar_layer_disable(3);
 	}
-	mutex_unlock(&g_iar_cdev->iar_mutex);
 	return 0;
 }
 
@@ -1043,6 +1050,9 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 		iar_stop();
 		if (board_id == 0x1)
 			screen_backlight_deinit();
+	} else if (strncmp(tmp, "desktop", 7) == 0) {
+		pr_info("set ubuntu desktop mode!!\n");
+		ubuntu_desktop = 1;
 	} else if (strncmp(tmp, "cam", 3) == 0) {
 		tmp = tmp + 3;
 		ret = kstrtoul(tmp, 0, &tmp_value);

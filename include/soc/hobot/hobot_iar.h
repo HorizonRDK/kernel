@@ -837,6 +837,7 @@ extern uint8_t disp_user_config_done;
 extern unsigned int iar_debug_level;
 extern unsigned int fb_num;
 extern unsigned int logo;
+extern unsigned int ubuntu_desktop;
 extern const char *base_board_name;
 extern void iar_register_get_callback(iar_get_type_callback func);
 extern void iar_register_set_callback(iar_set_addr_callback func);

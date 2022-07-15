@@ -53,7 +53,7 @@ module_param(iar_debug_level, uint, 0644);
 unsigned int video_layer_num = 2;
 unsigned int display_out_width = 1920;
 unsigned int display_out_height = 1080;
-unsigned int fb_num = 1;
+unsigned int fb_num = 2;
 unsigned int logo = 0;
 EXPORT_SYMBOL(fb_num);
 EXPORT_SYMBOL(logo);
@@ -67,6 +67,10 @@ static unsigned int frame_output_fps = 30;
 module_param(frame_input_fps, uint, 0644);
 module_param(frame_output_fps, uint, 0644);
 static int frame_output = 0;
+
+unsigned int ubuntu_desktop = 0;
+module_param(ubuntu_desktop, uint, 0644);
+EXPORT_SYMBOL(ubuntu_desktop);
 #define IAR_ENABLE 1
 #define IAR_DISABLE 0
 #define IARIONTYPE 13
