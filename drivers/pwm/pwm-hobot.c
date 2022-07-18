@@ -44,6 +44,19 @@
 #define PWM_NAME_LEN       32
 #define PWM_NAME           "hobot-pwmchip"
 
+struct hobot_pwmchip_stat {
+	u32 en;
+	u32 slice;
+	u32 freq;
+	u32 freq1;
+	u32 ratio;
+#ifdef ENABLE_PWM_IRQ
+	u32 intmask_set;
+	u32 intmask_clr;
+#endif
+	s32 clk_en;
+};
+
 struct hobot_pwm_chip {
 	struct pwm_chip chip;
 	struct clk *mclk;
@@ -52,6 +65,7 @@ struct hobot_pwm_chip {
 	void __iomem *base;
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *pins[PWM_NPWM];
+	struct hobot_pwmchip_stat stat;
 };
 
 #define PWM_ENABLE	BIT(31)
@@ -161,6 +175,8 @@ static int hobot_pwm_request(struct pwm_chip *chip, struct pwm_device *pwm)
 		pr_err("failed to enable pwm clock\n");
 		return ret;
 	}
+	hbpwm->stat.clk_en = true;
+
 	return 0;
 }
 
@@ -171,6 +187,7 @@ static void hobot_pwm_free(struct pwm_chip *chip, struct pwm_device *pwm)
 	if (hbpwm->mclk == NULL)
 		return;
 	clk_disable_unprepare(hbpwm->mclk);
+	hbpwm->stat.clk_en = false;
 }
 
 static const struct pwm_ops hobot_pwm_ops = {
@@ -244,6 +261,8 @@ static int hobot_pwm_probe(struct platform_device *pdev)
 		} else {
 			hobot_pwm_wr(hbpwm, PWM_SETMASK, 0);
 			hobot_pwm_wr(hbpwm, PWM_UNMASK, 1);
+			hbpwm->stat.intmask_set = 0;
+			hbpwm->stat.intmask_clr = 1;
 		}
 	}
 #endif
@@ -278,6 +297,49 @@ static int hobot_pwm_remove(struct platform_device *pdev)
 	return pwmchip_remove(&hbpwm->chip);
 }
 
+#ifdef CONFIG_PM
+int hobot_pwm_suspend(struct device *dev)
+{
+	struct hobot_pwm_chip *hbpwm = dev_get_drvdata(dev);
+
+	if (hbpwm->stat.clk_en) {
+		hbpwm->stat.en = hobot_pwm_rd(hbpwm, PWM_EN);
+		hbpwm->stat.slice = hobot_pwm_rd(hbpwm, PWM_TIME_SLICE);
+		hbpwm->stat.freq = hobot_pwm_rd(hbpwm, PWM_FREQ);
+		hbpwm->stat.freq1 = hobot_pwm_rd(hbpwm, PWM_FREQ1);
+		hbpwm->stat.ratio = hobot_pwm_rd(hbpwm, PWM_RATIO);
+		clk_disable_unprepare(hbpwm->mclk);
+	}
+
+	return 0;
+}
+
+int hobot_pwm_resume(struct device *dev)
+{
+	struct hobot_pwm_chip *hbpwm = dev_get_drvdata(dev);
+
+	if (hbpwm->stat.clk_en) {
+		clk_prepare_enable(hbpwm->mclk);
+		hobot_pwm_wr(hbpwm, PWM_TIME_SLICE, hbpwm->stat.slice);
+		hobot_pwm_wr(hbpwm, PWM_FREQ, hbpwm->stat.freq);
+		hobot_pwm_wr(hbpwm, PWM_FREQ1, hbpwm->stat.freq1);
+		hobot_pwm_wr(hbpwm, PWM_RATIO, hbpwm->stat.ratio);
+#ifdef ENABLE_PWM_IRQ
+		hobot_pwm_wr(hbpwm, PWM_SETMASK, hbpwm->stat.intmask_set);
+		hobot_pwm_wr(hbpwm, PWM_UNMASK, hbpwm->stat.intmask_clr);
+#endif
+		hobot_pwm_wr(hbpwm, PWM_EN, hbpwm->stat.en);
+	}
+
+	return 0;
+}
+
+static const struct dev_pm_ops hobot_pwm_pm_ops = {
+	.suspend = hobot_pwm_suspend,
+	.resume  = hobot_pwm_resume,
+};
+#endif
+
 static const struct of_device_id hobot_pwm_dt_ids[] = {
 	{ .compatible = "hobot,hobot-pwm", },
 	{ /* sentinel */ }
@@ -288,6 +350,9 @@ static struct platform_driver hobot_pwm_driver = {
 	.driver = {
 		.name = "hobot-pwm",
 		.of_match_table = hobot_pwm_dt_ids,
+#ifdef CONFIG_PM
+		.pm = &hobot_pwm_pm_ops,
+#endif
 	},
 	.probe = hobot_pwm_probe,
 	.remove = hobot_pwm_remove,
