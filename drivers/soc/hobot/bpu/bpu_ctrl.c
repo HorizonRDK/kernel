@@ -239,14 +239,12 @@ int32_t bpu_core_enable(struct bpu_core *core)
 	if (core->hw_enabled > 0u) {
 		return 0;
 	}
-#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
-#ifdef CONFIG_X3_BPU
+#if defined(CONFIG_X3_BPU) && defined(CONFIG_ARM_HOBOT_DMC_DEVFREQ)
 	pm_qos_add_request(&core->pm_qos_req, PM_QOS_DEVFREQ, 10000);
 	if (!hobot_dmcfreq_checkup_max()) {
 		pr_err("set ddr freq max failed");
 		return -EAGAIN;
 	}
-#endif
 #endif
 	if (core->hw_ops->enable != NULL) {
 		ret = core->hw_ops->enable(core);
@@ -343,7 +341,7 @@ int32_t bpu_core_disable(struct bpu_core *core)
 		dev_err(core->dev, "Pend off for Disable core failed!\n");
 		return err;
 	}
-#ifdef CONFIG_X3_BPU
+#if defined(CONFIG_X3_BPU) && defined(CONFIG_ARM_HOBOT_DMC_DEVFREQ)
 	pm_qos_remove_request(&core->pm_qos_req);
 #endif
 
