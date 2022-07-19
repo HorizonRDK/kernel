@@ -629,6 +629,9 @@ static int camera_sys_set_normal_line(uint32_t port, uint32_t *input_line)
 	s_line = camera_mod[port]->camera_param.normal.s_line;
 	s_line_length = camera_mod[port]->camera_param.normal.s_line_length;
 
+    if (s_line_length == 0)
+        return;
+
 	camera_trans_value(input_line, line_d);
 	ret = camera_sys_write(port, s_line, reg_width, line_d, s_line_length);
 	if(ret < 0) {
