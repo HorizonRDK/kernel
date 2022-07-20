@@ -54,7 +54,10 @@ static bool debug_log_print = 0;
 module_param(debug_log_print, bool, 0644);
 static int32_t g_print_instance = 0;
 int sif_video_streamoff(struct sif_video_ctx *sif_ctx);
+
+#ifdef CONFIG_ARM_HOBOT_DMC_DEVFREQ
 static struct pm_qos_request sif_pm_qos_req;
+#endif
 static int g_sif_fps[VIO_MAX_STREAM] = {0, };
 static int g_sif_idx[VIO_MAX_STREAM] = {0, };
 static __kernel_time_t g_sif_fps_lasttime[VIO_MAX_STREAM] = {0, };
@@ -80,40 +83,41 @@ EXPORT_SYMBOL(sif_get_mismatch_status);
 
 void sif_wait_frame_done(u32 instance)
 {
-	int32_t i = 0;
 	struct sif_subdev *subdev = NULL;
-	struct x3_sif_dev *sif_dev = NULL;
 	struct vio_group *group = NULL;
+	unsigned long timeout;
 
-	vio_info("instance %d sif_wait_frame_done  come in", instance);
+	vio_info("instance %d sif_wait_frame_done come in", instance);
 	group = vio_get_chain_group(instance, GROUP_ID_SIF_OUT);
 	if (group == NULL || group->sub_ctx[0] == NULL
 		|| ((struct sif_subdev *)group->sub_ctx[0])->sif_dev == NULL) {
 		return;
 	}
 	subdev = group->sub_ctx[0];
-	if(subdev == NULL)
+	if((subdev == NULL) ||
+		(subdev->stop_flag == SIF_WAITIING))
 		return;
 	if (test_bit(SIF_SUBDEV_STREAM_OFF, &subdev->state)) {
 		vio_info("subdev already stream off, current refcount(%d)\n",
 				atomic_read(&subdev->refcount));
 		return;
 	}
-	subdev->frame_done = 0;
-	while(i < 100) {
-		if(subdev->frame_done) {
-			vio_err("instance %d frame_done %d",
-				instance, subdev->frame_done);
-			break;
-		}
-		udelay(1000);
-		i++;
-	}
-	vio_info("instance %d i %d", instance, i);
+	reinit_completion(&subdev->stop_complete);
+	//if(subdev)
+	//	subdev->ipi_disable = true;
+	subdev->stop_flag = SIF_WAITIING;
+	timeout = wait_for_completion_timeout(&subdev->stop_complete,
+				msecs_to_jiffies(TIMEOUT_STOP_WAIT));
+	if (timeout == 0u)
+		vio_warn("%s wait ipi%d fe %dms timeout\n", __func__,
+			subdev->ipi_index, TIMEOUT_STOP_WAIT);
+	else
+		vio_info("%s [S%d] wait ipi%d fe %d ms done\n", __func__, instance,
+		subdev->ipi_index, jiffies_to_msecs(msecs_to_jiffies(TIMEOUT_STOP_WAIT) - timeout));
 	return;
 }
-EXPORT_SYMBOL(sif_wait_frame_done);
 
+EXPORT_SYMBOL(sif_wait_frame_done);
 
 /* Use the frame id lower 28 bit export to other module */
 #define BASE_SHIFT			28
@@ -1393,10 +1397,10 @@ static int x3_sif_close(struct inode *inode, struct file *file)
 			subdev->cnt_shift = 0;
 			subdev->frame_drop = 0;
 			subdev->fdone = 0;
+			subdev->stop_flag = 0;
 			subdev->last_hwidx = 0;
 			subdev->arbit_dead = 0;	 /*arbit deadlock happens*/
 			subdev->splice_flow_clr = 0;   /*close wdma for splice*/
-			subdev->frame_done  = 1;
 #ifdef CONFIG_HOBOT_DIAG
 			subdev->diag_state = 0;
 #endif
@@ -1739,6 +1743,7 @@ int sif_mux_init(struct sif_subdev *subdev, sif_cfg_t *sif_config)
 	subdev->mux_index = mux_index;
 	ddr_mux_index = mux_index;
 	subdev->format = format;
+	subdev->stop_flag = 0;
 	subdev->frame_drop = 0;  /*y/uv done*/
 	subdev->arbit_dead = 0;  /*arbit deadlock happens*/
 	subdev->splice_flow_clr = 0;   /*close wdma for splice*/
@@ -2133,6 +2138,7 @@ int sif_get_frame_id(u32 instance, u32 *frame_id)
 }
 EXPORT_SYMBOL(sif_get_frame_id);
 
+/* This interface cannot be used in an interrupt context*/
 int sif_set_frame_id(u32 instance, u32 frame_id)
 {
 	int32_t i;
@@ -2154,13 +2160,12 @@ int sif_set_frame_id(u32 instance, u32 frame_id)
 		return -1;
 	sif_dev = subdev->sif_dev;
 	p_mipi = &subdev->sif_cfg.input.mipi;
-
-	mutex_lock(&sif_dev->shared_mutex);
-	subdev->initial_frameid = true;
 	if (frame_id > FRAME_ID_MAXIMUM) {
 		vio_err("max frameid is %d", frame_id);
 		return -1;
 	}
+	mutex_lock(&sif_dev->shared_mutex);
+	subdev->initial_frameid = true;
 	p_mipi->func.set_init_frame_id = frame_id;
 	vc_index = p_mipi->vc_index;
 	for (i = 0; i < p_mipi->channels; i++) {
@@ -3263,7 +3268,6 @@ void sif_frame_done(struct sif_subdev *subdev) {
 	if (subdev->splice_info.splice_enable && sif_ctx->id == GROUP_ID_SIF_OUT) {
 		if ((subdev->splice_info.splice_done) &&
 			(subdev->splice_info.frame_done)) {
-			subdev->frame_done = 1;
 			sif_frame_done_process(subdev, sif_ctx);
 			subdev->splice_info.splice_done = 0;
 			subdev->splice_info.frame_done = 0;
@@ -3271,9 +3275,10 @@ void sif_frame_done(struct sif_subdev *subdev) {
 	} else if (subdev->format == HW_FORMAT_YUV422) {
 		if(subdev->fdone == SIF_FE_BOTH) {
 			subdev->fdone = 0;
-			subdev->frame_done = 1;
 			if (subdev->ipi_disable == true) {
 				sif_reset_ipi_process(subdev);
+			} else if (subdev->stop_flag == SIF_WAITIING) {
+				complete(&subdev->stop_complete);
 			} else {
 				sif_frame_done_process(subdev, sif_ctx);
 			}
@@ -3282,8 +3287,13 @@ void sif_frame_done(struct sif_subdev *subdev) {
 				subdev->ddr_mux_index + 1, subdev->last_hwidx);
 		}
 	} else {
-		subdev->frame_done = 1;
-		sif_frame_done_process(subdev, sif_ctx);
+		if (subdev->ipi_disable == true) {
+			sif_reset_ipi_process(subdev);
+		} else if (subdev->stop_flag == SIF_WAITIING) {
+			complete(&subdev->stop_complete);
+		} else {
+			sif_frame_done_process(subdev, sif_ctx);
+		}
 		vio_dbg("%s: mux_index = %d \n", __func__,
 			subdev->ddr_mux_index);
 	}
@@ -3743,11 +3753,12 @@ void sif_frame_overflow_process(u32 mux_index, struct vio_group *group)
 		if (subdev->fdone == SIF_FE_BOTH) {
 			if (subdev->ipi_disable == true) {
 				sif_reset_ipi_process(subdev);
+			} else if (subdev->stop_flag == SIF_WAITIING) {
+				complete(&subdev->stop_complete);
 			} else {
 				sif_frame_ndone(subdev);
 			}
 			subdev->fdone = 0;
-			subdev->frame_done = 1;
 			temp_flow &= ~(subdev->overflow);
 			subdev->overflow = 0;
 			vio_dbg("[S%d]yuv overflow mux_index %d temp_flow 0x%x",
@@ -3761,15 +3772,19 @@ void sif_frame_overflow_process(u32 mux_index, struct vio_group *group)
 			subdev->splice_info.frame_done = 0;
 			temp_flow &= ~(subdev->overflow);
 			subdev->overflow = 0;
-			subdev->frame_done = 1;
 			vio_dbg("[S%d]splice overflow ndone mux_index %d temp_flow 0x%x",
 				group->instance, mux_index, temp_flow);
 		}
 	} else {
-		sif_frame_ndone(subdev);
+		if (subdev->ipi_disable == true) {
+			sif_reset_ipi_process(subdev);
+		} else if (subdev->stop_flag == SIF_WAITIING) {
+			complete(&subdev->stop_complete);
+		} else {
+			sif_frame_ndone(subdev);
+		}
 		temp_flow &= ~(subdev->overflow);
 		subdev->overflow = 0;
-		subdev->frame_done = 1;
 		vio_info("FE overflow %d mux_index %d temp_flow 0x%x\n",
 			subdev->overflow, mux_index, temp_flow);
 	}
@@ -4047,7 +4062,6 @@ static irqreturn_t sif_isr(int irq, void *data)
 					continue;
 				}
 				subdev = group->sub_ctx[0];
-				subdev->frame_done = 0;
 				sif_print_buffer_owner(sif->base_reg);
 				if(sif_fs_process(mux_index, subdev) < 0)
 					continue;
@@ -4153,6 +4167,7 @@ int x3_sif_subdev_init(struct x3_sif_dev *sif)
 		subdev = &sif->sif_mux_subdev[i];
 		ret = sif_subdev_init(subdev);
 		spin_lock_init(&sif_frame_info[i].id_lock);
+		init_completion(&subdev->stop_complete);
 	}
 
 	return ret;

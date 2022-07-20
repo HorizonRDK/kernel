@@ -21,6 +21,8 @@
 
 #define FRAME_ID_MAXIMUM 65535u
 #define FRAME_ID_SHIFT 65536u
+#define SIF_WAITIING	1u
+#define TIMEOUT_STOP_WAIT 100u
 
 #define SIF_L1_CACHE_BYTES  64
 #define MAX_DEVICE  2
@@ -60,7 +62,6 @@
 #define SIF_IOC_MCLK_SET	 _IOW(SIF_IOC_MAGIC, 16, u32)
 #define SIF_IOC_IPI_RESET	 _IO(SIF_IOC_MAGIC, 17)
 #define SIF_IOC_MIPI_CFG_RESET	 _IO(SIF_IOC_MAGIC, 18)
-
 
 #define VIO_MP_IOC_MAGIC 'm'
 #define VIO_MP_IOC_BIND_GROUP	 _IOW(VIO_MP_IOC_MAGIC, 0, int)
@@ -296,9 +297,10 @@ struct sif_subdev {
 	struct frame_id info;
 	bool initial_frameid;
 	volatile bool ipi_disable;
+	u8 stop_flag;
+	struct completion stop_complete;
 	u32 md_refresh_count;
 	u32 id;
-	u32 frame_done;
 	struct splice_info  splice_info;
 	fps_ctrl_t fps_ctrl;
 #ifdef CONFIG_HOBOT_DIAG
