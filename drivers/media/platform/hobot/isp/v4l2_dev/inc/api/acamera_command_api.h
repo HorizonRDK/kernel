@@ -213,11 +213,14 @@
 #define CALIBRATION_DEMOSAIC_UU_SH_SLOPE                  0x0000008f
 #define CALIBRATION_DEMOSAIC_UU_SH_THRESH                 0x00000090
 #define CALIBRATION_DEMOSAIC_UU_SH_OFFSET                 0x00000091
+// dynamic remove source
+#define CALIBRATION_REMOVE_SRC                            0x00000092
+#define CALIBRAITON_REMOVE_RULE                           0x00000093
 // ------------------------------------------------------------------------------ //
 //		DYNAMIC STATE VALUES
 // ------------------------------------------------------------------------------ //
 
-#define CALIBRATION_TOTAL_SIZE 146
+#define CALIBRATION_TOTAL_SIZE 148
 //------------------FILE TRANSFER-------------------
 
 
