@@ -107,6 +107,11 @@ static void mmc_request_fn(struct request_queue *q)
 		return;
 	}
 
+	if (mq->asleep) {
+		wake_up_process(mq->thread);
+		return;
+	}
+
 	cntx = &mq->card->host->context_info;
 
 	if (cntx->is_waiting_last_req) {
@@ -114,8 +119,6 @@ static void mmc_request_fn(struct request_queue *q)
 		wake_up_interruptible(&cntx->wait);
 	}
 
-	if (mq->asleep)
-		wake_up_process(mq->thread);
 }
 
 static struct scatterlist *mmc_alloc_sg(int sg_len, gfp_t gfp)
