@@ -163,7 +163,6 @@ typedef struct osd_handle_s {
 
     atomic_t bind_cnt;
     atomic_t ref_cnt;
-    atomic_t need_update;
 } osd_handle_t;
 
 typedef struct osd_bind_s {

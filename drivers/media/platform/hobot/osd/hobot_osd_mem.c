@@ -175,6 +175,30 @@ void osd_one_buffer_flush(osd_one_buffer_t *one_buffer)
     ion_dcache_flush(one_buffer->paddr, one_buffer->length);
 }
 
+void osd_one_buffer_fill(osd_one_buffer_t *one_buffer, uint32_t color)
+{
+    int size = 0;
+    uint8_t y_color = 0, u_color = 0, v_color = 0;
+    uint8_t *addr = NULL;
+    int i = 0;
+
+    if (one_buffer->pixel_fmt == OSD_PIXEL_FORMAT_VGA4) {
+        memset(one_buffer->vaddr, (color << 4) | color, one_buffer->length);
+    } else if (one_buffer->pixel_fmt == OSD_PIXEL_FORMAT_NV12) {
+        y_color = (color >> 16) & 0xff;
+        u_color = (color >> 8) & 0xff;
+        v_color = color & 0xff;
+        size = one_buffer->length * 2 / 3; // get (w * h) size
+        addr = one_buffer->vaddr + size;
+        memset(one_buffer->vaddr, y_color, size);
+        for (i = 0; i < size / 2; i += 2) {
+            addr[0] = u_color;
+            addr[1] = v_color;
+            addr += 2;
+        }
+    }
+}
+
 static size_t osd_calculate_buffer_length(uint32_t width, uint32_t height,
     osd_pixel_format_t pixel_fmt)
 {
@@ -207,10 +231,6 @@ int32_t osd_buffer_create(struct ion_client *client, osd_buffer_t *osd_buffer)
                 goto EXIT;
             }
             osd_buffer->buf[i].state = OSD_BUF_CREATE + i;
-            if (osd_buffer->buf[i].state == OSD_BUF_PROCESS) {
-                memset(osd_buffer->buf[i].vaddr, 0xff, length);
-                osd_one_buffer_flush(&osd_buffer->buf[i]);
-            }
         }
         if ((osd_buffer->vga_buf[i].state == OSD_BUF_NULL) &&
             (osd_buffer->vga_buf[i].pixel_fmt != OSD_PIXEL_FORMAT_NULL)) {

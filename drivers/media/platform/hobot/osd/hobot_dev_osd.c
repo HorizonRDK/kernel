@@ -721,10 +721,7 @@ static void osd_set_process_info_workfunc(struct kthread_work *work)
                     vio_err("[V%d][H%d] attached, but handle was destroyed!\n",
                         subdev->id, handle_id);
                 } else {
-                    if (atomic_read(&handle->need_update) > 0) {
-                        osd_set_process_handle_info(&bind->proc_info, handle);
-                        atomic_set(&handle->need_update, 0);
-                    }
+                    osd_set_process_handle_info(&bind->proc_info, handle);
                 }
                 mutex_unlock(&osd_dev->osd_list_mutex);
 
@@ -1011,11 +1008,20 @@ static int osd_create_handle(struct osd_video_ctx *osd_ctx, unsigned long arg)
                 handle->buffer.size.h);
             goto exit_free;
         }
+        osd_one_buffer_fill(&handle->buffer.buf[0],
+            (handle->info.proc_type == OSD_PROC_VGA4) ?
+            handle->info.fill_color :
+            g_osd_color.color_map[handle->info.fill_color]);
+        osd_one_buffer_flush(&handle->buffer.buf[0]);
+        osd_one_buffer_fill(&handle->buffer.buf[1],
+            (handle->info.proc_type == OSD_PROC_VGA4) ?
+            handle->info.fill_color :
+            g_osd_color.color_map[handle->info.fill_color]);
+        osd_one_buffer_flush(&handle->buffer.buf[1]);
     }
 
     atomic_set(&handle->bind_cnt, 0);
     atomic_set(&handle->ref_cnt, 1);
-    atomic_set(&handle->need_update, 1);
     mutex_lock(&osd_dev->osd_list_mutex);
     tmp_handle = osd_find_handle_node(osd_dev, handle->info.handle_id);
     if (tmp_handle != NULL) {
@@ -1203,6 +1209,16 @@ static int osd_set_attr(struct osd_video_ctx *osd_ctx, unsigned long arg)
                 if (ret < 0) {
                     goto exit_free;
                 }
+                osd_one_buffer_fill(&tmp_handle->buffer.buf[0],
+                    (handle_info.proc_type == OSD_PROC_VGA4) ?
+                    handle_info.fill_color :
+                    g_osd_color.color_map[handle_info.fill_color]);
+                osd_one_buffer_flush(&tmp_handle->buffer.buf[0]);
+                osd_one_buffer_fill(&tmp_handle->buffer.buf[1],
+                    (handle_info.proc_type == OSD_PROC_VGA4) ?
+                    handle_info.fill_color :
+                    g_osd_color.color_map[handle_info.fill_color]);
+                osd_one_buffer_flush(&tmp_handle->buffer.buf[1]);
                 need_replace = 1;
             } else {
                 vio_err("[H%d] already bind, can`t modify size\n",
@@ -1225,7 +1241,6 @@ static int osd_set_attr(struct osd_video_ctx *osd_ctx, unsigned long arg)
     }
 
     if (need_replace == 1) {
-        atomic_set(&tmp_handle->need_update, 1);
         list_replace(&handle->node, &tmp_handle->node);
 
         osd_buffer_destroy(osd_dev->ion_client, &handle->buffer);
@@ -1233,7 +1248,6 @@ static int osd_set_attr(struct osd_video_ctx *osd_ctx, unsigned long arg)
         handle = NULL;
     } else {
         memcpy(&handle->info, &tmp_handle->info, sizeof(osd_handle_info_t));
-        atomic_set(&handle->need_update, 1);
         if (atomic_read(&handle->bind_cnt) > 0) {
             kthread_queue_work(&osd_dev->worker, &osd_dev->work);
         }
@@ -1365,7 +1379,6 @@ static int osd_set_buffer(struct osd_video_ctx *osd_ctx, unsigned long arg)
         }
         handle_update_buffer(handle, buffer_info.index);
         if (atomic_read(&handle->bind_cnt) > 0) {
-            atomic_set(&handle->need_update, 1);
             kthread_queue_work(&osd_dev->worker, &osd_dev->work);
         }
     }
@@ -1487,7 +1500,6 @@ static int osd_attach(struct osd_video_ctx *osd_ctx, unsigned long arg)
             osd_vga4_to_sw(g_osd_color.color_map, one_buf->vaddr, vga_buf->vaddr,
                 handle->buffer.size.w, handle->buffer.size.h);
             osd_one_buffer_flush(one_buf);
-            atomic_set(&handle->need_update, 1);
         }
     }
     atomic_inc(&handle->bind_cnt);
@@ -1508,7 +1520,6 @@ static int osd_attach(struct osd_video_ctx *osd_ctx, unsigned long arg)
         atomic_set(&subdev->osd_hw_need_update, 1);
     }
     kthread_queue_work(&osd_dev->worker, &osd_dev->work);
-    osd_sw_set_process_flag(subdev);
 
     vio_info("[S%d][V%d][H%d] %s done: ret:%d\n",
         bind->bind_info.instance, bind->bind_info.chn,
@@ -1740,13 +1751,14 @@ static int osd_set_bind_attr(struct osd_video_ctx *osd_ctx, unsigned long arg)
         mutex_lock(&bind->proc_info.proc_mutex);
         bind->proc_info.proc_type = OSD_PROC_VGA4;
         mutex_unlock(&bind->proc_info.proc_mutex);
-        atomic_set(&handle->need_update, 1);
         atomic_set(&subdev->osd_hw_need_update, 1);
         atomic_dec(&subdev->osd_hw_cnt);
     }
     mutex_unlock(&osd_dev->osd_list_mutex);
-    if (bind->bind_info.polygon_buf != NULL) {
+    if ((polygon_buf != NULL) && (bind->bind_info.polygon_buf != NULL)) {
         kfree(bind->bind_info.polygon_buf);
+    } else {
+        polygon_buf = bind->bind_info.polygon_buf;
     }
     if ((bind->proc_info.proc_type != OSD_PROC_HW_VGA4) &&
         (bind->bind_info.osd_level == 0)) {

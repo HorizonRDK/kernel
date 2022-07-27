@@ -61,6 +61,7 @@ void osd_one_buffer_dec_by_paddr(uint64_t paddr);
 int32_t osd_one_buffer_create(struct ion_client *client, osd_one_buffer_t *one_buffer);
 void osd_one_buffer_destroy(struct ion_client *client, osd_one_buffer_t *one_buffer);
 void osd_one_buffer_flush(osd_one_buffer_t *one_buffer);
+void osd_one_buffer_fill(osd_one_buffer_t *one_buffer, uint32_t color);
 
 int32_t osd_buffer_create(struct ion_client *client, osd_buffer_t *osd_buffer);
 int32_t osd_buffer_create_vga(struct ion_client *client, osd_buffer_t *osd_buffer);
