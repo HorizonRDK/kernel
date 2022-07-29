@@ -89,6 +89,8 @@
    #define PDU_MAX_DDT                  64
 #endif
 
+#define PDU_ALIGN_SIZE 0x10000UL
+
 // DMAable address type, usually can be some equivalent of uint32_t but in Linux it must be dma_addr_t
 // since on 64-bit and PAE boxes the pointers used by coherant allocation are 64-bits (even though only the lower 32 bits are used)
 #define PDU_DMA_ADDR_T               dma_addr_t

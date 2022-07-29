@@ -234,12 +234,12 @@ int pdu_mem_init(void *device)
 
    ddt_device = device;
 
-   ddt_pool = dma_pool_create("elpddt", device, (PDU_MAX_DDT+1)*8, 8, 0); // max of 64 DDT entries
+   ddt_pool = dma_pool_create("elpddt", device, (PDU_MAX_DDT +1 ) * 8, 8, PDU_ALIGN_SIZE); // max of 64 DDT entries
    if (!ddt_pool) {
       return -1;
    }
 #if PDU_MAX_DDT > 16
-   ddt16_pool = dma_pool_create("elpddt16", device, (16+1)*8, 8, 0); // max of 16 DDT entries
+   ddt16_pool = dma_pool_create("elpddt16", device, (16 * 2 + 1) * 8, 8, PDU_ALIGN_SIZE); // max of 16 DDT entries
    if (!ddt16_pool) {
       dma_pool_destroy(ddt_pool);
       return -1;
@@ -247,7 +247,7 @@ int pdu_mem_init(void *device)
 #else
    ddt16_pool = ddt_pool;
 #endif
-   ddt4_pool = dma_pool_create("elpddt4", device, (4+1)*8, 8, 0); // max of 4 DDT entries
+   ddt4_pool = dma_pool_create("elpddt4", device, (4 * 2 + 1) * 8, 8, PDU_ALIGN_SIZE); // max of 4 DDT entries
    if (!ddt4_pool) {
       dma_pool_destroy(ddt_pool);
 #if PDU_MAX_DDT > 16
@@ -284,7 +284,9 @@ void pdu_mem_deinit(void *device)
 int pdu_ddt_init (pdu_ddt * ddt, unsigned long limit)
 {
    int flag = (int)(limit & 0x80000000);  // set the MSB if we want to use an ATOMIC allocation required for top half processing
-   limit &= 0x7FFFFFFF;
+   limit &= 0x3FFFFFFF;
+
+   limit = limit * 2 + 1;
 
    if (limit+1 >= SIZE_MAX/8) {
       /* Too big to even compute DDT size */
@@ -318,21 +320,42 @@ int pdu_ddt_init (pdu_ddt * ddt, unsigned long limit)
 
 int pdu_ddt_add (pdu_ddt * ddt, PDU_DMA_ADDR_T phys, unsigned long size)
 {
+   uint32_t size_before_aligned = 0;
+
    if (trace_ddt) {
       printk("DDT[%.8lx]: 0x%.8lx size %lu\n", (unsigned long)ddt->phys,
                                                (unsigned long)phys, size);
    }
 
-   if (ddt->idx == ddt->limit) {
+   if (size >= PDU_ALIGN_SIZE) {
+      pr_err("%s max support segment size is %lu\n", __func__, PDU_ALIGN_SIZE - 1);
+	  return -1;
+   }
+
+   if (ddt->idx >= ddt->limit - 2) {
+      pr_err("%s error: ddt->idx %lu, ddt->limit:%lu\n", __func__, ddt->idx, ddt->limit);
       return -1;
    }
 
-   ddt->virt[ddt->idx * 2 + 0] = (uint32_t) phys;
-   ddt->virt[ddt->idx * 2 + 1] = (uint32_t)size;
-   ddt->virt[ddt->idx * 2 + 2] = 0;
-   ddt->virt[ddt->idx * 2 + 3] = 0;
-   ddt->len += size;
-   ++(ddt->idx);
+   size_before_aligned = PDU_ALIGN_SIZE - (phys & (PDU_ALIGN_SIZE - 1));
+
+   if (size > size_before_aligned) {
+      ddt->virt[ddt->idx * 4 + 0] = (uint32_t)phys;
+      ddt->virt[ddt->idx * 4 + 1] = (uint32_t)size_before_aligned;
+      ddt->virt[ddt->idx * 4 + 2] = (uint32_t)phys + size_before_aligned;
+      ddt->virt[ddt->idx * 4 + 3] = (uint32_t)size - size_before_aligned;
+      ddt->virt[ddt->idx * 4 + 4] = 0;
+      ddt->virt[ddt->idx * 4 + 5] = 0;
+      ddt->len += size;
+      ddt->idx += 2;
+   } else {
+      ddt->virt[ddt->idx * 2 + 0] = (uint32_t)phys;
+      ddt->virt[ddt->idx * 2 + 1] = (uint32_t)size;
+      ddt->virt[ddt->idx * 2 + 2] = 0;
+      ddt->virt[ddt->idx * 2 + 3] = 0;
+      ddt->len += size;
+      ++(ddt->idx);
+   }
    return 0;
 }
 
