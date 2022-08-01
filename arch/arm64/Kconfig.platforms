@@ -360,6 +360,13 @@ config HOBOT_GCOV_BASE
 	  This enables gcov in Makefiles of hobot modules.
 	  You only need to enable this for gcov test.
 
+config HOBOT_X3_UBUNTU
+	bool "X3 Ubuntu Support"
+	depends on HOBOT_XJ3
+	help
+	  This enables Hobot Ubuntu support.
+	  You only need to enable this, if you want to run ubuntu system.
+
 endmenu
 endif #ARCH_HOBOT
 

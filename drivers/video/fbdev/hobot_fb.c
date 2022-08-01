@@ -545,7 +545,11 @@ struct fb_var_screeninfo fb_1920_1080_var_default = {
 	.yres_virtual = 1080,
 	.xoffset = 0,
 	.yoffset = 0,
+#ifdef CONFIG_HOBOT_X3_UBUNTU
+	.bits_per_pixel = 24,
+#else
 	.bits_per_pixel = 32,
+#endif
 	.grayscale = 0,
 	.red = {
 		.offset = 16,
@@ -563,8 +567,13 @@ struct fb_var_screeninfo fb_1920_1080_var_default = {
 		.msb_right = 0,
 	},
 	.transp = {
+#ifdef CONFIG_HOBOT_X3_UBUNTU
+		.offset = 0,
+		.length = 0,
+#else
 		.offset = 24,
 		.length = 8,
+#endif
 		.msb_right = 0,
 	},
 	.nonstd = 0,
@@ -977,6 +986,7 @@ static int hbfb_set_par(struct fb_info *info)
 		if (logo == 0)
 			user_config_display(display_type);
 	} else {
+#ifndef CONFIG_HOBOT_X3_UBUNTU
 		pr_info("%s: user set fb par through ioctl!!\n", __func__);
 		if (fbi == NULL) {
 			pr_err("%s: unavilible fbi poiter!!\n", __func__);
@@ -987,6 +997,7 @@ static int hbfb_set_par(struct fb_info *info)
 		pr_info("%s: hobot_fbi->fb width is %d, height is %d\n", __func__,
 				fbi->fb.var.xres, fbi->fb.var.yres);
 		user_config_image_res(width, height);
+#endif
 	}
 
 	return regval;

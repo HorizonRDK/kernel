@@ -44,7 +44,13 @@
 #define IAR_MEM_SIZE 0x2000000        //32MB
 #endif
 
+#ifdef CONFIG_HOBOT_X3_UBUNTU
+#define FORMAT_ORGANIZATION_VAL 0x9b36
+#define DEFAULT_CHAN_FORMAT 3 // packed RGB888
+#else
 #define FORMAT_ORGANIZATION_VAL 0x9c36
+#define DEFAULT_CHAN_FORMAT 4 // ARGB8888
+#endif
 #define REFRESH_CFG_VAL 0x808
 unsigned int iar_debug_level = 0;
 EXPORT_SYMBOL(iar_debug_level);
@@ -566,6 +572,11 @@ void hobot_iar_dump(void)
 }
 EXPORT_SYMBOL_GPL(hobot_iar_dump);
 
+void iar_write_reg(uint32_t offset, uint32_t val)
+{
+	writel(val, g_iar_dev->regaddr + offset);
+}
+EXPORT_SYMBOL_GPL(iar_write_reg);
 /**
  * Set iar module pixel clock phase invert
  * only used in XJ2 platform
@@ -3581,7 +3592,7 @@ int user_config_image_res(uint32_t width, uint32_t height)
 	channel_base_cfg[0].height = height;
 	channel_base_cfg[0].buf_width = width;
 	channel_base_cfg[0].buf_height = height;
-	channel_base_cfg[0].format = 4;
+	channel_base_cfg[0].format = DEFAULT_CHAN_FORMAT;
 	channel_base_cfg[0].alpha_sel = 0;
 	channel_base_cfg[0].ov_mode = 0;
 	channel_base_cfg[0].alpha_en = 1;
@@ -3660,7 +3671,7 @@ int user_config_display(enum DISPLAY_TYPE d_type)
 			channel_base_cfg[1].height = 1080;
 			channel_base_cfg[1].buf_width = 1920;
 			channel_base_cfg[1].buf_height = 1080;
-			channel_base_cfg[1].format = 4;//ARGB8888
+			channel_base_cfg[1].format = DEFAULT_CHAN_FORMAT;
 			channel_base_cfg[1].alpha_sel = 0;
 			channel_base_cfg[1].ov_mode = 0;
 			channel_base_cfg[1].alpha_en = 1;
@@ -3712,7 +3723,7 @@ int user_config_display(enum DISPLAY_TYPE d_type)
 			channel_base_cfg[1].height = 480;
 			channel_base_cfg[1].buf_width = 800;
 			channel_base_cfg[1].buf_height = 480;
-			channel_base_cfg[1].format = 4;//ARGB8888
+			channel_base_cfg[1].format = DEFAULT_CHAN_FORMAT;
 			channel_base_cfg[1].alpha_sel = 0;
 			channel_base_cfg[1].ov_mode = 0;
 			channel_base_cfg[1].alpha_en = 1;
@@ -3782,7 +3793,7 @@ int user_config_display(enum DISPLAY_TYPE d_type)
 			channel_base_cfg[1].height = 1280;
 			channel_base_cfg[1].buf_width = 720;
 			channel_base_cfg[1].buf_height = 1280;
-			channel_base_cfg[1].format = 4;//ARGB8888
+			channel_base_cfg[1].format = DEFAULT_CHAN_FORMAT;
 			channel_base_cfg[1].alpha_sel = 0;
 			channel_base_cfg[1].ov_mode = 0;
 			channel_base_cfg[1].alpha_en = 1;
@@ -3833,7 +3844,7 @@ int user_config_display(enum DISPLAY_TYPE d_type)
 			channel_base_cfg[1].height = 1920;
 			channel_base_cfg[1].buf_width = 1080;
 			channel_base_cfg[1].buf_height = 1920;
-			channel_base_cfg[1].format = 4;//ARGB8888
+			channel_base_cfg[1].format = DEFAULT_CHAN_FORMAT;
 			channel_base_cfg[1].alpha_sel = 0;
 			channel_base_cfg[1].ov_mode = 0;
 			channel_base_cfg[1].alpha_en = 1;
@@ -3880,7 +3891,7 @@ int user_config_display(enum DISPLAY_TYPE d_type)
 			channel_base_cfg[1].height = 1280;
 			channel_base_cfg[1].buf_width = 720;
 			channel_base_cfg[1].buf_height = 1280;
-			channel_base_cfg[1].format = 4;//ARGB8888
+			channel_base_cfg[1].format = DEFAULT_CHAN_FORMAT;
 			channel_base_cfg[1].alpha_sel = 0;
 			channel_base_cfg[1].ov_mode = 0;
 			channel_base_cfg[1].alpha_en = 1;
@@ -3926,7 +3937,7 @@ int user_config_display(enum DISPLAY_TYPE d_type)
 			channel_base_cfg[1].height = 720;
 			channel_base_cfg[1].buf_width = 1280;
 			channel_base_cfg[1].buf_height = 720;
-			channel_base_cfg[1].format = 4;//ARGB8888
+			channel_base_cfg[1].format = DEFAULT_CHAN_FORMAT;
 			channel_base_cfg[1].alpha_sel = 0;
 			channel_base_cfg[1].ov_mode = 0;
 			channel_base_cfg[1].alpha_en = 1;
@@ -3972,7 +3983,7 @@ int user_config_display(enum DISPLAY_TYPE d_type)
 			channel_base_cfg[1].height = 576;
 			channel_base_cfg[1].buf_width = 704;
 			channel_base_cfg[1].buf_height = 576;
-			channel_base_cfg[1].format = 4;//ARGB8888
+			channel_base_cfg[1].format = DEFAULT_CHAN_FORMAT;
 			channel_base_cfg[1].alpha_sel = 0;
 			channel_base_cfg[1].ov_mode = 0;
 			channel_base_cfg[1].alpha_en = 1;
@@ -4019,7 +4030,7 @@ int user_config_display(enum DISPLAY_TYPE d_type)
 			channel_base_cfg[1].height = 1080;
 			channel_base_cfg[1].buf_width = 1920;
 			channel_base_cfg[1].buf_height = 1080;
-			channel_base_cfg[1].format = 4;//ARGB8888
+			channel_base_cfg[1].format = DEFAULT_CHAN_FORMAT;
 			channel_base_cfg[1].alpha_sel = 0;
 			channel_base_cfg[1].ov_mode = 0;
 			channel_base_cfg[1].alpha_en = 1;

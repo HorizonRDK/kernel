@@ -866,6 +866,7 @@ int32_t iar_open(void);
 int32_t iar_close(void);
 int32_t iar_pre_init(void);
 void hobot_iar_dump(void);
+void iar_write_reg(uint32_t offset, uint32_t val);
 frame_buf_t* hobot_iar_get_framebuf_addr(int channel);
 int hobot_iar_get_layer_size(unsigned int *width, unsigned int *height);
 //int32_t iar_set_video_buffer(uint32_t yaddr, uint32_t caddr, int index);

@@ -979,6 +979,7 @@ int iar_cdev_release(struct inode *inode, struct file *filp)
 	} else {
 		iar_layer_disable(0);
 		iar_layer_disable(1);
+		iar_write_reg(REG_IAR_FORMAT_ORGANIZATION, 0x9b36);
 		iar_layer_enable(2);
 		iar_layer_disable(3);
 	}
