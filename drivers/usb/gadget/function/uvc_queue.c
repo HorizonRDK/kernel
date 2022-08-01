@@ -55,6 +55,8 @@ static int uvc_queue_setup(struct vb2_queue *vq,
 
 	if (cdev->gadget->speed < USB_SPEED_SUPER)
 		video->uvc_num_requests = 4;
+	else if (video->is_bulk)	/* 16 requests for usb3.0 bulk uvc, otherwise 1g ddr OOM */
+		video->uvc_num_requests = 16;
 	else
 		video->uvc_num_requests = 64;
 
