@@ -3132,7 +3132,7 @@ EXPORT_SYMBOL_GPL(disable_sif_mclk);
 
 static int stride_copy_bmp(int width, int height, const unsigned char *src,
 		int x0, int y0, int stride0, int height0,
-		unsigned char *dst, int x1, int y1, int stride1)
+		unsigned char *dst, int x1, int y1, int stride1, int iar_format)
 {
 	int i, j;
 	struct bmp_image *bmp = (struct bmp_image *)src;
@@ -3143,6 +3143,7 @@ static int stride_copy_bmp(int width, int height, const unsigned char *src,
 	const unsigned char *p0, *hp0;
 	unsigned char *p1, *hp1;
 	unsigned char ct;
+	uint32_t len_pp1 = 4;
 
 	int hdr_size;
 
@@ -3177,13 +3178,20 @@ static int stride_copy_bmp(int width, int height, const unsigned char *src,
 	p0 = bmap;
 	p1 = dst;
 
+	// iar_format: 3--RGB888  4--ARGB8888
+	if (iar_format == 4) {
+		len_pp1 = 4;
+	} else if (iar_format == 3) {
+		len_pp1 = 3;
+	}
+
 	switch (bmp_bpix) {
 	case 24:
 		hp0 = p0 + y0 * stb0;
-		hp1 = p1 + (y1 + height - 1) * stride1 * 4;
+		hp1 = p1 + (y1 + height - 1) * stride1 * len_pp1;
 		for (i = 0; i < height; ++i) {
 			p0 = hp0 + x0 * 3;
-			p1 = hp1 + x1 * 4;
+			p1 = hp1 + x1 * len_pp1;
 			for (j = 0; j < width; j++) {
 				ct = 0xff;
 				ct &= *p0;
@@ -3192,26 +3200,32 @@ static int stride_copy_bmp(int width, int height, const unsigned char *src,
 				*(p1++) = *(p0++);
 				ct &= *p0;
 				*(p1++) = *(p0++);
-				*(p1++) = (ct >= 0xe0 ? 0 : 0xff);
+				if (iar_format == 4) {
+					*(p1++) = (ct >= 0xe0 ? 0 : 0xff);
+				}
 			}
 			hp0 += stb0;
-			hp1 -= stride1 * 4;
+			hp1 -= stride1 * len_pp1;
 		}
 		break;
 	case 32:
 		hp0 = p0 + y0 * stride0 * 4;
-		hp1 = p1 + (y1 + height - 1) * stride1 * 4;
+		hp1 = p1 + (y1 + height - 1) * stride1 * len_pp1;
 		for (i = 0; i < height; ++i) {
 			p0 = hp0 + x0 * 4;
-			p1 = hp1 + x1 * 4;
+			p1 = hp1 + x1 * len_pp1;
 			for (j = 0; j < width; j++) {
 				*(p1++) = *(p0++);
 				*(p1++) = *(p0++);
 				*(p1++) = *(p0++);
-				*(p1++) = *(p0++);
+				if (iar_format == 4) {
+					*(p1++) = *(p0++);
+				} else {
+					p0++;
+				}
 			}
 			hp0 += stride0 * 4;
-			hp1 -= stride1 * 4;
+			hp1 -= stride1 * len_pp1;
 		}
 		break;
 	default:
@@ -4802,8 +4816,13 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		iar_display_cam_no = PIPELINE0;
                 iar_display_addr_type = GDC0;
 		if (need_startup_img) {
+#ifdef CONFIG_HOBOT_X3_UBUNTU
 			stride_copy_bmp(0, 0, embedded_image_0_data, 0, 0, 0, 0,
-				g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr, 24, 24, 720);
+				g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr, 24, 24, 720, 3);
+#else
+			stride_copy_bmp(0, 0, embedded_image_0_data, 0, 0, 0, 0,
+				g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr, 24, 24, 720, 4);
+#endif
 		} else {
 			display_color_bar(720, 1280, g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
 		}
@@ -4816,8 +4835,13 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		iar_display_cam_no = PIPELINE0;
                 iar_display_addr_type = DISPLAY_CHANNEL1;
 		if (need_startup_img) {
+#ifdef CONFIG_HOBOT_X3_UBUNTU
 			stride_copy_bmp(0, 0, embedded_image_0_data, 0, 0, 0, 0,
-				g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr, 24, 24, 1280);
+				g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr, 24, 24, 1280, 3);
+#else
+			stride_copy_bmp(0, 0, embedded_image_0_data, 0, 0, 0, 0,
+				g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr, 24, 24, 1280, 4);
+#endif
 		} else {
 			display_color_bar(1280, 720, g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
 		}
@@ -4849,8 +4873,13 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		iar_display_cam_no = PIPELINE0;
 		iar_display_addr_type = DISPLAY_CHANNEL1;
 		if (need_startup_img) {
+#ifdef CONFIG_HOBOT_X3_UBUNTU
 			stride_copy_bmp(0, 0, embedded_image_0_data, 0, 0, 0, 0,
-					g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr, 24, 24, 1920);
+					g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr, 24, 24, 1920, 3);
+#else
+			stride_copy_bmp(0, 0, embedded_image_0_data, 0, 0, 0, 0,
+					g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr, 24, 24, 1920, 4);
+#endif
 		} else {
 			display_color_bar(1920, 1080, g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
 		}
