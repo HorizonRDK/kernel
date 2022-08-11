@@ -521,8 +521,7 @@ static int hb_spi_fill_txdma(struct hb_spi *hbspi)
 
 	if (cnt) {
 		dma_ctrl1 |= HB_SPI_DMAC1_TXDSTART | HB_SPI_DMAC1_TXDCFG;
-		if (hbspi->rxbuf)
-			dma_ctrl1 |= HB_SPI_DMAC1_RXDSTART | HB_SPI_DMAC1_RXDCFG;
+		dma_ctrl1 |= HB_SPI_DMAC1_RXDSTART | HB_SPI_DMAC1_RXDCFG;
 		hb_spi_wr(hbspi, HB_SPI_TLEN_REG, cnt * 8);
 		hb_spi_wr(hbspi, HB_SPI_TDMA_SIZE0_REG, cnt);
 		hb_spi_wr(hbspi, HB_SPI_RDMA_SIZE0_REG, cnt);
@@ -583,6 +582,20 @@ static int hb_spi_drain_rxdma(struct hb_spi *hbspi)
 }
 #endif
 #endif
+
+static int hb_spi_start_rxdma(struct hb_spi *hbspi)
+{
+	u32 dma_ctrl1 = 0;
+	dma_ctrl1 |= HB_SPI_DMAC1_RXDSTART | HB_SPI_DMAC1_RXDCFG;
+	dma_ctrl1 |= HB_SPI_DMAC1_TXDSTART | HB_SPI_DMAC1_TXDCFG;
+
+	hb_spi_wr(hbspi, HB_SPI_TLEN_REG, hbspi->len * 8);
+	hb_spi_wr(hbspi, HB_SPI_TDMA_SIZE0_REG, hbspi->len);
+	hb_spi_wr(hbspi, HB_SPI_RDMA_SIZE0_REG, hbspi->len);
+	/* open tx and rx dma at same time avoid rx problem */
+	hb_spi_wr(hbspi, HB_SPI_DMA_CTRL1_REG, dma_ctrl1);
+	return 0;
+}
 
 #ifdef CONFIG_HOBOT_DIAG
 static void spi_diag_report(uint8_t errsta, uint32_t srcpndreg,
@@ -669,7 +682,7 @@ static irqreturn_t hb_spi_int_handle(int irq, void *data)
 		hb_spi_wr(hbspi, HB_SPI_FIFO_RESET_REG, HB_SPI_FRST_ABORT);
 		complete(&hbspi->completion);
 #elif defined CONFIG_HB_SPI_DMA_SINGLE
-		hb_spi_fill_txdma(hbspi);
+		complete(&hbspi->completion);
 #endif
 	}
 
@@ -917,6 +930,7 @@ static int hb_spi_transfer_one(struct spi_master *master,
 	struct hb_spi *hbspi = spi_master_get_devdata(master);
 	int ms;
 	u32 tlen;
+	int tranflag = 0;
 
 #ifdef CONFIG_HOBOT_BUS_CLK_X3
 	mutex_lock(&hbspi->dpm_mtx);
@@ -1017,29 +1031,33 @@ static int hb_spi_transfer_one(struct spi_master *master,
 		tlen = HB_SPI_DMA_BUFSIZE * 8;
 	}
 
+	//TXDMA enable
+	fifo_flag |= HB_SPI_OP_TX_FIFOE;
+	int_umask |= HB_SPI_INT_TX_DMAERR | HB_SPI_INT_DMA_TRDONE;
+	dma_ctrl0 |= HB_SPI_DMAC0_TXBLEN1 | HB_SPI_DMAC0_TXBLEN0 |
+		HB_SPI_DMAC0_TXMAXOS1 | HB_SPI_DMAC0_TXMAXOS0;
+	dma_ctrl1 |= HB_SPI_DMAC1_TXDSTART | HB_SPI_DMAC1_TXDCFG;
+	fifo_reset |= HB_SPI_FRST_TXCLEAR;
 	if (hbspi->txbuf) {
 		hbspi->txcnt = hbspi->len;
-		fifo_flag |= HB_SPI_OP_TX_FIFOE;
-		int_umask |= HB_SPI_INT_TX_DMAERR | HB_SPI_INT_DMA_TRDONE;
-		dma_ctrl0 |= HB_SPI_DMAC0_TXBLEN1 | HB_SPI_DMAC0_TXBLEN0 |
-		    HB_SPI_DMAC0_TXMAXOS1 | HB_SPI_DMAC0_TXMAXOS0;
-		dma_ctrl1 |= HB_SPI_DMAC1_TXDSTART | HB_SPI_DMAC1_TXDCFG;
-		fifo_reset |= HB_SPI_FRST_TXCLEAR;
 	} else {
 		hbspi->txcnt = 0;
 	}
+	//RXDMA enable
+	fifo_flag |= HB_SPI_OP_RX_FIFOE;
+	int_umask |= HB_SPI_INT_RX_DMAERR | HB_SPI_INT_RX_BGDONE;
+	dma_ctrl0 |= HB_SPI_DMAC0_RXBLEN1 | HB_SPI_DMAC0_RXBLEN0 |
+		HB_SPI_DMAC0_RXMAXOS1 | HB_SPI_DMAC0_RXMAXOS0;
+	dma_ctrl1 |= HB_SPI_DMAC1_RXDSTART | HB_SPI_DMAC1_RXDCFG;
+	fifo_reset |= HB_SPI_FRST_RXCLEAR;
 	if (hbspi->rxbuf) {
 		hbspi->rxcnt = hbspi->len;
-		fifo_flag |= HB_SPI_OP_RX_FIFOE;
-		int_umask |= HB_SPI_INT_RX_DMAERR | HB_SPI_INT_RX_BGDONE;
-		dma_ctrl0 |= HB_SPI_DMAC0_RXBLEN1 | HB_SPI_DMAC0_RXBLEN0 |
-		    HB_SPI_DMAC0_RXMAXOS1 | HB_SPI_DMAC0_RXMAXOS0;
-		dma_ctrl1 |= HB_SPI_DMAC1_RXDSTART | HB_SPI_DMAC1_RXDCFG;
-		fifo_reset |= HB_SPI_FRST_RXCLEAR;
 	} else {
 		hbspi->rxcnt = 0;
 	}
 #endif
+	if(hbspi->txbuf && hbspi->rxbuf)
+		tranflag = 1;
 
 	hb_spi_en_ctrl(hbspi, HB_SPI_OP_CORE_EN, fifo_flag, tr_flag);
 	hb_spi_wr(hbspi, HB_SPI_TLEN_REG, tlen);
@@ -1056,7 +1074,13 @@ static int hb_spi_transfer_one(struct spi_master *master,
 	if (hbspi->isslave == SLAVE_MODE)
 		rx_end_flag = 1;
 #endif
-	hb_spi_fill_txdma(hbspi);
+	if(hbspi->txbuf || tranflag) {
+		hb_spi_fill_txdma(hbspi);
+	} else {
+		memset(hbspi->tx_dma_buf, 0xFF, xfer->len);
+	}
+	if(hbspi->rxbuf && tranflag == 0)
+		hb_spi_start_rxdma(hbspi);
 #endif
 
 	ret = hb_spi_wait_for_completion(hbspi);
