@@ -1280,7 +1280,7 @@ static void sif_disable_wdma(struct sif_subdev *subdev)
 
 	sif = subdev->sif_dev;
 	mux_index = subdev->ddr_mux_index % SIF_MUX_MAX;
-	yuv_format = subdev->format;
+	yuv_format = (subdev->format == HW_FORMAT_YUV422);
 
 	sif_set_wdma_enable(sif->base_reg, mux_index, 0);
 	if (yuv_format || subdev->dol_num > 1) {
@@ -3137,9 +3137,15 @@ static int32_t sif_check_frameid_correct(struct sif_subdev *subdev,
 {
 	void* base = NULL;
 	uint32_t enable_id_decoder;
+	uint32_t format, pixel_length;
 
 	enable_id_decoder = subdev->sif_cfg.input.mipi.func.enable_id_decoder;
+	format = subdev->format;
+	pixel_length = subdev->sif_cfg.input.mipi.data.pix_length;
 	if(enable_id_decoder)
+		return 0;
+	if((format == SIF_FORMAT_RAW) &&
+		(pixel_length == PIXEL_LENGTH_16BIT))
 		return 0;
 	ion_dcache_invalid(frame->frameinfo.addr[0], SIF_L1_CACHE_BYTES);
 	base = phys_to_virt(frame->frameinfo.addr[0]);
