@@ -189,6 +189,7 @@ struct vio_group {
 	atomic_t work_insert;
 
 	unsigned int abnormal_fs;
+	u32 shadow_reuse_check; /* for check once in one group */
 };
 
 struct vio_work {

@@ -394,8 +394,10 @@ static int x3_ipu_close(struct inode *inode, struct file *file)
 		instance = group->instance;
 		if (instance < MAX_SHADOW_NUM)
 			shadow_index = group->instance;
-		if (ipu_ctx->id == GROUP_ID_SRC && shadow_index == 0)
+		if (ipu_ctx->id == GROUP_ID_SRC && shadow_index == 0) {
 			atomic_dec(&ipu->reuse_shadow0_count);
+			group->shadow_reuse_check = 0;
+		}
 
 		if (atomic_dec_return(&group->node_refcount) == 0) {
 			clear_bit(VIO_GROUP_LEADER, &group->state);
@@ -2221,9 +2223,11 @@ int ipu_video_init(struct ipu_video_ctx *ipu_ctx, unsigned long arg)
 	if (group->instance < MAX_SHADOW_NUM)
 		shadow_index = group->instance;
 
-	if (ipu_ctx->id == GROUP_ID_SRC && shadow_index == 0) {
+	if (group->shadow_reuse_check == 0 && shadow_index == 0) {
+		/* only the first inited ctx of a group to check shadow reuse */
 		if (atomic_inc_return(&ipu->reuse_shadow0_count) > 1)
 			set_bit(IPU_REUSE_SHADOW0, &ipu->state);
+		group->shadow_reuse_check = 1;
 		vio_info("reuse_shadow0_count = %d\n", ipu->reuse_shadow0_count);
 	}
 

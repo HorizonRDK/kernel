@@ -357,6 +357,7 @@ void vio_group_init(struct vio_group *group)
 	group->target_sema = 0x3;
 	group->sema_flag = 0x00;
 	group->group_scenario = -1;
+	group->shadow_reuse_check = 0;
 	atomic_set(&group->rcount, 0); /*PRQA S ALL*/
 	atomic_set(&group->node_refcount, 0); /*PRQA S ALL*/
 	atomic_set(&group->work_insert, 0); /*PRQA S ALL*/
