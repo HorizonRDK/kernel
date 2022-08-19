@@ -27,6 +27,7 @@ enum IAR_CONFIG {
 	CONFIG_CHANNEL13,
 
 };
+
 extern const struct linux_logo logo_linux_clut224;
 //extern int display_type;
 extern void *logo_vaddr;
@@ -38,5 +39,8 @@ extern int32_t iar_write_framebuf_dma(uint32_t channel,
 //extern struct disp_timing video_720x1280;
 //extern struct disp_timing video_1080x1920;
 //extern struct disp_timing video_720x1280_touch;
-
+#ifdef CONFIG_HOBOT_X3_UBUNTU
+extern void hdmi_set_resolution(int res);
+extern Hdmi_Resolution_Ratio hdmi_resolution;
+#endif
 #endif

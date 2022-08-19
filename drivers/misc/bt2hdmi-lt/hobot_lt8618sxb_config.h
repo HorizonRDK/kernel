@@ -164,7 +164,7 @@
 
 // BT656 10bit/12bit
 
-// BT656 10bit input from D2,D3, D8 to D15 of LT8618SXB. \
+// BT656 10bit input from D2,D3, D8 to D15 of LT8618SXB. 
 // BT656 12bit input from D0 to D3, D8 to D15 of LT8618SXB.
 #define _D8_D15_In_ 0x00
 #define _YC_Channel_ _D8_D15_In_
@@ -200,9 +200,9 @@
 #define _Reg0x8248_D1_D0_ 0x00
 #else
 // BT1120 20bit/24bit
-// BT1120 10bit input from D2 ~ D3(Y0~Y1),D6 ~ D7(C0~C1), \
-// D8 ~ D15(Y2~Y9),D16 ~ D23(C2~C9) of LT8618SXB. \
-// BT1120 12bit input from D0 ~ D3(Y0~Y3),D4 ~ D7(C0~C3), \
+// BT1120 10bit input from D2 ~ D3(Y0~Y1),D6 ~ D7(C0~C1), 
+// D8 ~ D15(Y2~Y9),D16 ~ D23(C2~C9) of LT8618SXB. 
+// BT1120 12bit input from D0 ~ D3(Y0~Y3),D4 ~ D7(C0~C3), 
 // D8 ~ D15(Y4~Y11),D16 ~ D23(C4~C11) of LT8618SXB.
 #define _YC_Channel_ 0x70
 
@@ -350,6 +350,5 @@ enum {
 	Clk_bound_SDR,		// SDR
 	Clk_bound_DDR		// DDR
 };
-
 #endif // DRIVERS_MISC_BT2HDMI_LT_HOBOT_LT8618SXB_CONFIG_H_
 /**************************** The End Of File *******************************/

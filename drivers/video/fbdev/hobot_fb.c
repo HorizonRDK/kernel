@@ -473,7 +473,11 @@ struct fb_var_screeninfo fb_1280_720_var_default = {
 	.yres_virtual = 720,
 	.xoffset = 0,
 	.yoffset = 0,
+#ifdef CONFIG_HOBOT_X3_UBUNTU
+	.bits_per_pixel = 24,
+#else
 	.bits_per_pixel = 32,
+#endif
 	.grayscale = 0,
 	.red = {
 		.offset = 16,
@@ -491,8 +495,14 @@ struct fb_var_screeninfo fb_1280_720_var_default = {
 		.msb_right = 0,
 	},
 	.transp = {
+#ifdef CONFIG_HOBOT_X3_UBUNTU
+		.offset = 0,
+		.length = 0,
+#else
 		.offset = 24,
 		.length = 8,
+#endif
+
 		.msb_right = 0,
 	},
 	.nonstd = 0,
@@ -531,6 +541,169 @@ struct fb_fix_screeninfo fb_1280_720_fix_default = {
 	.ypanstep = 0,
 	.ywrapstep = 0,
 	.line_length = 5120,
+	.mmio_start = 0,
+	.mmio_len = 0,
+	.accel = FB_ACCEL_NONE,
+	.capabilities = 0,
+	.reserved = {0x0},
+};
+
+struct fb_var_screeninfo fb_1024_600_var_default = {
+	.xres = 1024,
+	.yres = 600,
+	.xres_virtual = 1024,
+	.yres_virtual = 600,
+	.xoffset = 0,
+	.yoffset = 0,
+#ifdef CONFIG_HOBOT_X3_UBUNTU
+	.bits_per_pixel = 24,
+#else
+	.bits_per_pixel = 32,
+#endif
+	.grayscale = 0,
+	.red = {
+		.offset = 16,
+		.length = 8,
+		.msb_right = 0,//MSB left; !=0,MSB right
+	},
+	.green = {
+		.offset = 8,
+		.length = 8,
+		.msb_right = 0,
+	},
+	.blue = {
+		.offset = 0,
+		.length = 8,
+		.msb_right = 0,
+	},
+	.transp = {
+#ifdef CONFIG_HOBOT_X3_UBUNTU
+		.offset = 0,
+		.length = 0,
+#else
+		.offset = 24,
+		.length = 8,
+#endif
+
+		.msb_right = 0,
+	},
+	.nonstd = 0,
+	.activate = FB_ACTIVATE_NOW,
+	.height = 110,
+	.width = 62,
+	.accel_flags = FB_ACCEL_NONE,
+
+	.pixclock = 23530,//33.3M,
+//	.left_margin = 40,//20~200
+//	.right_margin = 40,//87~1
+	.left_margin = 46,//100+20
+	.right_margin = 46,//52+28
+//	.upper_margin = 12,//5~200
+//	.lower_margin = 30,//31~29
+	.upper_margin = 16,//42+1
+	.lower_margin = 14,//31+1
+	.hsync_len = 10,//1~87,no type value
+	.vsync_len = 3,//1~3,no type value
+
+	.sync = 0,//????????
+	.vmode = FB_VMODE_NONINTERLACED,
+	.rotate = 1,
+	.colorspace = 0,
+	.reserved = {0x0},
+};
+
+struct fb_fix_screeninfo fb_1024_600_fix_default = {
+	.id = "x2-fb",
+	.smem_start = 0x0,
+	.smem_len = MAX_FRAME_BUF_SIZE,
+	.type = FB_TYPE_PACKED_PIXELS,
+	.type_aux = 0,
+	.visual = FB_VISUAL_TRUECOLOR,  //FB_VISUAL_PSEUDOCOLOR,
+	.xpanstep = 0,
+	.ypanstep = 0,
+	.ywrapstep = 0,
+	.line_length = 4096,
+	.mmio_start = 0,
+	.mmio_len = 0,
+	.accel = FB_ACCEL_NONE,
+	.capabilities = 0,
+	.reserved = {0x0},
+};
+
+struct fb_var_screeninfo fb_800_480_var_default = {
+	.xres = 800,
+	.yres = 480,
+	.xres_virtual = 800,
+	.yres_virtual = 480,
+	.xoffset = 0,
+	.yoffset = 0,
+#ifdef CONFIG_HOBOT_X3_UBUNTU
+	.bits_per_pixel = 24,
+#else
+	.bits_per_pixel = 32,
+#endif
+	.grayscale = 0,
+	.red = {
+		.offset = 16,
+		.length = 8,
+		.msb_right = 0,//MSB left; !=0,MSB right
+	},
+	.green = {
+		.offset = 8,
+		.length = 8,
+		.msb_right = 0,
+	},
+	.blue = {
+		.offset = 0,
+		.length = 8,
+		.msb_right = 0,
+	},
+	.transp = {
+#ifdef CONFIG_HOBOT_X3_UBUNTU
+		.offset = 0,
+		.length = 0,
+#else
+		.offset = 24,
+		.length = 8,
+#endif
+		.msb_right = 0,
+	},
+	.nonstd = 0,
+	.activate = FB_ACTIVATE_NOW,
+	.height = 110,
+	.width = 62,
+	.accel_flags = FB_ACCEL_NONE,
+
+	.pixclock = 36030,//33.3M,
+//	.left_margin = 40,//20~200
+//	.right_margin = 40,//87~1
+	.left_margin = 46,//100+20
+	.right_margin = 46,//52+28
+//	.upper_margin = 12,//5~200
+//	.lower_margin = 30,//31~29
+	.upper_margin = 16,//42+1
+	.lower_margin = 14,//31+1
+	.hsync_len = 10,//1~87,no type value
+	.vsync_len = 3,//1~3,no type value
+
+	.sync = 0,//????????
+	.vmode = FB_VMODE_NONINTERLACED,
+	.rotate = 1,
+	.colorspace = 0,
+	.reserved = {0x0},
+};
+
+struct fb_fix_screeninfo fb_800_480_fix_default = {
+	.id = "x2-fb",
+	.smem_start = 0x0,
+	.smem_len = MAX_FRAME_BUF_SIZE,
+	.type = FB_TYPE_PACKED_PIXELS,
+	.type_aux = 0,
+	.visual = FB_VISUAL_TRUECOLOR,  //FB_VISUAL_PSEUDOCOLOR,
+	.xpanstep = 0,
+	.ypanstep = 0,
+	.ywrapstep = 0,
+	.line_length = 3200,
 	.mmio_start = 0,
 	.mmio_len = 0,
 	.accel = FB_ACCEL_NONE,
@@ -581,7 +754,7 @@ struct fb_var_screeninfo fb_1920_1080_var_default = {
 	.height = 110,
 	.width = 62,
 	.accel_flags = FB_ACCEL_NONE,
-	.pixclock = 30030,//33.3M,
+	.pixclock = 7400,//33.3M,
 	.left_margin = 46,//100+20
 	.right_margin = 46,//52+28
 	.upper_margin = 16,//42+1
@@ -648,7 +821,7 @@ static int hbfb_mmap(struct fb_info *info, struct vm_area_struct *pvma)
 
 	if (info->fix.smem_start == 0 ||
 			(pvma->vm_end - pvma->vm_start) > frame_size) {
-		pr_err("%s: mmap size exceed layer size!\n", __func__);
+		pr_err("%s: mmap size = %d info->fix.smem_start = %d exceed layer size!\n", __func__,pvma->vm_end - pvma->vm_start,info->fix.smem_start);
 		return -ENOMEM;
 	}
 
@@ -975,7 +1148,7 @@ static int iar_get_framesize(void)
 
 static int hbfb_set_par(struct fb_info *info)
 {
-	uint32_t regval = 0;
+	uint32_t regval = 0,value = 6;
 	struct hbfb_info *fbi =
 		container_of(info, struct hbfb_info, fb);
 	uint32_t width;
@@ -999,7 +1172,16 @@ static int hbfb_set_par(struct fb_info *info)
 		user_config_image_res(width, height);
 #endif
 	}
-
+#ifdef CONFIG_HOBOT_X3_UBUNTU
+	if(info->var.xres == 1280 && info->var.yres == 720){
+		value = 2;
+	}else if(info->var.xres == 1024 && info->var.yres == 600){
+		value = 15;
+	}else if(info->var.xres == 800 && info->var.yres == 480){
+		value = 16;
+	}
+	hdmi_set_resolution(value);
+#endif
 	return regval;
 }
 #if 0
@@ -1881,11 +2063,14 @@ static int hbfb_probe(struct platform_device *pdev)
 	pr_debug("fb layer width is %d\n", layer_width);
 	pr_debug("fb layer height is %d\n", layer_height);
 	frame_size = layer_width * layer_height * 4;
-
+	pr_debug("frame_size is %d\n", frame_size);
 	RGB500_fix_default.smem_start = framebuf_user.paddr;
 	RGB700_fix_default.smem_start = framebuf_user.paddr;
 	fb_720_1280_fix_default.smem_start = framebuf_user.paddr;
 	fb_1920_1080_fix_default.smem_start = framebuf_user.paddr;
+	fb_1280_720_fix_default.smem_start = framebuf_user.paddr;
+	fb_1024_600_fix_default.smem_start = framebuf_user.paddr;
+	fb_800_480_fix_default.smem_start = framebuf_user.paddr;
 
 	RGB500_fix_default.line_length =
 		get_line_length(RGB500_var_default.xres_virtual,
@@ -1901,10 +2086,41 @@ static int hbfb_probe(struct platform_device *pdev)
 	fb_1920_1080_fix_default.line_length =
 		get_line_length(fb_1920_1080_var_default.xres_virtual,
 				fb_1920_1080_var_default.bits_per_pixel);
+	fb_1280_720_fix_default.line_length =
+		get_line_length(fb_1280_720_var_default.xres_virtual,
+				fb_1280_720_var_default.bits_per_pixel);
+	fb_1024_600_fix_default.line_length =
+		get_line_length(fb_1024_600_var_default.xres_virtual,
+				fb_1024_600_var_default.bits_per_pixel);
+	fb_800_480_fix_default.line_length =
+		get_line_length(fb_800_480_var_default.xres_virtual,
+				fb_800_480_var_default.bits_per_pixel);
+
 
 	if (display_type == HDMI_TYPE) {
-		hobot_fbi->fb.fix = fb_1920_1080_fix_default;
-		hobot_fbi->fb.var = fb_1920_1080_var_default;
+#ifdef CONFIG_HOBOT_X3_UBUNTU
+		switch(hdmi_resolution){
+			case IAR_HDMI_800x480_:
+				hobot_fbi->fb.fix = fb_800_480_fix_default;
+				hobot_fbi->fb.var = fb_800_480_var_default;
+			break;
+			case IAR_HDMI_1024x600_:
+				hobot_fbi->fb.fix = fb_1024_600_fix_default;
+				hobot_fbi->fb.var = fb_1024_600_var_default;
+			break;
+			case IAR_HDMI_720P60_:
+				hobot_fbi->fb.fix = fb_1280_720_fix_default;
+				hobot_fbi->fb.var = fb_1280_720_var_default;
+			break;
+			case IAR_HDMI_1080P60_:
+#endif
+				hobot_fbi->fb.fix = fb_1920_1080_fix_default;
+				hobot_fbi->fb.var = fb_1920_1080_var_default;
+#ifdef CONFIG_HOBOT_X3_UBUNTU
+			default:
+			break;
+		}
+#endif
 	} else if (display_type == MIPI_720P || display_type == MIPI_720P_TOUCH) {
 		hobot_fbi->fb.fix = fb_720_1280_fix_default;
 		hobot_fbi->fb.var = fb_720_1280_var_default;
@@ -1918,7 +2134,8 @@ static int hbfb_probe(struct platform_device *pdev)
 
 	hobot_fbi->fb.fbops = &hbfb_ops;
 	hobot_fbi->fb.screen_base = framebuf_user.vaddr;
-	hobot_fbi->fb.screen_size = frame_size;
+	//hobot_fbi->fb.screen_size = frame_size;
+	hobot_fbi->fb.screen_size = hobot_fbi->fb.var.xres * hobot_fbi->fb.var.yres * 4;
 	hobot_fbi->fb.pseudo_palette = &hbfb_pseudo_palette;
 	if (fb_alloc_cmap(&hobot_fbi->fb.cmap, 256, 0)) {
 		pr_err("%s: fb0 error alloc cmap!!\n", __func__);

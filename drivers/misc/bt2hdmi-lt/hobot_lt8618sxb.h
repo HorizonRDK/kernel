@@ -18,7 +18,6 @@
 #include <linux/fb.h>
 #include <linux/of_address.h>
 #include <linux/slab.h>
-#include <soc/hobot/hobot_iar.h>
 
 #define ENABLE 0x1
 #define DISABLE 0x0
@@ -32,14 +31,60 @@
 #define LT8618SXB_DEBUG(format, args...)
 #endif
 
-extern int display_type;
-
 struct x2_lt8618sxb_s {
 	struct i2c_client *client;
 	struct mutex lt8618sxb_mutex;
 };
 
+typedef enum {
+	_HDMI_480P60_ = 0,
+	_HDMI_576P50_,
+
+	_HDMI_720P60_,
+	_HDMI_720P50_,
+	_HDMI_720P30_,
+	_HDMI_720P25_,
+
+	_HDMI_1080P60_,
+	_HDMI_1080P50_,
+	_HDMI_1080P30_,
+	_HDMI_1080P25_,
+
+	_HDMI_1080i60_,
+	_HDMI_1080i50_,
+
+	_HDMI_4K30_,
+
+	_HDMI_800x600P60_,
+	_HDMI_1024x768P60_,
+	_HDMI_1024x600_,
+	_HDMI_800x480_,
+}LT8618_Resolution_Ratio;
+
+typedef struct hobot_lt8618_sync {
+	int hfp;
+	int hs;
+	int hbp;
+	int hact;
+	int htotal;
+	int vfp;
+	int vs;
+	int vbp;
+	int vact;
+	int vtotal;
+	int vic;
+	int pic_ratio;
+	int clk;
+} hobot_lt8618_sync_t;
+
+typedef struct hobot_lt8618_ioctl {
+	spinlock_t		lock;
+    LT8618_Resolution_Ratio ratio;
+} hobot_lt8618_ioctl_t;
+
 extern int LT8618SXB_Chip_ID(void);
 extern void LT8618SX_Initial(void);
+void Resolution_change(u8 Resolution);
+int LT8618SXB_Read_EDID(hobot_lt8618_sync_t * sync);
 
 #endif

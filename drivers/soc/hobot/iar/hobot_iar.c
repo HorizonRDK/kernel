@@ -156,10 +156,18 @@ struct disp_timing video_1280x720 = {
 	220, 150, 40, 20, 10, 5, 0
 };
 
+struct disp_timing video_1024x600 = {
+	270, 5, 13, 17, 2, 3, 0
+};
+#ifdef CONFIG_HOBOT_X3_UBUNTU
+struct disp_timing video_800x480 = {
+	168, 44, 88, 46, 3, 6, 0
+};
+#else
 struct disp_timing video_800x480 = {
 	80, 120, 48, 32, 43, 2, 10
 };
-
+#endif
 struct disp_timing video_720x1280 = {
 	36, 84, 24, 11, 13, 2, 10
 };
@@ -182,12 +190,17 @@ struct disp_timing video_ipi_1920x1080 = {
 };
 uint32_t pixel_clk_video_1920x1080 = 163000000;
 uint32_t pixel_clk_video_1280x720 = 74250000;
+#ifdef CONFIG_HOBOT_X3_UBUNTU
+uint32_t pixel_clk_video_800x480 = 33900000;
+#else
 uint32_t pixel_clk_video_800x480 = 32000000;
+#endif
 uint32_t pixel_clk_video_720x1280 = 68000000;
 uint32_t pixel_clk_video_1080x1920 = 32000000;
 uint32_t pixel_clk_video_720x1280_touch = 54400000;
 uint32_t pixel_clk_video_704x576 = 27000000;
 uint32_t pixel_clk_video_720x480 = 27000000;
+uint32_t pixel_clk_video_1024x600 = 49000000;
 EXPORT_SYMBOL(disp_user_config_done);
 EXPORT_SYMBOL(disp_copy_done);
 EXPORT_SYMBOL(video_1920x1080);
@@ -438,6 +451,10 @@ struct pwm_device *screen_backlight_pwm;
 //int display_type = LCD_7_TYPE;
 int display_type = UNUSED;
 EXPORT_SYMBOL(display_type);
+#ifdef CONFIG_HOBOT_X3_UBUNTU
+Hdmi_Resolution_Ratio hdmi_resolution;
+EXPORT_SYMBOL(hdmi_resolution);
+#endif
 module_param(display_type, int, 0644);
 
 static void iar_regs_store(void)
@@ -4305,6 +4322,7 @@ static int hobot_xj2_iar_memory_alloc(phys_addr_t logo_paddr, void *logo_vaddr,
 	return 0;
 }
 #endif
+
 static int hobot_iar_probe(struct platform_device *pdev)
 {
 	struct resource *res, *irq, *res_mipi;
@@ -4534,6 +4552,25 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		video_1920x1080.vbp = timing[4];
 		video_1920x1080.vfp = timing[5];
 		video_1920x1080.vs = timing[6];
+#ifdef CONFIG_HOBOT_X3_UBUNTU
+		hobot_hdmi_sync_t sync;
+		hdmi_resolution = IAR_HDMI_1080P60_;
+		if(!hdmi_get_edid(&sync)){
+			if(sync.hact == 1280 && sync.vact == 720){
+				pixel_clk_video_1920x1080 = pixel_clk_video_1280x720;
+				hdmi_resolution = IAR_HDMI_720P60_;
+				memcpy(&video_1920x1080, &video_1280x720, sizeof(video_1920x1080));
+			}else if(sync.hact == 1024 && sync.vact == 600){
+				pixel_clk_video_1920x1080 = pixel_clk_video_1024x600;
+				hdmi_resolution = IAR_HDMI_1024x600_;
+				memcpy(&video_1920x1080, &video_1024x600, sizeof(video_1920x1080));
+			}else if(sync.hact == 800 && sync.vact == 480){
+				pixel_clk_video_1920x1080 = pixel_clk_video_800x480;
+				hdmi_resolution = IAR_HDMI_800x480_;
+				memcpy(&video_1920x1080, &video_800x480, sizeof(video_1920x1080));
+			}
+		}
+#endif
 	} else {
 		pixel_clk_video_1920x1080 = 163000000;
 		pr_err("can't find timing for 1920*1080, use default!!\n");

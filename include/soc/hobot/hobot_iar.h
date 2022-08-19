@@ -803,6 +803,46 @@ enum PIXEL_CLK {
 	PIXEL_CLK_162,
 };
 
+typedef struct hobot_hdmi_sync {
+	int hfp;
+	int hs;
+	int hbp;
+	int hact;
+	int htotal;
+	int vfp;
+	int vs;
+	int vbp;
+	int vact;
+	int vtotal;
+	int clk;
+} hobot_hdmi_sync_t;
+
+typedef enum {
+	IAR_HDMI_480P60_ = 0,
+	IAR_HDMI_576P50_,
+
+	IAR_HDMI_720P60_,
+	IAR_HDMI_720P50_,
+	IAR_HDMI_720P30_,
+	IAR_HDMI_720P25_,
+
+	IAR_HDMI_1080P60_,
+	IAR_HDMI_1080P50_,
+	IAR_HDMI_1080P30_,
+	IAR_HDMI_1080P25_,
+
+	IAR_HDMI_1080i60_,
+	IAR_HDMI_1080i50_,
+
+	IAR_HDMI_4K30_,
+
+	IAR_HDMI_800x600P60_,
+	IAR_HDMI_1024x768P60_,
+	IAR_HDMI_1024x600_,
+	IAR_HDMI_800x480_,
+}Hdmi_Resolution_Ratio;
+
+extern int hdmi_get_edid(void *param);
 typedef int (*hdmi_set_config_callback)(unsigned short vmode,
                 unsigned short VideoFormat, unsigned short Afs);
 //extern hdmi_set_config_callback config_hdmi;

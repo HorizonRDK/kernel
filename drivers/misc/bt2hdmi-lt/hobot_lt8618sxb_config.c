@@ -55,6 +55,7 @@
 
 extern struct x2_lt8618sxb_s *g_x2_lt8618sxb;
 extern int lt8618sxb_reset_pin;
+void Resolution_change(u8 Resolution);
 void Debug_DispNum(u8 msg)
 {
 	printk("0x%x\n", msg);
@@ -309,7 +310,7 @@ bool Use_DDRCLK;		// 1: DDR mode; 0: SDR (normal) mode
 #endif
 
 //--------------------------------------------------------//
-
+#define _Read_TV_EDID_
 #ifdef _Read_TV_EDID_
 u8 Sink_EDID[256];
 u8 Sink_EDID2[256];
@@ -445,6 +446,10 @@ static int Format_Timing[][14] = {
 		_Less_than_50M, _Less_than_50M},	// VESA 800x600 40MHz
 	{24, 136, 160, 1024, 1344, 3, 6, 29, 768, 806, 0, _4_3_,
 		_Bound_50_100M, _Less_than_50M},	// VESA 1024X768 65MHz
+	{5, 13, 270, 1024, 1312, 2, 3, 17, 600, 622, 0, _4_3_,
+		_Less_than_50M, _Less_than_50M},	// VESA 1024X600 65MHz	
+	{44, 88, 124, 800, 1056, 3, 6, 46, 480, 535, 0, _4_3_,
+		_Less_than_50M, _Less_than_50M},	// VESA 800X480 65MHz	
 
 	/*
 	   {},
@@ -475,6 +480,20 @@ enum {
 	Clk_bound_DDR		// DDR
 };
 
+typedef struct hobot_hdmi_lt8618_sync {
+	int hfp;
+	int hs;
+	int hbp;
+	int hact;
+	int htotal;
+	int vfp;
+	int vs;
+	int vbp;
+	int vact;
+	int vtotal;
+	int clk;
+} hobot_hdmi_lt8618_sync_t;
+
 enum {
 	_480P60_ = 0,
 	_576P50_,
@@ -495,7 +514,9 @@ enum {
 	_4K30_,
 
 	_800x600P60_,
-	_1024x768P60_
+	_1024x768P60_,
+	_1024x600_,
+	_800x480_,
 };
 
 //--------------------------------------------------------//
@@ -550,10 +571,11 @@ void LT8618SXB_HDCP_Disable(void)
 
  ***********************************************************/
 
-void LT8618SXB_Read_EDID(void)
+int LT8618SXB_Read_EDID(hobot_lt8618_sync_t * sync)
 {
 #ifdef _Read_TV_EDID_
-	u8 i, j;
+	//printk("LT8618SXB_Read_EDID in\n");
+	u8 i, j, x;
 	u8 extended_flag = 0x00;
 
 	hobot_write_lt8618sxb(0xff, 0x85);
@@ -573,15 +595,52 @@ void LT8618SXB_Read_EDID(void)
 		if (hobot_read_lt8618sxb(0x40) & 0x02) {
 			//DDC No Ack or Abitration lost
 			if (hobot_read_lt8618sxb(0x40) & 0x50) {
-				printf("\r\nread edid failed: no ack");
+				printk("\r\nread edid failed: no ack");
 				goto end;
 			} else {
-				printf("\r\n");
+				//printk("LT8618SXB_Read_EDID 11 \r\n");
 				for (j = 0; j < 32; j++) {
 					Sink_EDID[i * 32 + j] =
 						hobot_read_lt8618sxb(0x83);
-					printf(" ", Sink_EDID[i * 32 + j]);
-
+					//printk("Sink_EDID[%d * 32 + %d] =  %u\n", i,j,Sink_EDID[i * 32 + j]);
+					if(i * 32 + j == 0x3a){
+						if(sync != NULL){
+							sync->hact = (Sink_EDID[0x3a] & 0xf0) * 16 + Sink_EDID[0x38];
+							sync->htotal = (Sink_EDID[0x3a] & 0xf0) * 16 + Sink_EDID[0x38] + ((Sink_EDID[0x3a] & 0x0f ) * 0x100 + Sink_EDID[0x39]);
+						}
+						//printk("EDID_Timing[hact] = %d\n",(Sink_EDID[0x3a] & 0xf0) * 16 + Sink_EDID[0x38]);
+						//printk("EDID_Timing[htotal] = %d\n",(Sink_EDID[0x3a] & 0xf0) * 16 + Sink_EDID[0x38] + ((Sink_EDID[0x3a] & 0x0f ) * 0x100 + Sink_EDID[0x39]));
+					}
+					if(i * 32 + j == 0x3d){
+						if(sync != NULL){
+							sync->vact = (Sink_EDID[0x3d] & 0xf0) * 16 + Sink_EDID[0x3b];
+							sync->vtotal = (Sink_EDID[0x3d] & 0xf0) * 16 + Sink_EDID[0x3b] + ((Sink_EDID[0x3d] & 0x03)*0x100 + Sink_EDID[0x3c] );
+						}
+						//printk("EDID_Timing[vact] = %d\n",(Sink_EDID[0x3d] & 0xf0) * 16 + Sink_EDID[0x3b]);
+						//printk("EDID_Timing[vtotal] = %d\n",(Sink_EDID[0x3d] & 0xf0) * 16 + Sink_EDID[0x3b] + ((Sink_EDID[0x3d] & 0x03)*0x100 + Sink_EDID[0x3c] ));
+					}
+					if(i * 32 + j == 0x37){
+						if(sync != NULL){
+							sync->clk = Sink_EDID[0x37] * 0x100 + Sink_EDID[0x36];
+						}
+						//printk("EDID_Timing[pclk_10khz] = %d\n",Sink_EDID[0x37] * 0x100 + Sink_EDID[0x36]);
+					}
+					if(i * 32 + j == 0x41){
+						if(sync != NULL){
+							sync->hfp = (Sink_EDID[0x41] & 0xC0 ) * 4 + Sink_EDID[0x3e];
+							sync->hs = (Sink_EDID[0x41] & 0x30 ) * 16 + Sink_EDID[0x3f];
+							sync->vfp = (Sink_EDID[0x41] & 0x0c ) * 4 + (Sink_EDID[0x40] & 0xf0) / 16;
+							sync->vs = (Sink_EDID[0x41] & 0x03 ) * 16 + (Sink_EDID[0x40] & 0x0f);
+							sync->hbp = ((Sink_EDID[0x3a] & 0x0f ) * 0x100 + Sink_EDID[0x39]) - ((Sink_EDID[0x41] & 0x30 )* 16 + Sink_EDID[0x3f])- ((Sink_EDID[0x41] & 0x0c)*4 + Sink_EDID[0x3e]);
+							sync->vbp = ((Sink_EDID[0x3d] & 0x03 ) * 0x100 + Sink_EDID[0x3c]) - ((Sink_EDID[0x41] & 0x03)* 16 + (Sink_EDID[0x40] & 0x0f)) -((Sink_EDID[0x41] & 0x0c)*4 +(Sink_EDID[0x40] & 0xf0) / 16);
+						}
+						//printk("EDID_Timing[hfp] = %d\n",(Sink_EDID[0x41] & 0xC0 ) * 4 + Sink_EDID[0x3e]);
+						//printk("EDID_Timing[hs] = %d\n",(Sink_EDID[0x41] & 0x30 ) * 16 + Sink_EDID[0x3f]);
+						//printk("EDID_Timing[vfp] = %d\n",(Sink_EDID[0x41] & 0x0c ) * 4 + (Sink_EDID[0x40] & 0xf0) / 16);
+						//printk("EDID_Timing[vs] = %d\n",(Sink_EDID[0x41] & 0x03 ) * 16 + (Sink_EDID[0x40] & 0x0f));
+						//printk("EDID_Timing[hbp] = %d\n",((Sink_EDID[0x3a] & 0x0f ) * 0x100 + Sink_EDID[0x39]) - ((Sink_EDID[0x41] & 0x30 )* 16 + Sink_EDID[0x3f])- ((Sink_EDID[0x41] & 0x0c)*4 + Sink_EDID[0x3e]));
+						//printk("EDID_Timing[vbp] = %d\n",((Sink_EDID[0x3d] & 0x03 ) * 0x100 + Sink_EDID[0x3c]) - ((Sink_EDID[0x41] & 0x03)* 16 + (Sink_EDID[0x40] & 0x0f)) -((Sink_EDID[0x41] & 0x0c)*4 +(Sink_EDID[0x40] & 0xf0) / 16));
+					}
 					//    edid_data = hobot_read_lt8618sxb(0x83);
 					if ((i == 3) && (j == 30)) {
 						//    extended_flag = edid_data & 0x03;
@@ -593,18 +652,37 @@ void LT8618SXB_Read_EDID(void)
 				}
 				if (i == 3) {
 					if (extended_flag < 1) { //no block 1, stop reading edid.
-						goto end;
+						hobot_write_lt8618sxb(0x03, 0xc2);
+						hobot_write_lt8618sxb(0x07, 0x1f);
+						//printk("LT8618SXB_Read_EDID 11 out\n");
+						return 0;
 					}
 				}
 			}
 		} else {
-			printf("\r\nread edid failed: accs not done");
+			printk("\r\nread edid failed: accs not done");
 			goto end;
 		}
 	}
-
+	//printk("LT8618SXB_Read_EDID 111111\n");
+	for(x = 0; x < 17; x++){
+		//printk("LT8618SXB_Read_EDID x = %d\n",x);
+		if(sync != NULL){
+			//printk("Format_Timing[x][0] = %d,sync->hfp = %d,Format_Timing[x][1]=%d,sync->hs =%d,Format_Timing[x][2]=%d,sync->hbp=%d,Format_Timing[x][3]=%d,sync->hact=%d,Format_Timing[x][4]=%d,sync->htotal,Format_Timing[x][5]=%d,sync->vfp=%d,Format_Timing[x][6]=%d,sync->vs=%d,Format_Timing[x][7]=%d,sync->vbp=%d,Format_Timing[x][8]=%d,sync->vact=%d,Format_Timing[x][9]=%d,sync->vtotal=%d",
+			//Format_Timing[x][0],sync->hfp,Format_Timing[x][1],sync->hs,Format_Timing[x][2],sync->hbp,Format_Timing[x][3],sync->hact,Format_Timing[x][4],sync->htotal,Format_Timing[x][5],sync->vfp,Format_Timing[x][6],sync->vs,Format_Timing[x][7],sync->vbp,Format_Timing[x][8],sync->vact,Format_Timing[x][9],sync->vtotal);
+			if(Format_Timing[x][0] == sync->hfp && Format_Timing[x][1] == sync->hs && Format_Timing[x][2] == sync->hbp && Format_Timing[x][3] == sync->hact &&
+				Format_Timing[x][4] == sync->htotal && Format_Timing[x][5] == sync->vfp && Format_Timing[x][6] == sync->vs && Format_Timing[x][7] == sync->vbp &&
+				Format_Timing[x][8] == sync->vact && Format_Timing[x][9] == sync->vtotal ){
+					sync->vic = Format_Timing[x][10];
+					sync->pic_ratio = Format_Timing[x][11];
+				}
+		}
+	}
 	if (extended_flag < 2) { //no block 2, stop reading edid.
-		goto end;
+		hobot_write_lt8618sxb(0x03, 0xc2);
+		hobot_write_lt8618sxb(0x07, 0x1f);
+		//printk("LT8618SXB_Read_EDID 22 out\n");
+		return 0;
 	}
 
 	for (i = 0; i < 8; i++) {
@@ -615,14 +693,14 @@ void LT8618SXB_Read_EDID(void)
 		msleep(5);	// wait 5ms for reading edid data.
 		if (hobot_read_lt8618sxb(0x40) & 0x02) {
 			if (hobot_read_lt8618sxb(0x40) & 0x50) {
-				printf("\r\nread edid failed: no ack");
+				printk("\r\nread edid failed: no ack");
 				goto end;
 			} else {
-				printf("\r\n");
+				//printk(" LT8618SXB_Read_EDID 22 \r\n");
 				for (j = 0; j < 32; j++) {
 					Sink_EDID2[i * 32 + j] =
 						hobot_read_lt8618sxb(0x83);
-					printf(" ", Sink_EDID2[i * 32 + j]);
+					//printk("Sink_EDID[%d * 32 + %d] =  %u\n ", Sink_EDID2[i * 32 + j]);
 
 					//    edid_data = hobot_read_lt8618sxb(0x83);
 					//    printf("%02bx,", edid_data);
@@ -634,7 +712,7 @@ void LT8618SXB_Read_EDID(void)
 				}
 			}
 		} else {
-			printf("\r\nread edid failed: accs not done");
+			printk("\r\nread edid failed: accs not done");
 			goto end;
 		}
 	}
@@ -642,8 +720,9 @@ void LT8618SXB_Read_EDID(void)
 end:
 	hobot_write_lt8618sxb(0x03, 0xc2);
 	hobot_write_lt8618sxb(0x07, 0x1f);
+	return -1;
 #endif
-
+	
 	//#endif
 }
 
@@ -1162,7 +1241,7 @@ void LT8618SXB_AVI_setting(void)
 	  the color space of output HDMI is YUV422.
 	 *****************************************************/
 
-	VIC_Num = 0x10;
+//	VIC_Num = 0x10;
 
 	// if No csc
 	// AVI_PB1 = 0x30;  // PB1,color space: YUV444 0x50;YUV422 0x30; RGB 0x10
@@ -1698,11 +1777,39 @@ bool LT8618SXB_Phase_config(void)
 #endif
 #endif
 
+int hdmi_get_edid(void *param){
+	hobot_lt8618_sync_t sync;
+	int ret = LT8618SXB_Read_EDID(&sync);
+	if(!ret){
+		hobot_hdmi_lt8618_sync_t *fb_sync = (hobot_hdmi_lt8618_sync_t *)param;
+		if(fb_sync != NULL){
+			fb_sync->hfp = sync.hfp;
+			fb_sync->hs = sync.hs;
+			fb_sync->hbp = sync.hbp;
+			fb_sync->hact = sync.hact;
+			fb_sync->htotal = sync.htotal;
+			fb_sync->vfp = sync.vfp;
+			fb_sync->vs = sync.vs;
+			fb_sync->vbp = sync.vbp;
+			fb_sync->vact = sync.vact;
+			fb_sync->vtotal = sync.vtotal;
+			fb_sync->clk = sync.clk;
+		}
+	}
+	return ret;
+}
+EXPORT_SYMBOL(hdmi_get_edid);
+void hdmi_set_resolution(int res){
+	Resolution_change(res);
+}
+EXPORT_SYMBOL(hdmi_set_resolution);
 /***********************************************************
 
  ***********************************************************/
 void LT8618SX_Initial(void)
 {
+	//hdmi_register_get_edid_callback(hdmi_get_edid);
+	//hdmi_register_set_resolution_callback(hdmi_set_resolution);
 	//printk("*****LT8618SX_Initial*****\n");
 	Use_DDRCLK = 0;		// 1: DDR mode; 0: SDR (normal) mode
 
@@ -1788,7 +1895,7 @@ void LT8618SX_Initial(void)
 	LT8618SXB_AVI_setting();
 
 	// This operation is not necessary. Read TV EDID if necessary.
-	LT8618SXB_Read_EDID();	// Read TV  EDID
+	//LT8618SXB_Read_EDID(NULL);	// Read TV  EDID
 
 	//-------------------------------------------
 #ifdef _LT8618_HDCP_
@@ -1842,7 +1949,9 @@ void Resolution_change(u8 Resolution)
 
 	//-------------------------------------------
 
-	if (!flag_Ver_u3) {
+	if (flag_Ver_u3) {
+		LT8618SX_Phase_1();
+	} else {
 		LT8618SXB_Phase_config();
 	}
 #endif

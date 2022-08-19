@@ -400,9 +400,6 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 					pr_debug("iar_cdev: vmode = %d\n", vmode);
 					ret = config_hdmi((short unsigned int)vmode, 0, 2);//CEA-VIC
 				}
-			} else {
-				pr_err("no sii902x HDMI device!!\n");
-				ret = -EFAULT;
 			}
 		}
 		break;
