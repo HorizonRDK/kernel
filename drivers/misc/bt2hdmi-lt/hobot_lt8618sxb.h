@@ -18,7 +18,9 @@
 #include <linux/fb.h>
 #include <linux/of_address.h>
 #include <linux/slab.h>
-
+#ifndef CONFIG_HOBOT_X3_UBUNTU
+#include <soc/hobot/hobot_iar.h>
+#endif
 #define ENABLE 0x1
 #define DISABLE 0x0
 
@@ -30,7 +32,9 @@
 #else
 #define LT8618SXB_DEBUG(format, args...)
 #endif
-
+#ifndef CONFIG_HOBOT_X3_UBUNTU
+extern int display_type;
+#endif
 struct x2_lt8618sxb_s {
 	struct i2c_client *client;
 	struct mutex lt8618sxb_mutex;
