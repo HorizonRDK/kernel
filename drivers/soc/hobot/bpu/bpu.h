@@ -197,6 +197,7 @@ bool bpu_core_is_online(struct bpu_core *core);
 uint32_t bpu_ratio(struct bpu *bpu);
 uint32_t bpu_fc_group_ratio(struct bpu_fc_group *group);
 uint32_t bpu_user_ratio(struct bpu_user *user);
+uint64_t bpu_core_bufferd_time(struct bpu_core *core, uint32_t level);
 
 /* sched apis*/
 int32_t bpu_sched_start(struct bpu *bpu);

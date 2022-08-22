@@ -28,6 +28,7 @@ struct bpu_prio_node {
 	 */
 	struct bpu_fc residue_bpu_fc;
 	int32_t left_slice_num;
+	uint64_t buffered_time;
 };
 
 struct bpu_prio {

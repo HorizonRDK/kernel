@@ -86,6 +86,9 @@ static void bpu_prio_tasklet(unsigned long data)/*PRQA S ALL*/
 				tmp_prio_node->left_slice_num = 0;
 			}
 		}
+		if (tmp_prio_node->left_slice_num == 0) {
+			tmp_prio_node->buffered_time -= tmp_prio_node->residue_bpu_fc.info.process_time;
+		}
 		break;
 	}
 }
@@ -215,6 +218,7 @@ int32_t bpu_prio_in(struct bpu_prio *prio, const struct bpu_fc *bpu_fc)
 		return -EBUSY;
 	}
 
+	prio->prios[level].buffered_time += bpu_fc->info.process_time;
 	bpu_prio_trig_out(prio);
 	mutex_unlock(&prio->mutex_lock);
 

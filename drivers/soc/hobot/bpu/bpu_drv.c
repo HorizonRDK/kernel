@@ -252,6 +252,7 @@ int32_t bpu_write_fc_to_core(struct bpu_core *core,
 		/* no user, so report fake complete */
 		ret = (int32_t)bpu_fc->info.slice_num - (int32_t)offpos;
 		bpu_fc_clear(bpu_fc);
+		bpu_prio_trig_out(core->prio_sched);
 		return ret;
 	}
 
@@ -302,6 +303,7 @@ int32_t bpu_write_fc_to_core(struct bpu_core *core,
 				dev_err(core->dev, "bpu request to fifo failed\n");
 				return -EBUSY;
 			}
+			core->buffered_time[prio] += bpu_fc->info.process_time;
 		} else {
 			bpu_fc_clear(bpu_fc);
 		}

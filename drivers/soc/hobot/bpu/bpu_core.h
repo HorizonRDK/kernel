@@ -112,6 +112,7 @@ struct bpu_core {
 	struct clk *mclk;
 	struct reset_control *rst;
 
+	uint64_t buffered_time[BPU_PRIO_NUM];
 	DECLARE_KFIFO_PTR(run_fc_fifo[BPU_PRIO_NUM], struct bpu_fc);
 	DECLARE_KFIFO_PTR(done_fc_fifo, struct bpu_fc);
 

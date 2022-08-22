@@ -39,6 +39,8 @@ void bpu_core_update(struct bpu_core *core, struct bpu_fc *fc)
 	}
 
 	spin_lock_irqsave(&core->spin_lock, flags);/*PRQA S ALL*/
+	/* update the bpu core bufferd running time */
+	core->buffered_time[FC_PRIO(fc->hw_id)] -= fc->info.process_time;
 	do_gettimeofday(&fc->end_point);
 
 	fc->info.process_time = time_interval(&fc->start_point, &fc->end_point);
@@ -298,6 +300,65 @@ uint32_t bpu_ratio(struct bpu *bpu)
 // PRQA S ALL ++
 EXPORT_SYMBOL(bpu_ratio);
 // PRQA S ALL --
+
+/* Get all buffered fc estimate time */
+uint64_t bpu_core_bufferd_time(struct bpu_core *core, uint32_t level)
+{
+	struct bpu_fc tmp_bpu_fc;
+	uint64_t tmp_time = 0;
+	uint64_t tmp_run_point;
+	uint32_t hw_prio, highest_prio;
+	struct timeval tmp_point;
+	unsigned long flags;
+	int32_t ret, i;
+
+	if (core == NULL) {
+		return 0;
+	}
+
+	if (level > core->prio_sched->level_num) {
+		level = core->prio_sched->level_num - 1u;
+	}
+
+	for (i = level; i < (int32_t)core->prio_sched->level_num; i++) {
+		tmp_time += core->prio_sched->prios[i].buffered_time;
+	}
+
+	if (level > BPU_PRIO_NUM - 1) {
+		hw_prio = BPU_PRIO_NUM - 1;
+	} else {
+		hw_prio = level;
+	}
+
+	highest_prio = hw_prio;
+	/* Accumulates all high priorities buffered */
+	spin_lock_irqsave(&core->spin_lock, flags);
+	for (i = hw_prio; i < (int32_t)BPU_PRIO_NUM; i++) {
+		tmp_time += core->buffered_time[i];
+		if (!kfifo_is_empty(&core->run_fc_fifo[i])) {
+			highest_prio = (uint32_t)i;
+		}
+	}
+
+	ret = kfifo_peek(&core->run_fc_fifo[highest_prio], &tmp_bpu_fc);
+	spin_unlock_irqrestore(&core->spin_lock, flags);
+	if (ret > 0) {
+		/*
+		 * calculate the estimate left running time,
+		 * (estimate time - passed time)
+		 */
+		do_gettimeofday(&tmp_point);
+		tmp_run_point = time_interval(&tmp_bpu_fc.start_point, &tmp_point);
+		if (tmp_bpu_fc.info.process_time > tmp_run_point) {
+			tmp_time -= tmp_run_point;
+		} else {
+			tmp_time -= tmp_bpu_fc.info.process_time;
+		}
+	}
+
+	return tmp_time;
+}
+EXPORT_SYMBOL(bpu_core_bufferd_time);/*PRQA S 0307*/ /*PRQA S 0779*/ /* Linux Macro */
 
 // PRQA S ALL ++
 MODULE_DESCRIPTION("BPU and Cores statistics related realize");

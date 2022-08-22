@@ -190,7 +190,7 @@ static long bpu_core_ioctl(struct file *filp,/*PRQA S ALL*/
 	uint16_t cap;
 	int16_t level;
 	uint32_t limit;
-	uint64_t clock, tmp_type;
+	uint64_t clock, tmp_type, tmp_est_time;
 	uint8_t type;
 
 	int32_t ret = 0;
@@ -338,6 +338,20 @@ static long bpu_core_ioctl(struct file *filp,/*PRQA S ALL*/
 			return -EFAULT;
 		}
 		break;
+	case BPU_EST_TIME:
+		/* user use ext_time to set prio level */
+		if (copy_from_user(&tmp_est_time, (void __user *)arg, _IOC_SIZE(cmd))) {/*PRQA S ALL*/
+			pr_err("%s: copy data failed from userspace\n", __func__);/*PRQA S ALL*/
+			return -EFAULT;
+		}
+
+		tmp_est_time = bpu_core_bufferd_time(core, (uint32_t)tmp_est_time);
+
+		if (copy_to_user((void __user *)arg, &tmp_est_time, _IOC_SIZE(cmd)) != 0) {/*PRQA S ALL*/
+			pr_err("copy data to userspace failed\n");/*PRQA S ALL*/
+			return -EFAULT;
+		}
+		break;
 	default:
 		pr_err("%s: BPU invalid ioctl argument\n", __func__);/*PRQA S ALL*/
 		ret = -EINVAL;
@@ -408,6 +422,7 @@ static int bpu_core_open(struct inode *inode, struct file *filp)/*PRQA S ALL*/
 		}
 		for (i = 0; i < BPU_PRIO_NUM; i++) {
 			atomic_set(&core->hw_id_counter[i], 1);/*PRQA S ALL*/
+			core->buffered_time[i] = 0;
 		}
 
 		core->fc_buf_limit = 0;
