@@ -372,9 +372,10 @@
 &mipi_host2 {
 	status = "okay";
 	pinctrl-names = "enable", "disable";
-	pinctrl-0 = <&sensor2_func>;
-	pinctrl-1 = <&sensor2_gpio_func>;
-	snrclk-idx = <2>;
+	/* x3pi hardware uses sensor1_mclk as the clock for mipihost2 */
+	pinctrl-0 = <&sensor1_func>;
+	pinctrl-1 = <&sensor1_gpio_func>;
+	snrclk-idx = <1>;
 };
 
 &mipi_host3 {
