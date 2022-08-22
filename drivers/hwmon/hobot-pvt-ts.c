@@ -539,6 +539,18 @@ static int pvt_probe(struct platform_device *pdev)
 	return PTR_ERR_OR_ZERO(hwmon_dev);
 }
 
+#ifdef CONFIG_PM
+int hobot_pvt_resume(struct device *dev)
+{
+	hobot_vm_resume(dev);
+	return 0;
+}
+
+static const struct dev_pm_ops hobot_pvt_pm_ops = {
+	.resume  = hobot_pvt_resume,
+};
+#endif
+
 static const struct of_device_id pvt_of_match[] = {
 	{ .compatible = "hobot,hobot-pvt" },
 	{ /* end of table */ }
@@ -550,6 +562,9 @@ static struct platform_driver pvt_driver = {
 	.driver = {
 		.name = HOBOT_PVT_NAME,
 		.of_match_table = pvt_of_match,
+#ifdef CONFIG_PM
+		.pm = &hobot_pvt_pm_ops,
+#endif
 	},
 };
 

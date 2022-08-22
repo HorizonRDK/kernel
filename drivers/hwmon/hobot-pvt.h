@@ -381,4 +381,8 @@
 
 extern int hobot_vm_probe(struct device *dev, void __iomem *reg_base,
 			void __iomem *efuse_base);
+#ifdef CONFIG_PM
+extern int hobot_vm_resume(struct device *dev);
+#endif
+
 #endif /* __HOBOT_PVT_H__ */

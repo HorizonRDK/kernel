@@ -239,6 +239,16 @@ static int hobot_vm_init_hw(struct hobot_vm_data_t *info)
     return 0;
 }
 
+#ifdef CONFIG_PM
+int hobot_vm_resume(struct device *dev)
+{
+	struct iio_dev *indio_dev = dev_get_drvdata(dev);
+    struct hobot_vm_data_t *info = iio_priv(indio_dev);
+    hobot_vm_init_hw(info);
+    return 0;
+}
+#endif
+
 int hobot_vm_probe(struct device *dev, void __iomem *reg_base,
             void __iomem *efuse_base)
 {
@@ -307,6 +317,7 @@ int hobot_vm_probe(struct device *dev, void __iomem *reg_base,
         return ret;
     }
 
+    dev_set_drvdata(dev, indio_dev);
     hobot_vm_init_hw(info);
     return 0;
 }
