@@ -75,6 +75,7 @@ struct _matrix_yuv_fsm_t {
     int16_t manual_matrix_yuv[9];
     int32_t temperature_threshold[8];
     uint16_t fr_format;
+    uint8_t param_set;
 };
 
 

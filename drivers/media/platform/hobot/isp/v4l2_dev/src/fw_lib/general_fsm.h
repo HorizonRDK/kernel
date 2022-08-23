@@ -66,6 +66,7 @@ struct _general_fsm_t {
     uint16_t calibration_read_status;
     acamera_sbus_t isp_sbus;
     uint32_t wdr_mode;
+    uint8_t param_set;
 
 #if ISP_WDR_SWITCH
     uint32_t wdr_mode_req;

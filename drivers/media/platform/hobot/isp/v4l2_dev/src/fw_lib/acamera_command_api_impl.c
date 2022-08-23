@@ -4781,8 +4781,11 @@ uint8_t acamera_api_calibration( uint32_t ctx_id, uint8_t type, uint8_t id, uint
 #endif
                     break;
                 case CALIBRATION_GAMMA:
-                    acamera_fw_raise_event((acamera_context_t *)acamera_get_ctx_ptr( ctx_id ), event_id_gamma_update);
+                {
+                    gamma_manual_fsm_t *p_fsm = (gamma_manual_fsm_t *)instance->fsm_arr[FSM_ID_GAMMA_MANUAL]->p_fsm;
+                    p_fsm->param_set = 1;
                     break;
+                }
                 case CALIBRATION_DEMOSAIC:
                     acamera_demosaic_set_param(instance);
                     break;
@@ -4804,8 +4807,11 @@ uint8_t acamera_api_calibration( uint32_t ctx_id, uint8_t type, uint8_t id, uint
                 case CALIBRATION_SHADING_RADIAL_R:
                 case CALIBRATION_SHADING_RADIAL_G:
                 case CALIBRATION_SHADING_RADIAL_B:
-                    acamera_fw_raise_event((acamera_context_t *)acamera_get_ctx_ptr( ctx_id ), event_id_shading_radial);
+                {
+                    general_fsm_t *p_fsm = (general_fsm_t *)instance->fsm_arr[FSM_ID_GENERAL]->p_fsm;
+                    p_fsm->param_set = 1;
                     break;
+                }
                 case CALIBRATION_SHADING_LS_A_R:
                 case CALIBRATION_SHADING_LS_A_G:
                 case CALIBRATION_SHADING_LS_A_B:

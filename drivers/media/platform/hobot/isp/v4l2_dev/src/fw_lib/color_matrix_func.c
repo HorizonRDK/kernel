@@ -827,7 +827,7 @@ void color_matrix_change_CCMs( color_matrix_fsm_t *p_fsm )
         // In CCM switching
         // call CCM switcher to update CCM
         // (note: this does mean CCM switching takes one frame less than normal)
-        acamera_fw_raise_event(p_fsm->p_fsm_mgr->p_ctx, event_id_color_matrix_update);
+        p_fsm->param_set_matrix = 1;
     } else {
         // Not moving, update current CCMs
 

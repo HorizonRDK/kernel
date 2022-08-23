@@ -77,21 +77,8 @@ int matrix_yuv_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_
         }
 
         p_fsm->fr_pipe_output_format = *(uint8_t *)input;
-        acamera_fw_raise_event(p_fsm->p_fsm_mgr->p_ctx, event_id_matrix_yuv_update);
+        p_fsm->param_set = 1;
         break;
-
-#if ISP_HAS_DS1
-    case FSM_PARAM_SET_MATRIX_YUV_DS1_OUT_FMT:
-        if ( !input || input_size != sizeof( uint32_t ) ) {
-            LOG( LOG_ERR, "Invalid param, param_id: %d.", param_id );
-            rc = -1;
-            break;
-        }
-
-        p_fsm->ds1_pipe_output_format = *(uint32_t *)input;
-        acamera_fw_raise_event(p_fsm->p_fsm_mgr->p_ctx, event_id_matrix_yuv_update);
-        break;
-#endif
 
     case FSM_PARAM_SET_MATRIX_YUV_SATURATION_STRENGTH:
         if ( !input || input_size != sizeof( uint32_t ) ) {
@@ -101,7 +88,7 @@ int matrix_yuv_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_
         }
 
         p_fsm->saturation_strength = *(uint32_t *)input;
-        acamera_fw_raise_event(p_fsm->p_fsm_mgr->p_ctx, event_id_matrix_yuv_update);
+        p_fsm->param_set = 1;
 
         break;
 
@@ -112,7 +99,7 @@ int matrix_yuv_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_
             break;
         }
         p_fsm->hue_theta = *(uint32_t *)input;
-        acamera_fw_raise_event(p_fsm->p_fsm_mgr->p_ctx, event_id_matrix_yuv_update);
+        p_fsm->param_set = 1;
         break;
 
     case FSM_PARAM_SET_MATRIX_YUV_BRIGHTNESS_STRENGTH:
@@ -123,7 +110,7 @@ int matrix_yuv_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_
         }
 
         p_fsm->brightness_strength = *(uint32_t *)input;
-        acamera_fw_raise_event(p_fsm->p_fsm_mgr->p_ctx, event_id_matrix_yuv_update);
+        p_fsm->param_set = 1;
         break;
 
     case FSM_PARAM_SET_MATRIX_YUV_CONTRAST_STRENGTH:
@@ -134,7 +121,7 @@ int matrix_yuv_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_
         }
 
         p_fsm->contrast_strength = *(uint32_t *)input;
-        acamera_fw_raise_event(p_fsm->p_fsm_mgr->p_ctx, event_id_matrix_yuv_update);
+        p_fsm->param_set = 1;
         break;
 
     case FSM_PARAM_SET_MATRIX_YUV_COLOR_MODE:
@@ -145,11 +132,11 @@ int matrix_yuv_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_
         }
 
         p_fsm->color_mode = *(uint32_t *)input;
-        acamera_fw_raise_event(p_fsm->p_fsm_mgr->p_ctx, event_id_matrix_yuv_update);
+        p_fsm->param_set = 1;
         break;
     case FSM_PARAM_SET_MATRIX_YUV_UPDATE:
-	    acamera_fw_raise_event(p_fsm->p_fsm_mgr->p_ctx, event_id_matrix_yuv_update);
-	break;
+        p_fsm->param_set = 1;
+        break;
 
     default:
         rc = -1;
@@ -255,14 +242,14 @@ uint8_t matrix_yuv_fsm_process_event( matrix_yuv_fsm_t *p_fsm, event_id_t event_
 
     case event_id_frame_end:
         // no function is called here, reason is unknown.
+        if (p_fsm->param_set == 1) {
+            matrix_yuv_update(p_fsm);
+            p_fsm->param_set = 0;
+        }
         b_event_processed = 1;
         break;
     case event_id_sensor_ready:
         matrix_yuv_request_interrupt( p_fsm, ACAMERA_IRQ_MASK( ACAMERA_IRQ_FRAME_END ) );
-        b_event_processed = 1;
-        break;
-    case event_id_matrix_yuv_update:
-        matrix_yuv_update(p_fsm);
         b_event_processed = 1;
         break;
     }

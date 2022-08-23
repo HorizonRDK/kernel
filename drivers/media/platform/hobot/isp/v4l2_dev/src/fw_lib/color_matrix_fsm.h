@@ -77,6 +77,8 @@ struct _color_matrix_fsm_t {
 
     int32_t shading_mesh_strength;
     int32_t manual_shading_mesh_strength;
+    uint8_t param_set_mesh;
+    uint8_t param_set_matrix;
 };
 
 

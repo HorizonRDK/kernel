@@ -437,13 +437,17 @@ uint8_t general_fsm_process_event( general_fsm_t *p_fsm, event_id_t event_id )
         acamera_general_interrupt_hanlder( ACAMERA_FSM2CTX_PTR( p_fsm ), ACAMERA_IRQ_FRAME_WRITER_FR_DONE );
         b_event_processed = 1;
 	break;
+    case event_id_frame_end:
+        if (p_fsm->param_set == 1) {
+            acamera_shading_radial_set_param(p_fsm);
+            p_fsm->param_set = 0;
+        }
+        b_event_processed = 1;
+	break;
     case event_id_frame_error:
         acamera_general_interrupt_hanlder( ACAMERA_FSM2CTX_PTR( p_fsm ), ACAMERA_IRQ_FRAME_ERROR );
         b_event_processed = 1;
 	break;
-    case event_id_shading_radial:
-        acamera_shading_radial_set_param(p_fsm);
-        b_event_processed = 1;
     }
     return b_event_processed;
 }

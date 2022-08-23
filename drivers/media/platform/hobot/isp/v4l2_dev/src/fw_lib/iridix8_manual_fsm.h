@@ -53,6 +53,7 @@ struct _iridix_fsm_t {
     uint32_t frame_id_tracking;
     uint32_t pre_frame_id_tracking;
     uint32_t is_output_ready;
+    uint8_t param_set;
 };
 
 

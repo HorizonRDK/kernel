@@ -50,6 +50,7 @@ struct _gamma_manual_fsm_t {
     uint32_t cur_frame_id_tracking;
     uint32_t gamma_gain;
     uint32_t gamma_offset;
+    uint8_t param_set;
 };
 
 

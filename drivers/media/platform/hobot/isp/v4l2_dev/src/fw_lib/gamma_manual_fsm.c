@@ -94,6 +94,12 @@ uint8_t gamma_manual_fsm_process_event( gamma_manual_fsm_t *p_fsm, event_id_t ev
     switch ( event_id ) {
     default:
         break;
+    case event_id_frame_end:
+        if (p_fsm->param_set == 1) {
+            acamera_gamma_set_param(p_fsm);
+            p_fsm->param_set = 0;
+        }
+        b_event_processed = 1;
     case event_id_gamma_new_param_ready:
         gamma_manual_update( p_fsm );
 
@@ -102,10 +108,6 @@ uint8_t gamma_manual_fsm_process_event( gamma_manual_fsm_t *p_fsm, event_id_t ev
         if (p_fsm->p_fsm_mgr->p_ctx->isp_ctxsv_on)
             acamera_isp_ctxsv(p_fsm->cmn.ctx_id);
 
-        b_event_processed = 1;
-        break;
-    case event_id_gamma_update:
-        acamera_gamma_set_param(p_fsm);
         b_event_processed = 1;
         break;
     }

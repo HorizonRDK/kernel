@@ -86,8 +86,11 @@ uint8_t iridix_fsm_process_event(iridix_fsm_t *p_fsm, event_id_t event_id)
     switch ( event_id ) {
     default:
         break;
-    case event_id_iridix_lut_reload:
-        iridix_lut_reload(p_fsm);
+    case event_id_frame_end:
+        if (p_fsm->param_set == 1) {
+            iridix_lut_reload(p_fsm);
+            p_fsm->param_set = 0;
+        }
         b_event_processed = 1;
         break;
     }

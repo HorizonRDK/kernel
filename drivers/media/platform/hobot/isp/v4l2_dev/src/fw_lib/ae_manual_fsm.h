@@ -67,6 +67,7 @@ struct _AE_fsm_t {
     uint32_t frame_id_tracking;
     ae_state_t state;
     uint32_t lumvar[512];
+    uint8_t param_set;
 };
 
 void AE_fsm_clear( AE_fsm_ptr_t p_fsm );

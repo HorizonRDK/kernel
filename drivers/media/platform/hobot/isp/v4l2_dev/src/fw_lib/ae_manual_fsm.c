@@ -100,8 +100,7 @@ int AE_fsm_set_param( void *fsm, uint32_t param_id, void *input, uint32_t input_
         fsm_param_roi_t *p_new = (fsm_param_roi_t *)input;
         p_fsm->ae_roi_api = p_new->roi_api;
         p_fsm->roi = p_new->roi;
-
-        acamera_fw_raise_event(p_fsm->p_fsm_mgr->p_ctx, event_id_ae_roi_update);
+        p_fsm->param_set = 1;
 
         break;
     }
@@ -219,8 +218,11 @@ uint8_t AE_fsm_process_event( AE_fsm_t *p_fsm, event_id_t event_id )
 
         b_event_processed = 1;
         break;
-    case event_id_ae_roi_update:
-        ae_roi_update(p_fsm);
+    case event_id_frame_end:
+        if (p_fsm->param_set == 1) {
+            ae_roi_update(p_fsm);
+            p_fsm->param_set = 0;
+        }
         b_event_processed = 1;
         break;
     }
