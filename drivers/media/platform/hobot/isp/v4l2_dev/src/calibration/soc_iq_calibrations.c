@@ -186,7 +186,8 @@ uint32_t soc_iq_get_calibrations( int32_t ctx_id, void *sensor_arg, ACameraCalib
                         result = __IOCTL_CALL( iq_ctx, V4L2_SOC_IQ_IOCTL_REQUEST_DATA, args );
 
                         if ( result == 0 ) {
-                            LOG( LOG_DEBUG, "Initialized lut %d. cols %d, rows %d, width %d, first data 0x%x", idx, c->calibrations[idx]->cols, c->calibrations[idx]->rows, c->calibrations[idx]->width, *( (uint32_t *)c->calibrations[idx]->ptr ) );
+                            if (lut_size)
+                                LOG( LOG_DEBUG, "Initialized lut %d. cols %d, rows %d, width %d, first data 0x%x", idx, c->calibrations[idx]->cols, c->calibrations[idx]->rows, c->calibrations[idx]->width, *( (uint32_t *)c->calibrations[idx]->ptr ) );
                         } else {
                             LOG( LOG_ERR, "Failed to request lut info from the device. sensor_arg 0x%x, lut id %d, ret %d", sensor_arg, idx, result );
                             result = -1;

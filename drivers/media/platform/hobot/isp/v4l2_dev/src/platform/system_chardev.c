@@ -426,7 +426,10 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 	long ret = 0;
 	uint32_t ret_value = 0;
 	struct metadata_t md = {0};
-	struct metadata_t *pmd = (struct metadata_t *)arg;
+
+	// to store metadata_t from user space and will be assigned later
+	struct metadata_t md_user;
+	struct metadata_t *pmd = (struct metadata_t *)&md_user;
 
 	if (!isp_dev_ctx.dev_inited) {
 		LOG(LOG_ERR, "dev is not inited, failed to ioctl.");
@@ -450,6 +453,7 @@ static long isp_fops_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 			break;
 		}
 
+		md_user = md;
 		if (md.chn >= FIRMWARE_CONTEXT_NUMBER) {
 			pr_err("ctx id %d exceed valid range\n", md.chn);
 			ret = -EFAULT;
