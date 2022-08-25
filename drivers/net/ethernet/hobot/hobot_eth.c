@@ -4469,6 +4469,13 @@ static int xj3_ioctl(struct net_device *ndev, struct ifreq *rq, int cmd) {
     if (!netif_running(ndev)) return -EINVAL;
 
     switch (cmd) {
+        case SIOCGMIIPHY:
+        case SIOCGMIIREG:
+        case SIOCSMIIREG:
+            if (!ndev->phydev)
+                return -EINVAL;
+            ret = phy_mii_ioctl(ndev->phydev, rq, cmd);
+            break;
         case SIOCSTIOCTL:
             if (!priv || !rq) return -EINVAL;
 
