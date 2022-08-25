@@ -628,6 +628,31 @@ static struct usb_descriptor_header *ss_audio_desc[] = {
 	NULL,
 };
 
+/*
+ * Above static descriptors might be changed when doing afunc_bind,
+ * we need to restore them when doing afunc_unbind. Otherwise, the gadget
+ * might be enumrated failed in some platform(eg. win10), by the reason of
+ * wrong configuration or other descriptors.
+ *
+ * Therefore, we need to backup the descriptors which might be changed,
+ * and restore them in afunc_unbind stage.
+ */
+static struct usb_interface_assoc_descriptor iad_desc_backup;
+static struct usb_interface_descriptor std_ac_if_desc_backup;
+static struct usb_interface_descriptor std_as_out_if0_desc_backup;
+static struct usb_interface_descriptor std_as_out_if1_desc_backup;
+static struct usb_interface_descriptor std_as_in_if0_desc_backup;
+static struct usb_interface_descriptor std_as_in_if1_desc_backup;
+static struct usb_endpoint_descriptor fs_epin_desc_backup;
+static struct usb_endpoint_descriptor hs_epin_desc_backup;
+static struct usb_endpoint_descriptor ss_epin_desc_backup;
+static struct usb_endpoint_descriptor fs_epout_desc_backup;
+static struct usb_endpoint_descriptor hs_epout_desc_backup;
+static struct usb_endpoint_descriptor ss_epout_desc_backup;
+static struct usb_endpoint_descriptor fs_epin_fback_desc_backup;
+static struct usb_endpoint_descriptor hs_epin_fback_desc_backup;
+static struct usb_endpoint_descriptor ss_epin_fback_desc_backup;
+
 struct cntrl_cur_lay2 {
 	__le16	wCUR;
 };
@@ -1017,6 +1042,46 @@ static int afunc_validate_opts(struct g_audio *agdev, struct device *dev)
 	return 0;
 }
 
+static void afunc_backup_desc(void)
+{
+	/* Only backup some descriptors which might be modifed after doing afunc_bind currently */
+	iad_desc_backup = iad_desc;
+	std_ac_if_desc_backup = std_ac_if_desc;
+	std_as_out_if0_desc_backup = std_as_out_if0_desc;
+	std_as_out_if1_desc_backup = std_as_out_if1_desc;
+	std_as_in_if0_desc_backup = std_as_in_if0_desc;
+	std_as_in_if1_desc_backup = std_as_in_if1_desc;
+	fs_epin_desc_backup = fs_epin_desc;
+	hs_epin_desc_backup = hs_epin_desc;
+	ss_epin_desc_backup = ss_epin_desc;
+	fs_epout_desc_backup = fs_epout_desc;
+	hs_epout_desc_backup = hs_epout_desc;
+	ss_epout_desc_backup = ss_epout_desc;
+	fs_epin_fback_desc_backup = fs_epin_fback_desc;
+	hs_epin_fback_desc_backup = hs_epin_fback_desc;
+	ss_epin_fback_desc_backup = ss_epin_fback_desc;
+}
+
+static void afunc_restore_desc(void)
+{
+	/* Restore the backuped descriptor in afunc_unbind stage */
+	iad_desc = iad_desc_backup;
+	std_ac_if_desc = std_ac_if_desc_backup;
+	std_as_out_if0_desc = std_as_out_if0_desc_backup;
+	std_as_out_if1_desc = std_as_out_if1_desc_backup;
+	std_as_in_if0_desc = std_as_in_if0_desc_backup;
+	std_as_in_if1_desc = std_as_in_if1_desc_backup;
+	fs_epin_desc = fs_epin_desc_backup;
+	hs_epin_desc = hs_epin_desc_backup;
+	ss_epin_desc = ss_epin_desc_backup;
+	fs_epout_desc = fs_epout_desc_backup;
+	hs_epout_desc = hs_epout_desc_backup;
+	ss_epout_desc = ss_epout_desc_backup;
+	fs_epin_fback_desc = fs_epin_fback_desc_backup;
+	hs_epin_fback_desc = hs_epin_fback_desc_backup;
+	ss_epin_fback_desc = ss_epin_fback_desc_backup;
+}
+
 static int
 afunc_bind(struct usb_configuration *cfg, struct usb_function *fn)
 {
@@ -1032,6 +1097,8 @@ afunc_bind(struct usb_configuration *cfg, struct usb_function *fn)
 	ret = afunc_validate_opts(agdev, dev);
 	if (ret)
 		return ret;
+
+	afunc_backup_desc();
 
 	strings_fn[STR_ASSOC].s = uac2_opts->function_name;
 
@@ -2189,6 +2256,7 @@ static void afunc_unbind(struct usb_configuration *c, struct usb_function *f)
 
 	g_audio_cleanup(agdev);
 	usb_free_all_descriptors(f);
+	afunc_restore_desc();
 
 	agdev->gadget = NULL;
 
