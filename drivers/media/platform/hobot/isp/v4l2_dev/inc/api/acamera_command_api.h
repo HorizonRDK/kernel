@@ -216,11 +216,12 @@
 // dynamic remove source
 #define CALIBRATION_REMOVE_SRC                            0x00000092
 #define CALIBRAITON_REMOVE_RULE                           0x00000093
+#define CALIBRATION_GRASS_REMOVE_PARAM                    0x00000094
 // ------------------------------------------------------------------------------ //
 //		DYNAMIC STATE VALUES
 // ------------------------------------------------------------------------------ //
 
-#define CALIBRATION_TOTAL_SIZE 148
+#define CALIBRATION_TOTAL_SIZE 149
 //------------------FILE TRANSFER-------------------
 
 
