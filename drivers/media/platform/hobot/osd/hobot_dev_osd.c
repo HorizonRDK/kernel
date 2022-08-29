@@ -1520,6 +1520,7 @@ static int osd_attach(struct osd_video_ctx *osd_ctx, unsigned long arg)
         atomic_set(&subdev->osd_hw_need_update, 1);
     }
     kthread_queue_work(&osd_dev->worker, &osd_dev->work);
+    osd_sw_set_process_flag(subdev);
 
     vio_info("[S%d][V%d][H%d] %s done: ret:%d\n",
         bind->bind_info.instance, bind->bind_info.chn,
