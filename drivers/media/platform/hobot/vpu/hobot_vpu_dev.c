@@ -1579,7 +1579,7 @@ static irqreturn_t vpu_irq_handler(int irq, void *dev_id)
 	int product_code;
 #ifdef SUPPORT_MULTI_INST_INTR
 	u32 intr_reason = 0;
-	s32 intr_inst_index = 0;
+	s32 intr_inst_index = -1;
 	int inst_arr[MAX_NUM_VPU_INSTANCE] = {0, };
 	int idx;
 #endif
@@ -1624,6 +1624,11 @@ static irqreturn_t vpu_irq_handler(int irq, void *dev_id)
 				for (i=0; i < MAX_NUM_VPU_INSTANCE; i++) {
 					if (0 == empty_inst && 0 == done_inst && 0 == seq_inst)
 						break;
+					if (reason == 0) {
+						vpu_err("r=0x%x, e=0x%x, d=0x%x, o=0x%x \n",
+					  		reason, empty_inst, done_inst, seq_inst);
+						break;
+					}
 					intr_reason = reason;
 					intr_inst_index =
 						vpu_get_inst_idx(dev, &intr_reason,
@@ -1755,23 +1760,23 @@ static irqreturn_t vpu_irq_handler(int irq, void *dev_id)
 		kill_fasync(&dev->async_queue, SIGIO, POLL_IN);
 
 #ifdef SUPPORT_MULTI_INST_INTR
-	if (intr_inst_index >= 0 && intr_inst_index < MAX_NUM_VPU_INSTANCE) {
-		dev->interrupt_flag[intr_inst_index] = 1;
-		wake_up_interruptible(&dev->interrupt_wait_q[intr_inst_index]);
-		for (idx=0; idx < MAX_NUM_VPU_INSTANCE; idx++) {
-			if (inst_arr[idx] == 1) {
-				spin_lock(&dev->poll_int_wait_q[idx].lock);
-				dev->poll_int_event[idx]++;
-				vpu_debug(7, "vpu_irq_handler poll_int_event[%d]=%lld.\n",
-					idx, dev->poll_int_event[idx]);
-				dev->total_poll[idx]++;
-				vpu_debug(7, "vpu_irq_handler total_poll[%d]=%lld.\n",
-					idx, dev->total_poll[idx]);
-				spin_unlock(&dev->poll_int_wait_q[idx].lock);
-				wake_up_interruptible(&dev->poll_int_wait_q[idx]);
-			}
+	for (idx=0; idx < MAX_NUM_VPU_INSTANCE; idx++) {
+		if (inst_arr[idx] == 1) {
+			dev->interrupt_flag[idx] = 1;
+			wake_up_interruptible(&dev->interrupt_wait_q[idx]);
+
+			spin_lock(&dev->poll_int_wait_q[idx].lock);
+			dev->poll_int_event[idx]++;
+			vpu_debug(7, "vpu_irq_handler poll_int_event[%d]=%lld.\n",
+				idx, dev->poll_int_event[idx]);
+			dev->total_poll[idx]++;
+			vpu_debug(7, "vpu_irq_handler total_poll[%d]=%lld.\n",
+				idx, dev->total_poll[idx]);
+			spin_unlock(&dev->poll_int_wait_q[idx].lock);
+			wake_up_interruptible(&dev->poll_int_wait_q[idx]);
 		}
 	}
+
 	spin_lock(&dev->irq_spinlock);
 	if (dev->irq_trigger == 1 &&
 		test_bit(intr_inst_index, vpu_inst_bitmap) == 0) {
