@@ -603,9 +603,15 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 				ret = -EFAULT;
 				break;
 			}
+			ret = iar_stop();
+			if (ret)
+				pr_err("error stop iar thread when change pixel clock!\n");
 			ret = disp_set_pixel_clk(pixel_clock);
 			if (ret)
 				pr_err("error user set pixel clk!\n");
+			ret = iar_start_after_set_clk();
+			if (ret)
+				pr_err("error start iar after change pixel clock!\n");
 		}
 		break;
 	case DISP_SET_INTERLACE_MODE:
@@ -861,10 +867,12 @@ int iar_cdev_release(struct inode *inode, struct file *filp)
 	mutex_lock(&g_iar_cdev->iar_mutex);
 	iar_open_cnt--;
 	if (iar_open_cnt == 0) {
-		filp->private_data = NULL;
-		iar_stop();
-		iar_start_cnt = 0;
+		if (iar_start_cnt > 0u) {
+			iar_stop();
+			iar_start_cnt = 0;
+		}
 		iar_close();
+		filp->private_data = NULL;
 	}
 	mutex_unlock(&g_iar_cdev->iar_mutex);
 	return 0;

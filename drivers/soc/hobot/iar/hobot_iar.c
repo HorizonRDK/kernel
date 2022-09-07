@@ -26,6 +26,7 @@
 #include <linux/init.h>
 #include <linux/wait.h>
 #include <linux/kthread.h>
+#include <uapi/linux/sched/types.h>
 #include <linux/pwm.h>
 #include <linux/uaccess.h>
 #include <asm/unaligned.h>
@@ -1015,14 +1016,6 @@ static int disp_clk_enable(void)
 	}
 	if (g_iar_dev->iar_pixel_clk == NULL)
 		return -1;
-	if (disp_clk_already_enable == 0) {
-		ret = clk_prepare_enable(g_iar_dev->iar_pixel_clk);
-		if (ret) {
-			pr_err("%s: err enable iar pixel clock!!\n", __func__);
-			return -1;
-		}
-		disp_clk_already_enable = 1;
-	}
 	if (display_type == LCD_7_TYPE)
 		pixel_clock = pixel_clk_video_800x480;
 	else if (display_type == MIPI_1080P)
@@ -1050,6 +1043,14 @@ static int disp_clk_enable(void)
 	if (bt1120_clk_invert != 0) {
 		pr_err("%s: set bt1120 clock phase invert!!\n", __func__);
 		set_iar_pixel_clk_inv();
+	}
+	if (disp_clk_already_enable == 0) {
+		ret = clk_prepare_enable(g_iar_dev->iar_pixel_clk);
+		if (ret) {
+			pr_err("%s: err enable iar pixel clock!!\n", __func__);
+			return -1;
+		}
+		disp_clk_already_enable = 1;
 	}
 	return 0;
 }
@@ -1902,16 +1903,18 @@ static int iar_thread(void *data)
 {
 	buf_addr_t display_addr;
 	buf_addr_t display_addr_video1;
+	int32_t ret = 0;
 
 	if (g_iar_dev == NULL) {
                 pr_err("%s: iar not init!!\n", __func__);
                 return -1;
         }
 	while (!kthread_should_stop()) {
-		if (kthread_should_stop())
+		ret = wait_event_interruptible(g_iar_dev->wq_head,
+			(ipu_process_done & iar_video_not_pause) || kthread_should_stop());
+		if ((ret != 0) || (kthread_should_stop())) {
 			break;
-		wait_event_interruptible(g_iar_dev->wq_head,
-				(ipu_process_done & iar_video_not_pause) || stop_flag);
+		}
 		ipu_process_done = 0;
 #ifdef CONFIG_HOBOT_XJ3
 		display_addr.Yaddr = g_disp_yaddr;
@@ -1971,18 +1974,6 @@ int32_t iar_open(void)
 
 	if (hb_disp_base_board_id == 0x1)
 		screen_backlight_init();
-	if (g_iar_dev->iar_task == NULL) {
-		g_iar_dev->iar_task = kthread_run(iar_thread,
-				(void *)g_iar_dev, "iar_thread");
-		if (IS_ERR(g_iar_dev->iar_task)) {
-			g_iar_dev->iar_task = NULL;
-			dev_err(&g_iar_dev->pdev->dev, "iar thread create fail\n");
-			ret = PTR_ERR_OR_ZERO(g_iar_dev->iar_task);
-		}
-		stop_flag = 0;
-	} else {
-		pr_err("ipu iar thread already run!!\n");
-	}
 
 	return ret;
 }
@@ -2031,18 +2022,10 @@ int32_t iar_close(void)
 	disp_user_config_done = 0;
 	iar_video_not_pause = true;
 
-	disable_irq(g_iar_dev->irq);
 	frame_manager_close(&g_iar_dev->framemgr);
 	frame_manager_close(&g_iar_dev->framemgr_layer[0]);
 	frame_manager_close(&g_iar_dev->framemgr_layer[1]);
 
-	if (g_iar_dev->iar_task == NULL) {
-		pr_err("iar vio thread already stop!!\n");
-	} else {
-		stop_flag = 1;
-		kthread_stop(g_iar_dev->iar_task);
-		g_iar_dev->iar_task = NULL;
-	}
 	if (hb_disp_base_board_id == 0x1)
 		screen_backlight_deinit();
 	if (disable_sif_mclk() != 0)
@@ -2073,6 +2056,7 @@ int32_t iar_start(int update)
 {
 	uint32_t value;
 	int ret = 0;
+	struct sched_param param = {.sched_priority = 35};
 
 	if (NULL == g_iar_dev) {
 		printk(KERN_ERR "IAR dev not inited!");
@@ -2098,9 +2082,60 @@ int32_t iar_start(int update)
 			return -1;
 	}
 
+	if (g_iar_dev->iar_task == NULL) {
+		g_iar_dev->iar_task = kthread_run(iar_thread,
+				(void *)g_iar_dev, "iar_thread");
+		if (IS_ERR(g_iar_dev->iar_task) || (g_iar_dev->iar_task == NULL)) {
+			g_iar_dev->iar_task = NULL;
+			dev_err(&g_iar_dev->pdev->dev, "iar thread create fail\n");
+			return -1;
+		}
+		ret = sched_setscheduler(g_iar_dev->iar_task, SCHED_FIFO, &param);
+		if (ret != 0) {
+			dev_err(&g_iar_dev->pdev->dev, "sched_setscheduler fail(%d)", ret);
+			return -1;
+		}
+	} else {
+		pr_err("ipu iar thread already run!!\n");
+	}
+
 	return 0;
 }
 EXPORT_SYMBOL_GPL(iar_start);
+
+int32_t iar_start_after_set_clk(void)
+{
+	uint32_t value;
+	int ret = 0;
+	struct sched_param param = {.sched_priority = 35};
+
+	if (NULL == g_iar_dev) {
+		printk(KERN_ERR "IAR dev not inited!");
+		return -1;
+	}
+	value = readl(g_iar_dev->regaddr + REG_IAR_DE_REFRESH_EN);
+	value = IAR_REG_SET_FILED(IAR_DPI_TV_START, 0x1, value);
+	writel(value, g_iar_dev->regaddr + REG_IAR_DE_REFRESH_EN);
+	writel(0x1, g_iar_dev->regaddr + REG_IAR_UPDATE);
+	if (g_iar_dev->iar_task == NULL) {
+		g_iar_dev->iar_task = kthread_run(iar_thread,
+				(void *)g_iar_dev, "iar_thread");
+		if (IS_ERR(g_iar_dev->iar_task) || (g_iar_dev->iar_task == NULL)) {
+			g_iar_dev->iar_task = NULL;
+			dev_err(&g_iar_dev->pdev->dev, "iar thread create fail\n");
+			return -1;
+		}
+		ret = sched_setscheduler(g_iar_dev->iar_task, SCHED_FIFO, &param);
+		if (ret != 0) {
+			dev_err(&g_iar_dev->pdev->dev, "sched_setscheduler fail(%d)", ret);
+			return -1;
+		}
+	} else {
+		pr_err("ipu iar thread already run!!\n");
+	}
+	return 0;
+}
+EXPORT_SYMBOL_GPL(iar_start_after_set_clk);
 
 int32_t iar_stop(void)
 {
@@ -2113,11 +2148,20 @@ int32_t iar_stop(void)
 	}
 	if (display_type == MIPI_720P_TOUCH)
 		panel_enter_standby();
+	if (g_iar_dev->iar_task == NULL) {
+		pr_err("iar vio thread already stop!!\n");
+	} else {
+		stop_flag = 1;
+		kthread_stop(g_iar_dev->iar_task);
+		g_iar_dev->iar_task = NULL;
+	}
 	value = readl(g_iar_dev->regaddr + REG_IAR_DE_REFRESH_EN);
 	value = IAR_REG_SET_FILED(IAR_DPI_TV_START, 0x0, value);
 	writel(value, g_iar_dev->regaddr + REG_IAR_DE_REFRESH_EN);
 
 	writel(0x1, g_iar_dev->regaddr + REG_IAR_UPDATE);
+	disable_irq(g_iar_dev->irq);
+
 	if (display_type == SIF_IPI) {
 		ipi_clk_disable();
 	} else if (display_type == LCD_7_TYPE) {

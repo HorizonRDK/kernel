@@ -827,6 +827,7 @@ int32_t iar_gamma_cfg(gamma_cfg_t *cfg);
 int32_t iar_output_cfg(output_cfg_t *cfg);
 int32_t iar_switch_buf(uint32_t channel);
 int32_t iar_start(int update);
+int32_t iar_start_after_set_clk(void);
 int32_t iar_stop(void);
 int32_t iar_open(void);
 int32_t iar_close(void);
