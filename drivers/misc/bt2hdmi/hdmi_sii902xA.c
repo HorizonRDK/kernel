@@ -265,9 +265,6 @@ static int hdmi_sii_probe(struct i2c_client *client,
 		devID = ReadByteTPI(TPI_DEVICE_ID);
 		if (wID != 0x9022 || devID != SII902XA_DEVICE_ID) {
 			pr_err("bt1120 to HDMI device:sii9022a is not exist!\n");
-			gpio_free(Si9022A_rst_pin);
-			gpio_free(Si9022A_irq_pin);
-			return ret;
 		}
 #if defined CONFIG_HOBOT_IAR || defined CONFIG_X2_IAR
 		display_type = HDMI_TYPE;

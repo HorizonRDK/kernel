@@ -63,7 +63,7 @@ int write_byte_nostop;
 //------------------------------------------------------------------------------
 void DelayMS(word MS)
 {
-	mdelay(MS);//call linux kernel delay API function
+	msleep(MS);//call linux kernel delay API function
 }
 
 //------------------------------------------------------------------------------
@@ -4517,6 +4517,9 @@ int disp_config_hdmi(unsigned short vmode,
 {
 	byte devID = 0x00;
 	word wID = 0x0000;
+
+	// Toggle TX reset pin
+	TxHW_Reset();
 
 	TXHAL_InitPostReset();
 	WriteByteTPI(0xF5, 0x00);
