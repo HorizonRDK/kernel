@@ -159,6 +159,9 @@ struct disp_timing video_1280x720 = {
 struct disp_timing video_1024x600 = {
 	270, 5, 13, 17, 2, 3, 0
 };
+struct disp_timing video_1366x768 = {
+	213, 70, 143, 24, 3, 3, 0
+};
 #ifdef CONFIG_HOBOT_X3_UBUNTU
 struct disp_timing video_800x480 = {
 	168, 44, 88, 46, 3, 6, 0
@@ -195,6 +198,7 @@ uint32_t pixel_clk_video_800x480 = 33900000;
 #else
 uint32_t pixel_clk_video_800x480 = 32000000;
 #endif
+uint32_t pixel_clk_video_1366x768 = 85500000;
 uint32_t pixel_clk_video_720x1280 = 68000000;
 uint32_t pixel_clk_video_1080x1920 = 32000000;
 uint32_t pixel_clk_video_720x1280_touch = 54400000;
@@ -4568,6 +4572,10 @@ static int hobot_iar_probe(struct platform_device *pdev)
 				pixel_clk_video_1920x1080 = pixel_clk_video_800x480;
 				hdmi_resolution = IAR_HDMI_800x480_;
 				memcpy(&video_1920x1080, &video_800x480, sizeof(video_1920x1080));
+			}else if(sync.hact == 1366 && sync.vact == 768){
+				pixel_clk_video_1920x1080 = pixel_clk_video_1366x768;
+				hdmi_resolution = IAR_HDMI_1366x768_;
+				memcpy(&video_1920x1080, &video_1366x768, sizeof(video_1920x1080));
 			}
 		}
 #endif
