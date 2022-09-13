@@ -450,7 +450,8 @@ static int Format_Timing[][14] = {
 		_Less_than_50M, _Less_than_50M},	// VESA 1024X600 65MHz	
 	{44, 88, 124, 800, 1056, 3, 6, 46, 480, 535, 0, _4_3_,
 		_Less_than_50M, _Less_than_50M},	// VESA 800X480 65MHz	
-
+	{70, 143, 213, 1366, 1792, 3, 3, 24, 768, 798, 0, _16_9_,
+		_Bound_50_100M, _Bound_50_100M},	// VESA 800X480 65MHz	
 	/*
 	   {},
 	   {},
@@ -517,6 +518,7 @@ enum {
 	_1024x768P60_,
 	_1024x600_,
 	_800x480_,
+	_1366x768_,
 };
 
 //--------------------------------------------------------//
@@ -641,6 +643,9 @@ int LT8618SXB_Read_EDID(hobot_lt8618_sync_t * sync)
 						//printk("EDID_Timing[hbp] = %d\n",((Sink_EDID[0x3a] & 0x0f ) * 0x100 + Sink_EDID[0x39]) - ((Sink_EDID[0x41] & 0x30 )* 16 + Sink_EDID[0x3f])- ((Sink_EDID[0x41] & 0x0c)*4 + Sink_EDID[0x3e]));
 						//printk("EDID_Timing[vbp] = %d\n",((Sink_EDID[0x3d] & 0x03 ) * 0x100 + Sink_EDID[0x3c]) - ((Sink_EDID[0x41] & 0x03)* 16 + (Sink_EDID[0x40] & 0x0f)) -((Sink_EDID[0x41] & 0x0c)*4 +(Sink_EDID[0x40] & 0xf0) / 16));
 					}
+					//if(i * 32 + j == 0x47){
+					//	printk("EDID_H_polarity = %d,EDID_V_polarity = %d\n",Sink_EDID[0x47]& 0x20,Sink_EDID[0x47]& 0x40);
+					//}
 					//    edid_data = hobot_read_lt8618sxb(0x83);
 					if ((i == 3) && (j == 30)) {
 						//    extended_flag = edid_data & 0x03;
@@ -681,7 +686,7 @@ int LT8618SXB_Read_EDID(hobot_lt8618_sync_t * sync)
 	if (extended_flag < 2) { //no block 2, stop reading edid.
 		hobot_write_lt8618sxb(0x03, 0xc2);
 		hobot_write_lt8618sxb(0x07, 0x1f);
-		//printk("LT8618SXB_Read_EDID 22 out\n");
+		printk("LT8618SXB_Read_EDID 22 out\n");
 		return 0;
 	}
 
@@ -696,11 +701,11 @@ int LT8618SXB_Read_EDID(hobot_lt8618_sync_t * sync)
 				printk("\r\nread edid failed: no ack");
 				goto end;
 			} else {
-				//printk(" LT8618SXB_Read_EDID 22 \r\n");
+				printk(" LT8618SXB_Read_EDID 22 \r\n");
 				for (j = 0; j < 32; j++) {
 					Sink_EDID2[i * 32 + j] =
 						hobot_read_lt8618sxb(0x83);
-					//printk("Sink_EDID[%d * 32 + %d] =  %u\n ", Sink_EDID2[i * 32 + j]);
+					printk("Sink_EDID[%d * 32 + %d] =  %u\n ", Sink_EDID2[i * 32 + j]);
 
 					//    edid_data = hobot_read_lt8618sxb(0x83);
 					//    printf("%02bx,", edid_data);

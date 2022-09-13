@@ -63,6 +63,7 @@ typedef enum {
 	_HDMI_1024x768P60_,
 	_HDMI_1024x600_,
 	_HDMI_800x480_,
+	_HDMI_1366x768_
 }LT8618_Resolution_Ratio;
 
 typedef struct hobot_lt8618_sync {
