@@ -840,6 +840,7 @@ typedef enum {
 	IAR_HDMI_1024x768P60_,
 	IAR_HDMI_1024x600_,
 	IAR_HDMI_800x480_,
+	IAR_HDMI_1366x768_
 }Hdmi_Resolution_Ratio;
 
 extern int hdmi_get_edid(void *param);
