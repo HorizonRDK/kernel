@@ -175,9 +175,9 @@ static int pre_errflg = 0;
 module_param(debug, int, 0644);
 MODULE_PARM_DESC(debug, "spi: 0 close debug, other open debug");
 module_param(slave_tout, int, 0644);
-MODULE_PARM_DESC(slave_tout, "spi: slave timeout(sec), default 10 s");
+MODULE_PARM_DESC(slave_tout, "spi: slave timeout(sec), default 2 s");
 module_param(master_tout, int, 0644);
-MODULE_PARM_DESC(master_tout, "spi: master timeout(sec), default 2 s");
+MODULE_PARM_DESC(master_tout, "spi: master timeout(sec), default 1 s");
 
 #ifdef CONFIG_SPI_HOBOT_SPIDEV_MODULE
 char tx_rx_interrupt_conflict_flag;
