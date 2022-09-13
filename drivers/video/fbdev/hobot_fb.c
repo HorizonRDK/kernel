@@ -548,6 +548,89 @@ struct fb_fix_screeninfo fb_1280_720_fix_default = {
 	.reserved = {0x0},
 };
 
+struct fb_var_screeninfo fb_1366_768_var_default = {
+	.xres = 1368,
+	.yres = 768,
+	.xres_virtual = 1368,
+	.yres_virtual = 768,
+	.xoffset = 0,
+	.yoffset = 0,
+#ifdef CONFIG_HOBOT_X3_UBUNTU
+	.bits_per_pixel = 24,
+#else
+	.bits_per_pixel = 32,
+#endif
+	.grayscale = 0,
+	.red = {
+		.offset = 16,
+		.length = 8,
+		.msb_right = 0,//MSB left; !=0,MSB right
+	},
+	.green = {
+		.offset = 8,
+		.length = 8,
+		.msb_right = 0,
+	},
+	.blue = {
+		.offset = 0,
+		.length = 8,
+		.msb_right = 0,
+	},
+	.transp = {
+#ifdef CONFIG_HOBOT_X3_UBUNTU
+		.offset = 0,
+		.length = 0,
+#else
+		.offset = 24,
+		.length = 8,
+#endif
+
+		.msb_right = 0,
+	},
+	.nonstd = 0,
+	.activate = FB_ACTIVATE_NOW,
+	.height = 110,
+	.width = 62,
+	.accel_flags = FB_ACCEL_NONE,
+
+	.pixclock = 30030,//33.3M,
+//	.left_margin = 40,//20~200
+//	.right_margin = 40,//87~1
+	.left_margin = 46,//100+20
+	.right_margin = 46,//52+28
+//	.upper_margin = 12,//5~200
+//	.lower_margin = 30,//31~29
+	.upper_margin = 16,//42+1
+	.lower_margin = 14,//31+1
+	.hsync_len = 10,//1~87,no type value
+	.vsync_len = 3,//1~3,no type value
+
+	.sync = 0,//????????
+	.vmode = FB_VMODE_NONINTERLACED,
+	.rotate = 1,
+	.colorspace = 0,
+	.reserved = {0x0},
+};
+
+struct fb_fix_screeninfo fb_1366_768_fix_default = {
+	.id = "x2-fb",
+	.smem_start = 0x0,
+	.smem_len = MAX_FRAME_BUF_SIZE,
+	.type = FB_TYPE_PACKED_PIXELS,
+	.type_aux = 0,
+	.visual = FB_VISUAL_TRUECOLOR,  //FB_VISUAL_PSEUDOCOLOR,
+	.xpanstep = 0,
+	.ypanstep = 0,
+	.ywrapstep = 0,
+	.line_length = 5472,
+	.mmio_start = 0,
+	.mmio_len = 0,
+	.accel = FB_ACCEL_NONE,
+	.capabilities = 0,
+	.reserved = {0x0},
+};
+
+
 struct fb_var_screeninfo fb_1024_600_var_default = {
 	.xres = 1024,
 	.yres = 600,
@@ -1179,6 +1262,8 @@ static int hbfb_set_par(struct fb_info *info)
 		value = 15;
 	}else if(info->var.xres == 800 && info->var.yres == 480){
 		value = 16;
+	}else if(info->var.xres == 1368 && info->var.yres == 768){
+		value = 17;
 	}
 	hdmi_set_resolution(value);
 #endif
@@ -2071,6 +2156,7 @@ static int hbfb_probe(struct platform_device *pdev)
 	fb_1280_720_fix_default.smem_start = framebuf_user.paddr;
 	fb_1024_600_fix_default.smem_start = framebuf_user.paddr;
 	fb_800_480_fix_default.smem_start = framebuf_user.paddr;
+	fb_1366_768_fix_default.smem_start = framebuf_user.paddr;
 
 	RGB500_fix_default.line_length =
 		get_line_length(RGB500_var_default.xres_virtual,
@@ -2095,6 +2181,9 @@ static int hbfb_probe(struct platform_device *pdev)
 	fb_800_480_fix_default.line_length =
 		get_line_length(fb_800_480_var_default.xres_virtual,
 				fb_800_480_var_default.bits_per_pixel);
+	fb_1366_768_fix_default.line_length =
+		get_line_length(fb_1366_768_var_default.xres_virtual,
+				fb_1366_768_var_default.bits_per_pixel);
 
 
 	if (display_type == HDMI_TYPE) {
@@ -2111,6 +2200,10 @@ static int hbfb_probe(struct platform_device *pdev)
 			case IAR_HDMI_720P60_:
 				hobot_fbi->fb.fix = fb_1280_720_fix_default;
 				hobot_fbi->fb.var = fb_1280_720_var_default;
+			break;
+			case IAR_HDMI_1366x768_:
+				hobot_fbi->fb.fix = fb_1366_768_fix_default;
+				hobot_fbi->fb.var = fb_1366_768_var_default;
 			break;
 			case IAR_HDMI_1080P60_:
 #endif
