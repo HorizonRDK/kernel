@@ -929,6 +929,6 @@ void dwc3_debugfs_init(struct dwc3 *dwc)
 
 void dwc3_debugfs_exit(struct dwc3 *dwc)
 {
-	debugfs_remove(debugfs_lookup(dev_name(dwc->dev), usb_debug_root));
+	debugfs_remove_recursive(debugfs_lookup(dev_name(dwc->dev), usb_debug_root));
 	kfree(dwc->regset);
 }
