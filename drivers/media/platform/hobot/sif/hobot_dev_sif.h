@@ -84,6 +84,14 @@ enum sif_frame_state {
 	SIF_YUV_MODE,  /*for yuv*/
 };
 
+enum sif_yuv_timestamps {
+	SIF_Y_TIMESTAMP,     /*for y*/
+	SIF_UV_TIMESTAMP,    /*for uv*/
+	TIMESTAMP_INVALID
+};
+
+#define SIF_YUV_TIMESTAMPS  TIMESTAMP_INVALID
+
 /*recover buff state*/
 enum sif_hwidx_process_state {
 	SIF_WDMA_DISABLE = 1,
@@ -290,6 +298,7 @@ struct sif_subdev {
 	/*recover buff in yuv or splicing scene*/
 	u32 frame_drop;
 	u32	fdone;  	/*y/uv done*/
+	u64 fdone_timestamps[SIF_YUV_TIMESTAMPS];
 	u32 arbit_dead;	 /*arbit deadlock happens*/
 	u32 splice_flow_clr;   /*close wdma for splice*/
 	sif_data_desc_t ddrin_fmt;

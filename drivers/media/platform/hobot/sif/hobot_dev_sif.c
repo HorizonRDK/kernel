@@ -3852,8 +3852,26 @@ static void sif_fe_process(u32 mux_index, struct sif_subdev *subdev,
 	instance = subdev->group->instance;
 	if (subdev->format == HW_FORMAT_YUV422) {
 		if (test_bit(mux_index + SIF_YUV_MODE, &sif->frame_state)) {		/* uv*/
+			subdev->fdone_timestamps[SIF_UV_TIMESTAMP] =
+			subdev->group->frameid.timestamps;
+			if (subdev->fdone & (1 << 0)) {
+				if (subdev->fdone_timestamps[SIF_Y_TIMESTAMP] !=
+					subdev->fdone_timestamps[SIF_UV_TIMESTAMP]) {
+					subdev->fdone &= ~(1 << 0);
+					vio_warn("S[%d] may lose UV fe\n", instance);
+				}
+			}
 			subdev->fdone |= 1 << 1;
 		} else {
+			subdev->fdone_timestamps[SIF_Y_TIMESTAMP] =
+				subdev->group->frameid.timestamps;
+			if (subdev->fdone & (1 << 1)) {
+				if (subdev->fdone_timestamps[SIF_Y_TIMESTAMP] !=
+					subdev->fdone_timestamps[SIF_UV_TIMESTAMP]) {
+					subdev->fdone &= ~(1 << 1);
+					vio_warn("S[%d] may lose Y fe\n", instance);
+				}
+			}
 			subdev->fdone |= 1 << 0;
 		}
 	}
