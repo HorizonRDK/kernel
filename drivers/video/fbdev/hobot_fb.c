@@ -1266,6 +1266,10 @@ static int hbfb_set_par(struct fb_info *info)
 		value = 17;
 	}
 	hdmi_set_resolution(value);
+
+	if (fbi->fb.var.bits_per_pixel == 32) {
+		fbi->fb.var.bits_per_pixel = 24;
+	}
 #endif
 	return regval;
 }
