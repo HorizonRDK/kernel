@@ -28,6 +28,9 @@
 #include <linux/clk.h>
 #include <linux/hrtimer.h>
 #include "hobot-pvt.h"
+#ifdef CONFIG_HOBOT_DMC_CLK
+#include <soc/hobot/hobot_bus.h>
+#endif
 
 #define HOBOT_PVT_NAME "pvt"
 #define HOBOT_PVT_TEMP_NAME "pvt_ts"
@@ -81,6 +84,9 @@ struct pvt_device {
 	int cal_A[PVT_TS_NUM];
 	int cal_B[PVT_TS_NUM];
 	spinlock_t lock;
+#ifdef CONFIG_HOBOT_DMC_CLK
+	struct hobot_dpm pvt_dpm;
+#endif
 };
 
 static inline u32 pvt_reg_rd(struct pvt_device *dev, u32 reg)
@@ -335,7 +341,11 @@ static irqreturn_t pvt_irq_handler(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
+#ifdef CONFIG_HOBOT_DMC_CLK
+static void pvt_init_hw(struct pvt_device *pvt_dev, int state)
+#else
 static void pvt_init_hw(struct pvt_device *pvt_dev)
+#endif
 {
 	u32 val;
 	int cnt = 0;
@@ -370,8 +380,17 @@ static void pvt_init_hw(struct pvt_device *pvt_dev)
 		dev_dbg(pvt_dev->dev, "after enabled TS irq: IRQ_%d_EN_ADDR: %08x\n", i, val);
 	}
 
-	/* Configure Clock Synthesizers from pvt spec, 240MHz to 4MHz  */
+#ifdef CONFIG_HOBOT_DMC_CLK
+	if (state == OTHER_STATE) {
+		/* Configure Clock Synthesizers from pvt spec, 240MHz to 4MHz */
+		pvt_reg_wr(pvt_dev, TS_CMN_CLK_SYNTH_ADDR, 0x01011D1D);
+	} else if (state == POWERSAVE_STATE) {
+		pvt_reg_wr(pvt_dev, TS_CMN_CLK_SYNTH_ADDR, 0x01010303);
+	}
+#else
+	/* Configure Clock Synthesizers from pvt spec, 240MHz to 4MHz */
 	pvt_reg_wr(pvt_dev, TS_CMN_CLK_SYNTH_ADDR, 0x01011D1D);
+#endif
 
 	dev_dbg(pvt_dev->dev, "TS_CLK_SYN: %08x\n", pvt_reg_rd(pvt_dev, TS_CMN_CLK_SYNTH_ADDR));
 	dev_dbg(pvt_dev->dev, "TS_SDIF_STATUS: 0x%08x\n", pvt_reg_rd(pvt_dev, TS_CMN_SDIF_STATUS_ADDR));
@@ -421,6 +440,25 @@ static enum hrtimer_restart irq_unmask_timer_func(struct hrtimer *hrt)
 	return HRTIMER_RESTART;
 }
 
+#ifdef CONFIG_HOBOT_DMC_CLK
+static int pvt_ts_dpm_callback(struct hobot_dpm *dpm,
+				unsigned long signal, int state)
+{
+	struct pvt_device *pvt_dev =
+		container_of(dpm, struct pvt_device, pvt_dpm);
+
+	/* clear irq error cnt for new init */
+	tp_irq_sts_fault_cnt = 0;
+
+	if (signal == HB_BUS_SIGNAL_END && state == POWERSAVE_STATE) {
+		pvt_init_hw(pvt_dev, POWERSAVE_STATE);
+	} else if (signal == HB_BUS_SIGNAL_START && state == OTHER_STATE) {
+		pvt_init_hw(pvt_dev, OTHER_STATE);
+	}
+
+	return 0;
+}
+#endif
 
 static int pvt_probe(struct platform_device *pdev)
 {
@@ -529,11 +567,21 @@ static int pvt_probe(struct platform_device *pdev)
 		pvt_dev->ts_mode = 1;
 	}
 
+#ifdef CONFIG_HOBOT_DMC_CLK
+	pvt_init_hw(pvt_dev, OTHER_STATE);
+#else
 	pvt_init_hw(pvt_dev);
+#endif
 
 	hwmon_dev = devm_hwmon_device_register_with_info(&pdev->dev,
 					HOBOT_PVT_TEMP_NAME, pvt_dev,
 					&pvt_chip_info, NULL);
+
+#ifdef CONFIG_HOBOT_DMC_CLK
+	pvt_dev->pvt_dpm.dpm_call = pvt_ts_dpm_callback;
+	hobot_dfs_register(&pvt_dev->pvt_dpm, &pdev->dev);
+#endif
+
 	hobot_vm_probe(&pdev->dev, pvt_dev->reg_base, pvt_dev->efuse_base);
 
 	return PTR_ERR_OR_ZERO(hwmon_dev);
