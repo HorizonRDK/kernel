@@ -506,8 +506,13 @@ static int dmc_set_rate(struct clk_hw *hw,
 
 	printk("%s,%d: is_powersave:%d\n", __func__, __LINE__, is_powersave);
 
-	ret = hobot_dfs_notifier(&dfs_list,
-			&dfs_lock_list, HB_BUS_SIGNAL_START, 0);
+	if (is_powersave == 1)
+		ret = hobot_dfs_notifier(&dfs_list,
+			&dfs_lock_list, HB_BUS_SIGNAL_START, POWERSAVE_STATE);
+	else
+		ret = hobot_dfs_notifier(&dfs_list,
+			&dfs_lock_list, HB_BUS_SIGNAL_START, OTHER_STATE);
+
 	if (0 == ret) {
 #ifndef CONFIG_HOBOT_XJ3
 		dclk->invoke_fn(dclk->fid, dclk->set_cmd,
@@ -526,7 +531,12 @@ static int dmc_set_rate(struct clk_hw *hw,
 		//cur_ddr_rate = rate;
 	}
 err0:
-	hobot_dfs_notifier(&dfs_lock_list, &dfs_list, HB_BUS_SIGNAL_END, 0);
+	if ((is_powersave == 1) && (ret == 0))
+		hobot_dfs_notifier(&dfs_lock_list, &dfs_list,
+			HB_BUS_SIGNAL_END, POWERSAVE_STATE);
+	else
+		hobot_dfs_notifier(&dfs_lock_list, &dfs_list,
+			HB_BUS_SIGNAL_END, OTHER_STATE);
 err1:
 	mutex_unlock(&dclk->mlock);
 err2:
