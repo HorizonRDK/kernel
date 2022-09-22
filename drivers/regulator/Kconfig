@@ -164,6 +164,13 @@ config REGULATOR_AXP15060
 	  Say y here to support the regulators found on the X-Powers
 	  AXP15060 PMIC.
 
+config REGULATOR_HPU3501
+	tristate "AXP15060 regulator driver"
+	depends on I2C
+	select REGMAP_I2C
+	help
+	  Say y here to support the regulators found on the HPU3501 PMIC.
+
 config REGULATOR_AXP20X
 	tristate "X-POWERS AXP20X PMIC Regulators"
 	depends on MFD_AXP20X
