@@ -1964,7 +1964,7 @@ int32_t iar_open(void)
 	if (iar_pixel_clk_enable() != 0)
 		return -1;
 	enable_iar_irq();
-	enable_irq(g_iar_dev->irq);
+//	enable_irq(g_iar_dev->irq);
 
 	init_waitqueue_head(&g_iar_dev->done_wq);
 	init_waitqueue_head(&g_iar_dev->output_done_wq[0]);
@@ -2062,6 +2062,7 @@ int32_t iar_start(int update)
 		printk(KERN_ERR "IAR dev not inited!");
 		return -1;
 	}
+	enable_irq(g_iar_dev->irq);
 	if (iar_enable_sif_mclk() != 0)
 		return -1;
 	if (disp_clk_enable() != 0)
@@ -2113,6 +2114,7 @@ int32_t iar_start_after_set_clk(void)
 		printk(KERN_ERR "IAR dev not inited!");
 		return -1;
 	}
+	enable_irq(g_iar_dev->irq);
 	value = readl(g_iar_dev->regaddr + REG_IAR_DE_REFRESH_EN);
 	value = IAR_REG_SET_FILED(IAR_DPI_TV_START, 0x1, value);
 	writel(value, g_iar_dev->regaddr + REG_IAR_DE_REFRESH_EN);
@@ -2136,6 +2138,7 @@ int32_t iar_start_after_set_clk(void)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(iar_start_after_set_clk);
+
 
 int32_t iar_stop(void)
 {
@@ -2178,6 +2181,33 @@ int32_t iar_stop(void)
 	return ret;
 }
 EXPORT_SYMBOL_GPL(iar_stop);
+
+int32_t iar_stop_before_change_clk(void)
+{
+	uint32_t value;
+	int ret = 0;
+
+	if (NULL == g_iar_dev) {
+		printk(KERN_ERR "IAR dev not inited!");
+		return -1;
+	}
+	if (g_iar_dev->iar_task == NULL) {
+		pr_err("iar vio thread already stop!!\n");
+	} else {
+		stop_flag = 1;
+		kthread_stop(g_iar_dev->iar_task);
+		g_iar_dev->iar_task = NULL;
+	}
+	value = readl(g_iar_dev->regaddr + REG_IAR_DE_REFRESH_EN);
+	value = IAR_REG_SET_FILED(IAR_DPI_TV_START, 0x0, value);
+	writel(value, g_iar_dev->regaddr + REG_IAR_DE_REFRESH_EN);
+
+	writel(0x1, g_iar_dev->regaddr + REG_IAR_UPDATE);
+	disable_irq(g_iar_dev->irq);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(iar_stop_before_change_clk);
 
 /**
  * Bring the configuartion of iar registers into effect

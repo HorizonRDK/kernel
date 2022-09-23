@@ -603,7 +603,7 @@ static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 				ret = -EFAULT;
 				break;
 			}
-			ret = iar_stop();
+			ret = iar_stop_before_change_clk();
 			if (ret)
 				pr_err("error stop iar thread when change pixel clock!\n");
 			ret = disp_set_pixel_clk(pixel_clock);
