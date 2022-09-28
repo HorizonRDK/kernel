@@ -4861,13 +4861,8 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		iar_display_cam_no = PIPELINE0;
                 iar_display_addr_type = GDC0;
 		if (need_startup_img) {
-#ifdef CONFIG_HOBOT_X3_UBUNTU
-			stride_copy_bmp(0, 0, embedded_image_0_data, 0, 0, 0, 0,
-				g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr, 24, 24, 720, 3);
-#else
 			stride_copy_bmp(0, 0, embedded_image_0_data, 0, 0, 0, 0,
 				g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr, 24, 24, 720, 4);
-#endif
 		} else {
 			display_color_bar(720, 1280, g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
 		}
