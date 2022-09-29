@@ -4105,7 +4105,7 @@ static void ipu_diag_report(u8 instance, u8 errsta, u32 status)
 	u32 head;
 	u32 msg[2];
 #if IS_ENABLED(CONFIG_HOBOT_DIAG_INJECT)
-	u32 err_type;
+	u32 err_type = errsta;
 	diag_inject_val(ModuleDiag_VIO, EventIdVioIpuErr, &err_type);
 	if ((err_type == DIAG_IPU_SIZE_ERROR) ||
 					(err_type == DIAG_IPU_FRAME_DROP))
