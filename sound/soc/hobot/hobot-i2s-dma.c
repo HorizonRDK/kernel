@@ -349,7 +349,11 @@ static int i2sidma_enqueue(struct snd_pcm_substream *substream)
 			hobot_i2sidma[dma_ctrl->id].regaddr_tx +
 				I2S_BUF1_ADDR);
 		dma_ctrl->buffer_int_index = 0;
-		dma_ctrl->buffer_set_index = 0;
+		if (dma_ctrl->buffer_num > 2) {
+			dma_ctrl->buffer_set_index = 2;
+		} else {
+			dma_ctrl->buffer_set_index = 0;
+		}
 		val = (dma_ctrl->periodsz) / (dma_ctrl->ch_num);
 		writel(val, hobot_i2sidma[dma_ctrl->id].regaddr_tx +
 			I2S_BUF_SIZE);
@@ -912,7 +916,11 @@ static irqreturn_t iis_irq1(int irqno, void *dev_id)
 		writel(dma_ctrl->start + dma_ctrl->periodsz,
 			hobot_i2sidma[dma_ctrl->id].regaddr_tx + I2S_BUF1_ADDR);
 		dma_ctrl->buffer_int_index = 0;
-		dma_ctrl->buffer_set_index = 0;
+		if (dma_ctrl->buffer_num > 2) {
+			dma_ctrl->buffer_set_index = 2;
+		} else {
+			dma_ctrl->buffer_set_index = 0;
+		}
 
 		writel(0x1, hobot_i2sidma[dma_ctrl->id].regaddr_tx +
 				I2S_BUF0_RDY);
