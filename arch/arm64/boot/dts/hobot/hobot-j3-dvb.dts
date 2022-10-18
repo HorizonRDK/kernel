@@ -15,6 +15,20 @@
 
 / {
 	model = "Hobot J3 SOC MP DVB";
+	cnn_opp_table_lite: cnn_opp_table_lite {
+		compatible = "operating-points-v2";
+		opp-shared;
+		opp00 {
+			opp-hz = /bits/ 64 <400000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <500000>;
+		};
+		opp01 {
+			opp-hz = /bits/ 64 <600000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <500000>;
+		};
+	};
 };
 
 &ion_cma {
@@ -151,12 +165,14 @@
 &cnn0 {
 	cnn-supply = <&cnn0_pd_reg>;
 	governor = "performance";
+	operating-points-v2-lite = <&cnn_opp_table_lite>;
 	max_freq = /bits/ 64 <950000000>;
 };
 
 &cnn1 {
 	cnn-supply = <&cnn1_pd_reg>;
 	governor = "performance";
+	operating-points-v2-lite = <&cnn_opp_table_lite>;
 	max_freq = /bits/ 64 <950000000>;
 };
 
