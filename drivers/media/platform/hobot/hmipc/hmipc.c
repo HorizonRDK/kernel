@@ -107,6 +107,7 @@ static long hmipc_ioctl(struct file *filp, unsigned int cmd,
 		case HMIPC_SET_COUNT: /*PRQA S ALL*/
 			mutex_lock(&channel->hmipc_mutex);
 			if (copy_from_user(&cnt, (void __user *)arg, _IOC_SIZE(cmd))) {
+				mutex_unlock(&channel->hmipc_mutex);
 				pr_err("copy_from_user fail:%d\n", __LINE__);
 				return -EFAULT;
 			}
