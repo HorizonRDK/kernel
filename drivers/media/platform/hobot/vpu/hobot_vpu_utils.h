@@ -147,6 +147,7 @@ typedef struct _hb_vpu_priv {
 	hb_vpu_dev_t *vpu_dev;
 	u32 inst_index;
 	u32 is_irq_poll;
+	s32 tgid;
 } hb_vpu_priv_t;
 
 struct vpu_clk_dev {

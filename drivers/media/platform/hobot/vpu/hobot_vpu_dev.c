@@ -157,13 +157,20 @@ static void vdi_unlock(hb_vpu_dev_t *dev, u32 core, unsigned int type)
 	// DPRINTK("[VPUDRV]-%s, type=%d\n", __FUNCTION__, type);
 }
 
-static void vdi_lock_release(hb_vpu_dev_t *dev, u32 core, unsigned int type)
+static void vdi_lock_release(hb_vpu_priv_t *priv,
+	hb_vpu_instance_pool_t *vip, u32 core, uint32_t inst_idx, uint32_t type)
 {
 	void *mutex;
 	volatile int *sync_lock_ptr = NULL;
-	int sync_val = current->tgid; //inst + 1; // 0 is used as free index
+	int sync_val; //= current->tgid; //inst + 1; // 0 is used as free index
+	hb_vpu_dev_t *dev;
+	unsigned long timeout = jiffies + HZ;
+	unsigned long flags_mp;
+
 	//vpu_err("[VPUDRV]+%s, type=%d\n", __FUNCTION__, type);
 
+	dev = priv->vpu_dev;
+	sync_val = priv->tgid;
 	mutex = get_mutex_base(dev, core, type);
 	if (mutex == NULL) {
 		vpu_err("Fail to get mutex base, core=%d, type=%d\n", core, type);
@@ -173,11 +180,31 @@ static void vdi_lock_release(hb_vpu_dev_t *dev, u32 core, unsigned int type)
 	sync_lock_ptr = (volatile int *)mutex;
 	//if (*sync_lock_ptr == sync_val ||
 	//	*sync_lock_ptr == (current->tgid + MAX_VPU_LOCK_INSTANCE)) {
+	vpu_debug(5, "Free core=%d, type=%d, sync_lock=%d, current_pid=%d, "
+		"tgid=%d, sync_val=%d, \n", core, type,
+		(volatile int)*sync_lock_ptr, current->pid, current->tgid,
+		sync_val);
 	if (*sync_lock_ptr == sync_val) {
-		vpu_debug(5, "Free core=%d, type=%d, sync_lock=%d, current_pid=%d, "
-			"tgid=%d, sync_val=%d, \n", core, type,
-			(volatile int)*sync_lock_ptr, current->pid, current->tgid,
-			sync_val);
+		if (type == VPUDRV_MUTEX_VPU) {
+			if (vip) {
+				spin_lock_irqsave(&dev->irq_spinlock, flags_mp);
+				if (dev->interrupt_flag[inst_idx] == 1) {
+					if (dev->irq_trigger == 1) {
+						enable_irq(dev->irq);
+						dev->irq_trigger = 0;
+					}
+					dev->interrupt_flag[inst_idx] = 0;
+				}
+				spin_unlock_irqrestore(&dev->irq_spinlock, flags_mp);
+			}
+
+			while (VPU_READL(W5_VPU_BUSY_STATUS) != 0U) {
+				if (time_after(jiffies, timeout)) {
+					vpu_err("Wait Interrupt BUSY timeout pid %d\n", current->pid);
+					break;
+				}
+			}
+		}
 		__sync_lock_release(sync_lock_ptr);
 	}
 	//vpu_err("[VPUDRV]-%s\n", __FUNCTION__);
@@ -1297,7 +1324,6 @@ static int vpu_free_instances(struct file *filp)
 	hb_vpu_instance_pool_t *vip;
 	void *vip_base;
 	int instance_pool_size_per_core;
-	unsigned long flags_mp;
 #ifdef USE_MUTEX_IN_KERNEL_SPACE
 	int j = 0;
 #elif defined(USE_SHARE_SEM_BT_KERNEL_AND_USER)
@@ -1388,7 +1414,8 @@ static int vpu_free_instances(struct file *filp)
 			if (vip) {
 #ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
 				for (i = 0; i < VPUDRV_MUTEX_MAX; i++) {
-					vdi_lock_release(dev, (u32)vil->core_idx, i);
+					vdi_lock_release(priv, vip,
+						(u32)vil->core_idx, (u32)vil->inst_idx, i);
 				}
 #endif
 #ifdef USE_VPU_CLOSE_INSTANCE_ONCE_ABNORMAL_RELEASE
@@ -1434,16 +1461,6 @@ static int vpu_free_instances(struct file *filp)
 				sizeof(dev->vpu_ctx[vil->inst_idx]));
 			memset(&dev->vpu_status[vil->inst_idx], 0x00,
 				sizeof(dev->vpu_status[vil->inst_idx]));
-			if (dev->interrupt_flag[vil->inst_idx] == 1) {
-				spin_lock_irqsave(&dev->irq_spinlock, flags_mp);
-				if (dev->irq_trigger == 1) {
-					enable_irq(dev->irq);
-					dev->irq_trigger = 0;
-				}
-				dev->interrupt_flag[vil->inst_idx] = 0;
-				spin_unlock_irqrestore(&dev->irq_spinlock, flags_mp);
-			}
-
 			kfree(vil);
 		}
 	}
@@ -1967,6 +1984,7 @@ static int vpu_open(struct inode *inode, struct file *filp)
 	priv->vpu_dev = dev;
 	priv->inst_index = -1;
 	priv->is_irq_poll = 0;
+	priv->tgid = current->tgid;
 	filp->private_data = (void *)priv;
 	spin_unlock(&dev->vpu_spinlock);
 #ifdef CONFIG_HOBOT_XJ3
@@ -2923,7 +2941,7 @@ static int vpu_release(struct inode *inode, struct file *filp)
 				vpu_debug(5, "free instance pool\n");
 #ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
 				for (i = 0; i < VPUDRV_MUTEX_MAX; i++) {
-					vdi_lock_release(dev, 0, i);
+					vdi_lock_release(priv, NULL, 0, 0, i);
 				}
 #endif
 #ifdef USE_VMALLOC_FOR_INSTANCE_POOL_MEMORY

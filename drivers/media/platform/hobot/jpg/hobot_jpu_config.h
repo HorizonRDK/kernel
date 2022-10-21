@@ -24,6 +24,6 @@
 #define MAX_NUM_JPU_INSTANCE            64
 #define MAX_NUM_JPU_CORE                1
 #define MAX_INST_HANDLE_SIZE            48
-#define JDI_NUM_LOCK_HANDLES            4
+#define JDI_NUM_LOCK_HANDLES            2
 
 #endif /* __HOBOT_JPU_CONFIG_H_ */

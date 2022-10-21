@@ -105,6 +105,18 @@ static void jpu_free_dma_buffer(hb_jpu_dev_t *dev,
 #endif /* JPUR_SUPPORT_RESERVED_VIDEO_MEMORY */
 }
 
+static void jpu_clear_status(hb_jpu_dev_t *dev, uint32_t idx)
+{
+	uint32_t val;
+
+	val = JPU_READL(MJPEG_PIC_STATUS_REG(idx));
+	JPU_WRITEL(MJPEG_PIC_STATUS_REG(idx), val);
+	JPU_WRITEL(MJPEG_PIC_START_REG(idx), 0);
+	val = JPU_READL(MJPEG_INST_CTRL_STATUS_REG);
+	val &= ~(1UL << idx);
+	JPU_WRITEL(MJPEG_INST_CTRL_STATUS_REG, val);
+}
+
 #ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
 typedef enum hb_jpu_mutex {
 	JPUDRV_MUTEX_JPU,
@@ -141,13 +153,19 @@ static void *get_mutex_base(hb_jpu_dev_t *dev, u32 core, unsigned int type)
 	return mutex;
 }
 
-static void jdi_lock_release(hb_jpu_dev_t *dev, u32 core, unsigned int type)
+static void jdi_lock_release(hb_jpu_priv_t *priv, u32 core, unsigned int type)
 {
 	void *mutex;
 	volatile int *sync_lock_ptr = NULL;
-	int sync_val = current->tgid; //inst + 1; // 0 is used as free index
+	hb_jpu_dev_t *dev;
+	int32_t i, sync_val;
+	unsigned long flags_mp;
+	unsigned long timeout = jiffies + HZ;
+	uint32_t val;
 	//jpu_err("[JPUDRV]+%s, type=%d\n", __FUNCTION__, type);
 
+	dev = priv->jpu_dev;
+	sync_val = priv->tgid;
 	mutex = get_mutex_base(dev, core, type);
 	if (mutex == NULL) {
 		jpu_err("Fail to get mutex base, core=%d, type=%d\n", 0, type);
@@ -157,11 +175,54 @@ static void jdi_lock_release(hb_jpu_dev_t *dev, u32 core, unsigned int type)
 	sync_lock_ptr = (volatile int *)mutex;
 	//if (*sync_lock_ptr == sync_val ||
 	//	*sync_lock_ptr == (current->tgid + MAX_VPU_LOCK_INSTANCE)) {
+	jpu_debug(5, "Free core=%d, type=%d, sync_lock=%d, current_pid=%d, "
+		"tgid=%d, sync_val=%d, \n", 0, type,
+		(volatile int)*sync_lock_ptr, current->pid, current->tgid,
+		sync_val);
 	if (*sync_lock_ptr == sync_val) {
-		jpu_debug(5, "Free core=%d, type=%d, sync_lock=%d, current_pid=%d, "
-			"tgid=%d, sync_val=%d, \n", 0, type,
-			(volatile int)*sync_lock_ptr, current->pid, current->tgid,
-			sync_val);
+		spin_lock_irqsave(&dev->irq_spinlock, flags_mp);
+		for (i = 0; i < MAX_HW_NUM_JPU_INSTANCE; i++) {
+			if (dev->interrupt_flag[i] == 1) {
+				if (dev->irq_trigger == 1) {
+					jpu_clear_status(dev, i);
+					enable_irq(dev->irq);
+					dev->irq_trigger = 0;
+					dev->poll_int_event--;
+					jpu_debug(5, "enable irq\n");
+				}
+				dev->interrupt_flag[i] = 0;
+				break;
+			} else {
+				if (JPU_READL(MJPEG_PIC_STATUS_REG(i)) != 0) {
+					dev->ignore_irq = 1;
+				}
+			}
+		}
+		if (i == MAX_HW_NUM_JPU_INSTANCE) {
+			val = JPU_READL(MJPEG_INST_CTRL_STATUS_REG);
+			if ((val >> 4) == INST_CTRL_ENC) {
+				dev->ignore_irq = 1;
+				jpu_debug(5, "ctrl_status ignore\n");
+			}
+		}
+		spin_unlock_irqrestore(&dev->irq_spinlock, flags_mp);
+		while (JPU_READL(MJPEG_INST_CTRL_STATUS_REG) >> 4 == INST_CTRL_ENC) {
+			if (time_after(jiffies, timeout)) {
+				jpu_debug(5, "Wait Interrupt BUSY timeout pid %d\n", current->pid);
+				break;
+			}
+		}
+		spin_lock_irqsave(&dev->irq_spinlock, flags_mp);
+		for (i = 0; i < MAX_HW_NUM_JPU_INSTANCE; i++) {
+			jpu_err("%d, %d\n", dev->interrupt_flag[i], dev->irq_trigger);
+			if (JPU_READL(MJPEG_PIC_STATUS_REG(i)) != 0) {
+				jpu_debug(5, "Clear status(pid %d).\n", current->pid);
+				jpu_clear_status(dev, 0);
+				dev->ignore_irq = 0;
+				break;
+			}
+		}
+		spin_unlock_irqrestore(&dev->irq_spinlock, flags_mp);
 		__sync_lock_release(sync_lock_ptr);
 	}
 	//jpu_err("[JPUDRV]-%s\n", __FUNCTION__);
@@ -174,7 +235,6 @@ static int jpu_free_instances(struct file *filp)
 	hb_jpu_drv_instance_pool_t *vip;
 	void *vip_base;
 	int instance_pool_size_per_core;
-	int32_t hw_idx = 0;
 #ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
 	int32_t i = 0;
 #else
@@ -213,17 +273,9 @@ static int jpu_free_instances(struct file *filp)
 				  (int)instance_pool_size_per_core);
 			vip = (hb_jpu_drv_instance_pool_t *) vip_base;
 			if (vip) {
-				for (hw_idx = 0; hw_idx < MAX_HW_NUM_JPU_INSTANCE; hw_idx++) {
-					if (dev->interrupt_flag[hw_idx] == 1) {
-						JPU_WRITEL(MJPEG_PIC_STATUS_REG(hw_idx),
-							dev->interrupt_reason[hw_idx]);
-						enable_irq(dev->irq);
-						dev->interrupt_flag[hw_idx] = 0;
-					}
-				}
 #ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
 				for (i = 0; i < JPUDRV_MUTEX_MAX; i++) {
-					jdi_lock_release(dev, (u32)0, i);
+					jdi_lock_release(priv, (u32)0, i);
 				}
 #endif
 				/* only first 4 byte is key point(inUse of CodecInst in jpuapi)
@@ -312,8 +364,10 @@ static irqreturn_t jpu_irq_handler(int irq, void *dev_id)
 	int i;
 	u32 flag;
 
+	spin_lock(&dev->irq_spinlock);
 #ifdef JPU_IRQ_CONTROL
 	disable_irq_nosync(dev->irq);
+	dev->irq_trigger = 1;
 #endif
 
 	for (i = 0; i < MAX_HW_NUM_JPU_INSTANCE; i++) {
@@ -324,16 +378,15 @@ static irqreturn_t jpu_irq_handler(int irq, void *dev_id)
 	}
 	if (i >= MAX_HW_NUM_JPU_INSTANCE) {
 		jpu_debug(7, "unknow INTERRUPT FLAG\n");
+		dev->irq_trigger = 0;
+		dev->interrupt_flag[0] = 0;
+		dev->ignore_irq = 0;
+
 #ifdef JPU_IRQ_CONTROL
 		enable_irq(dev->irq);
 #endif
 		return IRQ_HANDLED;
 	}
-
-	dev->interrupt_reason[i] = flag;
-	dev->interrupt_flag[i] = 1;
-	jpu_debug(7, "[%d] INTERRUPT FLAG: %08x, %08x\n", i,
-		  dev->interrupt_reason[i], MJPEG_PIC_STATUS_REG(i));
 
 	// clear interrupt status register
 	// JPU_WRITEL(MJPEG_PIC_STATUS_REG(i), flag);
@@ -342,16 +395,30 @@ static irqreturn_t jpu_irq_handler(int irq, void *dev_id)
 	if (dev->async_queue)
 		kill_fasync(&dev->async_queue, SIGIO, POLL_IN);
 
-	wake_up_interruptible(&dev->interrupt_wait_q[i]);
-	spin_lock(&dev->poll_int_wait.lock);
-	dev->poll_int_event++;
-	jpu_debug(7, "jpu_irq_handler poll_int_event[%d]=%lld.\n",
-		i, dev->poll_int_event);
-	dev->total_poll++;
-	jpu_debug(7, "jpu_irq_handler total_poll=%lld.\n", dev->total_poll);
-	spin_unlock(&dev->poll_int_wait.lock);
-	wake_up_interruptible(&dev->poll_int_wait);
+	if (dev->ignore_irq != 1) {
+		dev->interrupt_reason[i] = flag;
+		dev->interrupt_flag[i] = 1;
+		// jpu_debug(7, "[%d] INTERRUPT FLAG: %08x, %08x\n", i,
+		// dev->interrupt_reason[i], MJPEG_PIC_STATUS_REG(i));
 
+		wake_up_interruptible(&dev->interrupt_wait_q[i]);
+		spin_lock(&dev->poll_int_wait.lock);
+		dev->poll_int_event++;
+		// jpu_debug(7, "jpu_irq_handler poll_int_event[%d]=%lld.\n",
+		// 	i, dev->poll_int_event);
+		dev->total_poll++;
+		// jpu_debug(7, "jpu_irq_handler total_poll=%lld.\n", dev->total_poll);
+		spin_unlock(&dev->poll_int_wait.lock);
+		wake_up_interruptible(&dev->poll_int_wait);
+	} else {
+		jpu_debug(7, "jpu_irq_handler ignore irq.\n");
+		enable_irq(dev->irq);
+		dev->interrupt_flag[i] = 0;
+		dev->ignore_irq = 0;
+		dev->irq_trigger = 0;
+	}
+
+	spin_unlock(&dev->irq_spinlock);
 	return IRQ_HANDLED;
 }
 
@@ -389,6 +456,7 @@ static int jpu_open(struct inode *inode, struct file *filp)
 	priv->jpu_dev = dev;
 	priv->inst_index = -1;
 	priv->is_irq_poll = 0;
+	priv->tgid = current->tgid;
 	filp->private_data = (void *)priv;
 	spin_unlock(&dev->jpu_spinlock);
 #ifdef CONFIG_HOBOT_XJ3
@@ -536,6 +604,7 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 		{
 			hb_jpu_drv_intr_t info;
 			u32 instance_no;
+			unsigned long flags_mp;
 
 			jpu_debug(7, "[+]JDI_IOCTL_WAIT_INTERRUPT\n");
 			ret = copy_from_user(&info, (hb_jpu_drv_intr_t *) arg,
@@ -544,7 +613,7 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 				return -EFAULT;
 
 			instance_no = info.inst_idx;
-			jpu_debug(7, "INSTANCE NO: %d Timeout %d:\n", instance_no, info.timeout);
+			// jpu_debug(7, "INSTANCE NO: %d Timeout %d:\n", instance_no, info.timeout);
 			ret =
 			    wait_event_interruptible_timeout
 			    (dev->interrupt_wait_q[instance_no],
@@ -559,8 +628,8 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 #if 1
 			if (signal_pending(current)) {
 				ret = -ERESTARTSYS;
-				jpu_debug(5, "INSTANCE NO: %d ERESTARTSYS\n",
-					  instance_no);
+				jpu_debug(5, "INSTANCE NO: %d ERESTARTSYS, s_interrupt_flag(%d)\n",
+					  instance_no, dev->interrupt_flag[instance_no]);
 				break;
 			}
 #endif
@@ -576,7 +645,12 @@ static long jpu_ioctl(struct file *filp, u_int cmd, u_long arg)
 			ret = copy_to_user((void __user *)arg, &info,
 					   sizeof(hb_jpu_drv_intr_t));
 #ifdef JPU_IRQ_CONTROL
-			enable_irq(dev->irq);
+			spin_lock_irqsave(&dev->irq_spinlock, flags_mp);
+			if (dev->irq_trigger == 1) {
+				enable_irq(dev->irq);
+				dev->irq_trigger = 0;
+			}
+			spin_unlock_irqrestore(&dev->irq_spinlock, flags_mp);
 #endif
 			spin_lock_irqsave(&dev->poll_int_wait.lock, flags_mp);
 			dev->poll_int_event--;
@@ -1068,7 +1142,7 @@ static int jpu_release(struct inode *inode, struct file *filp)
 				jpu_debug(5, "free instance pool\n");
 #ifdef USE_SHARE_SEM_BT_KERNEL_AND_USER
 				for (i = 0; i < JPUDRV_MUTEX_MAX; i++) {
-					jdi_lock_release(dev, (u32)0, i);
+					jdi_lock_release(priv, (u32)0, i);
 				}
 #endif
 				vfree((const void *)dev->instance_pool.base);
@@ -1699,6 +1773,8 @@ static int jpu_probe(struct platform_device *pdev)
 	sema_init(&dev->jpu_sem, 1);
 	spin_lock_init(&dev->jpu_spinlock);
 	spin_lock_init(&dev->jpu_info_spinlock);
+	spin_lock_init(&dev->irq_spinlock);
+	dev->irq_trigger = 0;
 
 	INIT_LIST_HEAD(&dev->jbp_head);
 	INIT_LIST_HEAD(&dev->inst_list_head);

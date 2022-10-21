@@ -89,6 +89,10 @@ typedef struct _hb_jpu_dev {
 	int64_t total_poll;
 	int64_t total_release;
 
+	spinlock_t irq_spinlock;
+	int32_t irq_trigger;
+	int32_t ignore_irq;
+
 	struct fasync_struct *async_queue;
 	u32 open_count;		/*!<< device reference count. Not instance count */
 	int jpu_open_ref_count;
@@ -117,6 +121,7 @@ typedef struct _hb_jpu_priv {
 	hb_jpu_dev_t *jpu_dev;
 	u32 inst_index;
 	u32 is_irq_poll;
+	s32 tgid;
 } hb_jpu_priv_t;
 
 #endif /* __HOBOT_JPU_UTILS_H__ */
