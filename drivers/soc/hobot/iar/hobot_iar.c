@@ -2026,6 +2026,10 @@ int32_t iar_close(void)
 	frame_manager_close(&g_iar_dev->framemgr_layer[0]);
 	frame_manager_close(&g_iar_dev->framemgr_layer[1]);
 
+	reset_control_assert(g_iar_dev->rst);
+	udelay(2);
+	reset_control_deassert(g_iar_dev->rst);
+
 	if (hb_disp_base_board_id == 0x1)
 		screen_backlight_deinit();
 	if (disable_sif_mclk() != 0)
