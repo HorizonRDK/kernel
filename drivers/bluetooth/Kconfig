@@ -377,5 +377,14 @@ config BT_QCOMSMD
 
 	  Say Y here to compile support for HCI over Qualcomm SMD into the
 	  kernel or say M to compile as a module.
+	  
+config BT_HCIUART_RTL3WIRE
+	bool "Realtek Three-wire UART (H5) protocol support"
+	depends on BT_HCIUART
+	help
+	  Realtek Three-wire UART (H5) transport layer makes it possible
+	  to use Realtek Bluetooth controller with Three-wire UART.
+	  
+	  Say Y here to compile support for Realtek Three-wire UART.
 
 endmenu
