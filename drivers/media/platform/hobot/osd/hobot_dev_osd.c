@@ -1756,8 +1756,10 @@ static int osd_set_bind_attr(struct osd_video_ctx *osd_ctx, unsigned long arg)
         atomic_dec(&subdev->osd_hw_cnt);
     }
     mutex_unlock(&osd_dev->osd_list_mutex);
-    if ((polygon_buf != NULL) && (bind->bind_info.polygon_buf != NULL)) {
-        kfree(bind->bind_info.polygon_buf);
+    if (polygon_buf != NULL) {
+        if (bind->bind_info.polygon_buf != NULL) {
+            kfree(bind->bind_info.polygon_buf);
+        }
     } else {
         polygon_buf = bind->bind_info.polygon_buf;
     }
