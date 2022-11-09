@@ -171,6 +171,42 @@
 		regulator-boot-on;
 		enable-active-high;
 	};
+
+	cpu_opp_table_hobot: cpu_opp_table_hobot {
+		compatible = "operating-points-v2";
+		opp-shared;
+		opp00 {
+			opp-hz = /bits/ 64 <1200000000>;
+			opp-microvolt = <795000>;
+			clock-latency-ns = <500000>;
+		};
+		opp01 {
+			opp-hz = /bits/ 64 <1000000000>;
+			opp-microvolt = <795000>;
+			clock-latency-ns = <500000>;
+		};
+		opp02 {
+			opp-hz = /bits/ 64 <800000000>;
+			opp-microvolt = <795000>;
+			clock-latency-ns = <500000>;
+		};
+		opp03 {
+			opp-hz = /bits/ 64 <500000000>;
+			opp-microvolt = <795000>;
+			clock-latency-ns = <500000>;
+		};
+		opp04 {
+			opp-hz = /bits/ 64 <240000000>;
+			opp-microvolt = <795000>;
+			clock-latency-ns = <500000>;
+		};
+		opp05 {
+			opp-hz = /bits/ 64 <1500000000>;
+			opp-microvolt = <990000>;
+			clock-latency-ns = <500000>;
+			turbo-mode;
+		};
+	};
 };
 
 &power {
@@ -256,6 +292,40 @@
 		rst-gpio = <&gpios 64 0>;
 		status = "okay";
 	};
+	hpu3501@1e {
+		compatible = "hobot-pmic,hpu3501";
+		reg = <0x1e>;
+		status = "disabled";
+		regulators {
+			cnn0_pd_reg_hobot: BUCK3 {
+				regulator-name = "VCC_CNN0";
+				regulator-min-microvolt = <820000>;
+				regulator-max-microvolt = <1000000>;
+				regulator-enable-ramp-delay = <3000>;
+			};
+
+			cnn1_pd_reg_hobot: BUCK4 {
+				regulator-name = "VCC_CNN1";
+				regulator-min-microvolt = <820000>;
+				regulator-max-microvolt = <1000000>;
+				regulator-enable-ramp-delay = <3000>;
+			};
+
+			cpu_pd_reg_hobot: BUCK5 {
+				regulator-name = "VCC_CPU";
+				regulator-min-microvolt = <795000>;
+				regulator-max-microvolt = <990000>;
+				regulator-always-on;
+			};
+
+			vdd_usb_0v8_hobot: LDO3 {
+				regulator-name = "USB_V_8";
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-enable-ramp-delay = <3000>;
+			};
+		};
+	};
 };
 
 &uart0 {
@@ -283,6 +353,7 @@
 
 &usbdrd3_0 {
 	status = "okay";
+	usb_0v8-supply_hobot = <&vdd_usb_0v8_hobot>;
 };
 
 &usbdrd_dwc3_0 {
@@ -468,6 +539,63 @@
 		spi-max-frequency = <62500000>; /* For FPGA max clk is 20Mhz */
 	};
 };
+
+&cnn_opp_table {
+	opp00 {
+		opp-hz = /bits/ 64 <1000000000>;
+		opp-microvolt = <820000>;
+		clock-latency-ns = <500000>;
+	};
+	opp01 {
+		opp-hz = /bits/ 64 <800000000>;
+		opp-microvolt = <820000>;
+		clock-latency-ns = <500000>;
+	};
+	opp02 {
+		opp-hz = /bits/ 64 <400000000>;
+		opp-microvolt = <820000>;
+		clock-latency-ns = <500000>;
+	};
+	opp03 {
+		opp-hz = /bits/ 64 <600000000>;
+		opp-microvolt = <820000>;
+		clock-latency-ns = <500000>;
+	};
+};
+
+
+&cpu0 {
+    cpu-supply-hobot = <&cpu_pd_reg_hobot>;
+    operating-points-v2-hobot = <&cpu_opp_table_hobot>;
+};
+
+&cpu1 {
+    cpu-supply-hobot = <&cpu_pd_reg_hobot>;
+    operating-points-v2-hobot = <&cpu_opp_table_hobot>;
+};
+
+&cpu2 {
+    cpu-supply-hobot = <&cpu_pd_reg_hobot>;
+    operating-points-v2-hobot = <&cpu_opp_table_hobot>;
+};
+
+&cpu3 {
+    cpu-supply-hobot = <&cpu_pd_reg_hobot>;
+    operating-points-v2-hobot = <&cpu_opp_table_hobot>;
+};
+
+&cnn0 {
+    cnn-supply-hobot = <&cnn0_pd_reg_hobot>;
+    governor = "userspace";
+	max_freq = /bits/ 64 <1000000000>;
+};
+
+&cnn1 {
+    cnn-supply-hobot = <&cnn1_pd_reg_hobot>;
+	governor = "userspace";
+	max_freq = /bits/ 64 <1000000000>;
+};
+
 
 &sdio0 {
 	status = "okay";
