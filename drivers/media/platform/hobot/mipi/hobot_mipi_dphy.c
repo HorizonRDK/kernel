@@ -51,6 +51,14 @@
 #define MIPI_DEV_MAX_NUM	(1)
 #endif
 
+static unsigned int offset_cal1 = 0x1;  // 0x37b
+static unsigned int offset_cal0 = 0x7C;   // 0x37a
+static unsigned int force_lanef_port = 0x0;   // port mask.
+
+module_param(force_lanef_port, uint, 0644);
+module_param(offset_cal1, uint, 0644);
+module_param(offset_cal0, uint, 0644);
+
 static unsigned int host_num;
 module_param(host_num, uint, 0444);
 static unsigned int dev_num;
@@ -122,6 +130,9 @@ module_param(rxdphy_deskew_cfg, uint, 0644);
 #define REGS_RX_CB_2             (0x1ac)
 #define REGS_RX_CLKLANE_LANE_6   (0x307)
 #define REGS_RX_CLKLANE_LANE_7   (0x308)
+#define REGS_RX_CLKLANE_OFFSET_CAL_0     (0x37a)
+#define REGS_RX_CLKLANE_OFFSET_CAL_1     (0x37b)
+
 #define REGS_RX_LANE0_DDL_4      (0x60A)
 #define REGS_RX_LANE0_DDL_5      (0x60B)
 #define REGS_RX_LANE0_DDL_6      (0x60C)
@@ -831,6 +842,126 @@ static uint16_t mipi_tx_pll_div(mipi_phy_t *phy, uint16_t refsclk, uint16_t lane
 			 *vco, outclk, fout);
 	return outclk;
 }
+
+/**
+ * @brief mipi_host_dphy_testdata_read: read test data
+ *
+ * @param [in] testdata : testdatas' array
+ * @param [in] size : size of testdata's array
+ *
+ * @return void
+ */
+uint32_t mipi_host_dphy_testdata_read(mipi_phy_t *phy, void __iomem *iomem, uint16_t testcode)
+{
+	struct device *dev = (phy) ? phy->sub.dev : g_pdev.dev;
+	mipi_dphy_param_t *param = &g_pdev.dphy.param;
+	uint32_t regv, testdata;
+
+	if (!iomem)
+	       return 0;
+
+	/*write test code*/
+	mipi_putreg(iomem + REG_MIPI_HOST_PHY_TEST_CTRL1, DPHY_TEST_ENABLE); /*set testen to high*/
+	mipi_putreg(iomem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLK);    /*set testclk to high*/
+	mipi_putreg(iomem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_RESETN); /*set testclk to low*/
+	mipi_putreg(iomem + REG_MIPI_HOST_PHY_TEST_CTRL1, testcode >> 8);    /*set testen to low, set test code MSBS*/
+	mipi_putreg(iomem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLK);    /*set testclk to high*/
+
+	mipi_putreg(iomem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_RESETN); /*set testclk to low*/
+	regv = mipi_getreg(iomem + REG_MIPI_HOST_PHY_TEST_CTRL1);
+	mipi_putreg(iomem + REG_MIPI_HOST_PHY_TEST_CTRL1, DPHY_TEST_ENABLE | regv); /*set testen to high*/
+	mipi_putreg(iomem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_CLK);    /*set testclk to high*/
+	mipi_putreg(iomem + REG_MIPI_HOST_PHY_TEST_CTRL1, DPHY_TEST_ENABLE | (testcode & 0xff));  /*set test code LSBS*/
+	mipi_putreg(iomem + REG_MIPI_HOST_PHY_TEST_CTRL0, DPHY_TEST_RESETN); /*set testclk to low*/
+
+	testdata = (mipi_getreg(iomem + REG_MIPI_HOST_PHY_TEST_CTRL1) >> 8) & 0xff;
+	mipidbg("dev dphy test code:0x%x, read data: 0x%x", testcode, testdata);
+	return testdata;
+}
+
+int32_t mipi_host_dphy_lane_enable(void __iomem *iomem)
+{
+	int32_t laneable = 0;
+
+	mipi_phy_t *phy = mipi_dphy_get_phy(0, iomem);
+	laneable = mipi_host_dphy_testdata_read(phy, iomem, REG_MIPI_HOST_PHY_LANE_ENABLE);
+	return laneable;
+}
+
+EXPORT_SYMBOL_GPL(mipi_host_dphy_lane_enable);
+
+void mipi_host_dphy_force_config(void __iomem *iomem)
+{
+	mipi_phy_t *phy = mipi_dphy_get_phy(0, iomem);
+	struct device *dev = (phy) ? phy->sub.dev : g_pdev.dev;
+
+	if(NULL == phy)
+		return;
+	if(force_lanef_port & (0x1 << phy->sub.port)) {
+        mipiinfo("force_lanef_port phy %d force initing ", phy->sub.port);
+        mipi_host_dphy_testdata(phy, iomem, REGS_RX_CLKLANE_OFFSET_CAL_1, offset_cal1); // 0x37b
+	    mipi_host_dphy_testdata(phy, iomem, REGS_RX_CLKLANE_OFFSET_CAL_0, offset_cal0); // 0x37a
+
+        mipiinfo("phy %d force: 0x%03x=0x%02x,0x%03x=0x%02x ", phy->sub.port,
+            REGS_RX_CLKLANE_OFFSET_CAL_1, mipi_host_dphy_testdata_read(phy, iomem, REGS_RX_CLKLANE_OFFSET_CAL_1),
+            REGS_RX_CLKLANE_OFFSET_CAL_0, mipi_host_dphy_testdata_read(phy, iomem, REGS_RX_CLKLANE_OFFSET_CAL_0));
+    }
+}
+
+EXPORT_SYMBOL_GPL(mipi_host_dphy_force_config);
+
+void mipi_host_dphy_lane_data_read(void __iomem *iomem)
+{
+	uint32_t lane0_cali_sta = 0, lane1_cali_sta = 0;
+	uint32_t lane0_cali_val = 0, lane1_cali_val = 0;
+	uint32_t rx_term_cal1 = 0, rx_term_cal2 = 0, rx_term_cal0;
+	uint32_t lane0_offset_cal = 0, lane1_offset_cal = 0;
+	uint32_t clk_lane_offset_cal0 = 0, clk_lane_offset_cal1 = 0, rx_sys0 = 0, rx_startup_obs = 0;
+	uint32_t lane0_cali_sta1 = 0, lane1_cali_sta2 = 0, lane0_cali_val3 = 0;
+	uint32_t lane0_offset_cal1 = 0, lane1_offset_cal1 = 0, lane0_offset_cal2 = 0;
+	uint32_t g_skew_cal_done = 0, data_lane0_offset_cal2 = 0, data_lane1_offset_cal2 = 0;
+
+	mipi_phy_t *phy = mipi_dphy_get_phy(0, iomem);
+	struct device *dev = (phy) ? phy->sub.dev : g_pdev.dev;
+	mipi_dphy_param_t *param = &g_pdev.dphy.param;
+
+	rx_term_cal0 = mipi_host_dphy_testdata_read(phy, iomem, REG_MIPI_HOST_PHY_RX_TERM_CAL0);  // 0x220
+	rx_term_cal1 = mipi_host_dphy_testdata_read(phy, iomem, REG_MIPI_HOST_PHY_RX_TERM_CAL1);  // 0x221
+	rx_term_cal2 = mipi_host_dphy_testdata_read(phy, iomem, REG_MIPI_HOST_PHY_RX_TERM_CAL2);  // 0x222
+	lane0_cali_sta = mipi_host_dphy_testdata_read(phy, iomem, REG_MIPI_HOST_PHY_LANE0_DDL_STATUS);  //0x5e0
+	lane1_cali_sta = mipi_host_dphy_testdata_read(phy, iomem, REG_MIPI_HOST_PHY_LANE1_DDL_STATUS);  //0x7e0
+	lane0_cali_val = mipi_host_dphy_testdata_read(phy, iomem, REG_MIPI_HOST_PHY_LANE0_DDL_VALUE); //0x5e5
+	lane1_cali_val = mipi_host_dphy_testdata_read(phy, iomem, REG_MIPI_HOST_PHY_LANE1_DDL_VALUE);   //0x7e5
+	lane0_cali_sta1 = mipi_host_dphy_testdata_read(phy, iomem, REG_MIPI_HOST_PHY_RX_TERM_CAL4);  //0x5e6
+	lane1_cali_sta2 = mipi_host_dphy_testdata_read(phy, iomem, REG_MIPI_HOST_PHY_RX_TERM_CAL5); //0x5e7
+	lane0_cali_val3 = mipi_host_dphy_testdata_read(phy, iomem, REG_MIPI_HOST_PHY_RX_TERM_CAL3); //0x52f
+	clk_lane_offset_cal0 = mipi_host_dphy_testdata_read(phy, iomem, REG_MIPI_HOST_PHY_CLK_LANE_OFFSET_CAL0); // 0x39d
+	clk_lane_offset_cal1 = mipi_host_dphy_testdata_read(phy, iomem, REG_MIPI_HOST_PHY_CLK_LANE_OFFSET_CAL1);  // 0x39e
+	lane0_offset_cal = mipi_host_dphy_testdata_read(phy, iomem, REG_MIPI_HOST_PHY_LANE0_OFFSET_CAL); // 0x59f
+	lane1_offset_cal = mipi_host_dphy_testdata_read(phy, iomem, REG_MIPI_HOST_PHY_LANE1_OFFSET_CAL);   // 0x79f
+	lane0_offset_cal1 = mipi_host_dphy_testdata_read(phy, iomem, REG_MIPI_HOST_PHY_RX_TERM_CAL6); // 0x72f
+	lane1_offset_cal1 = mipi_host_dphy_testdata_read(phy, iomem, REG_MIPI_HOST_PHY_RX_TERM_CAL7);   // 0x734
+	lane0_offset_cal2 = mipi_host_dphy_testdata_read(phy, iomem, REG_MIPI_HOST_PHY_RX_TERM_CAL8); // 0x735
+	data_lane0_offset_cal2 = mipi_host_dphy_testdata_read(phy, iomem, REG_MIPI_HOST_PHY_DATA_LANE0_OFFSET_CAL2);   // 0x5a1
+	data_lane1_offset_cal2 = mipi_host_dphy_testdata_read(phy, iomem, REG_MIPI_HOST_PHY_DATA_LANE1_OFFSET_CAL3);  // 0x7a1
+	rx_sys0 = mipi_host_dphy_testdata_read(phy, iomem, REG_MIPI_HOST_PHY_RX_SYS0); // 0x1e
+	rx_startup_obs = mipi_host_dphy_testdata_read(phy, iomem, REG_MIPI_HOST_PHY_RX_STARTUP_OBS); // 0xc8
+	g_skew_cal_done = mipi_host_dphy_testdata_read(phy, iomem, REG_MIPI_HOST_PHY_LANE_ENABLE); // 0xc9
+
+	mipidbg("reg 0x220: value: 0x%x  reg 0x221: value: 0x%x reg 0x222: value: 0x%x reg 0x5e0: value: 0x%x  reg 0x7e0: value: 0x%x reg 0x5e5: value: 0x%x  reg 0x7e5: value: 0x%x reg 0x5e6: value: 0x%x "
+		    "reg 0x5e7: value: 0x%x  reg 0x52f: value: 0x%x "
+			"reg 0x39d: value: 0x%x  reg 0x39e: value: 0x%x "
+			"reg 0x59f: value: 0x%x  reg 0x79f: value: 0x%x reg 0x72f: value: 0x%x reg 0x734: value: 0x%x  reg 0x735: value: 0x%x reg 0x5a1: value: 0x%x, reg 0x7a1: value 0x%x",
+		rx_term_cal0, rx_term_cal1, rx_term_cal2,
+		lane0_cali_sta, lane1_cali_sta, lane0_cali_val, lane1_cali_val, lane0_cali_sta1, lane1_cali_sta2, lane0_cali_val3,
+		clk_lane_offset_cal0, clk_lane_offset_cal1,
+		lane0_offset_cal, lane1_offset_cal, lane0_offset_cal1, lane1_offset_cal1, lane0_offset_cal2, data_lane0_offset_cal2, data_lane1_offset_cal2);
+
+	mipidbg("0xC9: 0x%x 0x1e: 0x%x 0xC8: 0x%x", g_skew_cal_done, rx_sys0, rx_startup_obs);
+}
+
+EXPORT_SYMBOL_GPL(mipi_host_dphy_lane_data_read);
+
 
 /**
  * @brief mipi_dev_initialize_dphy : initialize dev phy

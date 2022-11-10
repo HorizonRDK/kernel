@@ -48,10 +48,7 @@
 #define MIPI_HOST_SNRCLK_NAME(x)	"sensor" __stringify(x) "_mclk"
 #define MIPI_HOST_HW_MODE_DEF	0
 
-
 #define MIPI_IPI_MASK_ALL (0xffffu)
-
-
 static unsigned int port_num;
 module_param(port_num, uint, 0444);
 
@@ -902,8 +899,6 @@ static int32_t mipi_host_configure_lanemode(mipi_hdev_t *hdev, int lane)
 		mipierr("port%d not support %dlane",
 				hdev->port, lane);
 		return -1;
-	} else if (target_mode == hdev->lane_mode) {
-		goto match_ex_hdev;
 	}
 
 	mipiinfo("change group%d lane_mode to %d for %dlane",
@@ -917,8 +912,7 @@ static int32_t mipi_host_configure_lanemode(mipi_hdev_t *hdev, int lane)
 		mipierr("port%d busy error", poth);
 		return -1;
 	}
-	ret = mipi_dphy_set_lanemode(MIPI_DPHY_TYPE_HOST, hdev->port,
-				target_mode);
+	ret = mipi_dphy_set_lanemode(MIPI_DPHY_TYPE_HOST, hdev->port, 0);
 	if (ret) {
 		mipierr("dphy lane_mode ctrl error %d", ret);
 		return -1;
@@ -929,7 +923,6 @@ static int32_t mipi_host_configure_lanemode(mipi_hdev_t *hdev, int lane)
 	if (poth < MIPI_HOST_MAX_NUM && g_hdev[poth])
 		g_hdev[poth]->lane_mode = target_mode;
 
-match_ex_hdev:
 	if (target_mode) {
 		if (poth < MIPI_HOST_MAX_NUM && g_hdev[poth] &&
 			g_hdev[poth]->host.state == MIPI_STATE_DEFAULT) {
@@ -2318,6 +2311,35 @@ static int32_t mipi_host_dphy_wait_stop(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 	return -1;
 }
 
+#ifdef CONFIG_HOBOT_MIPI_PHY
+int32_t mipi_host_dphy_wait_lane_enable(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
+{
+	if (!hdev)
+		return -1;
+	struct device *dev = hdev->dev;
+	mipi_host_t *host = &hdev->host;
+	mipi_host_param_t *param = &host->param;
+	void __iomem *iomem = host->iomem;
+	uint16_t ncount = 0;
+	int32_t laneable = 0;
+
+	if (!iomem || !cfg)
+		return -1;
+
+	mipiinfo("check lane enable state");
+	/*Check that data lanes are in Stop state*/
+	do {
+		laneable = mipi_host_dphy_lane_enable(iomem);
+		if ((laneable & 0x10) == 0x10)
+			return 0;
+		mdelay(1);
+		ncount++;
+	} while (param->notimeout || ncount <= param->wait_ms);
+	mipierr("lane enable state of host phy is error: 0x%x", laneable);
+	return -1;
+}
+#endif
+
 /**
  * @brief mipi_host_dphy_start_hs_reception : check if mipi host in hs mode
  *
@@ -2404,7 +2426,7 @@ static int32_t mipi_host_start(mipi_hdev_t *hdev)
 			return -1;
 		}
 	}
-
+	mipi_host_dphy_lane_data_read(iomem);	  // read lane calib_status and value
 #if MIPI_HOST_INT_DBG
 	if(!hdev->is_ex) {
 		mipi_host_irq_enable(hdev);
@@ -2486,6 +2508,7 @@ static int32_t mipi_host_init(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 	void __iomem  *iomem = host->iomem;
 	unsigned long pixclk = 0;
 	int poth;
+	int ret = 0;
 
 	if (!iomem)
 		return -1;
@@ -2566,6 +2589,24 @@ static int32_t mipi_host_init(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 		mipi_putreg(iomem + REG_MIPI_HOST_VC_EXTENSION, MIPI_HOST_VC_EXT_ENABLE);
 	/*Release DWC_mipi_csi2_host from reset*/
 	mipi_putreg(iomem + REG_MIPI_HOST_CSI2_RESETN, MIPI_HOST_CSI2_RAISE);
+
+	if (0 != mipi_host_dphy_wait_lane_enable(hdev, cfg)) {
+		mipierr("wait lane_enable error!!!");
+		mipi_host_dphy_lane_data_read(iomem);  // read lane calib_status and value
+		mipi_host_deinit(hdev);
+		return -1;
+	}
+	udelay(500);
+	if (hdev->ex_hdev) {
+		ret = mipi_dphy_set_lanemode(MIPI_DPHY_TYPE_HOST, hdev->port, 1);
+		if (ret) {
+			mipierr("dphy lane_mode ctrl error %d", ret);
+			mipi_host_deinit(hdev);
+			return -1;
+		}
+		mipiinfo("mipi_dphy_set_lanemode 1");
+	}
+	udelay(500);
 #if MIPI_HOST_INT_DBG
 	memset(&host->icnt, 0x0, sizeof(host->icnt));
 #endif
@@ -2577,6 +2618,7 @@ static int32_t mipi_host_init(mipi_hdev_t *hdev, mipi_host_cfg_t *cfg)
 			return -1;
 		}
 	}
+	mipi_host_dphy_force_config(iomem);
 	if (!hdev->is_ex) {
 		cfg->hsaTime = cfg->hsaTime ? cfg->hsaTime : MIPI_HOST_HSATIME;
 		cfg->hbpTime = cfg->hbpTime ? cfg->hbpTime : MIPI_HOST_HBPTIME;

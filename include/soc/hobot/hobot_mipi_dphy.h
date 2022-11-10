@@ -69,6 +69,10 @@ int mipi_dphy_set_freqrange(int type, int port, int region, int value);
 int mipi_dphy_get_lanemode(int type, int port);
 int mipi_dphy_set_lanemode(int type, int port, int lanemode);
 
+int32_t mipi_host_dphy_lane_enable(void __iomem *iomem);
+void mipi_host_dphy_lane_data_read(void __iomem *iomem);
+void mipi_host_dphy_force_config(void __iomem *iomem);
+
 struct class* mipi_dphy_class(void);
 
 #endif /*__HOBOT_MIPI_DPHY_H__*/
