@@ -295,7 +295,7 @@
 	hpu3501@1e {
 		compatible = "hobot-pmic,hpu3501";
 		reg = <0x1e>;
-		status = "disabled";
+		status = "okay";
 		regulators {
 			cnn0_pd_reg_hobot: BUCK3 {
 				regulator-name = "VCC_CNN0";
@@ -565,33 +565,43 @@
 
 
 &cpu0 {
-    cpu-supply-hobot = <&cpu_pd_reg_hobot>;
-    operating-points-v2-hobot = <&cpu_opp_table_hobot>;
+	cpu-supply = <&cpu_pd_reg_hobot>;
+	operating-points-v2 = <&cpu_opp_table_hobot>;
+	cpu-supply-hobot = <&cpu_pd_reg_hobot>;
+	operating-points-v2-hobot = <&cpu_opp_table_hobot>;
 };
 
 &cpu1 {
-    cpu-supply-hobot = <&cpu_pd_reg_hobot>;
-    operating-points-v2-hobot = <&cpu_opp_table_hobot>;
+	cpu-supply = <&cpu_pd_reg_hobot>;
+	operating-points-v2 = <&cpu_opp_table_hobot>;
+	cpu-supply-hobot = <&cpu_pd_reg_hobot>;
+	operating-points-v2-hobot = <&cpu_opp_table_hobot>;
 };
 
 &cpu2 {
-    cpu-supply-hobot = <&cpu_pd_reg_hobot>;
-    operating-points-v2-hobot = <&cpu_opp_table_hobot>;
+	cpu-supply = <&cpu_pd_reg_hobot>;
+	operating-points-v2 = <&cpu_opp_table_hobot>;
+	cpu-supply-hobot = <&cpu_pd_reg_hobot>;
+	operating-points-v2-hobot = <&cpu_opp_table_hobot>;
 };
 
 &cpu3 {
-    cpu-supply-hobot = <&cpu_pd_reg_hobot>;
-    operating-points-v2-hobot = <&cpu_opp_table_hobot>;
+	cpu-supply = <&cpu_pd_reg_hobot>;
+	operating-points-v2 = <&cpu_opp_table_hobot>;
+	cpu-supply-hobot = <&cpu_pd_reg_hobot>;
+	operating-points-v2-hobot = <&cpu_opp_table_hobot>;
 };
 
 &cnn0 {
-    cnn-supply-hobot = <&cnn0_pd_reg_hobot>;
-    governor = "userspace";
+	cnn-supply = <&cnn0_pd_reg>;
+	cnn-supply-hobot = <&cnn0_pd_reg_hobot>;
+	governor = "userspace";
 	max_freq = /bits/ 64 <1000000000>;
 };
 
 &cnn1 {
-    cnn-supply-hobot = <&cnn1_pd_reg_hobot>;
+	cnn-supply = <&cnn1_pd_reg>;
+	cnn-supply-hobot = <&cnn1_pd_reg_hobot>;
 	governor = "userspace";
 	max_freq = /bits/ 64 <1000000000>;
 };
@@ -735,17 +745,6 @@
 	};
 };
 
-&cnn0 {
-	cnn-supply = <&cnn0_pd_reg>;
-	governor = "userspace";
-	max_freq = /bits/ 64 <1000000000>;
-};
-
-&cnn1 {
-	cnn-supply = <&cnn1_pd_reg>;
-	governor = "userspace";
-	max_freq = /bits/ 64 <1000000000>;
-};
 
 
 &snd4 { //dummy-codec
