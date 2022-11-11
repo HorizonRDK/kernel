@@ -759,6 +759,7 @@ static const struct nand_ops spinand_ops = {
 
 static const struct spinand_manufacturer *spinand_manufacturers[] = {
 	&gigadevice_spinand_manufacturer,
+	&longsys_spinand_manufacturer,
 	&macronix_spinand_manufacturer,
 #if IS_ENABLED(CONFIG_SPINAND_ESMT)
 	&esmt_spinand_manufacturer,
@@ -911,7 +912,7 @@ static int spinand_detect(struct spinand_device *spinand)
 
 	spinand->id.len = SPINAND_MAX_ID_LEN;
 
-	ret = spinand_manufacturer_detect(spinand);
+    ret = spinand_manufacturer_detect(spinand);
 	if (ret) {
 		dev_err(dev, "unknown raw ID %*phN\n", SPINAND_MAX_ID_LEN,
 			spinand->id.data);
