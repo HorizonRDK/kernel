@@ -17,8 +17,13 @@
 #include <linux/major.h>
 #include <linux/uaccess.h>
 #include <linux/device.h>
+#include <linux/platform_device.h>
+#include <linux/interrupt.h>
+#include <linux/irq.h>
 #include <linux/cdev.h>
 #include <linux/workqueue.h>
+#include <linux/kthread.h>
+#include <uapi/linux/sched/types.h>
 #include <linux/fs.h>
 #include <linux/fb.h>
 #include <asm/io.h>
@@ -91,7 +96,7 @@ typedef struct _update_cmd_t {
 } update_cmd_t;
 
 struct iar_cdev_s {
-	const char	*name;
+	const char      *name;
 	int major;
 	int minor;
 	struct cdev cdev;
@@ -103,6 +108,7 @@ struct iar_cdev_s {
 	struct mutex iar_mutex;
 };
 struct iar_cdev_s *g_iar_cdev;
+
 hdmi_set_config_callback config_hdmi;
 void hdmi_register_config_callback(hdmi_set_config_callback func)
 {
@@ -242,6 +248,100 @@ static int iar_cdev_open(struct inode *inode, struct file *filp)
 
 	return ret;
 }
+
+int32_t mipi_iar_ipi_start(void)
+{
+	uint32_t value;
+	int32_t ret = 0;
+	struct sched_param param = {.sched_priority = 35};
+
+	if (NULL == g_iar_dev) {
+		pr_err("IAR dev not inited!\n");
+		return -1;
+	}
+	mutex_lock(&g_iar_cdev->iar_mutex);
+	if (g_iar_dev->init_done == 0) {
+		mutex_unlock(&g_iar_cdev->iar_mutex);
+		return -1;
+	}
+	enable_irq(g_iar_dev->irq);
+	if (iar_enable_sif_mclk() != 0) {
+		mutex_unlock(&g_iar_cdev->iar_mutex);
+		return -1;
+	}
+	if (disp_clk_enable() != 0) {
+		mutex_unlock(&g_iar_cdev->iar_mutex);
+		return -1;
+	}
+	value = readl(g_iar_dev->regaddr + REG_IAR_DE_REFRESH_EN);
+	value = IAR_REG_SET_FILED(IAR_DPI_TV_START, 0x1, value);
+	writel(value, g_iar_dev->regaddr + REG_IAR_DE_REFRESH_EN);
+	writel(0x1, g_iar_dev->regaddr + REG_IAR_UPDATE);
+	if (ipi_clk_enable() != 0) {
+                mutex_unlock(&g_iar_cdev->iar_mutex);
+                return -1;
+	}
+	if (g_iar_dev->iar_task == NULL) {
+		g_iar_dev->iar_task = kthread_run(iar_thread,
+			(void *)g_iar_dev, "iar_thread");
+		if (IS_ERR(g_iar_dev->iar_task) || (g_iar_dev->iar_task == NULL)) {
+			g_iar_dev->iar_task = NULL;
+			dev_err(&g_iar_dev->pdev->dev, "iar thread create fail\n");
+			mutex_unlock(&g_iar_cdev->iar_mutex);
+			return -1;
+		}
+		ret = sched_setscheduler(g_iar_dev->iar_task, SCHED_FIFO, &param);
+		if (ret != 0) {
+			g_iar_dev->iar_task = NULL;
+			dev_err(&g_iar_dev->pdev->dev, "sched_setscheduler fail(%d)", ret);
+			mutex_unlock(&g_iar_cdev->iar_mutex);
+			return -1;
+		}
+	} else {
+		pr_err("ipu iar thread already run!!\n");
+	}
+        mutex_unlock(&g_iar_cdev->iar_mutex);
+        return 0;
+}
+EXPORT_SYMBOL_GPL(mipi_iar_ipi_start);
+
+int32_t mipi_iar_ipi_stop(void)
+{
+	int32_t ret = 0;
+	uint32_t value = 0;
+
+	if (g_iar_cdev == NULL) {
+		pr_err("%s: iar cdev not init!\n", __func__);
+		return -1;
+	}
+	mutex_lock(&g_iar_cdev->iar_mutex);
+	if (g_iar_dev->init_done == 0) {
+		mutex_unlock(&g_iar_cdev->iar_mutex);
+		return -1;
+	}
+	if (g_iar_dev->iar_task == NULL) {
+		pr_err("iar vio thread already stop!!\n");
+	} else {
+		kthread_stop(g_iar_dev->iar_task);
+		g_iar_dev->iar_task = NULL;
+	}
+	value = readl(g_iar_dev->regaddr + REG_IAR_DE_REFRESH_EN);
+	value = IAR_REG_SET_FILED(IAR_DPI_TV_START, 0x0, value);
+	writel(value, g_iar_dev->regaddr + REG_IAR_DE_REFRESH_EN);
+
+	writel(0x1, g_iar_dev->regaddr + REG_IAR_UPDATE);
+	disable_irq(g_iar_dev->irq);
+
+	ipi_clk_disable();
+	if (disp_clk_disable() != 0)
+		ret = -1;
+	if (iar_disable_sif_mclk() != 0)
+		ret = -1;
+	mutex_unlock(&g_iar_cdev->iar_mutex);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(mipi_iar_ipi_stop);
+
 
 static long iar_cdev_ioctl(struct file *filp, unsigned int cmd, unsigned long p)
 {
@@ -1409,6 +1509,10 @@ int __init iar_cdev_init(void)
 		pr_err("%s: error create sysfs group with return value %d!\n", __func__, ret);
 		goto err3;
 	}
+#if MIPI_DEV_RECOVERY
+	iar_register_stop_ipi_callback(mipi_iar_ipi_stop);
+	iar_register_start_ipi_callback(mipi_iar_ipi_start);
+#endif
 	return 0;
 err3:
 	device_destroy(g_iar_cdev->iar_classes, g_iar_cdev->dev_num);
@@ -1424,6 +1528,10 @@ err:
 
 void __exit iar_cdev_exit(void)
 {
+#if MIPI_DEV_RECOVERY
+	iar_register_stop_ipi_callback(NULL);
+	iar_register_start_ipi_callback(NULL);
+#endif
 	sysfs_remove_group(&g_iar_cdev->dev->kobj, &attr_group);
 	device_destroy(g_iar_cdev->iar_classes, g_iar_cdev->dev_num);
 	cdev_del(&g_iar_cdev->cdev);

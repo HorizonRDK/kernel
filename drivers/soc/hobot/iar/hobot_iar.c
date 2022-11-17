@@ -167,6 +167,9 @@ struct disp_timing video_720x480 = {
 	276, 0, 0, 19, 3, 0, 0
 };
 
+struct disp_timing video_ipi_1920x1080 = {
+	1000, 1000, 200, 36, 40, 10, 10
+};
 uint32_t pixel_clk_video_1920x1080 = 163000000;
 uint32_t pixel_clk_video_1280x720 = 74250000;
 uint32_t pixel_clk_video_800x480 = 32000000;
@@ -417,25 +420,10 @@ const unsigned int g_iarReg_cfg_table[][3] = {
 	{0xffff, 0x10}, /*AR_CLASS3_WEIGHT*/
 	{0xffff, 0x0},   /*AR_CLASS2_WEIGHT*/
 };
-
-typedef enum _iar_table_e {
-	TABLE_MASK = 0,
-	TABLE_OFFSET,
-	TABLE_MAX,
-} iar_table_t;
-
-#define FBUF_SIZE_ADDR_OFFSET(X)  (REG_IAR_CROPPED_WINDOW_RD1-((X)*0x4))
-#define FBUF_WIDTH_ADDR_OFFSET(X)  (REG_IAR_IMAGE_WIDTH_FBUF_RD1-((X)*0x4))
-#define WIN_POS_ADDR_OFFSET(X)	(REG_IAR_DISPLAY_POSTION_RD1-((X)*0x4))
-#define KEY_COLOR_ADDR_OFFSET(X)  (REG_IAR_KEY_COLOR_RD1-((X)*0x4))
-
-#define VALUE_SET(value,mask,offset,regvalue)	((((value)&(mask))<<(offset)) | ((regvalue)&~((mask)<<(offset))))
-#define VALUE_GET(mask,offset,regvalue) (((regvalue)>>(offset)) & (mask))
-
-#define IAR_REG_SET_FILED(key, value, regvalue) VALUE_SET(value, g_iarReg_cfg_table[key][TABLE_MASK], g_iarReg_cfg_table[key][TABLE_OFFSET], regvalue)
-#define IAR_REG_GET_FILED(key, regvalue) VALUE_GET(g_iarReg_cfg_table[key][TABLE_MASK], g_iarReg_cfg_table[key][TABLE_OFFSET], regvalue)
+EXPORT_SYMBOL(g_iarReg_cfg_table);
 
 struct iar_dev_s *g_iar_dev;
+EXPORT_SYMBOL(g_iar_dev);
 struct pwm_device *screen_backlight_pwm;
 //int display_type = LCD_7_TYPE;
 int display_type = UNUSED;
@@ -919,7 +907,7 @@ int32_t iar_gamma_cfg(gamma_cfg_t *cfg)
 }
 EXPORT_SYMBOL_GPL(iar_gamma_cfg);
 
-static int iar_enable_sif_mclk(void)
+int iar_enable_sif_mclk(void)
 {
 	int ret = 0;
 
@@ -941,8 +929,9 @@ static int iar_enable_sif_mclk(void)
 	}
 	return 0;
 }
+EXPORT_SYMBOL_GPL(iar_enable_sif_mclk);
 
-static int iar_disable_sif_mclk(void)
+int iar_disable_sif_mclk(void)
 {
 	if (g_iar_dev == NULL) {
 		pr_err("%s: iar not init!!\n", __func__);
@@ -958,6 +947,7 @@ static int iar_disable_sif_mclk(void)
 	}
 	return 0;
 }
+EXPORT_SYMBOL_GPL(iar_disable_sif_mclk);
 
 int8_t disp_set_pixel_clk(uint64_t pixel_clk)
 {
@@ -990,7 +980,7 @@ int8_t disp_set_pixel_clk(uint64_t pixel_clk)
 }
 EXPORT_SYMBOL_GPL(disp_set_pixel_clk);
 
-static int disp_clk_disable(void)
+int disp_clk_disable(void)
 {
 	if (g_iar_dev == NULL) {
 		pr_err("%s: iar not init!!\n", __func__);
@@ -1004,8 +994,9 @@ static int disp_clk_disable(void)
 	}
 	return 0;
 }
+EXPORT_SYMBOL_GPL(disp_clk_disable);
 
-static int disp_clk_enable(void)
+int disp_clk_enable(void)
 {
 	uint64_t pixel_clock;
 	int ret = 0;
@@ -1023,7 +1014,7 @@ static int disp_clk_enable(void)
 	else if (display_type == MIPI_720P_TOUCH)
 		pixel_clock = pixel_clk_video_720x1280_touch;
 	else if (display_type == SIF_IPI)
-		pixel_clock = 54400000;
+		pixel_clock = 136000000;
 	else if (display_type == BT656_TYPE)
 		pixel_clock = pixel_clk_video_704x576;
 	else
@@ -1054,6 +1045,7 @@ static int disp_clk_enable(void)
 	}
 	return 0;
 }
+EXPORT_SYMBOL_GPL(disp_clk_enable);
 
 int iar_pixel_clk_enable(void)
 {
@@ -1087,8 +1079,7 @@ int iar_pixel_clk_disable(void)
 }
 EXPORT_SYMBOL_GPL(iar_pixel_clk_disable);
 
-
-static int ipi_clk_disable(void)
+int ipi_clk_disable(void)
 {
 	if (g_iar_dev == NULL) {
 		pr_err("%s: iar not init!!\n", __func__);
@@ -1102,8 +1093,9 @@ static int ipi_clk_disable(void)
 	}
 	return 0;
 }
+EXPORT_SYMBOL_GPL(ipi_clk_disable);
 
-static int ipi_clk_enable(void)
+int ipi_clk_enable(void)
 {
 	int ret = 0;
 
@@ -1123,6 +1115,7 @@ static int ipi_clk_enable(void)
 	}
 	return 0;
 }
+EXPORT_SYMBOL_GPL(ipi_clk_enable);
 
 int screen_backlight_init(void)
 {
@@ -1472,7 +1465,7 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 #endif
 	} else if (cfg->out_sel == OUTPUT_IPI) {
 		display_type = SIF_IPI;
-		disp_set_panel_timing(&video_1920x1080);
+		disp_set_panel_timing(&video_ipi_1920x1080);
 		writel(0x9, g_iar_dev->regaddr + REG_IAR_DE_OUTPUT_SEL);
 		//IPI(SIF)
 		value = readl(g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);
@@ -1586,6 +1579,7 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 	}
 	writel(value, g_iar_dev->regaddr + REG_IAR_FORMAT_ORGANIZATION);
 #endif
+	g_iar_dev->init_done = 1;
 	return 0;
 }
 EXPORT_SYMBOL_GPL(iar_output_cfg);
@@ -1899,7 +1893,7 @@ EXPORT_SYMBOL_GPL(iar_save_cur_buf);
 /**
  * The thread that IAR display the output of VIO module
  */
-static int iar_thread(void *data)
+int iar_thread(void *data)
 {
 	buf_addr_t display_addr;
 	buf_addr_t display_addr_video1;
@@ -1949,6 +1943,7 @@ static int iar_thread(void *data)
 	}
 	return 0;
 }
+EXPORT_SYMBOL_GPL(iar_thread);
 
 int32_t iar_open(void)
 {
@@ -2021,6 +2016,8 @@ int32_t iar_close(void)
 	}
 	disp_user_config_done = 0;
 	iar_video_not_pause = true;
+	g_iar_dev->init_done = 0;
+	atomic_set(&g_iar_dev->frame_cnt, 0);
 
 	frame_manager_close(&g_iar_dev->framemgr);
 	frame_manager_close(&g_iar_dev->framemgr_layer[0]);
@@ -2807,6 +2804,21 @@ int iar_output_start(int layer_no)
 	return ret;
 }
 
+int32_t get_iar_frame_cnt(uint32_t *cnt)
+{
+        if (g_iar_dev == NULL) {
+                pr_err("%s: iar not init!\n", __func__);
+                return -1;
+        }
+	if (cnt == NULL) {
+		pr_err("%s: input pointer is null!\n", __func__);
+		return -1;
+	}
+        *cnt = atomic_read(&g_iar_dev->frame_cnt);
+        return 0;
+}
+EXPORT_SYMBOL_GPL(get_iar_frame_cnt);
+
 /**
  * IAR module interrupt handler
  * interrupt status register meaning:
@@ -2820,9 +2832,22 @@ static irqreturn_t hobot_iar_irq(int this_irq, void *data)
 	disable_irq_nosync(this_irq);
 	//TODO
 	regval = readl(g_iar_dev->regaddr + REG_IAR_DE_SRCPNDREG);
+	writel(regval, g_iar_dev->regaddr + REG_IAR_DE_SRCPNDREG);
+	if (regval & BIT(9)) {
+		pr_err("-------iar channel 1 empty !!-------\n");
+	}
+	if (regval & BIT(10)) {
+		pr_err("-------iar channel 2 empty !!-------\n");
+	}
+	if (regval & BIT(11)) {
+		pr_err("-------iar channel 3 empty !!-------\n");
+	}
+	if (regval & BIT(12)) {
+		pr_err("-------iar channel 4 empty !!-------\n");
+	}
 
 	if (regval & BIT(0)) {
-		writel(BIT(0), g_iar_dev->regaddr + REG_IAR_DE_SRCPNDREG);
+		atomic_inc(&g_iar_dev->frame_cnt);
 		if (g_iar_dev->output_state[0] == 1)
 			iar_output_start(0);
 		if (g_iar_dev->output_state[1] == 1)
@@ -2830,7 +2855,6 @@ static irqreturn_t hobot_iar_irq(int this_irq, void *data)
 	}
 
 	if (regval & BIT(22)) {
-		writel(BIT(22), g_iar_dev->regaddr + REG_IAR_DE_SRCPNDREG);
 		if(g_iar_dev->capture_state == 1) {
 			int ret = iar_wb_capture_start();
 			if (ret == 0) {
@@ -2846,7 +2870,6 @@ static irqreturn_t hobot_iar_irq(int this_irq, void *data)
 	}
 
 	if (regval & BIT(23)) {
-		writel(BIT(23), g_iar_dev->regaddr + REG_IAR_DE_SRCPNDREG);
 		// cbuf done
 		iar_wb_capture_done();
 		g_iar_dev->capture_state = 1;
@@ -4783,7 +4806,7 @@ static int hobot_iar_probe(struct platform_device *pdev)
 				pr_err("ipi_clk_enable failed %d\n", ret);
 				return ret;
 			}
-			ret = disp_set_pixel_clk(54400000);
+			ret = disp_set_pixel_clk(136000000);
 		} else {
 			pr_debug("%s: display_type is HDMI panel!\n", __func__);
 			ret = disp_set_pixel_clk(pixel_clk_video_1920x1080);
@@ -4819,6 +4842,9 @@ static int hobot_iar_probe(struct platform_device *pdev)
 	iar_set_bufaddr(IAR_CHANNEL_4, &channel_buf_addr_4);
 	iar_register_get_callback((int (*)(u8 *, u8 *))(ipu_get_iar_display_type));
 	iar_register_set_callback(ipu_set_display_addr);
+#if MIPI_DEV_RECOVERY
+	iar_register_get_frame_cnt_callback(get_iar_frame_cnt);
+#endif
 	iar_update();
 
 	if (logo == 0) {
@@ -4844,6 +4870,9 @@ static int hobot_iar_remove(struct platform_device *pdev)
 
 	iar = dev_get_drvdata(&pdev->dev);
 	debugfs_remove_recursive(iar->debug_file_iar);
+#if MIPI_DEV_RECOVERY
+	iar_register_get_frame_cnt_callback(NULL);
+#endif
 #ifdef USE_ION_MEM
 	ion_client_destroy(g_iar_dev->iar_iclient);
 #endif

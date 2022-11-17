@@ -127,7 +127,7 @@ module_param(init_num, uint, 0644);
 #define MIPI_DEV_VPG_DEF_BLANK		(0x5f4)
 
 #define MIPI_DEV_HSYNC_PKT_DEFAULT  (1)
-#define MIPI_DEV_IPILIMIT_DEFAULT   (102000000UL)
+#define MIPI_DEV_IPILIMIT_DEFAULT   (136000000UL)
 #define MIPI_DEV_IRQ_CNT            (10)
 #define MIPI_DEV_IRQ_DEBUG_PRERR    (0x1)
 #define MIPI_DEV_IRQ_DEBUG_ERRSTR   (0x2)
@@ -228,6 +228,11 @@ typedef struct _mipi_dev_param_s {
 	uint32_t irq_cnt;
 	uint32_t irq_debug;
 #endif
+#if MIPI_DEV_RECOVERY
+	uint32_t rv_old_frame_cnt;
+	uint32_t conti_err_num;
+	uint32_t iar_mode;
+#endif
 #ifdef CONFIG_HOBOT_MIPI_PHY
 	mipi_dphy_tx_param_t phy;
 #endif
@@ -256,6 +261,11 @@ static const char *g_md_param_names[] = {
 #if MIPI_DEV_INT_DBG
 	"irq_cnt",
 	"irq_debug",
+#endif
+#if MIPI_DEV_RECOVERY
+	"rv_old_frame_cnt",
+	"conti_err_num",
+	"iar_mode",
 #endif
 #ifdef CONFIG_HOBOT_MIPI_PHY
 	MIPI_DPHY_TX_PARAM_NAMES,
@@ -442,6 +452,53 @@ typedef struct _mipi_ddev_s {
 static int g_md_major;
 static struct class *g_md_class;
 static mipi_ddev_t *g_ddev[MIPI_DEV_MAX_NUM];
+
+#if MIPI_DEV_RECOVERY
+static mipi_get_iar_frame_cnt_callback mipi_get_iar_frame_cnt_type;
+
+void iar_register_get_frame_cnt_callback(mipi_get_iar_frame_cnt_callback func)
+{
+	mipi_get_iar_frame_cnt_type = func;
+}
+EXPORT_SYMBOL(iar_register_get_frame_cnt_callback);
+
+static iar_ipi_stop_callback iar_ipi_stop;
+
+void iar_register_stop_ipi_callback(iar_ipi_stop_callback func)
+{
+	iar_ipi_stop = func;
+}
+EXPORT_SYMBOL(iar_register_stop_ipi_callback);
+
+static iar_ipi_start_callback iar_ipi_start;
+
+void iar_register_start_ipi_callback(iar_ipi_start_callback func)
+{
+	iar_ipi_start = func;
+}
+EXPORT_SYMBOL(iar_register_start_ipi_callback);
+
+#define MAX_CONTI_ERR_NUM (3)
+static struct work_struct mipi_dev_recovery_work;
+static void mipi_dev_recovery_func(struct work_struct *work)
+{
+        pr_err("%s: begin mipi dev recovery!!\n", __func__);
+	if (iar_ipi_stop == NULL || iar_ipi_start == NULL) {
+		pr_err("%s: iar driver not load success!\n", __func__);
+		return;
+	}
+	if (iar_ipi_stop() != 0) {
+		pr_err("%s: iar ipi stop err!!\n", __func__);
+		return;
+	}
+	if (iar_ipi_start() != 0) {
+		pr_err("%s: iar ipi start err!!\n", __func__);
+		return;
+	}
+	pr_err("%s: mipi dev recovery success!!\n", __func__);
+        return;
+}
+#endif
 
 /**
  * @brief mipi_dev_configure_lanemode: configure dphy as csi tx mode
@@ -1321,6 +1378,10 @@ static irqreturn_t mipi_dev_irq_func(int this_irq, void *data)
 	uint8_t err_occurred = 0;
 	uint32_t env_subirq[MIPI_DEV_ICNT_NUM - 1] = {0};
 	char *perr = "";
+#if MIPI_DEV_RECOVERY
+	uint32_t rv_frame_cnt = 0;
+	uint32_t ipi_irq = 0;
+#endif
 #if MIPI_DEV_INT_DBG_ERRSTR
 	int j, l;
 	uint32_t subirq_do;
@@ -1357,6 +1418,10 @@ static irqreturn_t mipi_dev_irq_func(int this_irq, void *data)
 			reg = ireg->reg_st;
 			icnt_n = ireg->icnt_n;
 			subirq = mipi_getreg(iomem + reg) & ireg->err_mask;
+#if MIPI_DEV_RECOVERY
+			if (i == 2)
+				ipi_irq = subirq;
+#endif
 			if (!subirq) {
 				irq_do &= ~mask;
 				continue;
@@ -1392,7 +1457,28 @@ static irqreturn_t mipi_dev_irq_func(int this_irq, void *data)
 				break;
 		}
 	}
-
+#if MIPI_DEV_RECOVERY
+	if ((param->iar_mode == 1) && ((ipi_irq & 0x5) != 0)) {
+		if (mipi_get_iar_frame_cnt_type != NULL) {
+			if (mipi_get_iar_frame_cnt_type(&rv_frame_cnt) == 0) {
+				if ((rv_frame_cnt - param->rv_old_frame_cnt) < (uint32_t)2) {
+					param->conti_err_num++;
+					if (param->conti_err_num >= MAX_CONTI_ERR_NUM) {
+						schedule_work(&mipi_dev_recovery_work);
+						param->conti_err_num = 0;
+					}
+				} else {
+					param->conti_err_num = 0;
+				}
+				param->rv_old_frame_cnt = rv_frame_cnt;
+			} else {
+				mipierr("error get iar frame cnt!");
+			}
+		} else {
+			mipierr("iar driver not load success!!");
+		}
+	}
+#endif
 	if (icnt->st_main > param->irq_cnt)
 		mipi_dev_irq_disable(ddev);
 
@@ -1495,6 +1581,18 @@ static int32_t mipi_dev_start(mipi_ddev_t *ddev)
 
 	/*Configure the High-Speed clock*/
 	mipi_putreg(iomem + REG_MIPI_DEV_LPCLK_CTRL, MIPI_DEV_LPCLK_CONT);
+#if MIPI_DEV_RECOVERY
+	if (param->iar_mode == 1) {
+		if (mipi_get_iar_frame_cnt_type == NULL) {
+			mipierr(" iar driver not load success!!!");
+		} else {
+			if (mipi_get_iar_frame_cnt_type(&param->rv_old_frame_cnt) != 0)
+				mipierr("error get iar frame cnt!!");
+			else
+				param->conti_err_num = 0;
+		}
+	}
+#endif
 
 #if MIPI_DEV_INT_DBG
 	mipi_dev_irq_enable(ddev);
@@ -1628,6 +1726,14 @@ init_retry:
 	mipi_putreg(iomem + REG_MIPI_DEV_PHY_RSTZ, power);
 
 	cfg->ipi_lines = cfg->ipi_lines ? cfg->ipi_lines : (uint16_t)(cfg->height + 1);
+#if MIPI_DEV_RECOVERY
+	if (param->iar_mode < 2) {
+		if (cfg->ipi_lines > (cfg->height + 5))
+			param->iar_mode = 1;
+		else
+			param->iar_mode = 0;
+	}
+#endif
 	if (!cfg->vpg) {
 		if (0 != mipi_dev_configure_ipi(ddev, cfg)) {
 			mipi_dev_deinit(ddev);
@@ -2070,6 +2176,11 @@ MIPI_DEV_PARAM_DEC(ipi4_dt);
 MIPI_DEV_PARAM_DEC(irq_cnt);
 MIPI_DEV_PARAM_DEC(irq_debug);
 #endif
+#if MIPI_DEV_RECOVERY
+MIPI_DEV_PARAM_DEC(rv_old_frame_cnt);
+MIPI_DEV_PARAM_DEC(conti_err_num);
+MIPI_DEV_PARAM_DEC(iar_mode);
+#endif
 #ifdef CONFIG_HOBOT_MIPI_PHY
 MIPI_DEV_PARAM_DEC(txout_param_valid);
 MIPI_DEV_PARAM_DEC(txout_freq_mode);
@@ -2101,6 +2212,11 @@ static struct attribute *param_attr[] = {
 #if MIPI_DEV_INT_DBG
 	MIPI_DEV_PARAM_ADD(irq_cnt),
 	MIPI_DEV_PARAM_ADD(irq_debug),
+#endif
+#if MIPI_DEV_RECOVERY
+	MIPI_DEV_PARAM_ADD(rv_old_frame_cnt),
+	MIPI_DEV_PARAM_ADD(conti_err_num),
+	MIPI_DEV_PARAM_ADD(iar_mode),
 #endif
 #ifdef CONFIG_HOBOT_MIPI_PHY
 	MIPI_DEV_PARAM_ADD(txout_param_valid),
@@ -2727,6 +2843,9 @@ static int hobot_mipi_dev_remove(struct platform_device *pdev)
 	free_irq(mdev->irq, ddev);
 #endif
 #endif
+#if MIPI_DEV_RECOVERY
+	cancel_work_sync(&mipi_dev_recovery_work);
+#endif
 	devm_iounmap(&pdev->dev, mdev->iomem);
 	hobot_mipi_dev_phy_unregister(ddev);
 	devm_kfree(&pdev->dev, ddev);
@@ -2827,6 +2946,9 @@ static int hobot_mipi_dev_probe(struct platform_device *pdev)
 	ret = mipi_getreg(mdev->iomem + REG_MIPI_DEV_VERSION);
 	dev_info(ddev->dev, "ver %c%c%c%c port%d\n",
 		(ret >> 24), (ret >> 16), (ret >> 8), ret, port);
+#if MIPI_DEV_RECOVERY
+	INIT_WORK(&mipi_dev_recovery_work, mipi_dev_recovery_func);
+#endif
 	return 0;
 err_cdev:
 #if MIPI_DEV_INT_DBG

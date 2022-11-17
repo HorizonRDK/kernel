@@ -19,9 +19,11 @@
 #include <linux/fb.h>
 #include <linux/slab.h>
 #include <linux/ion.h>
+#include <linux/cdev.h>
 #include "../../../drivers/media/platform/hobot/common_api/vio_framemgr.h"
 #include "../../../drivers/media/platform/hobot/common_api/vio_config.h"
 #include "../../../drivers/media/platform/hobot/common_api/vio_group_api.h"
+#include "../../../drivers/media/platform/hobot/mipi/hobot_mipi_utils.h"
 
 #define MAX_FRAME_BUF_SIZE	(1920*1080*4)
 #define VIDEO_FRAME_BUF_SIZE    (800*480*2)
@@ -129,6 +131,34 @@
 
 #define REG_DISP_LCDIF_CFG 0x800
 #define REG_DISP_LCDIF_PADC_RESET_N 0x804
+
+extern const unsigned int g_iarReg_cfg_table[][3];
+typedef enum _iar_table_e {
+        TABLE_MASK = 0,
+        TABLE_OFFSET,
+        TABLE_MAX,
+} iar_table_t;
+
+#define FBUF_SIZE_ADDR_OFFSET(X)  \
+	(REG_IAR_CROPPED_WINDOW_RD1 - ((X) * 0x4))
+#define FBUF_WIDTH_ADDR_OFFSET(X)  \
+	(REG_IAR_IMAGE_WIDTH_FBUF_RD1 - ((X) * 0x4))
+#define WIN_POS_ADDR_OFFSET(X)  \
+	(REG_IAR_DISPLAY_POSTION_RD1 - ((X) * 0x4))
+#define KEY_COLOR_ADDR_OFFSET(X)  \
+	(REG_IAR_KEY_COLOR_RD1 - ((X) * 0x4))
+
+#define VALUE_SET(value, mask, offset, regvalue)   \
+	((((value) & (mask)) << (offset)) | ((regvalue) &~ ((mask) << (offset))))
+#define VALUE_GET(mask, offset, regvalue) \
+	(((regvalue) >> (offset)) & (mask))
+
+#define IAR_REG_SET_FILED(key, value, regvalue) \
+	VALUE_SET(value, g_iarReg_cfg_table[key][TABLE_MASK], \
+			g_iarReg_cfg_table[key][TABLE_OFFSET], regvalue)
+#define IAR_REG_GET_FILED(key, regvalue) \
+	VALUE_GET(g_iarReg_cfg_table[key][TABLE_MASK], \
+			g_iarReg_cfg_table[key][TABLE_OFFSET], regvalue)
 
 enum {
 	IAR_CHANNEL_1 = 0,
@@ -553,7 +583,8 @@ struct iar_dev_s {
 	wait_queue_head_t done_wq;
 	int wb_sel;
 	int wb_format;
-
+	atomic_t frame_cnt;
+	uint32_t init_done;
 	struct dentry *debug_file_iar;
 };
 extern struct iar_dev_s *g_iar_dev;
@@ -799,7 +830,6 @@ extern uint32_t iar_display_addr_type_video1;
 extern uint32_t iar_display_cam_no_video1;
 #endif
 
-
 extern int display_type;
 extern struct ion_device *hb_ion_dev;
 extern uint8_t disp_copy_done;
@@ -810,6 +840,7 @@ extern unsigned int logo;
 extern const char *base_board_name;
 extern void iar_register_get_callback(iar_get_type_callback func);
 extern void iar_register_set_callback(iar_set_addr_callback func);
+
 #define IAR_DEBUG_PRINT(format, args...)	\
 	do {									\
 		if(iar_debug_level)					\
@@ -908,6 +939,13 @@ int mipi_dsi_set_mode(uint8_t mode);
 void mipi_dsi_panel_config_begin(void);
 int32_t iar_get_timing(struct disp_timing *timing);
 int mipi_dsi_video_config(struct video_timing *video_timing_config);
+int ipi_clk_disable(void);
+int ipi_clk_enable(void);
+int disp_clk_disable(void);
+int disp_clk_enable(void);
+int iar_enable_sif_mclk(void);
+int iar_disable_sif_mclk(void);
+int iar_thread(void *data);
 // Supported rotation.
 enum RotationMode {
 	kRotate0 = 0,		// No rotation.

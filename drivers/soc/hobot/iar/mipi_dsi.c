@@ -260,22 +260,12 @@ const unsigned int g_mipi_dsi_reg_cfg_table[][3] = {
 	{0xff, 0x10},//53
 };
 
-enum _mipi_dsi_table_e {
-	TABLE_MASK = 0,
-	TABLE_OFFSET,
-	TABLE_MAX,
-};
-
 #define REG_MIPI_DSI_PHY_TST_CTRL0  0xb4
 #define REG_MIPI_DSI_PHY_TST_CTRL1  0xb8
 
 #define DPHY_TEST_ENABLE    0x10000
 #define DPHY_TEST_CLK       0x2
 #define DPHY_TEST_RESETN    0x0
-
-#define VALUE_SET(value, mask, offset, regvalue)	\
-	((((value) & (mask)) << (offset)) | ((regvalue)&~((mask) << (offset))))
-#define VALUE_GET(mask, offset, regvalue) (((regvalue) >> (offset)) & (mask))
 
 #define MIPI_DSI_REG_SET_FILED(key, value, regvalue)	\
 	VALUE_SET(value, g_mipi_dsi_reg_cfg_table[key][TABLE_MASK], \
