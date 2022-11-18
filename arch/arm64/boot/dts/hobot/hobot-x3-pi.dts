@@ -172,6 +172,51 @@
 		enable-active-high;
 	};
 
+	cpu_pd_reg_dc: cpu_pd_reg_dc {
+		status = "okay";
+		compatible = "regulator-gpio";
+		regulator-name = "VCC_CPU";
+		regulator-min-microvolt = <800000>;
+		regulator-max-microvolt = <800000>;
+		states = <800000 0>;
+		regulator-always-on;
+	};
+
+	cpu_opp_table_dc: cpu_opp_table_dc {
+		compatible = "operating-points-v2";
+		opp-shared;
+		opp00 {
+			opp-hz = /bits/ 64 <1200000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <500000>;
+		};
+		opp01 {
+			opp-hz = /bits/ 64 <1000000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <500000>;
+		};
+		opp02 {
+			opp-hz = /bits/ 64 <800000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <500000>;
+		};
+		opp03 {
+			opp-hz = /bits/ 64 <500000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <500000>;
+		};
+		opp04 {
+			opp-hz = /bits/ 64 <240000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <500000>;
+		};
+		opp05 {
+			opp-hz = /bits/ 64 <1500000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <500000>;
+			turbo-mode;
+		};
+	};
 	cpu_opp_table_hobot: cpu_opp_table_hobot {
 		compatible = "operating-points-v2";
 		opp-shared;
@@ -295,7 +340,7 @@
 	hpu3501@1e {
 		compatible = "hobot-pmic,hpu3501";
 		reg = <0x1e>;
-		status = "okay";
+		status = "disabled";
 		regulators {
 			cnn0_pd_reg_hobot: BUCK3 {
 				regulator-name = "VCC_CNN0";
@@ -565,29 +610,29 @@
 
 
 &cpu0 {
-	cpu-supply = <&cpu_pd_reg_hobot>;
-	operating-points-v2 = <&cpu_opp_table_hobot>;
+	cpu-supply = <&cpu_pd_reg_dc>;
+	operating-points-v2 = <&cpu_opp_table_dc>;
 	cpu-supply-hobot = <&cpu_pd_reg_hobot>;
 	operating-points-v2-hobot = <&cpu_opp_table_hobot>;
 };
 
 &cpu1 {
-	cpu-supply = <&cpu_pd_reg_hobot>;
-	operating-points-v2 = <&cpu_opp_table_hobot>;
+	cpu-supply = <&cpu_pd_reg_dc>;
+	operating-points-v2 = <&cpu_opp_table_dc>;
 	cpu-supply-hobot = <&cpu_pd_reg_hobot>;
 	operating-points-v2-hobot = <&cpu_opp_table_hobot>;
 };
 
 &cpu2 {
-	cpu-supply = <&cpu_pd_reg_hobot>;
-	operating-points-v2 = <&cpu_opp_table_hobot>;
+	cpu-supply = <&cpu_pd_reg_dc>;
+	operating-points-v2 = <&cpu_opp_table_dc>;
 	cpu-supply-hobot = <&cpu_pd_reg_hobot>;
 	operating-points-v2-hobot = <&cpu_opp_table_hobot>;
 };
 
 &cpu3 {
-	cpu-supply = <&cpu_pd_reg_hobot>;
-	operating-points-v2 = <&cpu_opp_table_hobot>;
+	cpu-supply = <&cpu_pd_reg_dc>;
+	operating-points-v2 = <&cpu_opp_table_dc>;
 	cpu-supply-hobot = <&cpu_pd_reg_hobot>;
 	operating-points-v2-hobot = <&cpu_opp_table_hobot>;
 };
