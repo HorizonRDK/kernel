@@ -179,14 +179,7 @@ uvc_v4l2_qbuf(struct file *file, void *fh, struct v4l2_buffer *b)
 	if (ret < 0)
 		return ret;
 
-	/*
-	 * Isoc: Only schedule stream in streaming state.
-	 * Bulk: No such limitation.
-	 */
-	if (video->is_bulk || uvc->state == UVC_STATE_STREAMING)
-		schedule_work(&video->pump);
-
-	return ret;
+	return uvcg_video_pump(video);
 }
 
 static int
