@@ -517,6 +517,8 @@ int uvcg_video_enable(struct uvc_video *video, int enable)
 	}
 
 	if (!enable) {
+		uvcg_queue_cancel(&video->queue, 0);
+
 		for (i = 0; i < video->uvc_num_requests; ++i)
 			if (video->ureq && video->ureq[i].req)
 				usb_ep_dequeue(video->ep, video->ureq[i].req);
