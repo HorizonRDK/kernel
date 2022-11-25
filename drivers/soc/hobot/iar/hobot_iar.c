@@ -2324,7 +2324,11 @@ int iar_wb_qbuf(struct frame_info *frameinfo)
 
 	index = frameinfo->bufferindex;
 	framemgr = &g_iar_dev->framemgr;
-	BUG_ON(index >= framemgr->num_frames);
+	if (index >= framemgr->num_frames) {
+		pr_err("iar wb frame index(%d) is over the range(%d)\n",
+			index, framemgr->num_frames);
+		return -EINVAL;
+	}
 
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = &framemgr->frames[index];
@@ -2648,7 +2652,11 @@ int iar_output_qbuf(int layer_no, struct frame_info *frameinfo)
 	}
 	index = frameinfo->bufferindex;
 	framemgr = &g_iar_dev->framemgr_layer[layer_no];
-	BUG_ON(index >= framemgr->num_frames);
+	if (index >= framemgr->num_frames) {
+		pr_err("iar layer(%d) frame index(%d) is over the range(%d)\n",
+			layer_no, index, framemgr->num_frames);
+		return -EINVAL;
+	}
 
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = &framemgr->frames[index];
@@ -2696,7 +2704,11 @@ int iar_output_buf_init(int layer_no, struct frame_info *frameinfo)
 	}
 	index = frameinfo->bufferindex;
 	framemgr = &g_iar_dev->framemgr_layer[layer_no];
-	BUG_ON(index >= framemgr->num_frames);
+	if (index >= framemgr->num_frames) {
+		pr_err("iar layer(%d) frame index(%d) is over the range(%d)\n",
+			layer_no, index, framemgr->num_frames);
+		return -EINVAL;
+	}
 
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = &framemgr->frames[index];
