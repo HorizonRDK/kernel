@@ -65,8 +65,7 @@ enum {
  * ocp_cfg1r: rigister 0x08 configuration
  * ocp_cfg2r: rigister 0x09 configuration
  */
-struct hpu3501 {
-	struct regmap *regmap;
+struct hpu3501_regulator {
 	bool master;
 	u32 en_pin_map;
 	u32 fault_cfgr;

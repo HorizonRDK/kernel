@@ -9,7 +9,6 @@
 
 #include <linux/module.h>
 #include <linux/init.h>
-#include <linux/i2c.h>
 #include <linux/err.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/driver.h>
@@ -17,17 +16,13 @@
 #include <linux/of_device.h>
 #include <linux/regulator/of_regulator.h>
 #include <linux/regmap.h>
+#include <linux/mfd/hpu3501.h>
 
-#include "./hpu3501.h"
+#include "./hpu3501-regulator.h"
 
-static struct i2c_client *hpu3501_i2c_client;
+extern int hpu3501_write(struct device *dev, int reg, uint8_t val);
 
 #ifdef CONFIG_OF
-static const struct of_device_id hpu3501_dt_ids[] = {
-	{.compatible = "hobot-pmic,hpu3501", },
-	{ }
-};
-
 static struct of_regulator_match hpu3501_matches[] = {
 	[ID_BUCK1] = {.name = "BUCK1"},
 	[ID_BUCK2] = {.name = "BUCK2"},
@@ -52,7 +47,13 @@ static int hpu3501_pdata_from_dt(struct device *dev,
 	matches = hpu3501_matches;
 	num_matches = ARRAY_SIZE(hpu3501_matches);
 
-	np = of_get_child_by_name(dev->of_node, "regulators");
+	np = of_get_child_by_name(dev->of_node, "hpu3501-regulator");
+	if (!np) {
+		dev_err(dev, "missing 'hpu3501-regulator' subnode in DT, %d\n", -EINVAL);
+		return -EINVAL;
+	}
+
+	np = of_get_child_by_name(np, "regulators");
 	if (!np) {
 		dev_err(dev, "missing 'regulators' subnode in DT, %d\n", -EINVAL);
 		return -EINVAL;
@@ -95,11 +96,6 @@ static int hpu3501_pdata_from_dt(struct device *dev,
 	return -ENODEV;
 }
 #endif
-
-static const struct regmap_config hpu3501_regmap_config = {
-	.reg_bits = 8,
-	.val_bits = 8,
-};
 
 /* Buck1-Buck4: step 5mv, range: 0v and [0.6v, 1.275v] */
 static const struct regulator_linear_range hpu3501_voltage_ranges1[] = {
@@ -159,7 +155,7 @@ static struct regulator_ops hpu3501_ops = {
 
 /*
  * name:regulator name used
- * id: regulator id, define in hpu3501.h without prefix "ID_"
+ * id: regulator id, define in hpu3501-regulator.h without prefix "ID_"
  * linear: which linear id to chose, refer to hpu3501_voltage_rangesxx array above
  * step: how many step this regulator have, refer to datasheet
  * vset_mask: refer to datasheet, when set register how many bits are used to control
@@ -193,88 +189,91 @@ static struct hpu3501_regulator_data *hpu3501_get_regulator_data(
 	return NULL;
 }
 
-static void hpu3501_board_init(struct hpu3501 *hpu3501)
+static void hpu3501_board_init(struct device *parent,
+		struct hpu3501_regulator *hpu3501_regulator)
 {
-	if (hpu3501->en_pin_map != 0)
-	regmap_write(hpu3501->regmap, HPU3501_EN_PIN_RMPR,
-		hpu3501->en_pin_map);
+	if (hpu3501_regulator->en_pin_map != 0)
+	hpu3501_write(parent, HPU3501_EN_PIN_RMPR,
+			hpu3501_regulator->en_pin_map);
 
-	if (hpu3501->fault_cfgr != 0)
-	regmap_write(hpu3501->regmap, HPU3501_FAULT_CFGR,
-		hpu3501->fault_cfgr);
+	if (hpu3501_regulator->fault_cfgr != 0)
+	hpu3501_write(parent, HPU3501_FAULT_CFGR,
+		hpu3501_regulator->fault_cfgr);
 
-	if (hpu3501->ocp_cfg1r != 0)
-	regmap_write(hpu3501->regmap, HPU3501_OCP_CFG1R,
-		hpu3501->ocp_cfg1r);
+	if (hpu3501_regulator->ocp_cfg1r != 0)
+	hpu3501_write(parent, HPU3501_OCP_CFG1R,
+		hpu3501_regulator->ocp_cfg1r);
 
-	if (hpu3501->ocp_cfg2r != 0)
-	regmap_write(hpu3501->regmap, HPU3501_OCP_CFG2R,
-		hpu3501->ocp_cfg2r);
+	if (hpu3501_regulator->ocp_cfg2r != 0)
+	hpu3501_write(parent, HPU3501_OCP_CFG2R,
+		hpu3501_regulator->ocp_cfg2r);
 
 	return;
 }
 
-static int hpu3501_pmic_probe(struct i2c_client *client,
-			const struct i2c_device_id *i2c_id)
+static int hpu3501_regulator_probe(struct platform_device *pdev)
 {
+	struct hpu3501_dev *hpu3501_dev = dev_get_drvdata(pdev->dev.parent);
+	struct device *pa_dev = hpu3501_dev->dev;
 	const struct regulator_desc *regulators;
 	struct hpu3501_platform_data pdata_of, *pdata = NULL;
-	struct device *dev = &client->dev;
-	struct hpu3501 *hpu3501 = NULL;
-	const struct regmap_config *regmap_config;
+	struct device *dev = &pdev->dev;
+	struct hpu3501_regulator *hpu3501_regulator = NULL;
 	int i, ret, num_regulators;
 	pdata = dev_get_platdata(dev);
+	struct device_node *np;
 
 	regulators = hpu3501_regulators;
 	num_regulators = ARRAY_SIZE(hpu3501_regulators);
-	regmap_config = &hpu3501_regmap_config;
 
-	hpu3501 = devm_kzalloc(dev, sizeof(struct hpu3501), GFP_KERNEL);
-	if (!hpu3501) {
-		dev_err(dev, "No memory for hpu3501 : %d\n", -ENOMEM);
+	hpu3501_regulator = devm_kzalloc(dev, sizeof(struct hpu3501_regulator),
+			GFP_KERNEL);
+	if (!hpu3501_regulator) {
+		dev_err(dev, "No memory for hpu3501_regulator : %d\n", -ENOMEM);
 		return -ENOMEM;
 	}
 
 	/* dts parse */
-	if (dev->of_node && !pdata) {
-		ret = hpu3501_pdata_from_dt(dev, &pdata_of);
+	if (pa_dev->of_node && !pdata) {
+		ret = hpu3501_pdata_from_dt(pa_dev, &pdata_of);
 		if (ret < 0) {
-			dev_err(dev, "Get pdata_of from dt error, %d\n", ret);
+			dev_err(pa_dev, "Get pdata_of from dt error, %d\n", ret);
 			return ret;
 		}
 
 		pdata = &pdata_of;
 
-		hpu3501->master = of_property_read_bool(dev->of_node, "master");
+		np = of_get_child_by_name(pa_dev->of_node, "hpu3501-regulator");
+		if (!np) {
+			dev_err(dev, "no hpu3501-regulator subnode in DT, %d\n",
+					-EINVAL);
+			return -EINVAL;
+		}
 
-		if(of_property_read_u32(dev->of_node, "en_pin_map",
-				&hpu3501->en_pin_map)) {
+		hpu3501_regulator->master = of_property_read_bool(np, "master");
+
+		if(of_property_read_u32(np, "en_pin_map",
+				&hpu3501_regulator->en_pin_map)) {
 			dev_info(dev, "en_pin_map will be default value\n");
 		}
 
-		if(of_property_read_u32(dev->of_node, "fault_cfgr",
-				&hpu3501->fault_cfgr)) {
+		if(of_property_read_u32(np, "fault_cfgr",
+				&hpu3501_regulator->fault_cfgr)) {
 			dev_info(dev, "fault_cfgr will be default value\n");
 		}
 
-		if(of_property_read_u32(dev->of_node, "ocp_cfg1r",
-				&hpu3501->ocp_cfg1r)) {
+		if(of_property_read_u32(np, "ocp_cfg1r",
+				&hpu3501_regulator->ocp_cfg1r)) {
 			dev_info(dev, "ocp_cfg1r will be default value\n");
 		}
 
-		if(of_property_read_u32(dev->of_node, "ocp_cfg2r",
-				&hpu3501->ocp_cfg2r)) {
+		if(of_property_read_u32(np, "ocp_cfg2r",
+				&hpu3501_regulator->ocp_cfg2r)) {
 			dev_info(dev, "ocp_cfg2r will be default value\n");
 		}
 	} else {
+		dev_err(pa_dev, "dts node get failed\n");
 		return -ENODEV;
-	}
-
-	hpu3501->regmap = devm_regmap_init_i2c(client, regmap_config);
-	if (IS_ERR(hpu3501->regmap)) {
-		ret = PTR_ERR_OR_ZERO(hpu3501->regmap);
-		dev_err(dev, "Failed to allocate register map: %d\n", ret);
-		return ret;
 	}
 
 	/* Finally register devices */
@@ -285,8 +284,7 @@ static int hpu3501_pmic_probe(struct i2c_client *client,
 		struct regulator_dev *rdev;
 
 		config.dev = dev;
-		config.driver_data = hpu3501;
-		config.regmap = hpu3501->regmap;
+		config.driver_data = hpu3501_regulator;
 
 		rdata = hpu3501_get_regulator_data(desc->id, pdata);
 		if (!rdata)
@@ -302,51 +300,29 @@ static int hpu3501_pmic_probe(struct i2c_client *client,
 		}
 	}
 
-	hpu3501_i2c_client = client;
-
-	i2c_set_clientdata(hpu3501_i2c_client, hpu3501);
-
-	hpu3501_board_init(hpu3501);
+	hpu3501_board_init(pa_dev, hpu3501_regulator);
 
 	return 0;
 }
 
-static const struct i2c_device_id hpu3501_ids[] = {
-	{ .name = "hpu3501", },
-	{ },
-};
-MODULE_DEVICE_TABLE(i2c, hpu3501_ids);
-
-static struct i2c_driver hpu3501_pmic_driver = {
-	.driver	= {
-		.name	= "hpu3501",
-	},
-	.probe		= hpu3501_pmic_probe,
-	.id_table	= hpu3501_ids,
+static struct platform_driver hpu3501_regulator_driver = {
+		.driver = {
+				.name = "hpu3501-regulator",
+			},
+		.probe = hpu3501_regulator_probe,
 };
 
-static int __init hpu3501_init(void)
+static int __init hpu3501_regulator_init(void)
 {
-	int ret;
-	ret = i2c_add_driver(&hpu3501_pmic_driver);
-	if (ret != 0) {
-		pr_err("hpu3501_pmic_driver register i2c failed, ret =%d\n", ret);
-		return ret;
-	}
-
-	return ret;
+	return platform_driver_register(&hpu3501_regulator_driver);
 }
+subsys_initcall(hpu3501_regulator_init);
 
-static void __exit hpu3501_exit(void)
+static void __exit hpu3501_regulator_cleanup(void)
 {
-	i2c_del_driver(&hpu3501_pmic_driver);
+	platform_driver_unregister(&hpu3501_regulator_driver);
 }
-
-subsys_initcall(hpu3501_init);
-
-//module_init(hpu3501_init);
-//module_exit(hpu3501_exit);
-
+module_exit(hpu3501_regulator_cleanup);
 
 MODULE_DESCRIPTION("hobot-pmic hpu3501 voltage regulator driver");
 MODULE_AUTHOR("chaohang.cheng <chaohang.cheng@horizon.ai>");

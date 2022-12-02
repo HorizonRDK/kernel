@@ -165,9 +165,8 @@ config REGULATOR_AXP15060
 	  AXP15060 PMIC.
 
 config REGULATOR_HPU3501
-	tristate "AXP15060 regulator driver"
-	depends on I2C
-	select REGMAP_I2C
+	tristate "hpu3501 regulator driver"
+	depends on MFD_HPU3501
 	help
 	  Say y here to support the regulators found on the HPU3501 PMIC.
 
