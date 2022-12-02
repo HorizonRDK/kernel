@@ -174,3 +174,4 @@ obj-$(CONFIG_RTC_DRV_XGENE)	+= rtc-xgene.o
 obj-$(CONFIG_RTC_DRV_ZYNQMP)	+= rtc-zynqmp.o
 obj-$(CONFIG_RTC_DRV_GOLDFISH)	+= rtc-goldfish.o
 obj-$(CONFIG_RTC_DRV_HOBOT)	+= rtc-hobot.o
+obj-$(CONFIG_RTC_DRV_HPU3501)	+= rtc-hpu3501.o
