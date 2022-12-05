@@ -1304,6 +1304,8 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
         uint32_t reg_val = 0;
 	uint32_t value;
 	int ret;
+	buf_addr_t channel_buf_addr_3;
+        buf_addr_t channel_buf_addr_4;
 
 	if (NULL == g_iar_dev) {
 		printk(KERN_ERR "IAR dev not inited!");
@@ -1569,6 +1571,10 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 	value = IAR_REG_SET_FILED(IAR_SATURATION, cfg->ppcon2.saturation, value);
 	value = IAR_REG_SET_FILED(IAR_THETA_ABS, cfg->ppcon2.theta_abs, value);
 	writel(value, g_iar_dev->regaddr + REG_IAR_PP_CON_2);
+	channel_buf_addr_3.addr = (uint32_t)g_iar_dev->frambuf[IAR_CHANNEL_3].paddr;
+	channel_buf_addr_4.addr = (uint32_t)g_iar_dev->frambuf[IAR_CHANNEL_4].paddr;
+	iar_set_bufaddr(IAR_CHANNEL_3, &channel_buf_addr_3);
+	iar_set_bufaddr(IAR_CHANNEL_4, &channel_buf_addr_4);
 
 #ifdef CONFIG_HOBOT_XJ3
 	value = readl(g_iar_dev->regaddr + REG_IAR_FORMAT_ORGANIZATION);
