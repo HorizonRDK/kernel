@@ -58,6 +58,10 @@ extern struct i2c_client *siiHDCP;
 
 extern unsigned int Si9022A_rst_pin;
 extern unsigned int Si9022A_irq_pin;
+extern unsigned int hotpoll_en;
+extern unsigned int hotpoll_ms;
+extern struct timer_list x2hdmitimer;
+void x2_hdmi_timer(unsigned long dontcare);
 
 extern void siHdmiTx_PowerStateD0(void);
 extern void SetAudioMute(byte audioMute);

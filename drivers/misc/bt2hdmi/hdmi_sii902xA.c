@@ -48,8 +48,8 @@
 #define X2_HDMI_VFORMAT_DEF		(VMD_HDMIFORMAT_HB)
 #define X2_HDMI_AFS_DEF			(AFS_48K)
 
-static unsigned int hotpoll_en;
-static unsigned int hotpoll_ms;
+unsigned int hotpoll_en;
+unsigned int hotpoll_ms;
 static unsigned int vmode;
 static unsigned int vformat;
 static unsigned int afs;
@@ -57,10 +57,9 @@ static spinlock_t sii902xA_lock;
 static struct work_struct	*sii902xAwork;
 
 // hotplug service with timer poll.
-static void x2_hdmi_timer(unsigned long dontcare);
+struct timer_list x2hdmitimer;
 
-static DEFINE_TIMER(x2hdmitimer, x2_hdmi_timer, 0, 0);
-static void x2_hdmi_timer(unsigned long dontcare)
+void x2_hdmi_timer(unsigned long dontcare)
 {
 	if (gpio_get_value(Si9022A_irq_pin) == 0) {
 		schedule_work(sii902xAwork);
@@ -303,15 +302,6 @@ static int hdmi_sii_probe(struct i2c_client *client,
 				hotpoll_ms = X2_HDMI_HOTPOLL_DEF;
 			}
 		}
-		if (hotpoll_en) {
-			dev_dbg(&client->dev, "irq_pin=%d, init in for poll %dms\n",
-					 Si9022A_irq_pin, hotpoll_ms);
-			gpio_direction_input(Si9022A_irq_pin);
-			mod_timer(&x2hdmitimer,
-				jiffies + msecs_to_jiffies(hotpoll_ms));
-		}
-		ret = 0;
-
 	} else {
 		dev_err(&client->adapter->dev, "can not found dev_id %s matched\n",
 				client->name);
@@ -338,6 +328,8 @@ static int hdmi_sii_remove(struct i2c_client *client)
 	gpio_free(Si9022A_rst_pin);
 //#endif
 	kfree(sii902xAwork);
+	hdmi_register_config_callback(NULL);
+	hdmi_register_stop_output_callback(NULL);
 	dev_info(&client->dev, "detached successfully\n");
 
 	return 0;

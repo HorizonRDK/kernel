@@ -4517,6 +4517,16 @@ int disp_config_hdmi(unsigned short vmode,
 {
 	byte devID = 0x00;
 	word wID = 0x0000;
+	if (hotpoll_en) {
+		pr_debug("irq_pin=%d, init in for poll %dms\n",
+			Si9022A_irq_pin, hotpoll_ms);
+		gpio_direction_input(Si9022A_irq_pin);
+
+		init_timer(&x2hdmitimer);
+		x2hdmitimer.function = x2_hdmi_timer;
+		x2hdmitimer.expires = jiffies + hotpoll_ms;
+		add_timer(&x2hdmitimer);
+	}
 
 	// Toggle TX reset pin
 	TxHW_Reset();
