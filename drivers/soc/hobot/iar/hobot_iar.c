@@ -2887,18 +2887,6 @@ static irqreturn_t hobot_iar_irq(int this_irq, void *data)
 	//TODO
 	regval = readl(g_iar_dev->regaddr + REG_IAR_DE_SRCPNDREG);
 	writel(regval, g_iar_dev->regaddr + REG_IAR_DE_SRCPNDREG);
-	if (regval & BIT(9)) {
-		pr_err("-------iar channel 1 empty !!-------\n");
-	}
-	if (regval & BIT(10)) {
-		pr_err("-------iar channel 2 empty !!-------\n");
-	}
-	if (regval & BIT(11)) {
-		pr_err("-------iar channel 3 empty !!-------\n");
-	}
-	if (regval & BIT(12)) {
-		pr_err("-------iar channel 4 empty !!-------\n");
-	}
 
 	if (regval & BIT(0)) {
 		atomic_inc(&g_iar_dev->frame_cnt);
