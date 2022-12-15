@@ -333,36 +333,41 @@
 		#sound-dai-cells = <0>;
 	};
 	hpu3501@1e {
-		compatible = "hobot-pmic,hpu3501";
+		compatible = "hobot,hpu3501";
 		reg = <0x1e>;
 		status = "disabled";
-		regulators {
-			cnn0_pd_reg_hobot: BUCK3 {
-				regulator-name = "VCC_CNN0";
-				regulator-min-microvolt = <820000>;
-				regulator-max-microvolt = <1000000>;
-				regulator-enable-ramp-delay = <3000>;
-			};
+		hpu3501-regulator {
+			master;
+			en_pin_map = <0xc4>;
+			fault_cfgr = <0x7f>;
+			regulators {
+				cnn0_pd_reg_hobot: BUCK3 {
+					regulator-name = "VCC_CNN0";
+					regulator-min-microvolt = <820000>;
+					regulator-max-microvolt = <1000000>;
+					regulator-enable-ramp-delay = <3000>;
+				};
 
-			cnn1_pd_reg_hobot: BUCK4 {
-				regulator-name = "VCC_CNN1";
-				regulator-min-microvolt = <820000>;
-				regulator-max-microvolt = <1000000>;
-				regulator-enable-ramp-delay = <3000>;
-			};
+				cnn1_pd_reg_hobot: BUCK4 {
+					regulator-name = "VCC_CNN1";
+					regulator-min-microvolt = <820000>;
+					regulator-max-microvolt = <1000000>;
+					regulator-enable-ramp-delay = <3000>;
+				};
 
-			cpu_pd_reg_hobot: BUCK5 {
-				regulator-name = "VCC_CPU";
-				regulator-min-microvolt = <795000>;
-				regulator-max-microvolt = <990000>;
-				regulator-always-on;
-			};
+				cpu_pd_reg_hobot: BUCK5 {
+					regulator-name = "VCC_CPU";
+					regulator-min-microvolt = <795000>;
+					regulator-max-microvolt = <990000>;
+					regulator-always-on;
+				};
 
-			vdd_usb_0v8_hobot: LDO3 {
-				regulator-name = "USB_V_8";
-				regulator-min-microvolt = <3300000>;
-				regulator-max-microvolt = <3300000>;
-				regulator-enable-ramp-delay = <3000>;
+				vdd_usb_0v8_hobot: LDO3 {
+					regulator-name = "USB_V_8";
+					regulator-min-microvolt = <3300000>;
+					regulator-max-microvolt = <3300000>;
+					regulator-enable-ramp-delay = <3000>;
+				};
 			};
 		};
 	};
@@ -436,6 +441,7 @@
 
 &usbdrd3_0 {
 	status = "okay";
+	usb_0v8-supply = <>;
 	usb_0v8-supply_hobot = <&vdd_usb_0v8_hobot>;
 };
 
