@@ -54,7 +54,7 @@
 //extern u8 hobot_read_lt8618sxb(u8 RegAddr);            // IIC read operation
 
 extern struct x2_lt8618sxb_s *g_x2_lt8618sxb;
-extern int lt8618sxb_reset_pin;
+extern struct gpio_desc *lt8618sxb_reset_gpio;
 void Resolution_change(u8 Resolution);
 void Debug_DispNum(u8 msg)
 {
@@ -92,6 +92,7 @@ static int hobot_lt8618sxb_write_byte(struct i2c_client *client,
 
 static int hobot_write_lt8618sxb(uint8_t reg_addr, uint8_t reg_val)
 {
+	if (g_x2_lt8618sxb == NULL) return -1;
 	return hobot_lt8618sxb_write_byte(g_x2_lt8618sxb->client,
 			LT8618SXB_SLAVE_ADDR, reg_addr,
 			reg_val);
@@ -134,6 +135,8 @@ static uint8_t hobot_read_lt8618sxb(uint8_t reg_addr)
 {
 	uint8_t reg_val = 0;
 	int ret = 0;
+
+	if (g_x2_lt8618sxb == NULL) return -1;
 
 	ret = hobot_lt8618sxb_read_byte(g_x2_lt8618sxb->client,
 			LT8618SXB_SLAVE_ADDR, reg_addr,
@@ -580,6 +583,8 @@ int LT8618SXB_Read_EDID(hobot_lt8618_sync_t * sync)
 	u8 i, j, x;
 	u8 extended_flag = 0x00;
 
+	if (g_x2_lt8618sxb == NULL) return -1;
+
 	hobot_write_lt8618sxb(0xff, 0x85);
 	//hobot_write_lt8618sxb(0x02,0x0a); //I2C 100K
 	hobot_write_lt8618sxb(0x03, 0xc9);
@@ -937,10 +942,10 @@ void LT8618SXB_Video_check(void)
 void LT8618SXB_Reset(void)
 {
 	//printk("*****LT8618SXB_Reset*****\n");
-	if (lt8618sxb_reset_pin >= 0) {
-		gpio_direction_output(lt8618sxb_reset_pin, 0);
+	if (lt8618sxb_reset_gpio) {
+		gpiod_set_value_cansleep(lt8618sxb_reset_gpio, 0);
 		msleep(100);
-		gpio_direction_output(lt8618sxb_reset_pin, 1);
+		gpiod_set_value_cansleep(lt8618sxb_reset_gpio, 1);
 		msleep(100);
 	}
 }
@@ -1014,6 +1019,8 @@ void LT8618SXB_PLL_setting(void)
 	u8 cali_done;
 	u8 cali_val;
 	u8 lock;
+
+	if (g_x2_lt8618sxb == NULL) return -1;
 
 	CLK_bound =
 		(u8) Format_Timing[Resolution_Num][Clk_bound_SDR +

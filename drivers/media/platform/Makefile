@@ -94,9 +94,7 @@ obj-$(CONFIG_VIDEO_QCOM_VENUS)		+= qcom/venus/
 obj-y		    += hobot/
 
 obj-$(CONFIG_VIDEO_HOBOTC_VPU)      += hobot/vpu/
-obj-$(CONFIG_VIDEO_HOBOTC_VPU_CV)   += hobot/vpu-cv/
 
 obj-$(CONFIG_VIDEO_HOBOTC_JPU)     += hobot/jpg/
-obj-$(CONFIG_VIDEO_HOBOTC_JPU_CV)  += hobot/jpg-cv/
 
 obj-y					+= meson/

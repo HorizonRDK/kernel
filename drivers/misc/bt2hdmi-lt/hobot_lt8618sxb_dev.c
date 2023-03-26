@@ -34,7 +34,7 @@
 
 #include "hobot_lt8618sxb.h"
 
-int lt8618sxb_reset_pin = -1;
+struct gpio_desc *lt8618sxb_reset_gpio = NULL;
 struct x2_lt8618sxb_s *g_x2_lt8618sxb;
 #ifndef CONFIG_HOBOT_X3_UBUNTU
 static void reset_hdmi_converter(void)
@@ -151,7 +151,16 @@ static int x2_lt8618sxb_probe(struct i2c_client *client,
 	g_x2_lt8618sxb->client = client;
 	
 	mutex_init(&g_x2_lt8618sxb->lt8618sxb_mutex);
-	
+
+	lt8618sxb_reset_gpio = devm_gpiod_get_optional(&client->dev, "rst", GPIOD_OUT_LOW);
+	if (IS_ERR(lt8618sxb_reset_gpio)) {
+		/* lt8618sxb_reset_gpio GPIO not available */
+		pr_info("optional-gpio not found\n");
+		goto err;
+	}
+
+	LT8618SXB_Reset();
+
 	ret = LT8618SXB_Chip_ID();
 	if (ret != 0) {
 		pr_err("not found lt8618sxb device, exit probe!!!\n");
@@ -160,16 +169,6 @@ static int x2_lt8618sxb_probe(struct i2c_client *client,
 #ifndef CONFIG_HOBOT_X3_UBUNTU
 	display_type = HDMI_TYPE;
 #endif
-	ret = of_property_read_u32(client->dev.of_node, "rst_pin",
-				   &lt8618sxb_reset_pin);
-	if (!ret) {
-		ret = gpio_request(lt8618sxb_reset_pin, "lt8618sxb_rst_pin");
-		if (ret) {
-			pr_err("%s() Err get reset pin ret= %d\n", __func__,
-			       ret);
-			goto err;
-		}
-	}
 
 	i2c_set_clientdata(client, g_x2_lt8618sxb);
 
@@ -186,8 +185,10 @@ static int x2_lt8618sxb_probe(struct i2c_client *client,
 	return 0;
 
 err:
-	if (g_x2_lt8618sxb)
+	if (g_x2_lt8618sxb) {
 		devm_kfree(&client->dev, g_x2_lt8618sxb);
+		g_x2_lt8618sxb = NULL;
+	}
 	return ret;
 }
 
@@ -197,7 +198,6 @@ static int x2_lt8618sxb_remove(struct i2c_client *client)
 	misc_deregister(&lt8618_ioctl_dev);
 	if (x2_lt8618sxb)
 		devm_kfree(&client->dev, x2_lt8618sxb);
-	gpio_free(lt8618sxb_reset_pin);
 	return 0;
 }
 

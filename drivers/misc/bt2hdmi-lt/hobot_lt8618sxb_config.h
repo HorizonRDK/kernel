@@ -350,5 +350,8 @@ enum {
 	Clk_bound_SDR,		// SDR
 	Clk_bound_DDR		// DDR
 };
+
+void LT8618SXB_Reset(void);
+
 #endif // DRIVERS_MISC_BT2HDMI_LT_HOBOT_LT8618SXB_CONFIG_H_
 /**************************** The End Of File *******************************/

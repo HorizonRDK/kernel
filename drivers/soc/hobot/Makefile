@@ -3,8 +3,6 @@
 # Makefile for the Linux Kernel HOBOT SOC specific device drivers.
 #
 
-obj-$(CONFIG_HOBOT_CNN_HOST)	+= cnn_host/
-obj-$(CONFIG_HOBOT_CNN_MM)		+= cnn_mm/
 obj-$(CONFIG_HOBOT_BPU)		+= bpu/
 obj-$(CONFIG_HOBOT_DIAG)		+= diag/
 obj-$(CONFIG_HOBOT_PM)		+= pm/
@@ -24,7 +22,6 @@ obj-$(CONFIG_HOBOT_DDR_MON)	+= ddr_monitor/
 obj-$(CONFIG_HOBOT_SOCINFO)	+= socinfo/
 obj-$(CONFIG_HOBOT_VCAM)	+= vcam/
 obj-$(CONFIG_HOBOT_IAR)		+= iar/
-obj-$(CONFIG_HOBOT_XJ3_CV_USRDRV)	+= usrdrv/
 obj-$(CONFIG_HOBOT_CR5_SERVICE) += cr5_service/
 obj-$(CONFIG_HOBOT_CPU_CAL) += cpu_cal/
 obj-$(CONFIG_HOBOT_SOC_DEBUG) += debug/

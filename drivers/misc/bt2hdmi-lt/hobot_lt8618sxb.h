@@ -1,3 +1,10 @@
+/***************************************************************************
+ * @COPYRIGHT NOTICE
+ * @Copyright 2023 Horizon Robotics, Inc.
+ * @All rights reserved.
+ * @Date: 2023-03-23 15:04:36
+ * @LastEditTime: 2023-03-24 16:10:58
+ ***************************************************************************/
 /*
  * Horizon Robotics
  *
@@ -24,7 +31,7 @@
 #define ENABLE 0x1
 #define DISABLE 0x0
 
-#define CONFIG_LT8618SXB_DEBUG (DISABLE)
+#define CONFIG_LT8618SXB_DEBUG (ENABLE)
 
 #if (CONFIG_LT8618SXB_DEBUG == ENABLE)
 #define LT8618SXB_DEBUG(format, args...) \
