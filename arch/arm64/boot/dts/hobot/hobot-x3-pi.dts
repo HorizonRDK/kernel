@@ -328,7 +328,7 @@
 	lt8618sxb@0x3b {
 		compatible = "lt,lt8618sxb";
 		reg = <0x3b>;
-		rst_pin = <117>; // shared reset with TP!
+		rst-gpio = <&gpios 117 GPIO_ACTIVE_HIGH>; // shared reset with TP!
 	};
         Goodix-TS@0x14 {
 		compatible = "goodix,gt9xx";
