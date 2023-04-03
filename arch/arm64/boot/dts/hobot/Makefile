@@ -22,6 +22,7 @@ dtb-$(CONFIG_HOBOT_XJ3)  += hobot-xj3-cvb.dtb
 dtb-$(CONFIG_HOBOT_XJ3)  += hobot-x3-sdb.dtb
 dtb-$(CONFIG_HOBOT_XJ3)  += hobot-x3-sdb_v4.dtb
 dtb-$(CONFIG_HOBOT_XJ3)  += hobot-x3-pi.dtb
+dtb-$(CONFIG_HOBOT_XJ3)  += hobot-x3-pi_v2_1.dtb
 dtb-$(CONFIG_HOBOT_XJ3)  += hobot-x3-cm.dtb
 
 ifeq ($(CONFIG_HOBOT_XJ3_CV_ADDITION),y)

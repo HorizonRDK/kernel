@@ -1,0 +1,873 @@
+/*
+ * dtsi file for Hobot X3 PI
+ *
+ * (C) Copyright 2018, Horizon, Inc.
+ *
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+ */
+
+/dts-v1/;
+#include "hobot-xj3.dtsi"
+#include "hobot-pinctrl-xj3.dtsi"
+#include "hobot-clk-xj3.dtsi"
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/phy/phy.h>
+
+/ {
+	model = "Hobot X3 PI";
+
+	aliases {
+		serial0 = &uart0;
+		serial1 = &uart1;
+		serial2 = &uart2;
+		serial3 = &uart3;
+		i2c0	= &i2c0;
+		i2c1	= &i2c1;
+		i2c2	= &i2c2;
+		i2c3	= &i2c3;
+		i2c4	= &i2c4;
+		i2c5	= &i2c5;
+		i2s0	= &i2s0;
+		i2s1	= &i2s1;
+		spi0	= &spi0;
+		spi1	= &spi1;
+		spi2	= &spi2;
+		usbdrd3_0 = &usbdrd3_0;
+		usbdrd_dwc3_0 = &usbdrd_dwc3_0;
+		bifspi	= &bifspi;
+		bifsd   = &bifsd;
+		mmc1	= &sdio0;
+		mmc2	= &sdio1;
+		mmc3	= &sdio2;
+		dma	= &dma;
+		dmatest = &dmatest;
+		mipihost0 = &mipi_host0;
+		mipihost1 = &mipi_host1;
+		mipihost2 = &mipi_host2;
+		mipihost3 = &mipi_host3;
+		mipidev0 = &mipi_dev0;
+
+		pym	= &pym;
+		dwe	= &dwe;
+		ldc	= &ldc;
+		dis0	= &dis0;
+		dis1	= &dis1;
+		gdc0	= &gdc0;
+		gdc1	= &gdc1;
+		isp	= &isp;
+		ipu	= &ipu;
+		sif	= &sif;
+
+		sndcard0 = &snd0;
+		sndcard1 = &snd1;
+		sndcard2 = &snd2;
+		sndcard4 = &snd4;
+		idma0 = &i2sidma0;
+		idma1 = &i2sidma1;
+
+		codec0 = &codec0;
+
+		socinfo = &socinfo;
+
+		gpios = &gpios;
+		usb_id = &usb_id;
+		extcon_vbus = &extcon_vbus;
+
+		pwm_c0 = &pwm_c0;
+		pwm_c1 = &pwm_c1;
+
+		power = &power;
+	};
+
+	chosen {
+		bootargs = "earlycon loglevel=8 kgdboc=ttyS0 video=hobot:x3sdb-hdmi ";
+		stdout-path = "serial0";
+	};
+
+	memory@0 {
+		device_type = "memory";
+		reg = <0x0 0x200000 0x0 0x3FE00000>;
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		/*Reserved 256K memory pstore */
+		ramoops@0x3FC0000 {
+			compatible = "ramoops";
+			reg = <0x0 0x3FC0000 0x0 0x40000>;
+			console-size = <0x8000>;
+			pmsg-size = <0x8000>;
+			ftrace-size = <0x8000>;
+			record-size = <0x4000>;
+		};
+
+		/* Reserved 672MB memory for ion cma */
+		ion_cma {
+			compatible = "shared-dma-pool";
+			alloc-ranges = <0x0 0x4000000 0x0 0x2A000000>;
+			alignment = <0x0 0x100000>;
+			size = <0x0 0x2A000000>;
+			reusable;
+		};
+
+		/* 32M */
+/*
+		ion_reserved: ion_reserved@0x2E000000 {
+			compatible = "ion-pool";
+			reg = <0x0 0x2E000000 0x0 0x2000000>;
+		};
+*/
+		/*Reserved 1M memory for CR5*/
+		image_r5_mem: image_r5_mem {
+                        reg = <0x0 0x80000000 0x0 0x10000>;
+                        no-map;
+                };
+
+                msg_r5_mem: msg_r5_mem {
+                        reg = <0x0 0x8000f000 0x0 0x1000>;
+                        no-map;
+                };
+
+		rpmsg_r5_code: rpmsg_r5_code {
+                        reg = <0x0 0x3E00000 0x0 0xFF000>;
+                        no-map;
+                };
+
+                rpmsg_r5_vring: rpmsg_r5_vring {
+                        reg = <0x0 0x3EFF000 0x0 0x1000>;
+                        no-map;
+                };
+	};
+
+	cnn0_pd_reg: cnn0_pd_reg@2 {
+		status = "okay";
+		compatible = "regulator-gpio";
+		regulator-name = "VCC_CNN0";
+		regulator-min-microvolt = <800000>;
+		regulator-max-microvolt = <800000>;
+		enable-gpio = <&gpios 1 0>;
+		states = <800000 0>;
+		startup-delay-us = <3000>;
+		regulator-boot-on;
+		enable-active-high;
+	};
+
+	cnn1_pd_reg: cnn1_pd_reg@3 {
+		status = "okay";
+		compatible = "regulator-gpio";
+		regulator-name = "VCC_CNN1";
+		regulator-min-microvolt = <800000>;
+		regulator-max-microvolt = <800000>;
+		enable-gpio = <&gpios 2 0>;
+		states = <800000 0>;
+		startup-delay-us = <3000>;
+		regulator-boot-on;
+		enable-active-high;
+	};
+
+	cpu_pd_reg_dc: cpu_pd_reg_dc {
+		status = "okay";
+		compatible = "regulator-gpio";
+		regulator-name = "VCC_CPU";
+		regulator-min-microvolt = <800000>;
+		regulator-max-microvolt = <800000>;
+		states = <800000 0>;
+		regulator-always-on;
+	};
+
+	cpu_opp_table_dc: cpu_opp_table_dc {
+		compatible = "operating-points-v2";
+		opp-shared;
+		opp00 {
+			opp-hz = /bits/ 64 <1200000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <500000>;
+		};
+		opp01 {
+			opp-hz = /bits/ 64 <1000000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <500000>;
+		};
+		opp02 {
+			opp-hz = /bits/ 64 <800000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <500000>;
+		};
+		opp03 {
+			opp-hz = /bits/ 64 <500000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <500000>;
+		};
+		opp04 {
+			opp-hz = /bits/ 64 <240000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <500000>;
+		};
+		opp05 {
+			opp-hz = /bits/ 64 <1500000000>;
+			opp-microvolt = <800000>;
+			clock-latency-ns = <500000>;
+			turbo-mode;
+		};
+	};
+	cpu_opp_table_hobot: cpu_opp_table_hobot {
+		compatible = "operating-points-v2";
+		opp-shared;
+		opp00 {
+			opp-hz = /bits/ 64 <1200000000>;
+			opp-microvolt = <795000>;
+			clock-latency-ns = <500000>;
+		};
+		opp01 {
+			opp-hz = /bits/ 64 <1000000000>;
+			opp-microvolt = <795000>;
+			clock-latency-ns = <500000>;
+		};
+		opp02 {
+			opp-hz = /bits/ 64 <800000000>;
+			opp-microvolt = <795000>;
+			clock-latency-ns = <500000>;
+		};
+		opp03 {
+			opp-hz = /bits/ 64 <500000000>;
+			opp-microvolt = <795000>;
+			clock-latency-ns = <500000>;
+		};
+		opp04 {
+			opp-hz = /bits/ 64 <240000000>;
+			opp-microvolt = <795000>;
+			clock-latency-ns = <500000>;
+		};
+		opp05 {
+			opp-hz = /bits/ 64 <1500000000>;
+			opp-microvolt = <990000>;
+			clock-latency-ns = <500000>;
+			turbo-mode;
+		};
+	};
+};
+
+&power {
+    vdd_core_on_cnt = <0xffff>;
+    sysctrl_rst_dis_cnt = <0xffff>;
+    sysctrl_pre_clkon_cnt = <0xffff>;
+    sysctrl_pre_clkoff_cnt = <0xffff>;
+};
+
+&socinfo {
+	board_name = "X3PI";
+	board_id = "00000000";
+	origin_board_id = "00000000";
+	ddr_vender = "Samsung";
+	ddr_type = "LPDDR4";
+	ddr_freq = "3200";
+	ddr_size = "2GB";
+	som_name = "X3PI";
+	base_board_name = "X3PI";
+	boot_mode = "0";
+	socuid = "00000000000000000000000000000000";
+};
+
+&pinctrl {
+	btout_func: btout_func {
+		pinctrl-single,pins = <
+			0x138   (MUX_F0 | DRIVE1_33MA | SCHMITT2_ENA | PULL2_DOWN) /*BT1120_OUT_CLK*/
+			0x13c   (MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN) /*BT1120_OUT_DAT0*/
+			0x140   (MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+			0x144   (MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+			0x148   (MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+			0x14c   (MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+			0x150   (MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+			0x154   (MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+			0x158   (MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN) /*BT1120_OUT_DAT7*/
+			0x15c   (MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN) /*BT1120_OUT_DAT8*/
+			0x160   (MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+			0x164   (MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+			0x168   (MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+			0x16c   (MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+			0x170   (MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+			0x174   (MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN)
+			0x178   (MUX_F0 | DRIVE1_12MA | SCHMITT2_DIS | PULL2_DOWN) /*BT1120_OUT_DAT15*/
+		>;
+	};
+};
+
+&i2c0 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	es7210_0:es7210_0@0x40 {
+		compatible = "MicArray_0";
+		reg = <0x40>;
+		#sound-dai-cells = <1>;
+	};
+	es7210_1@0x42{
+		compatible = "MicArray_1";
+		reg = <0x42>;
+	};
+	es8156:es8156_0@0x08{
+		compatible="everest,es8156";
+		reg = <0x08>;
+		#sound-dai-cells = <0>;
+	};
+};
+
+&i2c1 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	lt8618sxb@0x3b {
+		compatible = "lt,lt8618sxb";
+		reg = <0x3b>;
+		rst_pin = <60>; // shared reset with TP!
+	};
+        Goodix-TS@0x14 {
+		compatible = "goodix,gt9xx";
+		reg = <0x14>;
+		irq-gpio = <&gpios 55 0>;
+		rst-gpio = <&gpios 64 0>;
+		status = "okay";
+	};
+	hpu3501@1e {
+		compatible = "hobot,hpu3501";
+		reg = <0x1e>;
+		status = "disabled";
+		hpu3501-regulator {
+			master;
+			en_pin_map = <0xc4>;
+			fault_cfgr = <0x7f>;
+			regulators {
+				cnn0_pd_reg_hobot: BUCK3 {
+					regulator-name = "VCC_CNN0";
+					regulator-min-microvolt = <820000>;
+					regulator-max-microvolt = <1000000>;
+					regulator-enable-ramp-delay = <3000>;
+				};
+
+				cnn1_pd_reg_hobot: BUCK4 {
+					regulator-name = "VCC_CNN1";
+					regulator-min-microvolt = <820000>;
+					regulator-max-microvolt = <1000000>;
+					regulator-enable-ramp-delay = <3000>;
+				};
+
+				cpu_pd_reg_hobot: BUCK5 {
+					regulator-name = "VCC_CPU";
+					regulator-min-microvolt = <795000>;
+					regulator-max-microvolt = <990000>;
+					regulator-always-on;
+				};
+
+				vdd_usb_0v8_hobot: LDO3 {
+					regulator-name = "USB_V_8";
+					regulator-min-microvolt = <3300000>;
+					regulator-max-microvolt = <3300000>;
+					regulator-enable-ramp-delay = <3000>;
+				};
+			};
+		};
+	};
+};
+
+&uart0 {
+	status = "okay";
+};
+
+&uart1 {
+	status = "okay"; /* 4 wire uart for bt */
+	pinctrl-0 = <&uart1_func>; /* <&uart1_func>;  uart 1 connect to bt with rtscts*/
+};
+
+&uart3 {
+	status = "okay";
+};
+
+&spi2 {
+	status = "okay";
+	pinctrl-names = "default";
+	spidev@0x00 {
+		compatible = "rohm,dh2228fv";
+		spi-max-frequency = <48000000>;
+		reg = <0>;
+	};
+};
+
+&usbdrd3_0 {
+	status = "okay";
+	usb_0v8-supply = <>;
+	usb_0v8-supply_hobot = <&vdd_usb_0v8_hobot>;
+};
+
+&usbdrd_dwc3_0 {
+	status = "okay";
+};
+
+&usb_id {
+	status = "okay";
+
+	/* vbus-gpio = <>; */
+	id-gpio = <&gpios 65 GPIO_ACTIVE_HIGH>;
+	host-rst-gpio = <&gpios 23 GPIO_ACTIVE_LOW>;
+	host-exrst-gpio = <&gpios 38 GPIO_ACTIVE_LOW>;
+};
+
+&extcon_vbus {
+	status = "okay";
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&vbus_detect_function>;
+
+	gpio-mode = <0x1>;	/* 1: poll mode, 2: interrupt mode */
+	vbus-gpio = <&gpios 62 GPIO_ACTIVE_HIGH>;
+};
+
+&gpios {
+	status = "okay";
+};
+
+&pinctrl {
+	status = "okay";
+};
+
+&ldc {
+	status = "okay";
+};
+
+&dwe {
+	status = "okay";
+};
+
+&dis0 {
+	status = "okay";
+};
+
+&dis1 {
+	status = "okay";
+};
+
+/* when gdc0 added, boot stucked one time */
+&gdc0 {
+	status = "okay";
+};
+
+&gdc1 {
+	status = "okay";
+};
+
+&pym {
+	status = "okay";
+};
+
+&ips {
+	status = "okay";
+};
+
+&isp {
+	status = "okay";
+};
+
+&ipu {
+	status = "okay";
+};
+
+&sif {
+	status = "okay";
+};
+
+&mipi_host0 {
+	status = "okay";
+};
+
+&mipi_host1 {
+	status = "okay";
+};
+
+&mipi_host2 {
+	status = "okay";
+	pinctrl-names = "enable", "disable";
+	/* x3pi hardware uses sensor1_mclk as the clock for mipihost2 */
+	pinctrl-0 = <&sensor1_func>;
+	pinctrl-1 = <&sensor1_gpio_func>;
+	snrclk-idx = <1>;
+};
+
+&mipi_host3 {
+	status = "okay";
+};
+
+&mipi_dphy {
+	status = "okay";
+};
+
+&dma {
+	status = "okay";
+};
+
+&rtc {
+	status = "okay";
+};
+
+&pwm_c0 {
+	status = "okay";
+	pinctrl-0 = <&pwm0_func>;
+	pinctrl-1 = <>;
+	pinctrl-2 = <>;
+};
+
+&pwm_c1 {
+	status = "okay";
+	pinctrl-0 = <>;
+	pinctrl-1 = <&pwm4_func>;
+	pinctrl-2 = <>;
+};
+
+&ethernet {
+	status = "okay";
+
+	/* pinctrl-names = "default";
+	pinctrl-0 = <&eth_func>; */
+
+	/* local-mac-address = [ 00 11 22 33 44 55 ]; */
+	phy-mode = "rgmii-id";
+
+	phy-handle = <&eth_phy0>;
+	mdio {
+		#address-cells = <0x1>;
+		#size-cells = <0x0>;
+		/* use GPIO 1.8 as RESET PIN for phy */
+		reset-gpios = <&gpios 61 GPIO_ACTIVE_LOW>;
+		/* reset pin must assert at least 10ms for RTL8211F */
+		reset-delay-us = <20000>;
+		/* regs of RTL8211F cannot be accessed until at least 72ms after the reset */
+		reset_extra_us = <100000>;
+
+		eth_phy0: ethernet-phy@0 {
+			reg = <0x0>;
+			max-speed = <1000>;
+		};
+	};
+};
+
+&iar {
+	status = "okay";
+	pinctrl-names = "bt_func", "rgb_func", "rgb_gpio_func", "bt1120_voltage_func";
+	pinctrl-3 = <&bt1120_3_3v_func>;
+	disp_panel_reset_pin = <117>;
+	timing_1920x1080 = <148500000 160 120 24 48 4 5>;
+	timing_720x1280_touch = <64000000 40 40 10 11 16 3>;
+	startup-img = <1>;
+	pwm = <1 1000 200>;
+	default-display-type = <1>;//hdmi
+};
+
+&fb {
+	status = "okay";
+	offset-rgba = <16 8 0 24>;
+};
+
+&nand_flash {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	spi-mode = <0>;		/* CPOL/CPHA mode */
+	bus-width = <4>;
+	device-name = "hr_nand";
+
+	spi-nand@0 {
+		compatible = "spi-nand";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0x0>;
+		spi-max-frequency = <62500000>; /* For FPGA max clk is 20Mhz */
+	};
+};
+
+&cnn_opp_table {
+	opp00 {
+		opp-hz = /bits/ 64 <1000000000>;
+		opp-microvolt = <820000>;
+		clock-latency-ns = <500000>;
+	};
+	opp01 {
+		opp-hz = /bits/ 64 <800000000>;
+		opp-microvolt = <820000>;
+		clock-latency-ns = <500000>;
+	};
+	opp02 {
+		opp-hz = /bits/ 64 <400000000>;
+		opp-microvolt = <820000>;
+		clock-latency-ns = <500000>;
+	};
+	opp03 {
+		opp-hz = /bits/ 64 <600000000>;
+		opp-microvolt = <820000>;
+		clock-latency-ns = <500000>;
+	};
+};
+
+
+&cpu0 {
+	cpu-supply = <&cpu_pd_reg_dc>;
+	operating-points-v2 = <&cpu_opp_table_dc>;
+	cpu-supply-hobot = <&cpu_pd_reg_hobot>;
+	operating-points-v2-hobot = <&cpu_opp_table_hobot>;
+};
+
+&cpu1 {
+	cpu-supply = <&cpu_pd_reg_dc>;
+	operating-points-v2 = <&cpu_opp_table_dc>;
+	cpu-supply-hobot = <&cpu_pd_reg_hobot>;
+	operating-points-v2-hobot = <&cpu_opp_table_hobot>;
+};
+
+&cpu2 {
+	cpu-supply = <&cpu_pd_reg_dc>;
+	operating-points-v2 = <&cpu_opp_table_dc>;
+	cpu-supply-hobot = <&cpu_pd_reg_hobot>;
+	operating-points-v2-hobot = <&cpu_opp_table_hobot>;
+};
+
+&cpu3 {
+	cpu-supply = <&cpu_pd_reg_dc>;
+	operating-points-v2 = <&cpu_opp_table_dc>;
+	cpu-supply-hobot = <&cpu_pd_reg_hobot>;
+	operating-points-v2-hobot = <&cpu_opp_table_hobot>;
+};
+
+&cnn0 {
+	cnn-supply = <&cnn0_pd_reg>;
+	cnn-supply-hobot = <&cnn0_pd_reg_hobot>;
+	governor = "userspace";
+	max_freq = /bits/ 64 <1000000000>;
+};
+
+&cnn1 {
+	cnn-supply = <&cnn1_pd_reg>;
+	cnn-supply-hobot = <&cnn1_pd_reg_hobot>;
+	governor = "userspace";
+	max_freq = /bits/ 64 <1000000000>;
+};
+
+
+&sdio0 {
+	status = "okay";
+	bus-width = <8>;
+	cap-mmc-highspeed;
+	mmc-hs200-1_8v;
+	non-removable;
+	disable-wp;
+	pinctrl-names = "";
+	pinctrl-0 = <>;
+};
+
+&sdio1 {
+	status = "okay";
+	bus-width = <4>;
+	no-mmc;
+	no-sd;
+	cap-sdio-irq;
+	cap-sd-highspeed;
+	broken-cd;
+	disable-wp;
+	powerup-gpio =  <16>;
+	max-frequency = <50000000>;
+	mmc-fixed-voltage = <1800>;
+	non-removable;
+	pinctrl-names = "default","voltage_1_8v";
+	pinctrl-0 = <&sdio1_func>;
+	pinctrl-1 = <&sd1_1_8v_func>;
+};
+
+&sdio2 {
+	status = "okay";
+	bus-width = <4>;
+	no-mmc;
+	cap-sd-highspeed;
+	sd-uhs-sdr12;
+	sd-uhs-sdr25;
+	sd-uhs-sdr50;
+	sd-uhs-sdr104;
+	uhs-180v-gpio = <24>; /* BIFSD_DATA2 */
+	uhs-180v-logic = <1>;
+	cd-gpios = <&gpios 116 GPIO_ACTIVE_LOW>;  /* BIFSD_DATA4 */
+	/* broken-cd; */
+	disable-wp;
+	pinctrl-names = "default","voltage_1_8v","voltage_3_3v";
+	pinctrl-0 = <&sdio2_func>;
+	pinctrl-1 = <&sd2_1_8v_func>;
+	pinctrl-2 = <&sd2_3_3v_func>;
+};
+
+&watchdog {
+	status = "okay";
+};
+
+&timer1 {
+	status = "okay";
+};
+
+&i2s0 {
+	status = "okay";
+	#sound-dai-cells = <0>;
+	clocks = <&i2s0_mclk>, <&i2s0_bclk>;
+	clock-names = "i2s-mclk", "i2s-bclk";
+	ms = <1>;
+	bclk_set = <1536000>; //duplex
+};
+
+&i2s1 {
+	status = "okay";
+	#sound-dai-cells = <0>;
+	clocks = <&i2s1_mclk>, <&i2s1_bclk>;
+	clock-names = "i2s-mclk", "i2s-bclk";
+	ms = <1>;
+	bclk_set = <1536000>;
+};
+
+&i2sidma0 {
+	status = "okay";
+};
+
+&i2sidma1 {
+	status = "okay";
+};
+
+&codec0 {
+	status = "okay";
+	#sound-dai-cells = <1>;
+};
+
+&snd4 {
+	status = "okay";
+};
+
+&snd5 {
+	status = "okay";
+};
+
+&jpu {
+	status = "okay";
+};
+
+&vpu {
+	status = "okay";
+};
+
+&ddr_monitor {
+	status = "okay";
+};
+
+&power {
+	status = "okay";
+};
+
+&pvt {
+	status = "okay";
+};
+
+&soc_thermal {
+	status = "okay";
+
+	trips {
+		threshold: trip-point@0 {
+			temperature = <80000>;
+			hysteresis = <0>;
+			type = "passive";
+	        };
+		target: trip-point@1 {
+			temperature = <95000>;
+			hysteresis = <0>;
+			type = "passive";
+		};
+		soc_crit: soc-crit {
+			temperature = <105000>;
+			hysteresis = <0>; /* millicelsius */
+			type = "critical";
+		};
+	};
+};
+
+
+
+&snd4 { //dummy-codec
+	model = "hobotsnd4";
+	work_mode = <1>; /*0:simple mode; 1:duplex mode*/
+	dai-link@0 {
+		dai-format = "i2s";
+		//bitclock-master;
+		//frame-master;
+		frame-inversion;
+		link-name = "hobotdailink0";
+		cpu {
+			sound-dai = <&i2s0>;
+		};
+		codec {
+			sound-dai = <&codec0 0>;
+		};
+		platform {
+			sound-dai = <&i2sidma0>;
+		};
+	};
+	dai-link@1 {
+		dai-format = "i2s";
+		bitclock-master;
+		frame-master;
+		frame-inversion;
+		link-name = "hobotdailink1";
+		cpu {
+			sound-dai = <&i2s1>;
+		};
+		codec {
+			sound-dai = <&codec0 1>;
+		};
+		platform {
+			sound-dai = <&i2sidma1>;
+		};
+	};
+};
+
+&snd5 {
+	model = "hobotsnd5";
+	work_mode = <0>; /*0:simple mode; 1:duplex mode*/
+	dai-link@0 {
+		dai-format = "dsp_a";
+		bitclock-master;
+		frame-master;
+		frame-inversion;
+		link-name = "hobotdailink0";
+		cpu {
+			sound-dai = <&i2s0>;
+		};
+		codec {
+			sound-dai = <&es7210_0 0>;
+		};
+		platform {
+			sound-dai = <&i2sidma0>;
+		};
+	};
+	dai-link@1 {
+		dai-format = "i2s";
+		bitclock-master;
+		frame-master;
+		//frame-inversion;
+		link-name = "hobotdailink1";
+		cpu {
+			sound-dai = <&i2s1>;
+		};
+		codec {
+			sound-dai = <&es8156>;
+		};
+		platform {
+			sound-dai = <&i2sidma1>;
+		};
+	};
+};
