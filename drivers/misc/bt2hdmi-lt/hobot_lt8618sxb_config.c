@@ -84,7 +84,7 @@ static int hobot_lt8618sxb_write_byte(struct i2c_client *client,
 	if (ret >= 0)
 		return 0;
 
-	pr_err("lt8618sxb i2c write error addr:0%x reg:0x%x ret %d !\n",
+	pr_err("lt8618sxb i2c write error addr:0x%x reg:0x%x ret %d !\n",
 			addr, reg, ret);
 
 	return ret;
@@ -602,7 +602,7 @@ int LT8618SXB_Read_EDID(hobot_lt8618_sync_t * sync)
 		if (hobot_read_lt8618sxb(0x40) & 0x02) {
 			//DDC No Ack or Abitration lost
 			if (hobot_read_lt8618sxb(0x40) & 0x50) {
-				printk("\r\nread edid failed: no ack");
+				pr_debug("\r\nread edid failed: no ack");
 				goto end;
 			} else {
 				//printk("LT8618SXB_Read_EDID 11 \r\n");
@@ -670,7 +670,7 @@ int LT8618SXB_Read_EDID(hobot_lt8618_sync_t * sync)
 				}
 			}
 		} else {
-			printk("\r\nread edid failed: accs not done");
+			pr_debug("\r\nread edid failed: accs not done");
 			goto end;
 		}
 	}
@@ -691,7 +691,7 @@ int LT8618SXB_Read_EDID(hobot_lt8618_sync_t * sync)
 	if (extended_flag < 2) { //no block 2, stop reading edid.
 		hobot_write_lt8618sxb(0x03, 0xc2);
 		hobot_write_lt8618sxb(0x07, 0x1f);
-		printk("LT8618SXB_Read_EDID 22 out\n");
+		pr_debug("LT8618SXB_Read_EDID 22 out\n");
 		return 0;
 	}
 
@@ -703,14 +703,14 @@ int LT8618SXB_Read_EDID(hobot_lt8618_sync_t * sync)
 		msleep(5);	// wait 5ms for reading edid data.
 		if (hobot_read_lt8618sxb(0x40) & 0x02) {
 			if (hobot_read_lt8618sxb(0x40) & 0x50) {
-				printk("\r\nread edid failed: no ack");
+				pr_debug("\r\nread edid failed: no ack");
 				goto end;
 			} else {
-				printk(" LT8618SXB_Read_EDID 22 \r\n");
+				pr_debug(" LT8618SXB_Read_EDID 22 \r\n");
 				for (j = 0; j < 32; j++) {
 					Sink_EDID2[i * 32 + j] =
 						hobot_read_lt8618sxb(0x83);
-					printk("Sink_EDID[%d * 32 + %d] =  %u\n ", Sink_EDID2[i * 32 + j]);
+					pr_debug("Sink_EDID[%d * 32 + %d] =  %u\n ", Sink_EDID2[i * 32 + j]);
 
 					//    edid_data = hobot_read_lt8618sxb(0x83);
 					//    printf("%02bx,", edid_data);
@@ -722,7 +722,7 @@ int LT8618SXB_Read_EDID(hobot_lt8618_sync_t * sync)
 				}
 			}
 		} else {
-			printk("\r\nread edid failed: accs not done");
+			pr_debug("\r\nread edid failed: accs not done");
 			goto end;
 		}
 	}

@@ -89,7 +89,7 @@ static long lt8618_ioctl(struct file *file, unsigned int cmd,
 
 	case LT8618_GET_EDID_RESOLUTION_RATIO: {
 		hobot_lt8618_sync_t sync_t;
-		printk("LT8618_GET_EDID_RESOLUTION_RATIO\n");
+		pr_debug("LT8618_GET_EDID_RESOLUTION_RATIO\n");
 		r = LT8618SXB_Read_EDID(&sync_t);
 		if(r!=0){
 			r = -EFAULT;
@@ -103,7 +103,7 @@ static long lt8618_ioctl(struct file *file, unsigned int cmd,
 			r = -EFAULT;
 		    break;
 		}
-		printk("LT8618_SET_RESOLUTION_RATIO lt8618_iot->ratio = %d\n",lt8618_iot->ratio);
+		pr_debug("LT8618_SET_RESOLUTION_RATIO lt8618_iot->ratio = %d\n",lt8618_iot->ratio);
 		Resolution_change(lt8618_iot->ratio);
         //r = pwm_config(fl_pwm->pwm, fl_pwm->config.duty_ns, fl_pwm->config.period_ns);
 		break;
