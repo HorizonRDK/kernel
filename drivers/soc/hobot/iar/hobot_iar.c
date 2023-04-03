@@ -2134,10 +2134,12 @@ int32_t iar_start(int update)
 			dev_err(&g_iar_dev->pdev->dev, "iar thread create fail\n");
 			return -1;
 		}
-		ret = sched_setscheduler(g_iar_dev->iar_task, SCHED_FIFO, &param);
-		if (ret != 0) {
-			dev_err(&g_iar_dev->pdev->dev, "sched_setscheduler fail(%d)", ret);
-			return -1;
+		if (capable(CAP_SYS_NICE)) {
+			ret = sched_setscheduler(g_iar_dev->iar_task, SCHED_FIFO, &param);
+			if (ret != 0) {
+				dev_err(&g_iar_dev->pdev->dev, "sched_setscheduler fail(%d)", ret);
+				return -1;
+			}
 		}
 	} else {
 		pr_err("ipu iar thread already run!!\n");
@@ -2170,10 +2172,12 @@ int32_t iar_start_after_set_clk(void)
 			dev_err(&g_iar_dev->pdev->dev, "iar thread create fail\n");
 			return -1;
 		}
-		ret = sched_setscheduler(g_iar_dev->iar_task, SCHED_FIFO, &param);
-		if (ret != 0) {
-			dev_err(&g_iar_dev->pdev->dev, "sched_setscheduler fail(%d)", ret);
-			return -1;
+		if (capable(CAP_SYS_NICE)) {
+			ret = sched_setscheduler(g_iar_dev->iar_task, SCHED_FIFO, &param);
+			if (ret != 0) {
+				dev_err(&g_iar_dev->pdev->dev, "sched_setscheduler fail(%d)", ret);
+				return -1;
+			}
 		}
 	} else {
 		pr_err("ipu iar thread already run!!\n");

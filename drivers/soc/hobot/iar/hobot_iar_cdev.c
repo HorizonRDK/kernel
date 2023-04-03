@@ -290,12 +290,14 @@ int32_t mipi_iar_ipi_start(void)
 			mutex_unlock(&g_iar_cdev->iar_mutex);
 			return -1;
 		}
-		ret = sched_setscheduler(g_iar_dev->iar_task, SCHED_FIFO, &param);
-		if (ret != 0) {
-			g_iar_dev->iar_task = NULL;
-			dev_err(&g_iar_dev->pdev->dev, "sched_setscheduler fail(%d)", ret);
-			mutex_unlock(&g_iar_cdev->iar_mutex);
-			return -1;
+		if (capable(CAP_SYS_NICE)) {
+			ret = sched_setscheduler(g_iar_dev->iar_task, SCHED_FIFO, &param);
+			if (ret != 0) {
+				g_iar_dev->iar_task = NULL;
+				dev_err(&g_iar_dev->pdev->dev, "sched_setscheduler fail(%d)", ret);
+				mutex_unlock(&g_iar_cdev->iar_mutex);
+				return -1;
+			}
 		}
 	} else {
 		pr_err("ipu iar thread already run!!\n");
