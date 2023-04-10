@@ -269,8 +269,8 @@
 
 			uart3_func: uart3_func {
 				pinctrl-single,pins = <
-					0x1bc	(MUX_F1 | DRIVE1_06MA | SCHMITT2_DIS | PULL2_DOWN) /*Sensor2 MCLK - uart3 TXD*/
-					0x1c0	(MUX_F1 | DRIVE1_06MA | SCHMITT2_DIS | PULL2_DOWN) /*Sensor3 MCLK - uart3 RXD*/
+					0x1bc	(MUX_F1 | DRIVE1_06MA | SCHMITT2_DIS | PULL2_UP) /*Sensor2 MCLK - uart3 TXD*/
+					0x1c0	(MUX_F1 | DRIVE1_06MA | SCHMITT2_DIS | PULL2_UP) /*Sensor3 MCLK - uart3 RXD*/
 				>;
 			};
 
