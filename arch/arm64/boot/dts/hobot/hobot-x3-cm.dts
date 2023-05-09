@@ -333,10 +333,18 @@
 };
 
 &i2c1 {
+	//LCD backlight and touch MCU can only work at 100khz clock
+	bus-speed = <100000>;
 	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
 	ft5406: ft5406@38 {
 		compatible = "ft5406";
 		reg = <0x38>;
+	};
+	hbx3_bl: hbx3_bl@0x45 {
+		compatible = "hobot_bl_controller";
+		reg = <0x45>;
 	};
 };
 
@@ -630,6 +638,7 @@
 	pinctrl-3 = <&bt1120_3_3v_func>;
 	timing_1920x1080 = <148500000 160 120 24 48 4 5>;
 	timing_720x1280_touch = <64000000 40 40 10 11 16 3>;
+	timing_800x480_cm_touch = <29000000 61 89 2 23 7 2>;
 	startup-img = <1>;
 	pwm = <1 1000 200>;
 	default-display-type = <1>;//hdmi

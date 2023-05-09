@@ -1224,7 +1224,7 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 			goto err;
 		}
 		mipi_timing.vid_vsa = tmp_value;
-                mipi_timing.vid_vactive_line = mipi_timing.vid_pkt_size +
+                 mipi_timing.vid_vactive_line = mipi_timing.vid_pkt_size +
 			mipi_timing.vid_vsa + mipi_timing.vid_vbp + mipi_timing.vid_vfp;
 		pr_info("mipi: vid_hsa=%d, vid_hbp=%d, vid_hline_time=%d, vid_vsa=%d, vid_vbp=%d, vid_vfp=%d\n",
 			mipi_timing.vid_hsa,
@@ -1244,7 +1244,7 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 		}
 		mipi_timing.vid_vbp = tmp_value;
 		mipi_timing.vid_vactive_line = mipi_timing.vid_pkt_size +
-			mipi_timing.vid_vsa + mipi_timing.vid_vbp + mipi_timing.vid_vfp;
+		 	mipi_timing.vid_vsa + mipi_timing.vid_vbp + mipi_timing.vid_vfp;
 		pr_info("mipi: vid_hsa=%d, vid_hbp=%d, vid_hline_time=%d, vid_vsa=%d, vid_vbp=%d, vid_vfp=%d\n",
 			mipi_timing.vid_hsa,
 			mipi_timing.vid_hbp,
@@ -1262,8 +1262,8 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 			goto err;
 		}
 		mipi_timing.vid_vfp = tmp_value;
-		mipi_timing.vid_vactive_line = mipi_timing.vid_pkt_size +
-			mipi_timing.vid_vsa + mipi_timing.vid_vbp + mipi_timing.vid_vfp;
+		 mipi_timing.vid_vactive_line = mipi_timing.vid_pkt_size +
+		 	mipi_timing.vid_vsa + mipi_timing.vid_vbp + mipi_timing.vid_vfp;
 		pr_info("mipi: vid_hsa=%d, vid_hbp=%d, vid_hline_time=%d, vid_vsa=%d, vid_vbp=%d, vid_vfp=%d\n",
 			mipi_timing.vid_hsa,
 			mipi_timing.vid_hbp,
@@ -1357,6 +1357,14 @@ static ssize_t hobot_iar_store(struct kobject *kobj, struct kobj_attribute *attr
 		iar_start(1);
 		user_config_display(display_type);
 		set_mipi_display(1);
+	} else if (strncmp(tmp, "cm480p", 6) == 0) {
+		pr_info("iar output lcd mipi 480p touch panel config(CM)......\n");
+		display_type = MIPI_480P;
+		// if (board_id == 0x1)
+		// 	screen_backlight_init();
+		// iar_start(1);
+		// user_config_display(display_type);
+		set_mipi_display(4);
 	} else if (strncmp(tmp, "dsi720x1280", 11) == 0) {
 		pr_info("iar output lcd mipi 720p sdb touch panel config......\n");
 		display_type = MIPI_720P_TOUCH;

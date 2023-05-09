@@ -274,6 +274,12 @@ const unsigned int g_mipi_dsi_reg_cfg_table[][3] = {
 	VALUE_GET(g_mipi_dsi_reg_cfg_table[key][TABLE_MASK], \
 		g_mipi_dsi_reg_cfg_table[key][TABLE_OFFSET], regvalue)
 
+void mipi_config_update(void)
+{
+	writel(0x101, g_iar_dev->mipi_dsi_regaddr + VID_SHADOW_CTRL);
+}
+EXPORT_SYMBOL_GPL(mipi_config_update);
+
 static void mipi_dphy_write(uint16_t addr, uint8_t data)
 {
 	uint32_t regv = 0;
@@ -346,6 +352,21 @@ static void mipi_dphy_config(uint8_t panel_no)
 	} else if (panel_no == 1 || panel_no == 2) {
 		mipi_dphy_write(0x1d, 0x4);
 		mipi_dphy_write(0x1c, 0xaa);
+	} else if (panel_no == 4 ) {
+		mipi_dphy_write(0x1d, 0x4);
+		mipi_dphy_write(0x1c, 0xaa);
+#if 0
+		mipi_dphy_write(0x17, 0x0B); //n = 11 +1 =12
+		mipi_dphy_write(0x19, 0x01); //override n
+		mipi_dphy_write(0x19, 0x20); //override m
+		mipi_dphy_write(0x18, 0x0c); //m =172 +2 = 174 fvco =24*(174/12) =348MHz fout = fvco= 348MHz
+		mipi_dphy_write(0x18, 0x85); //m =172 +2 = 174 fvco =24*(174/12) =348MHz fout = fvco= 348MHz
+		mipi_dphy_write(0x12, 0x4F); //vco_cntrl b[5:0] 0xf 320~440MHz 0x1f 160~320 , b[6] override enable
+		mipi_dphy_write(0x1C, 0x10); //pll_cpbias_cntrl
+		mipi_dphy_write(0x13, 0x10); //pll_gmp_cntrl
+		mipi_dphy_write(0x0E, 0x0B); //pll_prop_cntrl
+		mipi_dphy_write(0x0F, 0x00); //pll_int_cntrl
+#endif
 	}
 }
 
@@ -375,6 +396,12 @@ static int mipi_dsi_core_pre_init(uint8_t panel_no)
 		mipi_dphy_set_freqrange(MIPI_DPHY_TYPE_DSI, 0, MIPI_HSFREQRANGE, 0x23);
 	else if (panel_no == 1 || panel_no == 2)
 		mipi_dphy_set_freqrange(MIPI_DPHY_TYPE_DSI, 0, MIPI_HSFREQRANGE, 0x16);
+	//add by jiale01.luo
+	else if (panel_no == 4) {
+		//mipi_dphy_set_freqrange(MIPI_DPHY_TYPE_DSI, 0, MIPI_HSFREQRANGE, 0x35);
+		mipi_dphy_set_freqrange(MIPI_DPHY_TYPE_DSI, 0, MIPI_HSFREQRANGE, 0x28);
+
+	}
 
 	writel(0x0, g_iar_dev->mipi_dsi_regaddr + PHY_RSTZ);//0xa0
 	mipi_dsi_core_reset();
@@ -382,18 +409,73 @@ static int mipi_dsi_core_pre_init(uint8_t panel_no)
 	writel(0x1, g_iar_dev->mipi_dsi_regaddr + PHY_TST_CTRL0);//0xb4
         usleep_range(900, 1000);
 	writel(0x0, g_iar_dev->mipi_dsi_regaddr + PHY_TST_CTRL0);//0xb4
-	writel(0x3203, g_iar_dev->mipi_dsi_regaddr + PHY_IF_CFG);//0XA4
+	//add by jiale01.luo
+	if(panel_no == 4){
+		pr_debug("%s:Using one lane...\n",__func__);
+		writel(0x3200, g_iar_dev->mipi_dsi_regaddr + PHY_IF_CFG);//0XA4
+	}else{
+		writel(0x3203, g_iar_dev->mipi_dsi_regaddr + PHY_IF_CFG);//0XA4
+	}
 	writel(0x2, g_iar_dev->mipi_dsi_regaddr + CLKMGR_CFG);//0X8
-	writel(0x3, g_iar_dev->mipi_dsi_regaddr + LPCLK_CTRL);//0X94
+	if(panel_no == 4){
+		//add by jiale01.luo
+		//If you are using ICN6211 DSI to RGB bridge,clocks often require continuous.
+		//otherwise this bridge maybe not working.
+		pr_debug("mipi_dsi_clock_continuous mode...\n");
+		writel(0x1, g_iar_dev->mipi_dsi_regaddr + LPCLK_CTRL);//0X94
+	}else{
+		pr_debug("mipi_dsi_clock_non_continuous mode...\n");
+		writel(0x3, g_iar_dev->mipi_dsi_regaddr + LPCLK_CTRL);//0X94
+	}
 	usleep_range(900, 1000);
 	writel(0x0, g_iar_dev->mipi_dsi_regaddr + PHY_TST_CTRL0);//0XB4
 	mipi_dphy_config(panel_no);
 
+//	mipi_dev_dphy_initialize((void *)((char *)g_iar_dev->mipi_dsi_regaddr - 0x60), 698, 1, 1);
 	writel(0x7, g_iar_dev->mipi_dsi_regaddr + PHY_RSTZ);//0XA0
 	mipi_dsi_core_start();
 
 	return 0;
 }
+
+// static int mipi_dsi_core_pre_init_test(uint8_t panel_no,int val)
+// {
+// 	mipi_dphy_set_lanemode(MIPI_DPHY_TYPE_DSI, 0, 1);
+// 	mipi_dphy_set_freqrange(MIPI_DPHY_TYPE_DSI, 0, MIPI_CFGCLKFREQRANGE, 0x1c);
+// 	if (panel_no == 0)
+// 		mipi_dphy_set_freqrange(MIPI_DPHY_TYPE_DSI, 0, MIPI_HSFREQRANGE, 0x23);
+// 	else if (panel_no == 1 || panel_no == 2)
+// 		mipi_dphy_set_freqrange(MIPI_DPHY_TYPE_DSI, 0, MIPI_HSFREQRANGE, 0x16);
+// 	//add by jiale01.luo
+// 	else if (panel_no == 4)
+// 		mipi_dphy_set_freqrange(MIPI_DPHY_TYPE_DSI, 0, MIPI_HSFREQRANGE, val);
+
+// 	// writel(0x0, g_iar_dev->mipi_dsi_regaddr + PHY_RSTZ);//0xa0
+// 	// mipi_dsi_core_reset();
+// 	// writel(0x0, g_iar_dev->mipi_dsi_regaddr + MODE_CFG);//0X34
+// 	// writel(0x1, g_iar_dev->mipi_dsi_regaddr + PHY_TST_CTRL0);//0xb4
+//     //     usleep_range(900, 1000);
+// 	// writel(0x0, g_iar_dev->mipi_dsi_regaddr + PHY_TST_CTRL0);//0xb4
+// 	// //add by jiale01.luo
+// 	// if(panel_no == 4){
+// 	// 	pr_err("1 LANE init...\n");
+// 	// 	writel(0x3200, g_iar_dev->mipi_dsi_regaddr + PHY_IF_CFG);//0XA4
+// 	// }else{
+// 	// 	writel(0x3203, g_iar_dev->mipi_dsi_regaddr + PHY_IF_CFG);//0XA4
+// 	// }
+// 	// writel(0x2, g_iar_dev->mipi_dsi_regaddr + CLKMGR_CFG);//0X8
+// 	// pr_err("ct time...\n");
+// 	// writel(0x1, g_iar_dev->mipi_dsi_regaddr + LPCLK_CTRL);//0X94
+// 	// usleep_range(900, 1000);
+// 	// writel(0x0, g_iar_dev->mipi_dsi_regaddr + PHY_TST_CTRL0);//0XB4
+// 	// mipi_dphy_config(panel_no);
+
+// 	// writel(0x7, g_iar_dev->mipi_dsi_regaddr + PHY_RSTZ);//0XA0
+// 	// mipi_dsi_core_start();
+
+// 	return 0;
+// }
+// EXPORT_SYMBOL(mipi_dsi_core_pre_init_test);
 
 static int mipi_dsi_dpi_config(uint8_t panel_no)
 {
@@ -435,7 +517,7 @@ static int mipi_dsi_vid_mode_cfg(uint8_t mode)
 
 	value = MIPI_DSI_REG_SET_FILED(VPG_EN_FILED, mode, value);
 	//0:normal 1:pattern
-
+	
 	writel(value, g_iar_dev->mipi_dsi_regaddr + VID_MODE_CFG);//38
 	return 0;
 }
@@ -456,6 +538,10 @@ struct video_timing video_720_1280_sdb = {
 
 struct video_timing video_1280_720 = {
 	1280, 0, 0, 10, 40, 1370, 3, 11, 16, 750,
+};
+
+struct video_timing video_800_480_cm = {
+	800, 0, 0, 10, 177, 2850, 2, 21, 7, 480,
 };
 
 #define MIPI_SNP        0x05
@@ -525,10 +611,46 @@ static struct mipi_init_para init_para_720x1280_sdb[] = {
 	{MIPI_OFF, 0x00, {0x00}},
 };
 
+static struct mipi_init_para init_para_800x480_cm[] = {
+	{MIPI_LCP, 0x06, {0x10, 0x02, 0x03, 0x00, 0x00, 0x00}},
+	{MIPI_LCP, 0x06, {0x64, 0x01, 0x0c, 0x00, 0x00, 0x00}},
+	{MIPI_LCP, 0x06, {0x68, 0x01, 0x0c, 0x00, 0x00, 0x00}},
+	{MIPI_LCP, 0x06, {0x44, 0x01, 0x00, 0x00, 0x00, 0x00}},
+	{MIPI_LCP, 0x06, {0x48, 0x01, 0x00, 0x00, 0x00, 0x00}},
+	{MIPI_LCP, 0x06, {0x14, 0x01, 0x15, 0x00, 0x00, 0x00}},
+	{MIPI_LCP, 0x06, {0x50, 0x04, 0x60, 0x00, 0x00, 0x00}},
+	{MIPI_LCP, 0x06, {0x20, 0x04, 0x52, 0x01, 0x10, 0x00}},
+
+	{MIPI_LCP, 0x06, {0x24,0x04,0x14,0x00,0x1A,0x00}},
+	{MIPI_LCP, 0x06, {0x28,0x04,0x20,0x03,0x69,0x00}},
+	{MIPI_LCP, 0x06, {0x2C,0x04,0x02,0x00,0x15,0x00}},
+	{MIPI_LCP, 0x06, {0x30,0x04,0xE0,0x01,0x07,0x00}},
+	{MIPI_LCP, 0x06, {0x34,0x04,0x01,0x00,0x00,0x00}},
+
+
+	{MIPI_LCP, 0x06, {0x64, 0x04, 0x0f, 0x04, 0x00, 0x00}},
+	{MIPI_LCP, 0x06, {0x04, 0x01, 0x01, 0x00, 0x00, 0x00}},
+	{MIPI_LCP, 0x06, {0x04, 0x02, 0x01, 0x00, 0x00, 0x00}},
+	{MIPI_SLP, 50, {0x00}},
+	{MIPI_OFF, 0x00, {0x00}},
+
+};
+
 int mipi_dsi_video_config(struct video_timing *video_timing_config)
 {
 	uint32_t value;
 
+	pr_debug("++++++ set timing is %d, %d, %d, %d, %d, %d, %d, %d, %d, %d\n",
+                                video_timing_config->vid_pkt_size,
+                                video_timing_config->vid_num_chunks,
+                                video_timing_config->vid_null_size,
+                                video_timing_config->vid_hsa,
+                                video_timing_config->vid_hbp,
+                                video_timing_config->vid_hline_time,
+                                video_timing_config->vid_vsa,
+                                video_timing_config->vid_vbp,
+                                video_timing_config->vid_vfp,
+                                video_timing_config->vid_vactive_line);
 	value = readl(g_iar_dev->mipi_dsi_regaddr + VID_PKT_SIZE);
 	value = MIPI_DSI_REG_SET_FILED(VID_PKT_SIZE_FILED,
 			video_timing_config->vid_pkt_size, value);//1080
@@ -579,8 +701,10 @@ int mipi_dsi_video_config(struct video_timing *video_timing_config)
 			video_timing_config->vid_vactive_line, value);//1920
 	writel(value, g_iar_dev->mipi_dsi_regaddr + VID_VACTIVE_LINES);//0x60
 
+	mipi_config_update();
 	mipi_dsi_set_mode(0);//video mode
 	mipi_dsi_vid_mode_cfg(0);//normal mode
+	mipi_config_update();
 	return 0;
 }
 EXPORT_SYMBOL(mipi_dsi_video_config);
@@ -1546,7 +1670,33 @@ int mipi_dsi_panel_init(uint8_t panel_no)
 		mipi_dsi_set_mode(0);//video mode
 		pr_info("mipi dsi panel config end!\n");
 		return 0;
-        } else {
+        } 
+		//add by jiale01.luo
+		else if(panel_no == 4){
+			pr_debug("Nothing to do on panel_no:%d\n",panel_no);
+		// 	pr_err("START INIT DSI CMD...\n");
+		// 	pr_err("****************************************\n");
+		// 	int i = 0;
+		// 	while (init_para_800x480_cm[i].cmd_type != MIPI_OFF) {
+		// 	if (init_para_800x480_cm[i].cmd_type == MIPI_LCP) {
+		// 		dsi_panel_write_long_cmd(init_para_800x480_cm[i].cmd_len,
+		// 				init_para_800x480_cm[i].cmd);
+		// 	} else if (init_para_800x480_cm[i].cmd_type == MIPI_S1P) {
+		// 		dsi_panel_write_cmd_poll(init_para_800x480_cm[i].cmd[0],
+		// 				init_para_800x480_cm[i].cmd[1], 0x15);
+		// 	} else if (init_para_800x480_cm[i].cmd_type == MIPI_SNP) {
+		// 		dsi_panel_write_cmd_poll(init_para_800x480_cm[i].cmd[0],
+		// 				0x00, 0x05);
+		// 	} else if (init_para_800x480_cm[i].cmd_type == MIPI_SLP) {
+		// 		msleep(init_para_800x480_cm[i].cmd_len);
+		// 	}
+		// 	i++;
+		// }		
+		// 	mipi_dsi_set_mode(0);//video mode
+		// 	pr_err("mipi dsi panel config end!\n");
+		// 	return 0;
+		}
+		else {
 		pr_err("%s: not support panel type,", __func__);
 		pr_err("please add panel init code!!\n");
 	}
@@ -1570,14 +1720,31 @@ int set_mipi_display(uint8_t panel_no)
 	} else if (panel_no == 3) {
 		mipi_dsi_video_config(&video_1280_720);
 		memcpy(&mipi_timing, &video_1280_720, sizeof(struct video_timing));
+	//add by jiale01.luo
+	} else if (panel_no == 4) {
+		mipi_dsi_video_config(&video_800_480_cm);
+		memcpy(&mipi_timing, &video_800_480_cm, sizeof(struct video_timing));
+		pr_debug("*****dsi timing is %d, %d, %d, %d, %d, %d, %d, %d, %d, %d\n",
+				video_800_480_cm.vid_pkt_size,
+				video_800_480_cm.vid_num_chunks,
+				video_800_480_cm.vid_null_size,
+				video_800_480_cm.vid_hsa,
+				video_800_480_cm.vid_hbp,
+				video_800_480_cm.vid_hline_time,
+				video_800_480_cm.vid_vsa,
+				video_800_480_cm.vid_vbp,
+				video_800_480_cm.vid_vfp,
+				video_800_480_cm.vid_vactive_line);
 	}
 
 	msleep(100);
-	//mipi_dsi_set_mode(0);//video mode
-	//mipi_dsi_vid_mode_cfg(0);//normal mode
-	mipi_dsi_panel_init(panel_no);//0:1080*1920
-	//mipi_dsi_set_mode(0);//video mode
-	//mipi_dsi_vid_mode_cfg(1);//pattern mode
+	if(panel_no != 4){
+		//TODO: Find out why waveshare lcd can't enter CMD mode
+		mipi_dsi_panel_init(panel_no);
+	}
+	mipi_dsi_set_mode(0);//video mode
+	mipi_dsi_vid_mode_cfg(0);//normal mode
+	mipi_config_update();
 	pr_info("mipi: set mipi display end!\n");
 	return 0;
 }

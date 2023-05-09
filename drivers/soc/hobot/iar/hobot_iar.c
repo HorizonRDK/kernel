@@ -181,6 +181,23 @@ struct disp_timing video_1080x1920 = {
 struct disp_timing video_720x1280_touch = {
 	100, 100, 10, 20, 10, 10, 10
 };
+//add by jiale01.luo
+struct disp_timing video_800x480_cm_touch = {
+	//hbp:
+	61, 
+	//hfp:
+	89, 
+	//hs
+	2, 
+	//vbp:
+	23, 
+	//vfp:
+	7, 
+	//vs:
+	2, 
+	//vfp_cnt:
+	10
+};
 struct disp_timing video_704x576 = {
 	288, 0, 0, 22, 2, 0, 0
 };
@@ -205,6 +222,8 @@ uint32_t pixel_clk_video_720x1280_touch = 54400000;
 uint32_t pixel_clk_video_704x576 = 27000000;
 uint32_t pixel_clk_video_720x480 = 27000000;
 uint32_t pixel_clk_video_1024x600 = 49000000;
+uint32_t pixel_clk_video_800x480_cm = 29000000;
+
 EXPORT_SYMBOL(disp_user_config_done);
 EXPORT_SYMBOL(disp_copy_done);
 EXPORT_SYMBOL(video_1920x1080);
@@ -215,6 +234,7 @@ EXPORT_SYMBOL(video_1080x1920);
 EXPORT_SYMBOL(video_720x1280_touch);
 EXPORT_SYMBOL(video_704x576);
 EXPORT_SYMBOL(video_720x480);
+EXPORT_SYMBOL(video_800x480_cm_touch);
 
 uint32_t g_iar_regs[93];
 
@@ -1053,6 +1073,9 @@ int disp_clk_enable(void)
 		pixel_clock = 136000000;
 	else if (display_type == BT656_TYPE)
 		pixel_clock = pixel_clk_video_704x576;
+	//add by jiale01.luo
+	else if (display_type == MIPI_480P)
+		pixel_clock = pixel_clk_video_800x480_cm;
 	else
 		pixel_clock = 163000000;
 	if (display_type != HDMI_TYPE) {
@@ -1446,7 +1469,7 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 	} else if (cfg->out_sel == OUTPUT_MIPI_DSI) {
 #ifdef CONFIG_HOBOT_XJ3
 		//output config
-		disp_set_panel_timing(&video_720x1280_touch);
+		disp_set_panel_timing(&video_800x480_cm_touch);
 		if (bt656_output_pin_group == 0)
 			writel(0x8, g_iar_dev->regaddr + REG_IAR_DE_OUTPUT_SEL);//0x340
 		else
@@ -1454,7 +1477,7 @@ int32_t iar_output_cfg(output_cfg_t *cfg)
 		writel(0x13, g_iar_dev->regaddr + REG_DISP_LCDIF_CFG);//0x800
 		writel(0x3, g_iar_dev->regaddr + REG_DISP_LCDIF_PADC_RESET_N);//0x804
 		writel(0x0, g_iar_dev->regaddr + REG_IAR_REFRESH_CFG);//0x204
-		display_type = MIPI_720P_TOUCH;
+		display_type = MIPI_480P;
 #else
 		pr_err("%s: error output mode!!!\n", __func__);
 #endif
@@ -3941,6 +3964,52 @@ int user_config_display(enum DISPLAY_TYPE d_type)
 			iar_set_bufaddr(IAR_CHANNEL_3, &graphic_display_paddr);
 			iar_update();
 			break;
+		case MIPI_480P:
+			pr_debug("MIPI 480P INIT\n");
+			disp_set_panel_timing(&video_800x480_cm_touch);
+			channel_base_cfg[0].enable = 1;
+			channel_base_cfg[1].enable = 1;
+			channel_base_cfg[0].channel = IAR_CHANNEL_1;
+			channel_base_cfg[0].pri = 2;
+			channel_base_cfg[0].width = 800;
+			channel_base_cfg[0].height = 480;
+			channel_base_cfg[0].buf_width = 800;
+			channel_base_cfg[0].buf_height = 480;
+			channel_base_cfg[0].format = FORMAT_YUV420SP_UV;
+			channel_base_cfg[0].alpha_sel = 0;
+			channel_base_cfg[0].ov_mode = 0;
+			channel_base_cfg[0].alpha_en = 1;
+			channel_base_cfg[0].alpha = 255;
+			channel_base_cfg[0].crop_width = 800;
+			channel_base_cfg[0].crop_height = 480;
+			channel_base_cfg[1].channel = IAR_CHANNEL_3;
+			channel_base_cfg[1].pri = 0;
+			channel_base_cfg[1].width = 800;
+			channel_base_cfg[1].height = 480;
+			channel_base_cfg[1].buf_width = 800;
+			channel_base_cfg[1].buf_height = 480;
+			channel_base_cfg[1].format = DEFAULT_CHAN_FORMAT;
+			channel_base_cfg[1].alpha_sel = 0;
+			channel_base_cfg[1].ov_mode = 0;
+			channel_base_cfg[1].alpha_en = 1;
+			channel_base_cfg[1].alpha = 128;
+			channel_base_cfg[1].crop_width = 800;
+			channel_base_cfg[1].crop_height = 480;
+			output_cfg.out_sel = 0;
+			output_cfg.width = 800;
+			output_cfg.height = 480;
+			output_cfg.bgcolor = 16744328;//white.
+
+			iar_channel_base_cfg(&channel_base_cfg[0]);
+			iar_channel_base_cfg(&channel_base_cfg[1]);
+			iar_output_cfg(&output_cfg);
+
+			writel(0x0572300f, g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
+			writel(0x406, g_iar_dev->regaddr + REG_IAR_FORMAT_ORGANIZATION);
+			iar_switch_buf(0);
+			iar_set_bufaddr(IAR_CHANNEL_3, &graphic_display_paddr);
+			iar_update();
+			break;
 		case MIPI_720P_H:
 			disp_set_panel_timing(&video_1280x720);
 			channel_base_cfg[0].enable = 1;
@@ -4635,6 +4704,21 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		pixel_clk_video_720x1280_touch = 54000000;
 		pr_err("can't find timing for 720*1280 touch, use default!!\n");
 	}
+	//add by jiale01.luo
+	ret = of_property_read_u32_array(pdev->dev.of_node,
+			"timing_800x480_cm_touch", timing, 7);
+	if (ret == 0) {
+		pixel_clk_video_800x480_cm = timing[0];
+		video_800x480_cm_touch.hbp = timing[1];
+		video_800x480_cm_touch.hfp = timing[2];
+		video_800x480_cm_touch.hs = timing[3];
+		video_800x480_cm_touch.vbp = timing[4];
+		video_800x480_cm_touch.vfp = timing[5];
+		video_800x480_cm_touch.vs = timing[6];
+	} else {
+		pixel_clk_video_800x480_cm = 29000000;
+		pr_err("can't find timing for 800*480 CM touch, use default!!\n");
+	}
 
 	ret = of_property_read_u32_array(pdev->dev.of_node,
 			"timing_704x576", timing, 7);
@@ -4709,7 +4793,11 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		} else if (strstr(type, "bt656") != NULL) {
 			pr_info("%s: panel type is BT656\n", __func__);
 			display_type = BT656_TYPE;
+		} else if (strstr(type, "cm480p") != NULL) {
+			pr_info("%s: panel type is cm480p\n", __func__);
+			display_type = MIPI_480P;
 		}
+		
 #else
 		if (display_type == LCD_7_TYPE) {
 			if (strncmp(type, "mipi", 4) == 0)
@@ -4835,7 +4923,7 @@ static int hobot_iar_probe(struct platform_device *pdev)
 #else
 	hobot_xj2_iar_memory_alloc(logo_paddr, logo_vaddr, mem_paddr, vaddr);
 #endif
-
+	pr_debug("%s: display_type:%d\n",__func__,display_type);
 	if (display_type == LCD_7_TYPE) {
 		iar_display_cam_no = PIPELINE0;
 		iar_display_addr_type = DISPLAY_CHANNEL1;
@@ -4878,6 +4966,25 @@ static int hobot_iar_probe(struct platform_device *pdev)
 			display_color_bar(1280, 720, g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
 		}
 		pr_debug("set mipi 1280x720 display done!\n");
+	} else if (display_type == MIPI_480P) { //add by jiale01.luo
+		pr_info("%s: display_type is MIPI_480P panel!\n", __func__);
+		ret = disp_set_pixel_clk(pixel_clk_video_800x480_cm);
+		if (ret)
+			return ret;
+		iar_display_cam_no = PIPELINE0;
+                iar_display_addr_type = DISPLAY_CHANNEL1;
+		if (need_startup_img) {
+#ifdef CONFIG_HOBOT_X3_UBUNTU
+			stride_copy_bmp(0, 0, embedded_image_0_data, 0, 0, 0, 0,
+				g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr, 24, 24, 800, 4);
+#else
+			stride_copy_bmp(0, 0, embedded_image_0_data, 0, 0, 0, 0,
+				g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr, 24, 24, 800, 4);
+#endif
+		} else {
+			display_color_bar(800, 480, g_iar_dev->frambuf[IAR_CHANNEL_3].vaddr);
+		}
+		pr_debug("set mipi MIPI_480P display done!\n");
 	} else if (display_type == BT656_TYPE) {
 		pr_info("%s: display_type is BT656 panel!\n", __func__);
 		ret = disp_set_pixel_clk(pixel_clk_video_704x576);
