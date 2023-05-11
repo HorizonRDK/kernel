@@ -2326,7 +2326,7 @@ static int hbfb_probe(struct platform_device *pdev)
 	}
 	// Because the global variables outmode and lcd_type are fixed,
 	// it is better to add new screens with if statements
-	if (display_type = MIPI_480P){
+	if (display_type == MIPI_480P){
 		hobot_fbi->fb.fix = fb_800_480_fix_lcd;
 		hobot_fbi->fb.var = fb_800_480_var_lcd;
 	}
