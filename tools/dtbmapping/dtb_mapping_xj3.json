@@ -55,7 +55,7 @@
         "dtb_name"  :   "hobot-x3-pi.dtb",
         "gpio_id"   :   "0"
     },
-    "604": {
+    "804": {
         "Describe" :    "baseboard for X3 PI V2.1",
         "dtb_name"  :   "hobot-x3-pi_v2_1.dtb",
         "gpio_id"   :   "0"
