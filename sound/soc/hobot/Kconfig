@@ -42,3 +42,7 @@ config HOBOT_AUDIO_ES7210
 	tristate "hobot audio es7210 sound card"
 	depends on ARCH_HOBOT
 	default n
+config HOBOT_AUDIO_WM8960
+	tristate "hobot audio WM8960 sound card"
+	depends on ARCH_HOBOT
+	default n
