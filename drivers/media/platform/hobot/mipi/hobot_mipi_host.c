@@ -899,8 +899,9 @@ static int32_t mipi_host_configure_lanemode(mipi_hdev_t *hdev, int lane)
 		mipierr("port%d not support %dlane",
 				hdev->port, lane);
 		return -1;
+	} else if ((target_mode == hdev->lane_mode) && (target_mode == 0)) {
+        goto match_ex_hdev;
 	}
-
 	mipiinfo("change group%d lane_mode to %d for %dlane",
 			group, target_mode, lane);
 	if (host->state != MIPI_STATE_DEFAULT) {
@@ -923,6 +924,7 @@ static int32_t mipi_host_configure_lanemode(mipi_hdev_t *hdev, int lane)
 	if (poth < MIPI_HOST_MAX_NUM && g_hdev[poth])
 		g_hdev[poth]->lane_mode = target_mode;
 
+match_ex_hdev:
 	if (target_mode) {
 		if (poth < MIPI_HOST_MAX_NUM && g_hdev[poth] &&
 			g_hdev[poth]->host.state == MIPI_STATE_DEFAULT) {
