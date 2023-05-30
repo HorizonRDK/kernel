@@ -69,7 +69,7 @@ static int send_cmds(struct i2c_client *client, const char *buf) {
   while (retry-- > 0) {
     ret = i2c_master_send(client, byte_cmd, size / 2);
     if (ret <= 0) {
-      LOG_ERR("send command: data[0]:0x%2x,data[1]:0x%2x failed, ret = %d, retry again!\n",byte_cmd[0],byte_cmd[1],ret);
+      LOG_INFO("send command: data[0]:0x%2x,data[1]:0x%2x failed, ret = %d, retry again!\n",byte_cmd[0],byte_cmd[1],ret);
     } else
       break;
   }
@@ -153,7 +153,7 @@ int controller_set_bright(int bright) {
 
   ret = i2c_master_send(controller->client, cmd, 2);
   if (ret <= 0) {
-    LOG_ERR("send command failed, ret = %d\n", ret);
+    LOG_INFO("send command failed, ret = %d\n", ret);
     return ret != 0 ? ret : -ECOMM;
   }
 
@@ -282,7 +282,8 @@ static int hobot_bl_probe(struct i2c_client *client,
   return 0;
 
 error:
-  kfree(controller_data);
+  dev_err(&client->dev,"Failed to load backlight driver!");
+  // kfree(controller_data);
   return ret;
 }
 
