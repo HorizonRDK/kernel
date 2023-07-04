@@ -297,6 +297,7 @@
 				/* snps,dis-u2-entry-quirk; */    /* disable u2 entry */
 				snps,dis_u2_susphy_quirk;
 				/* snps,dis_u3_susphy_quirk; */
+				snps,parkmode-disable-ss-quirk;
 				extcon = <&usb_id>;
 				status = "disabled";
 			};
