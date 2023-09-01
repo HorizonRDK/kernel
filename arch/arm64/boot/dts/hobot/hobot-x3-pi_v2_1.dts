@@ -18,7 +18,7 @@
 #include <dt-bindings/phy/phy.h>
 
 / {
-	model = "Hobot X3 PI";
+	model = "Hobot X3 PI V2.1";
 
 	aliases {
 		serial0 = &uart0;
@@ -250,6 +250,17 @@
 			opp-microvolt = <990000>;
 			clock-latency-ns = <500000>;
 			turbo-mode;
+		};
+	};
+
+	leds {
+		status = "okay";
+		compatible = "gpio-leds";
+
+		led1 {
+			label = "led1";
+			gpios = <&gpios 26 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "heartbeat";
 		};
 	};
 };
