@@ -642,7 +642,7 @@
 	status = "okay";
 	pinctrl-names = "bt_func", "rgb_func", "rgb_gpio_func", "bt1120_voltage_func";
 	pinctrl-3 = <&bt1120_3_3v_func>;
-	timing_1920x1080 = <74250000 160 120 24 48 4 5>;
+	timing_1920x1080 = <148500000 160 120 24 48 4 5>;
 	timing_720x1280_touch = <64000000 40 40 10 11 16 3>;
 	timing_800x480_cm_touch = <29000000 61 89 2 23 7 2>;
 	startup-img = <1>;
