@@ -318,6 +318,12 @@
 		reg = <0x08>;
 		#sound-dai-cells = <0>;
 	};
+		wm8960:wm8960@0x1a{
+		compatible = "wlf,wm8960";
+		reg = <0x1a>;
+		#sound-dai-cells = <0>;
+		//wlf,shared-lrclk;
+    };
 };
 
 &i2c1 {
@@ -836,38 +842,38 @@
 };
 
 &snd5 {
-	model = "hobotsnd5";
-	work_mode = <0>; /*0:simple mode; 1:duplex mode*/
-	dai-link@0 {
-		dai-format = "dsp_a";
-		bitclock-master;
-		frame-master;
-		frame-inversion;
-		link-name = "hobotdailink0";
-		cpu {
-			sound-dai = <&i2s0>;
-		};
-		codec {
-			sound-dai = <&es7210_0 0>;
-		};
-		platform {
-			sound-dai = <&i2sidma0>;
-		};
-	};
-	dai-link@1 {
-		dai-format = "i2s";
-		bitclock-master;
-		frame-master;
-		//frame-inversion;
-		link-name = "hobotdailink1";
-		cpu {
-			sound-dai = <&i2s1>;
-		};
-		codec {
-			sound-dai = <&es8156>;
-		};
-		platform {
-			sound-dai = <&i2sidma1>;
-		};
-	};
+    model = "hobotsnd5";
+    work_mode = <0>; /*0:simple mode; 1:duplex mode*/
+    dai-link@0 {
+        dai-format = "i2s";
+        bitclock-master;
+        frame-master;
+        //frame-inversion;
+        link-name = "hobotdailink0";
+        cpu {
+            sound-dai = <&i2s0>;
+        };
+        codec {
+            sound-dai = <&wm8960>;
+        };
+        platform {
+            sound-dai = <&i2sidma0>;
+        };
+    };
+    dai-link@1 {
+        dai-format = "i2s";
+        // bitclock-master;
+        // frame-master;
+        //frame-inversion;
+        link-name = "hobotdailink1";
+        cpu {
+            sound-dai = <&i2s1>;
+        };
+        codec {
+            sound-dai = <&wm8960>;
+        };
+        platform {
+            sound-dai = <&i2sidma1>;
+        };
+    };
 };
