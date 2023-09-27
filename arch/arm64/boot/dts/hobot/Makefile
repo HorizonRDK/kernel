@@ -30,6 +30,10 @@ ifeq ($(CONFIG_HOBOT_XJ3_CV_ADDITION),y)
 	dtb-$(CONFIG_HOBOT_XJ3)  += hobot-xj3-fpga-cv.dtb
 endif
 
+# Enable fixups to support overlays on RDK platforms
+ifeq ($(CONFIG_HOBOT_X3_UBUNTU),y)
+	DTC_FLAGS += -@
+endif
 
 always		:= $(dtb-y)
 subdir-y	:= $(dts-dirs)
