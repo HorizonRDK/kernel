@@ -65,6 +65,7 @@ struct cpu_pll_table pll_table[] = {
 	{1000000000, 1000000000},
 	{1200000000, 1200000000},
 	{1500000000, 1500000000},
+	{1800000000, 1800000000},
 };
 
 static int __set_armpll_clk(struct clk_hw *hw, unsigned long cpu_freq)
