@@ -805,6 +805,7 @@ enum PIXEL_CLK {
 };
 
 typedef struct hobot_hdmi_sync {
+	int auto_detect;
 	int hfp;
 	int hs;
 	int hbp;
@@ -815,6 +816,8 @@ typedef struct hobot_hdmi_sync {
 	int vbp;
 	int vact;
 	int vtotal;
+	int vic;
+	int pic_ratio;
 	int clk;
 } hobot_hdmi_sync_t;
 
@@ -933,6 +936,7 @@ int disable_iar_irq(void);
 int iar_rotate_video_buffer(phys_addr_t yaddr,
 		phys_addr_t uaddr, phys_addr_t vaddr);
 int8_t disp_set_pixel_clk(uint64_t pixel_clk);
+int64_t disp_get_pixel_clk(void);
 int disp_set_ppbuf_addr(uint8_t layer_no, void *yaddr, void *caddr);
 int disp_set_panel_timing(struct disp_timing *timing);
 int disp_pinmux_bt1120(void);
@@ -1024,5 +1028,10 @@ void MergeUVPlane(const uint8_t *src_u,
 		int dst_stride_uv,
 		int width,
 		int height);
+
+int iar_get_output_mode(void);
+void hdmi_set_resolution(hobot_hdmi_sync_t* user_timing);
+
+// int32_t iar_chnchannel_base_cfg_update(channel_base_cfg_t *cfg);
 
 #endif //__HOBOT_IAR_H__

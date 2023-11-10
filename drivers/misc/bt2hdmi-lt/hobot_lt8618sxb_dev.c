@@ -43,33 +43,55 @@ static void reset_hdmi_converter(void)
 }
 
 static int disp_config_hdmi(unsigned short vmode,
-			unsigned short VideoFormat, unsigned short Afs)
+							unsigned short VideoFormat, unsigned short Afs)
 {
 	return 0;
 }
 
 #endif
-#define LT8618_IO_MAGIC		'F'
+typedef struct hdmi_timing
+{
+	int auto_detect;
+	int hfp;
+	int hs;
+	int hbp;
+	int hact;
+	int htotal;
+	int vfp;
+	int vs;
+	int vbp;
+	int vact;
+	int vtotal;
+	int vic;
+	int pic_ratio;
+	int clk;
 
-#define LT8618_IOW(num, dtype)	_IOW(LT8618_IO_MAGIC, num, dtype)
-#define LT8618_IOR(num, dtype)	_IOR(LT8618_IO_MAGIC, num, dtype)
-#define LT8618_IOWR(num, dtype)	_IOWR(LT8618_IO_MAGIC, num, dtype)
-#define LT8618_IO(num)		    _IO(LT8618_IO_MAGIC, num)
+} hdmi_timing_t;
 
-#define LT8618_SET_RESOLUTION_RATIO		LT8618_IOW(101, unsigned int)
-#define LT8618_GET_EDID_RESOLUTION_RATIO		LT8618_IOR(100, hobot_lt8618_sync_t)
-//#define LT8618_SET_POLARITY	    LT8618_IOW(102, unsigned int)
-//#define LT8618_GET_POLARITY		LT8618_IOR(103, unsigned int)
-//#define LT8618_ENABLE	        LT8618_IO(104)
-//#define LT8618_DISABLE	        LT8618_IO(105)
 
+
+#define LT8618_IO_MAGIC 'F'
+
+#define LT8618_IOW(num, dtype) _IOW(LT8618_IO_MAGIC, num, dtype)
+#define LT8618_IOR(num, dtype) _IOR(LT8618_IO_MAGIC, num, dtype)
+#define LT8618_IOWR(num, dtype) _IOWR(LT8618_IO_MAGIC, num, dtype)
+#define LT8618_IO(num) _IO(LT8618_IO_MAGIC, num)
+
+#define LT8618_SET_RESOLUTION_RATIO LT8618_IOW(101, hobot_hdmi_sync_t)
+#define LT8618_GET_EDID_RESOLUTION_RATIO LT8618_IOR(100, hobot_hdmi_sync_t)
+#define LT8618_GET_EDID_RAW LT8618_IOR(103, edid_raw_t)
+#define LT8618_SET_EDID_TIMING LT8618_IOW(102, hdmi_timing_t)
+// #define LT8618_SET_POLARITY	    LT8618_IOW(102, unsigned int)
+// #define LT8618_GET_POLARITY		LT8618_IOR(103, unsigned int)
+// #define LT8618_ENABLE	        LT8618_IO(104)
+// #define LT8618_DISABLE	        LT8618_IO(105)
 
 static hobot_lt8618_ioctl_t lt8618_config = {0};
 #if 1
 static int hobot_lt8618_open(struct inode *inode, struct file *file)
 {
-    file->private_data = &lt8618_config;
-	
+	file->private_data = &lt8618_config;
+
 	return 0;
 }
 
@@ -80,34 +102,66 @@ static int hobot_lt8618_release(struct inode *inode, struct file *file)
 #endif
 
 static long lt8618_ioctl(struct file *file, unsigned int cmd,
-				unsigned long arg)
+						 unsigned long arg)
 {
 	hobot_lt8618_ioctl_t *lt8618_iot = file->private_data;
 	int r = 0;
+	hdmi_timing_t hdmi_timing;
+		int i = 0;
 
-	switch (cmd) {
+	switch (cmd)
+	{
 
-	case LT8618_GET_EDID_RESOLUTION_RATIO: {
-		hobot_lt8618_sync_t sync_t;
+	case LT8618_GET_EDID_RESOLUTION_RATIO:
+	{
+		hobot_hdmi_sync_t sync_t;
 		pr_debug("LT8618_GET_EDID_RESOLUTION_RATIO\n");
 		r = LT8618SXB_Read_EDID(&sync_t);
-		if(r!=0){
+		if (r != 0)
+		{
 			r = -EFAULT;
 		}
-		if (copy_to_user((void __user *)arg, &sync_t, sizeof(hobot_lt8618_sync_t)))
+		if (copy_to_user((void __user *)arg, &sync_t, sizeof(hobot_hdmi_sync_t)))
 			r = -EFAULT;
 		break;
 	}
-	case LT8618_SET_RESOLUTION_RATIO: {
-		if (copy_from_user(&lt8618_iot->ratio, (void __user *)arg, sizeof(int))) {
+	case LT8618_SET_EDID_TIMING:
+	{
+		if (copy_from_user(&hdmi_timing, (void __user *)arg, sizeof(hdmi_timing_t)))
+		{
 			r = -EFAULT;
-		    break;
+			break;
 		}
-		pr_debug("LT8618_SET_RESOLUTION_RATIO lt8618_iot->ratio = %d\n",lt8618_iot->ratio);
-		Resolution_change(lt8618_iot->ratio);
-        //r = pwm_config(fl_pwm->pwm, fl_pwm->config.duty_ns, fl_pwm->config.period_ns);
+// 		pr_err("hfp:%d,hs:%d,hbp:%d,hact:%d,htotal:%d,vfp:%d,vs:%d,vbp:%d,vact:%d,vtotal:%d,vic:%d",
+// hdmi_timing.hfp,
+// hdmi_timing.hs,
+// hdmi_timing.hbp,
+// hdmi_timing.hact,
+// hdmi_timing.htotal,
+// hdmi_timing.vfp,
+// hdmi_timing.vs,
+// hdmi_timing.vbp,
+// hdmi_timing.vact,
+// hdmi_timing.vtotal,
+// hdmi_timing.vic);
+		// pr_err("sizeof:%d\n", sizeof(hdmi_timing));
+		// pr_err("LT8618_SET_RESOLUTION_RATIO lt8618_iot->user_timing.auto_detect = %d\n", hdmi_timing.auto_detect);
+		Resolution_change((hobot_hdmi_sync_t*)&hdmi_timing);
+		// r = pwm_config(fl_pwm->pwm, fl_pwm->config.duty_ns, fl_pwm->config.period_ns);
 		break;
 	}
+	case LT8618_GET_EDID_RAW:
+	{
+	// 	pr_err("enter LT8618_GET_EDID_RAW\n");
+	// 	    for ( i = 0; i < 256; i++)
+    // {
+    //     pr_err("%x\n",edid_raw_data.edid_data[i]);
+    // }
+		if (copy_to_user((void __user *)arg, &edid_raw_data, sizeof(edid_raw_t)))
+			r = -EFAULT;
+		break;
+	}
+
 	default:
 		r = -ENOTTY;
 		break;
@@ -117,43 +171,42 @@ static long lt8618_ioctl(struct file *file, unsigned int cmd,
 }
 
 static const struct file_operations lt8618_ioctl_fops = {
-	.owner   = THIS_MODULE,
-	.open    = hobot_lt8618_open,
+	.owner = THIS_MODULE,
+	.open = hobot_lt8618_open,
 	.release = hobot_lt8618_release,
-    .unlocked_ioctl = lt8618_ioctl,
+	.unlocked_ioctl = lt8618_ioctl,
 };
 
 static struct miscdevice lt8618_ioctl_dev = {
-	.minor	= MISC_DYNAMIC_MINOR,
-	.name	= "lt8618_ioctl",
-	.fops	= &lt8618_ioctl_fops,
+	.minor = MISC_DYNAMIC_MINOR,
+	.name = "lt8618_ioctl",
+	.fops = &lt8618_ioctl_fops,
 };
 
-
-
 static int x2_lt8618sxb_probe(struct i2c_client *client,
-			const struct i2c_device_id *id)
+							  const struct i2c_device_id *id)
 {
 	struct i2c_adapter *adapter = client->adapter;
 	int ret = 0;
-	
+
 	pr_debug("x2 lt8618sxb probe start.\n");
 	misc_register(&lt8618_ioctl_dev);
-	
+
 	if (!i2c_check_functionality(adapter, I2C_FUNC_I2C))
 		return -ENODEV;
-	
+
 	g_x2_lt8618sxb =
-	    devm_kzalloc(&client->dev, sizeof(struct x2_lt8618sxb_s),
-			 GFP_KERNEL);
+		devm_kzalloc(&client->dev, sizeof(struct x2_lt8618sxb_s),
+					 GFP_KERNEL);
 	if (!g_x2_lt8618sxb)
 		return -ENOMEM;
 	g_x2_lt8618sxb->client = client;
-	
+
 	mutex_init(&g_x2_lt8618sxb->lt8618sxb_mutex);
 
 	lt8618sxb_reset_gpio = devm_gpiod_get_optional(&client->dev, "rst", GPIOD_OUT_LOW);
-	if (IS_ERR(lt8618sxb_reset_gpio)) {
+	if (IS_ERR(lt8618sxb_reset_gpio))
+	{
 		/* lt8618sxb_reset_gpio GPIO not available */
 		pr_info("optional-gpio not found\n");
 		goto err;
@@ -162,7 +215,8 @@ static int x2_lt8618sxb_probe(struct i2c_client *client,
 	LT8618SXB_Reset();
 
 	ret = LT8618SXB_Chip_ID();
-	if (ret != 0) {
+	if (ret != 0)
+	{
 		pr_err("not found lt8618sxb device, exit probe!!!\n");
 		goto err;
 	}
@@ -174,7 +228,7 @@ static int x2_lt8618sxb_probe(struct i2c_client *client,
 
 	client->flags = I2C_CLIENT_SCCB;
 	LT8618SXB_DEBUG("chip found @ 0x%02x (%s)\n",
-			client->addr << 1, client->adapter->name);
+					client->addr << 1, client->adapter->name);
 
 	LT8618SX_Initial();
 #ifndef CONFIG_HOBOT_X3_UBUNTU
@@ -185,7 +239,8 @@ static int x2_lt8618sxb_probe(struct i2c_client *client,
 	return 0;
 
 err:
-	if (g_x2_lt8618sxb) {
+	if (g_x2_lt8618sxb)
+	{
 		devm_kfree(&client->dev, g_x2_lt8618sxb);
 		g_x2_lt8618sxb = NULL;
 	}
@@ -202,17 +257,16 @@ static int x2_lt8618sxb_remove(struct i2c_client *client)
 }
 
 static const struct of_device_id x2_lt8618sxb_of_match[] = {
-	{ .compatible = "lt,lt8618sxb", .data = NULL },
-	{}
-};
+	{.compatible = "lt,lt8618sxb", .data = NULL},
+	{}};
 
 MODULE_DEVICE_TABLE(of, x2_lt8618sxb_of_match);
 
 static struct i2c_driver x2_lt8618sxb_driver = {
 	.driver = {
-		   .name = "x2_lt8618sxb",
-		   .of_match_table = x2_lt8618sxb_of_match,
-		   },
+		.name = "x2_lt8618sxb",
+		.of_match_table = x2_lt8618sxb_of_match,
+	},
 	.probe = x2_lt8618sxb_probe,
 	.remove = x2_lt8618sxb_remove,
 };

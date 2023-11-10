@@ -32,9 +32,11 @@
 #include <asm/cacheflush.h>
 #include <linux/linux_logo.h>
 //#include <soc/hobot/hobot_iar.h>
-
+#include "../../misc/bt2hdmi-lt/hobot_lt8618sxb_config.h"
 #include "hobot_fb.h"
 
+#define IAR_MAX_HEIGHT 1080
+#define IAR_MAX_WIDTH 1920
 #define DRIVER_NAME "hobot-fb"
 #define IAR_DMA_MODE
 //#define CONFIG_LOGO_FROM_KERNEL
@@ -43,7 +45,7 @@
 #define REFRESH_CFG_VAL 0x808
 
 #define HBFB_DEBUG_PRINT(format, args...)    \
-	pr_debug("IAR debug: " format, ## args)
+	pr_err("IAR debug: " format, ## args)
 
 static const u32 cfb_tab8_be[] = {
 	0x00000000, 0x000000ff, 0x0000ff00, 0x0000ffff,
@@ -146,7 +148,7 @@ static inline void hobot_fast_imageblit(const struct fb_image *image,
 		u32 bgcolor);
 
 static int flag;
-static int start_flag;
+static int start_flag = 0;
 //static uint32_t logo_addr;
 
 struct fb_var_screeninfo RGB500_var_default = {
@@ -948,13 +950,16 @@ struct fb_fix_screeninfo fb_1920_1080_fix_default = {
 };
 
 
-static u_long get_line_length(int xres_virtual, int bpp)
+static unsigned long get_line_length(int xres_virtual, int bpp)
 {
-	u_long length;
-
+	return (unsigned long)((((xres_virtual*bpp)+31)&~31) >> 3);
+	unsigned long length;
+	//pr_err("xres:%d,bpp:%d\n",xres_virtual,bpp);
 	length = xres_virtual * bpp;
 	length = (length + 31) & ~31;
 	length >>= 3;
+	length = ((length + 7) / 8) * 8;
+	//pr_err("length:%d\n",length);
 	return length;
 }
 
@@ -1064,7 +1069,7 @@ static int hbfb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 
 	pr_info("%s begin.\n", __func__);
 
-	return 0;//close check var function
+	return 0;
 
 	if (!var->xres)
 		var->xres = 1;
@@ -1290,7 +1295,7 @@ static int iar_get_framesize(void)
 				 hobot_fbi->channel_base_cfg[i].buf_width) * 2;
 				break;
 			case FORMAT_RGB888:
-				pr_debug("IAR channel 2 config format as RGB888!\n");
+				pr_err("IAR channel 2 config format as RGB888!\n");
 				hobot_fbi->update_cmd.frame_size[i] =
 				(hobot_fbi->channel_base_cfg[i].buf_height *
 				 hobot_fbi->channel_base_cfg[i].buf_width) * 3;
@@ -1307,560 +1312,143 @@ static int iar_get_framesize(void)
 }
 */
 
-static int hbfb_set_par(struct fb_info *info)
-{
-	uint32_t regval = 0,value = 6;
-	struct hbfb_info *fbi =
-		container_of(info, struct hbfb_info, fb);
-	uint32_t width;
-	uint32_t height;
 
-	if (start_flag == 0) {
-		start_flag = 1;
-		//TODO: Find a way for mipi480P to successfully call user_config_display() 
-		if (logo == 0 )
-			user_config_display(display_type);
-	} else {
-#ifndef CONFIG_HOBOT_X3_UBUNTU
-		pr_info("%s: user set fb par through ioctl!!\n", __func__);
-		if (fbi == NULL) {
-			pr_err("%s: unavilible fbi poiter!!\n", __func__);
-			return -1;
-		}
-		width = info->var.xres;
-		height = info->var.yres;
-		pr_info("%s: hobot_fbi->fb width is %d, height is %d\n", __func__,
-				fbi->fb.var.xres, fbi->fb.var.yres);
-		user_config_image_res(width, height);
-#endif
-	}
-#ifdef CONFIG_HOBOT_X3_UBUNTU
-	if(info->var.xres == 1280 && info->var.yres == 720){
-		value = 2;
-	}else if(info->var.xres == 1024 && info->var.yres == 600){
-		value = 15;
-	}else if(info->var.xres == 800 && info->var.yres == 480){
-		value = 16;
-	}else if(info->var.xres == 1368 && info->var.yres == 768){
-		value = 17;
-	}
-	hdmi_set_resolution(value);
-	if (display_type == HDMI_TYPE)//lcd is ARGB format,so bits per pixel is 32,HDMI is RGB format.
-	{	
-		if (fbi->fb.var.bits_per_pixel == 32) {
-			fbi->fb.var.bits_per_pixel = 24;
-		}
-	}
-#endif
-	return regval;
-}
-#if 0
-int user_set_fb(void)
+int user_config(uint32_t src_w, uint32_t src_h,uint32_t dst_w, uint32_t dst_h)
 {
-	void __iomem *hitm1_reg_addr;
-	uint32_t regval = 0;
-	buf_addr_t graphic_display_paddr;
-	buf_addr_t graphic1_display_paddr;
-//	uint8_t *mem_src = logo_addr - hobot_fbi->fb.fix.smem_start
-//		+ hobot_fbi->fb.screen_base;
-	if (hobot_fbi == NULL) {
-		pr_info("hobot fb is not initialize, exit!\n");
+	channel_base_cfg_t channel_base_cfg[2] = {{0}, {0}};
+	uint32_t value = 0;
+
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init, exit!!\n", __func__);
 		return -1;
 	}
-	//iar_stop();
-	graphic_display_paddr.addr = hobot_iar_get_framebuf_addr(2)->paddr;
-	graphic1_display_paddr.addr = hobot_iar_get_framebuf_addr(3)->paddr;
-
 	enable_sif_mclk();
 	iar_pixel_clk_enable();
-	if (display_type == HDMI_TYPE) {
-#ifdef CONFIG_HOBOT_XJ2
-		disp_set_panel_timing(&video_1920x1080);
-#else
-		disp_set_panel_timing(&video_1920x1080);
-		hobot_fbi->channel_base_cfg[0].enable = 1;
-		hobot_fbi->channel_base_cfg[1].enable = 0;
-		hobot_fbi->channel_base_cfg[2].enable = 1;
-		hobot_fbi->channel_base_cfg[3].enable = 0;
-		hobot_fbi->channel_base_cfg[0].channel = IAR_CHANNEL_1;
-		hobot_fbi->channel_base_cfg[0].enable = 1;
-		hobot_fbi->update_cmd.enable_flag[0] = 1;
-		hobot_fbi->update_cmd.enable_flag[2] = 1;
-		hobot_fbi->channel_base_cfg[0].pri = 3;
-		hobot_fbi->channel_base_cfg[0].width = 1920;
-		hobot_fbi->channel_base_cfg[0].height = 1080;
-		hobot_fbi->channel_base_cfg[0].buf_width = 1920;
-		hobot_fbi->channel_base_cfg[0].buf_height = 1080;
-		hobot_fbi->channel_base_cfg[0].format = FORMAT_YUV420SP_UV;
-		hobot_fbi->channel_base_cfg[0].alpha_sel = 0;
-		hobot_fbi->channel_base_cfg[0].ov_mode = 0;
-		hobot_fbi->channel_base_cfg[0].alpha_en = 1;
-		hobot_fbi->channel_base_cfg[0].alpha = 255;
-		hobot_fbi->channel_base_cfg[0].crop_width = 1920;
-		hobot_fbi->channel_base_cfg[0].crop_height = 1080;
-		hobot_fbi->channel_base_cfg[2].channel = IAR_CHANNEL_3;
-		hobot_fbi->channel_base_cfg[2].enable = 1;
-		hobot_fbi->update_cmd.enable_flag[2] = 1;
-		hobot_fbi->channel_base_cfg[2].pri = 1;
-		hobot_fbi->channel_base_cfg[2].width = 1920;
-		hobot_fbi->channel_base_cfg[2].height = 1080;
-		hobot_fbi->channel_base_cfg[2].buf_width = 1920;
-		hobot_fbi->channel_base_cfg[2].buf_height = 1080;
-		hobot_fbi->channel_base_cfg[2].format = 4;//ARGB8888
-		hobot_fbi->channel_base_cfg[2].alpha_sel = 0;
-		hobot_fbi->channel_base_cfg[2].ov_mode = 0;
-		hobot_fbi->channel_base_cfg[2].alpha_en = 1;
-		hobot_fbi->channel_base_cfg[2].alpha = 128;
-		hobot_fbi->channel_base_cfg[2].crop_width = 1920;
-		hobot_fbi->channel_base_cfg[2].crop_height = 1080;
 
-		hobot_fbi->output_cfg.out_sel = 1;
-		hobot_fbi->output_cfg.width = 1920;
-		hobot_fbi->output_cfg.height = 1080;
-		hobot_fbi->output_cfg.bgcolor = 16744328;//white.
-		//hobot_fbi->output_cfg.bgcolor = 88888888;//green
+	channel_base_cfg[0].enable = 1;
+	channel_base_cfg[1].enable = 0;
+	channel_base_cfg[0].channel = IAR_CHANNEL_3;
+	channel_base_cfg[0].pri = 0;
+	channel_base_cfg[0].width = src_w;
+	channel_base_cfg[0].height = src_h;
+	channel_base_cfg[0].buf_width = src_w;
+	channel_base_cfg[0].buf_height = src_h;
+	channel_base_cfg[0].format = 3;
+	channel_base_cfg[0].alpha_sel = 0;
+	channel_base_cfg[0].ov_mode = 0;
+	channel_base_cfg[0].alpha_en = 1;
+	channel_base_cfg[0].alpha = 255;
+	channel_base_cfg[0].crop_width = dst_w;
+	channel_base_cfg[0].crop_height = dst_h;
+	channel_base_cfg[1].channel = IAR_CHANNEL_4;
+	channel_base_cfg[1].pri = 1;
+	channel_base_cfg[1].width = src_w;
+	channel_base_cfg[1].height = src_h;
+	channel_base_cfg[1].buf_width = src_w;
+	channel_base_cfg[1].buf_height = src_h;
+	channel_base_cfg[1].format = 4;//ARGB8888
+	channel_base_cfg[1].alpha_sel = 0;
+	channel_base_cfg[1].ov_mode = 0;
+	channel_base_cfg[1].alpha_en = 1;
+	channel_base_cfg[1].alpha = 255;
+	channel_base_cfg[1].crop_width = dst_w;
+	channel_base_cfg[1].crop_height = dst_h;
 
-		iar_channel_base_cfg(&hobot_fbi->channel_base_cfg[0]);
-		iar_channel_base_cfg(&hobot_fbi->channel_base_cfg[2]);
-		iar_output_cfg(&hobot_fbi->output_cfg);
+	iar_channel_base_cfg(&channel_base_cfg[0]);
+	iar_channel_base_cfg(&channel_base_cfg[1]);
 
-		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x00, 4);
-		writel(0x0472300f, hitm1_reg_addr);
+	value = IAR_REG_SET_FILED(IAR_PANEL_WIDTH, dst_w, 0);
+	value = IAR_REG_SET_FILED(IAR_PANEL_HEIGHT, dst_h, value);
+	writel(value, g_iar_dev->regaddr + REG_IAR_PANEL_SIZE);
 
-		//panel color type is yuv444, YCbCr conversion needed
-		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x204, 4);
-		writel(8, hitm1_reg_addr);
+	iar_update();
 
-		//select BT709 color domain
-		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x48, 4);
-		writel(FORMAT_ORGANIZATION_VAL, hitm1_reg_addr);
-		iar_switch_buf(0);
-		iar_set_bufaddr(IAR_CHANNEL_3, &graphic_display_paddr);
-		iar_set_bufaddr(IAR_CHANNEL_4, &graphic1_display_paddr);
-		iar_update();
-#endif
-	} else if (display_type == LCD_7_TYPE) {
-		pr_info("FrameBuffer:display type is LCD 7 TYPE!\n");
-		disp_set_panel_timing(&video_800x480);
-		hobot_fbi->memory_mode = 0;
-
-		hobot_fbi->channel_base_cfg[0].enable = 1;
-		hobot_fbi->channel_base_cfg[1].enable = 0;
-		hobot_fbi->channel_base_cfg[2].enable = 1;
-		hobot_fbi->channel_base_cfg[3].enable = 0;
-		hobot_fbi->channel_base_cfg[0].channel = IAR_CHANNEL_1;
-		hobot_fbi->channel_base_cfg[0].enable = 1;
-		hobot_fbi->update_cmd.enable_flag[0] = 1;
-		hobot_fbi->update_cmd.enable_flag[2] = 1;
-		hobot_fbi->channel_base_cfg[0].pri = 3;
-		hobot_fbi->channel_base_cfg[0].width = 800;
-		hobot_fbi->channel_base_cfg[0].height = 480;
-		hobot_fbi->channel_base_cfg[0].buf_width = 800;
-		hobot_fbi->channel_base_cfg[0].buf_height = 480;
-		hobot_fbi->channel_base_cfg[0].format = FORMAT_YUV420SP_UV;
-		hobot_fbi->channel_base_cfg[0].alpha_sel = 0;
-		hobot_fbi->channel_base_cfg[0].ov_mode = 0;
-		hobot_fbi->channel_base_cfg[0].alpha_en = 1;
-		hobot_fbi->channel_base_cfg[0].alpha = 255;
-		hobot_fbi->channel_base_cfg[0].crop_width = 800;
-		hobot_fbi->channel_base_cfg[0].crop_height = 480;
-		hobot_fbi->channel_base_cfg[2].channel = IAR_CHANNEL_3;
-		hobot_fbi->channel_base_cfg[2].enable = 1;
-		hobot_fbi->update_cmd.enable_flag[2] = 1;
-		hobot_fbi->channel_base_cfg[2].pri = 1;
-		hobot_fbi->channel_base_cfg[2].width = 800;
-		hobot_fbi->channel_base_cfg[2].height = 480;
-		hobot_fbi->channel_base_cfg[2].buf_width = 800;
-		hobot_fbi->channel_base_cfg[2].buf_height = 480;
-		hobot_fbi->channel_base_cfg[2].format = 4;//ARGB8888
-		hobot_fbi->channel_base_cfg[2].alpha_sel = 0;
-		hobot_fbi->channel_base_cfg[2].ov_mode = 0;
-		hobot_fbi->channel_base_cfg[2].alpha_en = 1;
-		hobot_fbi->channel_base_cfg[2].alpha = 128;
-		hobot_fbi->channel_base_cfg[2].crop_width = 800;
-		hobot_fbi->channel_base_cfg[2].crop_height = 480;
-
-#ifdef CONFIG_HOBOT_XJ2
-		hobot_fbi->output_cfg.out_sel = 1;
-#else
-		hobot_fbi->output_cfg.out_sel = 2;
-#endif
-		hobot_fbi->output_cfg.width = 800;
-		hobot_fbi->output_cfg.height = 480;
-		hobot_fbi->output_cfg.bgcolor = 16744328;//white.
-		//hobot_fbi->output_cfg.bgcolor = 88888888;//green
-
-		iar_channel_base_cfg(&hobot_fbi->channel_base_cfg[0]);
-		iar_channel_base_cfg(&hobot_fbi->channel_base_cfg[2]);
-		iar_output_cfg(&hobot_fbi->output_cfg);
-#ifdef CONFIG_HOBOT_XJ2
-		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x00, 4);
-		writel(0x041bf00f, hitm1_reg_addr);
-
-		//panel color type is yuv444, YCbCr conversion needed
-		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x204, 4);
-		writel(REFRESH_CFG_VAL, hitm1_reg_addr);
-
-		//select BT709 color domain
-		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x48, 4);
-		writel(FORMAT_ORGANIZATION_VAL, hitm1_reg_addr);
-#ifdef CONFIG_LOGO
-#ifndef CONFIG_LOGO_FROM_KERNEL
-		if (logo_vaddr != NULL)
-			memcpy(hobot_fbi->fb.screen_base, logo_vaddr, 800*480*4);
-#endif
-#endif
-#else
-		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x00, 4);
-		writel(0x0572300f, hitm1_reg_addr);
-
-		//panel color type is yuv444, YCbCr conversion needed
-		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x204, 4);
-		writel(0, hitm1_reg_addr);
-
-		//select BT709 color domain
-		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x48, 4);
-		writel(FORMAT_ORGANIZATION_VAL, hitm1_reg_addr);
-#endif
-		iar_switch_buf(0);
-		iar_set_bufaddr(IAR_CHANNEL_3, &graphic_display_paddr);
-		iar_set_bufaddr(IAR_CHANNEL_4, &graphic1_display_paddr);
-		iar_update();
-#ifdef CONFIG_HOBOT_XJ2
-		msleep(20);
-		set_lt9211_config(&hobot_fbi->fb);
-#endif
-	} else if (display_type == MIPI_720P) {
-		disp_set_panel_timing(&video_720x1280);
-		hobot_fbi->memory_mode = 0;
-
-		hobot_fbi->channel_base_cfg[0].enable = 1;
-		hobot_fbi->channel_base_cfg[1].enable = 0;
-		hobot_fbi->channel_base_cfg[2].enable = 1;
-		hobot_fbi->channel_base_cfg[3].enable = 0;
-		hobot_fbi->channel_base_cfg[0].channel = IAR_CHANNEL_1;
-		//hobot_fbi->channel_base_cfg[0].enable = 1;
-		hobot_fbi->update_cmd.enable_flag[0] = 1;
-		hobot_fbi->update_cmd.enable_flag[2] = 1;
-		hobot_fbi->channel_base_cfg[0].pri = 3;
-		hobot_fbi->channel_base_cfg[0].width = 720;
-		hobot_fbi->channel_base_cfg[0].height = 1280;
-		hobot_fbi->channel_base_cfg[0].buf_width = 720;
-		hobot_fbi->channel_base_cfg[0].buf_height = 1280;
-		hobot_fbi->channel_base_cfg[0].format = FORMAT_YUV420SP_UV;
-		hobot_fbi->channel_base_cfg[0].alpha_sel = 0;
-		hobot_fbi->channel_base_cfg[0].ov_mode = 0;
-		hobot_fbi->channel_base_cfg[0].alpha_en = 1;
-		hobot_fbi->channel_base_cfg[0].alpha = 255;
-		hobot_fbi->channel_base_cfg[0].crop_width = 720;
-		hobot_fbi->channel_base_cfg[0].crop_height = 1280;
-		hobot_fbi->channel_base_cfg[2].channel = IAR_CHANNEL_3;
-		//hobot_fbi->channel_base_cfg[2].enable = 1;
-		hobot_fbi->update_cmd.enable_flag[2] = 1;
-		hobot_fbi->channel_base_cfg[2].pri = 1;
-		hobot_fbi->channel_base_cfg[2].width = 720;
-		hobot_fbi->channel_base_cfg[2].height = 1280;
-		hobot_fbi->channel_base_cfg[2].buf_width = 720;
-		hobot_fbi->channel_base_cfg[2].buf_height = 1280;
-		hobot_fbi->channel_base_cfg[2].format = 4;//ARGB8888
-		hobot_fbi->channel_base_cfg[2].alpha_sel = 0;
-		hobot_fbi->channel_base_cfg[2].ov_mode = 0;
-		hobot_fbi->channel_base_cfg[2].alpha_en = 1;
-		hobot_fbi->channel_base_cfg[2].alpha = 128;
-		hobot_fbi->channel_base_cfg[2].crop_width = 720;
-		hobot_fbi->channel_base_cfg[2].crop_height = 1280;
-
-		hobot_fbi->output_cfg.out_sel = 1;
-		hobot_fbi->output_cfg.width = 720;
-		hobot_fbi->output_cfg.height = 1280;
-		hobot_fbi->output_cfg.bgcolor = 16744328;//white.
-		//hobot_fbi->output_cfg.bgcolor = 88888888;//green
-
-		iar_channel_base_cfg(&hobot_fbi->channel_base_cfg[0]);
-		iar_channel_base_cfg(&hobot_fbi->channel_base_cfg[2]);
-		iar_output_cfg(&hobot_fbi->output_cfg);
-
-		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x00, 4);
-		writel(0x041bf00f, hitm1_reg_addr);
-
-		//panel color type is yuv444, YCbCr conversion needed
-		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x204, 4);
-		writel(REFRESH_CFG_VAL, hitm1_reg_addr);
-
-		//select BT709 color domain
-		hitm1_reg_addr = ioremap_nocache(0xA4001000 + 0x48, 4);
-		writel(FORMAT_ORGANIZATION_VAL, hitm1_reg_addr);
-
-		iar_switch_buf(0);
-		iar_set_bufaddr(2, &graphic_display_paddr);
-
-		iar_start(1);
-
-		msleep(20);
-
-		pr_debug("fb_driver: %s: begin set_lt9211_config\n", __func__);
-#ifdef CONFIG_HOBOT_XJ2
-		set_lt9211_config(&hobot_fbi->fb);
-#endif
-	} else if (display_type == MIPI_1080P) {
-		pr_info("fb_driver: disp set mipi 1080p!\n");
-		disp_set_panel_timing(&video_1080x1920);
-		hobot_fbi->memory_mode = 0;
-
-		hobot_fbi->channel_base_cfg[0].enable = 1;
-		hobot_fbi->channel_base_cfg[1].enable = 0;
-		hobot_fbi->channel_base_cfg[2].enable = 1;
-		hobot_fbi->channel_base_cfg[3].enable = 0;
-		hobot_fbi->channel_base_cfg[0].channel = IAR_CHANNEL_1;
-		hobot_fbi->channel_base_cfg[0].enable = 1;
-		hobot_fbi->update_cmd.enable_flag[0] = 1;
-		hobot_fbi->update_cmd.enable_flag[2] = 1;
-		hobot_fbi->channel_base_cfg[0].pri = 3;
-		hobot_fbi->channel_base_cfg[0].width = 1080;
-		hobot_fbi->channel_base_cfg[0].height = 1920;
-		hobot_fbi->channel_base_cfg[0].buf_width = 1080;
-		hobot_fbi->channel_base_cfg[0].buf_height = 1920;
-		hobot_fbi->channel_base_cfg[0].format = FORMAT_YUV420SP_UV;
-		hobot_fbi->channel_base_cfg[0].alpha_sel = 0;
-		hobot_fbi->channel_base_cfg[0].ov_mode = 0;
-		hobot_fbi->channel_base_cfg[0].alpha_en = 1;
-		hobot_fbi->channel_base_cfg[0].alpha = 255;
-		hobot_fbi->channel_base_cfg[0].crop_width = 1080;
-		hobot_fbi->channel_base_cfg[0].crop_height = 1920;
-		hobot_fbi->channel_base_cfg[2].channel = IAR_CHANNEL_3;
-		hobot_fbi->channel_base_cfg[2].enable = 1;
-		hobot_fbi->update_cmd.enable_flag[2] = 1;
-		hobot_fbi->channel_base_cfg[2].pri = 1;
-		hobot_fbi->channel_base_cfg[2].width = 1080;
-		hobot_fbi->channel_base_cfg[2].height = 1920;
-		hobot_fbi->channel_base_cfg[2].buf_width = 1080;
-		hobot_fbi->channel_base_cfg[2].buf_height = 1920;
-		hobot_fbi->channel_base_cfg[2].format = 4;//ARGB8888
-		hobot_fbi->channel_base_cfg[2].alpha_sel = 0;
-		hobot_fbi->channel_base_cfg[2].ov_mode = 0;
-		hobot_fbi->channel_base_cfg[2].alpha_en = 1;
-		hobot_fbi->channel_base_cfg[2].alpha = 128;
-		hobot_fbi->channel_base_cfg[2].crop_width = 1080;
-		hobot_fbi->channel_base_cfg[2].crop_height = 1920;
-
-		hobot_fbi->output_cfg.out_sel = 0;//mipi-dsi
-		hobot_fbi->output_cfg.width = 1080;
-		hobot_fbi->output_cfg.height = 1920;
-		hobot_fbi->output_cfg.bgcolor = 16744328;//white.
-		//hobot_fbi->output_cfg.bgcolor = 88888888;//green
-
-		iar_channel_base_cfg(&hobot_fbi->channel_base_cfg[0]);
-		iar_channel_base_cfg(&hobot_fbi->channel_base_cfg[2]);
-		iar_output_cfg(&hobot_fbi->output_cfg);
-
-		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x00, 4);
-		writel(0x0572300f, hitm1_reg_addr);
-
-		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x48, 4);
-		//writel(FORMAT_ORGANIZATION_VAL, hitm1_reg_addr);
-		writel(0x406, hitm1_reg_addr);
-
-		iar_switch_buf(0);
-		iar_set_bufaddr(IAR_CHANNEL_3, &graphic_display_paddr);
-		iar_update();
-		//set_mipi_display(0);
-	} else if (display_type == MIPI_720P_TOUCH) {
-		pr_info("fb_driver: disp set mipi 720p touch!\n");
-		disp_set_panel_timing(&video_720x1280_touch);
-		hobot_fbi->memory_mode = 0;
-
-		hobot_fbi->channel_base_cfg[0].enable = 1;
-		hobot_fbi->channel_base_cfg[1].enable = 0;
-		hobot_fbi->channel_base_cfg[2].enable = 1;
-		hobot_fbi->channel_base_cfg[3].enable = 0;
-		hobot_fbi->channel_base_cfg[0].channel = IAR_CHANNEL_1;
-		hobot_fbi->channel_base_cfg[0].enable = 1;
-		hobot_fbi->update_cmd.enable_flag[0] = 1;
-		hobot_fbi->update_cmd.enable_flag[2] = 1;
-		hobot_fbi->channel_base_cfg[0].pri = 3;
-		hobot_fbi->channel_base_cfg[0].width = 720;
-		hobot_fbi->channel_base_cfg[0].height = 1280;
-		hobot_fbi->channel_base_cfg[0].buf_width = 720;
-		hobot_fbi->channel_base_cfg[0].buf_height = 1280;
-		hobot_fbi->channel_base_cfg[0].format = FORMAT_YUV420SP_UV;
-		hobot_fbi->channel_base_cfg[0].alpha_sel = 0;
-		hobot_fbi->channel_base_cfg[0].ov_mode = 0;
-		hobot_fbi->channel_base_cfg[0].alpha_en = 1;
-		hobot_fbi->channel_base_cfg[0].alpha = 255;
-		hobot_fbi->channel_base_cfg[0].crop_width = 720;
-		hobot_fbi->channel_base_cfg[0].crop_height = 1280;
-		hobot_fbi->channel_base_cfg[2].channel = IAR_CHANNEL_3;
-		hobot_fbi->channel_base_cfg[2].enable = 1;
-		hobot_fbi->update_cmd.enable_flag[2] = 1;
-		hobot_fbi->channel_base_cfg[2].pri = 1;
-		hobot_fbi->channel_base_cfg[2].width = 720;
-		hobot_fbi->channel_base_cfg[2].height = 1280;
-		hobot_fbi->channel_base_cfg[2].buf_width = 720;
-		hobot_fbi->channel_base_cfg[2].buf_height = 1280;
-		hobot_fbi->channel_base_cfg[2].format = 4;//ARGB8888
-		hobot_fbi->channel_base_cfg[2].alpha_sel = 0;
-		hobot_fbi->channel_base_cfg[2].ov_mode = 0;
-		hobot_fbi->channel_base_cfg[2].alpha_en = 1;
-		hobot_fbi->channel_base_cfg[2].alpha = 128;
-		hobot_fbi->channel_base_cfg[2].crop_width = 720;
-		hobot_fbi->channel_base_cfg[2].crop_height = 1280;
-
-		hobot_fbi->output_cfg.out_sel = 0;//mipi-dsi
-		hobot_fbi->output_cfg.width = 720;
-		hobot_fbi->output_cfg.height = 1280;
-		hobot_fbi->output_cfg.bgcolor = 16744328;//white.
-		//hobot_fbi->output_cfg.bgcolor = 88888888;//green
-
-		iar_channel_base_cfg(&hobot_fbi->channel_base_cfg[0]);
-		iar_channel_base_cfg(&hobot_fbi->channel_base_cfg[2]);
-		iar_output_cfg(&hobot_fbi->output_cfg);
-
-		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x00, 4);
-		writel(0x0572300f, hitm1_reg_addr);
-
-		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x48, 4);
-		//writel(FORMAT_ORGANIZATION_VAL, hitm1_reg_addr);
-		writel(0x00406, hitm1_reg_addr);
-
-		iar_switch_buf(0);
-		iar_set_bufaddr(IAR_CHANNEL_3, &graphic_display_paddr);
-		iar_update();
-		//set_mipi_display(0);
-	} else if (display_type == BT656_TYPE) {
-		pr_info("fb_driver: disp set bt656 panel!\n");
-		disp_set_panel_timing(&video_704x576);
-		hobot_fbi->memory_mode = 0;
-
-		hobot_fbi->channel_base_cfg[0].enable = 1;
-		hobot_fbi->channel_base_cfg[1].enable = 0;
-		hobot_fbi->channel_base_cfg[2].enable = 1;
-		hobot_fbi->channel_base_cfg[3].enable = 0;
-		hobot_fbi->channel_base_cfg[0].channel = IAR_CHANNEL_1;
-		hobot_fbi->channel_base_cfg[0].enable = 1;
-		hobot_fbi->update_cmd.enable_flag[0] = 1;
-		hobot_fbi->update_cmd.enable_flag[2] = 1;
-		hobot_fbi->channel_base_cfg[0].pri = 3;
-		hobot_fbi->channel_base_cfg[0].width = 704;
-		hobot_fbi->channel_base_cfg[0].height = 576;
-		hobot_fbi->channel_base_cfg[0].buf_width = 704;
-		hobot_fbi->channel_base_cfg[0].buf_height = 576;
-		hobot_fbi->channel_base_cfg[0].format = FORMAT_YUV420SP_UV;
-		hobot_fbi->channel_base_cfg[0].alpha_sel = 0;
-		hobot_fbi->channel_base_cfg[0].ov_mode = 0;
-		hobot_fbi->channel_base_cfg[0].alpha_en = 1;
-		hobot_fbi->channel_base_cfg[0].alpha = 255;
-		hobot_fbi->channel_base_cfg[0].crop_width = 704;
-		hobot_fbi->channel_base_cfg[0].crop_height = 576;
-		hobot_fbi->channel_base_cfg[2].channel = IAR_CHANNEL_3;
-		hobot_fbi->channel_base_cfg[2].enable = 1;
-		hobot_fbi->update_cmd.enable_flag[2] = 1;
-		hobot_fbi->channel_base_cfg[2].pri = 1;
-		hobot_fbi->channel_base_cfg[2].width = 704;
-		hobot_fbi->channel_base_cfg[2].height = 576;
-		hobot_fbi->channel_base_cfg[2].buf_width = 704;
-		hobot_fbi->channel_base_cfg[2].buf_height = 576;
-		hobot_fbi->channel_base_cfg[2].format = 4;//ARGB8888
-		hobot_fbi->channel_base_cfg[2].alpha_sel = 0;
-		hobot_fbi->channel_base_cfg[2].ov_mode = 0;
-		hobot_fbi->channel_base_cfg[2].alpha_en = 1;
-		hobot_fbi->channel_base_cfg[2].alpha = 128;
-		hobot_fbi->channel_base_cfg[2].crop_width = 704;
-		hobot_fbi->channel_base_cfg[2].crop_height = 576;
-
-		hobot_fbi->output_cfg.out_sel = 3;//bt656
-		hobot_fbi->output_cfg.width = 704;
-		hobot_fbi->output_cfg.height = 576;
-		hobot_fbi->output_cfg.bgcolor = 16744328;//white.
-		//hobot_fbi->output_cfg.bgcolor = 88888888;//green
-
-		iar_channel_base_cfg(&hobot_fbi->channel_base_cfg[0]);
-		iar_channel_base_cfg(&hobot_fbi->channel_base_cfg[2]);
-		iar_output_cfg(&hobot_fbi->output_cfg);
-
-		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x00, 4);
-		writel(0x0572300f, hitm1_reg_addr);
-
-		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x48, 4);
-		//writel(FORMAT_ORGANIZATION_VAL, hitm1_reg_addr);
-		writel(0x00406, hitm1_reg_addr);
-
-		iar_switch_buf(0);
-		iar_set_bufaddr(IAR_CHANNEL_3, &graphic_display_paddr);
-		iar_update();
-	} else if (display_type == SIF_IPI) {
-		pr_info("%s: fb: display type is SIF IPI\n", __func__);
-		disp_set_panel_timing(&video_1920x1080);
-		//disp_set_panel_timing(&video_800x480);
-		hobot_fbi->channel_base_cfg[0].enable = 1;
-		hobot_fbi->channel_base_cfg[1].enable = 0;
-		hobot_fbi->channel_base_cfg[2].enable = 1;
-		hobot_fbi->channel_base_cfg[3].enable = 0;
-		hobot_fbi->channel_base_cfg[0].channel = IAR_CHANNEL_1;
-		hobot_fbi->channel_base_cfg[0].enable = 1;
-		hobot_fbi->update_cmd.enable_flag[0] = 1;
-		hobot_fbi->update_cmd.enable_flag[2] = 1;
-		hobot_fbi->channel_base_cfg[0].pri = 3;
-		hobot_fbi->channel_base_cfg[0].width = 1920;
-		hobot_fbi->channel_base_cfg[0].height = 1080;
-		hobot_fbi->channel_base_cfg[0].buf_width = 1920;
-		hobot_fbi->channel_base_cfg[0].buf_height = 1080;
-		hobot_fbi->channel_base_cfg[0].format = FORMAT_YUV420SP_UV;
-		hobot_fbi->channel_base_cfg[0].alpha_sel = 0;
-		hobot_fbi->channel_base_cfg[0].ov_mode = 0;
-		hobot_fbi->channel_base_cfg[0].alpha_en = 1;
-		hobot_fbi->channel_base_cfg[0].alpha = 255;
-		hobot_fbi->channel_base_cfg[0].crop_width = 1920;
-		hobot_fbi->channel_base_cfg[0].crop_height = 1080;
-		hobot_fbi->channel_base_cfg[2].channel = IAR_CHANNEL_3;
-		hobot_fbi->channel_base_cfg[2].enable = 1;
-		hobot_fbi->update_cmd.enable_flag[2] = 1;
-		hobot_fbi->channel_base_cfg[2].pri = 0;
-		hobot_fbi->channel_base_cfg[2].width = 1920;
-		hobot_fbi->channel_base_cfg[2].height = 1080;
-		hobot_fbi->channel_base_cfg[2].buf_width = 1920;
-		hobot_fbi->channel_base_cfg[2].buf_height = 1080;
-		hobot_fbi->channel_base_cfg[2].format = 4;//ARGB8888
-		hobot_fbi->channel_base_cfg[2].alpha_sel = 0;
-		hobot_fbi->channel_base_cfg[2].ov_mode = 0;
-		hobot_fbi->channel_base_cfg[2].alpha_en = 1;
-		hobot_fbi->channel_base_cfg[2].alpha = 128;
-		hobot_fbi->channel_base_cfg[2].crop_width = 1920;
-		hobot_fbi->channel_base_cfg[2].crop_height = 1080;
-
-		hobot_fbi->output_cfg.out_sel = 4;
-		hobot_fbi->output_cfg.width = 1920;
-		hobot_fbi->output_cfg.height = 1080;
-		hobot_fbi->output_cfg.bgcolor = 16744328;//white.
-		//hobot_fbi->output_cfg.bgcolor = 88888888;//green
-
-		iar_channel_base_cfg(&hobot_fbi->channel_base_cfg[0]);
-		iar_channel_base_cfg(&hobot_fbi->channel_base_cfg[2]);
-		iar_output_cfg(&hobot_fbi->output_cfg);
-
-		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x00, 4);
-		writel(0x0572300f, hitm1_reg_addr);
-
-		//panel color type is yuv444, YCbCr conversion needed
-		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x204, 4);
-		writel(8, hitm1_reg_addr);
-
-		//select BT709 color domain
-		hitm1_reg_addr = ioremap_nocache(0xA4301000 + 0x48, 4);
-		writel(0x406, hitm1_reg_addr);
-		iar_switch_buf(0);
-		iar_set_bufaddr(IAR_CHANNEL_3, &graphic_display_paddr);
-		iar_set_bufaddr(IAR_CHANNEL_4, &graphic1_display_paddr);
-		iar_update();
-	} else {
-		pr_info("fb: display type is unused!!\n");
-	}
 	iar_pixel_clk_disable();
 	disable_sif_mclk();
-	return regval;
+	return 0;
+}
+
+static int hbfb_set_par(struct fb_info *info)
+{
+	int ret = 0;
+	unsigned int layer_width = 0;
+	unsigned int layer_height = 0;
+	struct disp_timing iar_timing;
+	hobot_hdmi_sync_t hdmi_timing;
+	uint64_t iar_pixel_clk = 0;
+	//pr_err("**********hbfb_set_par start!!!\n");
+	//user_config(info->var.xres_virtual,info->var.yres_virtual,info->var.xres,info->var.yres);
+	// if(start_flag == 0){
+	// 	start_flag = 1;
+	// 	user_config(1920,info->var.yres,info->var.xres,info->var.yres);
+
+	// }else{
+	// //user_config(1920,info->var.yres,info->var.xres,info->var.yres);
+	// 	user_config(1920,info->var.yres_virtual,info->var.xres,info->var.yres);
+
+	// }
+	user_config(1920,info->var.yres_virtual,info->var.xres,info->var.yres);
+
+	//user_config_image_res(info->var.xres,info->var.yres);
+
+
+	iar_timing.hfp = info->var.right_margin;
+	iar_timing.hbp = info->var.left_margin;
+	iar_timing.vfp = info->var.lower_margin;
+	iar_timing.vbp = info->var.upper_margin;
+	iar_timing.hs = info->var.hsync_len;
+	iar_timing.vs = info->var.vsync_len;
+	iar_timing.vfp_cnt = 0X0;
+
+	//pr_err("hfp:%d,hbp:%d,vfp:%d,vbp:%d,hs:%d,vs:%d\n",iar_timing.hfp,iar_timing.hbp,iar_timing.vfp,iar_timing.vbp,iar_timing.hs,iar_timing.vs);
+	disp_set_panel_timing(&iar_timing);
+	
+
+	disp_set_pixel_clk(1000000000000 / info->var.pixclock);
+	
+	if (enable_sif_mclk() != 0)
+		return -1;
+	if (iar_pixel_clk_enable() != 0)
+		return -1;
+
+	iar_update();
+	iar_stop();
+	msleep(1);
+	iar_start(1);
+	msleep(5);
+	disable_sif_mclk();
+	iar_pixel_clk_disable();
+	if(iar_get_output_mode() == OUTPUT_BT1120){
+			hdmi_timing.hfp = iar_timing.hfp;
+			hdmi_timing.hbp = iar_timing.hbp;
+
+			hdmi_timing.vfp = iar_timing.vfp;
+			hdmi_timing.vbp = iar_timing.vbp;
+
+			hdmi_timing.hs = iar_timing.hs;
+			hdmi_timing.vs = iar_timing.vs;
+
+			hdmi_timing.hact = info->var.xres;
+			hdmi_timing.vact = info->var.yres;
+			
+			hdmi_timing.htotal = hdmi_timing.hfp + hdmi_timing.hbp + hdmi_timing.hs + hdmi_timing.hact;
+			hdmi_timing.vtotal = hdmi_timing.vfp + hdmi_timing.vbp + hdmi_timing.vs + hdmi_timing.vact;
+
+			hdmi_timing.clk = 1000000000000 / info->var.pixclock;
+			
+			hdmi_timing.vic = 0;
+
+			hdmi_timing.auto_detect = 0;
+			//pr_err("x:%d,y:%d,xv:%d,yv:%d,ps:%d,line_length:%d",info->var.xres,info->var.yres,info->var.xres_virtual,info->var.yres_virtual,info->var.pixclock,info->fix.line_length);
+			hdmi_set_resolution(&hdmi_timing);
+	}
+	// pr_err("x:%d,y:%d,xv:%d,yv:%d,ps:%d,line_length:%d",info->var.xres,info->var.yres,info->var.xres_virtual,info->var.yres_virtual,info->var.pixclock,info->fix.line_length);
+	
+
+	return 0;
 
 }
-EXPORT_SYMBOL(user_set_fb);
-#endif
+
 /*
 static void hbfb_activate_par(void)
 {
@@ -2190,14 +1778,96 @@ static struct fb_ops hbfb_ops = {
 	.fb_mmap	= hbfb_mmap,
 };
 
+struct fb_var_screeninfo fb_var_default = {
+	.xres = 1920,
+	.yres = 1080,
+	.xres_virtual = 1920,
+	.yres_virtual = 1080,
+	.xoffset = 0,
+	.yoffset = 0,
+	.bits_per_pixel = 24,
+	.grayscale = 0,
+	.red = {
+		.offset = 16,
+		.length = 8,
+		.msb_right = 0,//MSB left; !=0,MSB right
+	},
+	.green = {
+		.offset = 8,
+		.length = 8,
+		.msb_right = 0,
+	},
+	.blue = {
+		.offset = 0,
+		.length = 8,
+		.msb_right = 0,
+	},
+	.transp = {
+#ifdef CONFIG_HOBOT_X3_UBUNTU
+		.offset = 0,
+		.length = 0,
+#else
+		.offset = 24,
+		.length = 8,
+#endif
+
+		.msb_right = 0,
+	},
+	.nonstd = 0,
+	.activate = FB_ACTIVATE_NOW,
+	.height = 110,
+	.width = 62,
+	.accel_flags = FB_ACCEL_NONE,
+
+	.pixclock = 30030,//33.3M,
+//	.left_margin = 40,//20~200
+//	.right_margin = 40,//87~1
+	.left_margin = 46,//100+20
+	.right_margin = 46,//52+28
+//	.upper_margin = 12,//5~200
+//	.lower_margin = 30,//31~29
+	.upper_margin = 16,//42+1
+	.lower_margin = 14,//31+1
+	.hsync_len = 10,//1~87,no type value
+	.vsync_len = 3,//1~3,no type value
+
+	.sync = 0,//????????
+	.vmode = FB_VMODE_NONINTERLACED,
+	.rotate = 1,
+	.colorspace = 0,
+	.reserved = {0x0},
+};
+
+struct fb_fix_screeninfo fb_fix_default = {
+	.id = "x2-fb",
+	.smem_start = 0x0,
+	.smem_len = MAX_FRAME_BUF_SIZE,
+	.type = FB_TYPE_PACKED_PIXELS,
+	.type_aux = 0,
+	.visual = FB_VISUAL_TRUECOLOR,  //FB_VISUAL_PSEUDOCOLOR,
+	.xpanstep = 0,
+	.ypanstep = 0,
+	.ywrapstep = 0,
+	.line_length = 5760,
+	.mmio_start = 0,
+	.mmio_len = 0,
+	.accel = FB_ACCEL_NONE,
+	.capabilities = 0,
+	.reserved = {0x0},
+};
+
+
+
 static int hbfb_probe(struct platform_device *pdev)
 {
 	int ret;
 	frame_buf_t framebuf_user;
 	frame_buf_t framebuf_user1;
 	uint32_t rgba[4] = {8, 16, 24, 0};
+	int64_t iar_pixel_clk = -1;
 	unsigned int layer_width = 0;
 	unsigned int layer_height = 0;
+	struct disp_timing iar_timing;
 
 	pr_info("Hobot fb probe!!!\n");
 
@@ -2227,13 +1897,31 @@ static int hbfb_probe(struct platform_device *pdev)
 	framebuf_user1 = *hobot_iar_get_framebuf_addr(3);
 	pr_debug("framebuf_user.paddr = 0x%llx\n", framebuf_user.paddr);
 	pr_debug("framebuf_uset.vaddr = 0x%p\n", framebuf_user.vaddr);
-	ret = hobot_iar_get_layer_size(&layer_width, &layer_height);
-	if (ret)
-		goto err0;
-	pr_debug("fb layer width is %d\n", layer_width);
-	pr_debug("fb layer height is %d\n", layer_height);
-	frame_size = layer_width * layer_height * 4;
+	// ret = hobot_iar_get_layer_size(&layer_width, &layer_height);
+	// if (ret)
+	// 	goto err0;
+	// iar_pixel_clk = disp_get_pixel_clk();
+	// if(ret == -1){
+	// 	pr_err("error while get pixel clk\n");
+	// 	goto err0;
+	// }
+	// ret = iar_get_timing(&iar_timing);
+	// if(ret){
+	// 	pr_err("error while get iar timing\n");
+	// 	goto err0;
+	// }
+	// pr_debug("fb layer width is %d\n", layer_width);
+	// pr_debug("fb layer height is %d\n", layer_height);
+	// /**
+	//  * FIXME: Currently, the framebuffer's video memory is 
+	//  * allocated according to the maximum resolution that iar can display(1920 * 1080)
+	//  * Need to find a way to dynamically allocate video memory
+	//  */
+	// //frame_size = layer_width * layer_height * 4;
+	frame_size = IAR_MAX_HEIGHT * IAR_MAX_WIDTH * 4; //RGBA 
+	
 	pr_debug("frame_size is %d\n", frame_size);
+	/*
 	RGB500_fix_default.smem_start = framebuf_user.paddr;
 	RGB700_fix_default.smem_start = framebuf_user.paddr;
 	fb_720_1280_fix_default.smem_start = framebuf_user.paddr;
@@ -2242,6 +1930,34 @@ static int hbfb_probe(struct platform_device *pdev)
 	fb_1024_600_fix_default.smem_start = framebuf_user.paddr;
 	fb_800_480_fix_default.smem_start = framebuf_user.paddr;
 	fb_1366_768_fix_default.smem_start = framebuf_user.paddr;
+	*/
+
+	fb_1366_768_fix_default.smem_start = framebuf_user.paddr;
+
+	// layer_height = 480;
+	// layer_width = 800;
+	// fb_var_default.xres = layer_width;
+	// fb_var_default.yres = layer_height;
+
+	// fb_var_default.xres_virtual = layer_width;
+	// fb_var_default.yres_virtual = layer_height;
+
+	// fb_var_default.pixclock = 1000000000000 / iar_pixel_clk; //hz to ps
+	// fb_var_default.left_margin = iar_timing.hfp;
+	// fb_var_default.right_margin = iar_timing.hbp;
+	// fb_var_default.upper_margin = iar_timing.vfp;
+	// fb_var_default.lower_margin = iar_timing.vbp;
+	// fb_var_default.hsync_len = iar_timing.hs;
+	// fb_var_default.vsync_len = iar_timing.vs;
+
+	fb_fix_default.smem_start = framebuf_user.paddr;
+
+
+	hobot_fbi->fb.fix = fb_fix_default;
+	hobot_fbi->fb.var = fb_var_default;
+
+	// pr_err("x:%d,y:%d,xv:%d,yv:%d,ps:%d,line_length:%d",fb_var_default.xres,fb_var_default.yres,fb_var_default.xres_virtual,fb_var_default.yres_virtual,fb_var_default.pixclock,fb_fix_default.line_length);
+
 
 	/*	
 		Add by jiale01.luo
@@ -2254,88 +1970,15 @@ static int hbfb_probe(struct platform_device *pdev)
 		4.	Calculate line_length and assign it to fb_800_480_fix_lcd.line_length
 		5.	Assign fb_800_480_fix_lcd to hobot_fbi->fb.fix and assign fb_800_480_var_lcd to hobot_fbi->fb.var
 	*/
-	fb_800_480_fix_lcd.smem_start = framebuf_user.paddr;
-	RGB500_fix_default.line_length =
-		get_line_length(RGB500_var_default.xres_virtual,
-				RGB500_var_default.bits_per_pixel);
 
-	RGB700_fix_default.line_length =
-		get_line_length(RGB700_var_default.xres_virtual,
-				RGB700_var_default.bits_per_pixel);
 
-	fb_720_1280_fix_default.line_length =
-		get_line_length(fb_720_1280_var_default.xres_virtual,
-				fb_720_1280_var_default.bits_per_pixel);
-	fb_1920_1080_fix_default.line_length =
-		get_line_length(fb_1920_1080_var_default.xres_virtual,
-				fb_1920_1080_var_default.bits_per_pixel);
-	fb_1280_720_fix_default.line_length =
-		get_line_length(fb_1280_720_var_default.xres_virtual,
-				fb_1280_720_var_default.bits_per_pixel);
-	fb_1024_600_fix_default.line_length =
-		get_line_length(fb_1024_600_var_default.xres_virtual,
-				fb_1024_600_var_default.bits_per_pixel);
-	fb_800_480_fix_default.line_length =
-		get_line_length(fb_800_480_var_default.xres_virtual,
-				fb_800_480_var_default.bits_per_pixel);
-	fb_1366_768_fix_default.line_length =
-		get_line_length(fb_1366_768_var_default.xres_virtual,
-				fb_1366_768_var_default.bits_per_pixel);
-
-	fb_800_480_fix_lcd.line_length = 
-		get_line_length(fb_800_480_var_lcd.xres_virtual,
-				fb_800_480_var_lcd.bits_per_pixel);
-
-	if (display_type == HDMI_TYPE) {
-#ifdef CONFIG_HOBOT_X3_UBUNTU
-		switch(hdmi_resolution){
-			case IAR_HDMI_800x480_:
-				hobot_fbi->fb.fix = fb_800_480_fix_default;
-				hobot_fbi->fb.var = fb_800_480_var_default;
-			break;
-			case IAR_HDMI_1024x600_:
-				hobot_fbi->fb.fix = fb_1024_600_fix_default;
-				hobot_fbi->fb.var = fb_1024_600_var_default;
-			break;
-			case IAR_HDMI_720P60_:
-				hobot_fbi->fb.fix = fb_1280_720_fix_default;
-				hobot_fbi->fb.var = fb_1280_720_var_default;
-			break;
-			case IAR_HDMI_1366x768_:
-				hobot_fbi->fb.fix = fb_1366_768_fix_default;
-				hobot_fbi->fb.var = fb_1366_768_var_default;
-			break;
-			case IAR_HDMI_1080P60_:
-#endif
-				hobot_fbi->fb.fix = fb_1920_1080_fix_default;
-				hobot_fbi->fb.var = fb_1920_1080_var_default;
-#ifdef CONFIG_HOBOT_X3_UBUNTU
-			default:
-			break;
-		}
-#endif
-	} else if (display_type == MIPI_720P || display_type == MIPI_720P_TOUCH) {
-		hobot_fbi->fb.fix = fb_720_1280_fix_default;
-		hobot_fbi->fb.var = fb_720_1280_var_default;
-	} else if (display_type == MIPI_720P_H) {
-		hobot_fbi->fb.fix = fb_1280_720_fix_default;
-                hobot_fbi->fb.var = fb_1280_720_var_default;
-	} else if (outmode == OUTPUT_BT1120 && lcd_type == RGB888_700) { //don't know why these two variables are fixed
-		hobot_fbi->fb.fix = RGB700_fix_default;
-		hobot_fbi->fb.var = RGB700_var_default;
-	}
-	// Because the global variables outmode and lcd_type are fixed,
-	// it is better to add new screens with if statements
-	if (display_type == MIPI_480P){
-		hobot_fbi->fb.fix = fb_800_480_fix_lcd;
-		hobot_fbi->fb.var = fb_800_480_var_lcd;
-	}
-
+	hobot_fbi->fb.fix = fb_fix_default;
+	hobot_fbi->fb.var = fb_var_default;
 
 	hobot_fbi->fb.fbops = &hbfb_ops;
 	hobot_fbi->fb.screen_base = framebuf_user.vaddr;
 	//hobot_fbi->fb.screen_size = frame_size;
-	hobot_fbi->fb.screen_size = hobot_fbi->fb.var.xres * hobot_fbi->fb.var.yres * 4;
+	hobot_fbi->fb.screen_size = MAX_FRAME_BUF_SIZE;
 	hobot_fbi->fb.pseudo_palette = &hbfb_pseudo_palette;
 	if (fb_alloc_cmap(&hobot_fbi->fb.cmap, 256, 0)) {
 		pr_err("%s: fb0 error alloc cmap!!\n", __func__);
@@ -2381,7 +2024,7 @@ static int hbfb_probe(struct platform_device *pdev)
 			hobot_fbi->fb1.fix.smem_start + hobot_fbi->fb1.fix.smem_len - 1);
 	}
 #endif
-	pr_debug("Hobot fb probe ok!!!\n");
+	pr_err("Hobot fb probe ok!!!\n");
 	return 0;
 err2:
 	fb_dealloc_cmap(&hobot_fbi->fb1.cmap);
