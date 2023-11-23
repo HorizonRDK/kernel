@@ -25,7 +25,7 @@
 #include <linux/fb.h>
 #include <linux/of_address.h>
 #include <linux/slab.h>
-#ifndef CONFIG_HOBOT_X3_UBUNTU
+#ifdef CONFIG_HOBOT_X3_UBUNTU
 #include <soc/hobot/hobot_iar.h>
 #endif
 #define ENABLE 0x1
@@ -73,30 +73,25 @@ typedef enum {
 	_HDMI_1366x768_
 }LT8618_Resolution_Ratio;
 
-typedef struct hobot_lt8618_sync {
-	int hfp;
-	int hs;
-	int hbp;
-	int hact;
-	int htotal;
-	int vfp;
-	int vs;
-	int vbp;
-	int vact;
-	int vtotal;
-	int vic;
-	int pic_ratio;
-	int clk;
-} hobot_lt8618_sync_t;
+
 
 typedef struct hobot_lt8618_ioctl {
 	spinlock_t		lock;
     LT8618_Resolution_Ratio ratio;
+	hobot_hdmi_sync_t user_timing;
 } hobot_lt8618_ioctl_t;
 
+typedef struct edid_raw
+{
+	int block_num;
+	u8 edid_data[256];
+	u8 edid_data2[256];
+} edid_raw_t;
+
+
+extern edid_raw_t edid_raw_data;
 extern int LT8618SXB_Chip_ID(void);
 extern void LT8618SX_Initial(void);
-void Resolution_change(u8 Resolution);
-int LT8618SXB_Read_EDID(hobot_lt8618_sync_t * sync);
-
+void Resolution_change(hobot_hdmi_sync_t* timing);
+int LT8618SXB_Read_EDID(hobot_hdmi_sync_t * sync);
 #endif

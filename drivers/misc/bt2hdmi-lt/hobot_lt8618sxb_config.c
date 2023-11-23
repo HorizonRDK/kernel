@@ -32,6 +32,7 @@
 #define _LT8618SX_ADR 0x3B	// IIC Address，If CI2CA pins are low(0~400mV)
 #define LT8618SXB_SLAVE_ADDR 0x3B
 #define _Ver_U3_		// LT8618SXB IC version
+#define BYPASS_INIT 
 //#define _LOG_
 //#define _Phase_Debug_
 //#define DEBUG_I
@@ -52,15 +53,15 @@
 
 //extern hobot_write_lt8618sxb(u8 RegAddr, u8 data);     // IIC write operation
 //extern u8 hobot_read_lt8618sxb(u8 RegAddr);            // IIC read operation
-
+edid_raw_t edid_raw_data;
 extern struct x2_lt8618sxb_s *g_x2_lt8618sxb;
 extern struct gpio_desc *lt8618sxb_reset_gpio;
-void Resolution_change(u8 Resolution);
+void Resolution_change(hobot_hdmi_sync_t* timing);
 void Debug_DispNum(u8 msg)
 {
-	printk("0x%x\n", msg);
+	pr_debug("0x%x\n", msg);
 }
-
+hobot_hdmi_sync_t sys_fs_edid;
 static int hobot_lt8618sxb_write_byte(struct i2c_client *client,
 		uint32_t addr, uint8_t reg, uint8_t val)
 {
@@ -455,6 +456,8 @@ static int Format_Timing[][14] = {
 		_Less_than_50M, _Less_than_50M},	// VESA 800X480 65MHz	
 	{70, 143, 213, 1366, 1792, 3, 3, 24, 768, 798, 0, _16_9_,
 		_Bound_50_100M, _Bound_50_100M},	// VESA 800X480 65MHz	
+	{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0},	// default	
 	/*
 	   {},
 	   {},
@@ -484,19 +487,7 @@ enum {
 	Clk_bound_DDR		// DDR
 };
 
-typedef struct hobot_hdmi_lt8618_sync {
-	int hfp;
-	int hs;
-	int hbp;
-	int hact;
-	int htotal;
-	int vfp;
-	int vs;
-	int vbp;
-	int vact;
-	int vtotal;
-	int clk;
-} hobot_hdmi_lt8618_sync_t;
+
 
 enum {
 	_480P60_ = 0,
@@ -576,15 +567,18 @@ void LT8618SXB_HDCP_Disable(void)
 
  ***********************************************************/
 
-int LT8618SXB_Read_EDID(hobot_lt8618_sync_t * sync)
+int LT8618SXB_Read_EDID(hobot_hdmi_sync_t * sync)
 {
 #ifdef _Read_TV_EDID_
 	//printk("LT8618SXB_Read_EDID in\n");
 	u8 i, j, x;
 	u8 extended_flag = 0x00;
-
+	u32 max_retry = 20;
+	u32 retry = 0;
 	if (g_x2_lt8618sxb == NULL) return -1;
-
+	sync->vic = 0;
+	sync->pic_ratio = _4_3_;
+	edid_raw_data.block_num = -1;
 	hobot_write_lt8618sxb(0xff, 0x85);
 	//hobot_write_lt8618sxb(0x02,0x0a); //I2C 100K
 	hobot_write_lt8618sxb(0x03, 0xc9);
@@ -601,10 +595,19 @@ int LT8618SXB_Read_EDID(hobot_lt8618_sync_t * sync)
 		msleep(5);	// wait 5ms for reading edid data.
 		if (hobot_read_lt8618sxb(0x40) & 0x02) {
 			//DDC No Ack or Abitration lost
-			if (hobot_read_lt8618sxb(0x40) & 0x50) {
-				pr_debug("\r\nread edid failed: no ack");
-				goto end;
-			} else {
+
+				for( retry = 0; retry < max_retry; retry++ ){
+					if(!(hobot_read_lt8618sxb(0x40) & 0x50)){
+						break;
+					}else
+						continue;
+				}
+				if(retry==max_retry)
+				{
+					pr_err("retry:%d\n",retry);
+					pr_err("\r\nread edid failed: no ack");
+					goto end;
+				}
 				//printk("LT8618SXB_Read_EDID 11 \r\n");
 				for (j = 0; j < 32; j++) {
 					Sink_EDID[i * 32 + j] =
@@ -657,6 +660,7 @@ int LT8618SXB_Read_EDID(hobot_lt8618_sync_t * sync)
 						extended_flag =
 							Sink_EDID[i * 32 +
 							j] & 0x03;
+						pr_debug("EDID:extended_flag:%d\n",extended_flag);
 					}
 					//    printf("%02bx,", edid_data);
 				}
@@ -664,11 +668,11 @@ int LT8618SXB_Read_EDID(hobot_lt8618_sync_t * sync)
 					if (extended_flag < 1) { //no block 1, stop reading edid.
 						hobot_write_lt8618sxb(0x03, 0xc2);
 						hobot_write_lt8618sxb(0x07, 0x1f);
+						pr_debug("EDID:Only 1 block\n");
 						//printk("LT8618SXB_Read_EDID 11 out\n");
 						return 0;
 					}
 				}
-			}
 		} else {
 			pr_debug("\r\nread edid failed: accs not done");
 			goto end;
@@ -691,7 +695,9 @@ int LT8618SXB_Read_EDID(hobot_lt8618_sync_t * sync)
 	if (extended_flag < 2) { //no block 2, stop reading edid.
 		hobot_write_lt8618sxb(0x03, 0xc2);
 		hobot_write_lt8618sxb(0x07, 0x1f);
-		pr_debug("LT8618SXB_Read_EDID 22 out\n");
+		pr_debug("EDID:Only 2 block\n");
+		memcpy(&edid_raw_data.edid_data,Sink_EDID,256*sizeof(u8));
+		edid_raw_data.block_num = 1;
 		return 0;
 	}
 
@@ -703,21 +709,16 @@ int LT8618SXB_Read_EDID(hobot_lt8618_sync_t * sync)
 		msleep(5);	// wait 5ms for reading edid data.
 		if (hobot_read_lt8618sxb(0x40) & 0x02) {
 			if (hobot_read_lt8618sxb(0x40) & 0x50) {
-				pr_debug("\r\nread edid failed: no ack");
+				pr_err("\r\nread edid failed: no ack");
 				goto end;
 			} else {
-				pr_debug(" LT8618SXB_Read_EDID 22 \r\n");
 				for (j = 0; j < 32; j++) {
 					Sink_EDID2[i * 32 + j] =
 						hobot_read_lt8618sxb(0x83);
-					pr_debug("Sink_EDID[%d * 32 + %d] =  %u\n ", Sink_EDID2[i * 32 + j]);
-
-					//    edid_data = hobot_read_lt8618sxb(0x83);
-					//    printf("%02bx,", edid_data);
 				}
 				if (i == 3) {
 					if (extended_flag < 3) { //no block 1, stop reading edid.
-						goto end;
+						break;
 					}
 				}
 			}
@@ -726,6 +727,8 @@ int LT8618SXB_Read_EDID(hobot_lt8618_sync_t * sync)
 			goto end;
 		}
 	}
+	edid_raw_data.block_num = 2;
+	memcpy(&edid_raw_data.edid_data2,Sink_EDID2,256*sizeof(u8));
 	//printf("\r\nread edid succeeded, checksum = ",Sink_EDID[255]);
 end:
 	hobot_write_lt8618sxb(0x03, 0xc2);
@@ -832,35 +835,35 @@ void LT8618SXB_HDMI_TX_En(bool enable)
 //_External_sync_ mode, lt8618sxb can detects a detailed timing value.
 void LT8618SXB_Video_check(void)
 {
-	//printk("*****LT8618SXB_Video_check*****\n");
+	pr_debug("*****LT8618SXB_Video_check*****\n");
 	hobot_write_lt8618sxb(0xff, 0x82);	//video
 
 #ifdef _Embedded_sync_
 	h_tal = hobot_read_lt8618sxb(0x8f);
 	h_tal = (h_tal << 8) + hobot_read_lt8618sxb(0x90);
-	//printk("h_total = 0x%x\n",h_tal);
+	pr_debug("h_total = 0x%x\n",h_tal);
 
 	v_act = hobot_read_lt8618sxb(0x8b);
 	v_act = (v_act << 8) + hobot_read_lt8618sxb(0x8c);
-	//printk("v_active = 0x%x\n",v_act);
-	//Debug_DispNum(v_act);
+	pr_debug("v_active = 0x%x\n",v_act);
+	Debug_DispNum(v_act);
 
 	h_act = hobot_read_lt8618sxb(0x8d);
 	h_act = (h_act << 8) + hobot_read_lt8618sxb(0x8e);
-	//printk("h_active = 0x%x\n",h_act);
-	//Debug_DispNum(h_act);
+	pr_debug("h_active = 0x%x\n",h_act);
+	Debug_DispNum(h_act);
 
 	CLK_Cnt = (hobot_read_lt8618sxb(0x1d) & 0x0f) *
 		0x10000 + hobot_read_lt8618sxb(0x1e) *
 		0x100 + hobot_read_lt8618sxb(0x1f);
-	//Pixel CLK =    CLK_Cnt * 1000;
+	//Pixel_CLK =    CLK_Cnt * 1000;
 
-	// printk("Read LT8618SXB Video Check:\n");
-	// printk("h_total = 0x%x\n",h_tal);
-	// Debug_DispNum(h_tal);
+	pr_debug("Read LT8618SXB Video Check:\n");
+	pr_debug("h_total = 0x%x\n",h_tal);
+	Debug_DispNum(h_tal);
 
-	//printk("h_active = 0x%x\n",h_act);
-	//printk("v_active = 0x%x\n",v_act);
+	pr_debug("h_active = 0x%x\n",h_act);
+	pr_debug("v_active = 0x%x\n",v_act);
 
 #else
 	u8 temp;
@@ -908,30 +911,30 @@ void LT8618SXB_Video_check(void)
 		hobot_read_lt8618sxb(0x1e) * \\0x100 + hobot_read_lt8618sxb(0x1f);
 	// pixel CLK =    CLK_Cnt * 1000
 
-	printk("\r\nRead LT8618SXB Video Check:");
+	pr_debug("\r\nRead LT8618SXB Video Check:");
 
-	printk("\r\n ");
-	printk("\r\nh_fp, hs_wid, h_bp, h_act, h_tol = ");
+	pr_debug("\r\n ");
+	pr_debug("\r\nh_fp, hs_wid, h_bp, h_act, h_tol = ");
 	Debug_DispNum(hfp);
-	printk(", ");
+	pr_debug(", ");
 	Debug_DispNum(hs_width);
-	printk(", ");
+	pr_debug(", ");
 	Debug_DispNum(hbp);
-	printk(", ");
+	pr_debug(", ");
 	Debug_DispNum(h_act);
-	printk(", ");
+	pr_debug(", ");
 	Debug_DispNum(h_tal);
 
-	printk("\r\n ");
-	printk("\r\nv_fp, vs_wid, v_bp, v_act, v_tol = ");
+	pr_debug("\r\n ");
+	pr_debug("\r\nv_fp, vs_wid, v_bp, v_act, v_tol = ");
 	Debug_DispNum(vfp);
-	printk(", ");
+	pr_debug(", ");
 	Debug_DispNum(vs_width);
-	printk(", ");
+	pr_debug(", ");
 	Debug_DispNum(vbp);
-	printk(", ");
+	pr_debug(", ");
 	Debug_DispNum(v_act);
-	printk(", ");
+	pr_debug(", ");
 	Debug_DispNum(v_tal);
 #endif
 }
@@ -1790,10 +1793,10 @@ bool LT8618SXB_Phase_config(void)
 #endif
 
 int hdmi_get_edid(void *param){
-	hobot_lt8618_sync_t sync;
+	hobot_hdmi_sync_t sync;
 	int ret = LT8618SXB_Read_EDID(&sync);
 	if(!ret){
-		hobot_hdmi_lt8618_sync_t *fb_sync = (hobot_hdmi_lt8618_sync_t *)param;
+		hobot_hdmi_sync_t *fb_sync = (hobot_hdmi_sync_t *)param;
 		if(fb_sync != NULL){
 			fb_sync->hfp = sync.hfp;
 			fb_sync->hs = sync.hs;
@@ -1811,8 +1814,8 @@ int hdmi_get_edid(void *param){
 	return ret;
 }
 EXPORT_SYMBOL(hdmi_get_edid);
-void hdmi_set_resolution(int res){
-	Resolution_change(res);
+void hdmi_set_resolution(hobot_hdmi_sync_t* user_timing){
+	Resolution_change(user_timing);
 }
 EXPORT_SYMBOL(hdmi_set_resolution);
 /***********************************************************
@@ -1824,7 +1827,7 @@ void LT8618SX_Initial(void)
 	//hdmi_register_set_resolution_callback(hdmi_set_resolution);
 	//printk("*****LT8618SX_Initial*****\n");
 	Use_DDRCLK = 0;		// 1: DDR mode; 0: SDR (normal) mode
-
+	hobot_hdmi_sync_t temp_timing;
 	// Parameters required by LT8618SXB_BT_Timing_setting(void)
 	Resolution_Num = _1080P60_;
 	CLK_bound =
@@ -1869,6 +1872,8 @@ void LT8618SX_Initial(void)
 	 **************************************/
 	//--------------------------------------------------------//
 	I2CADR = _LT8618SX_ADR;	// 设置IIC地址
+	LT8618SXB_Chip_ID();	// for debug
+#ifndef BYPASS_INIT
 	LT8618SXB_Reset();
 
 	//********************************************************//
@@ -1877,7 +1882,7 @@ void LT8618SX_Initial(void)
 	hobot_write_lt8618sxb(0xee, 0x01);	// enable IIC
 	//********************************************************//
 
-	LT8618SXB_Chip_ID();	// for debug
+
 	LT8618SXB_RST_PD_Init();
 
 	// TTL mode
@@ -1907,7 +1912,7 @@ void LT8618SX_Initial(void)
 	LT8618SXB_AVI_setting();
 
 	// This operation is not necessary. Read TV EDID if necessary.
-	//LT8618SXB_Read_EDID(NULL);	// Read TV  EDID
+
 
 	//-------------------------------------------
 #ifdef _LT8618_HDCP_
@@ -1935,38 +1940,176 @@ void LT8618SX_Initial(void)
 
 	// HDMI_TX_Phy
 	LT8618SXB_TX_Phy();
+#endif
+	LT8618SXB_Read_EDID(&temp_timing);	// Read TV  EDID
 }
+
+
 
 // When the lt8618sxb works, the resolution of the bt1120 signal changes.
 // The following settings need to be configured.
-void Resolution_change(u8 Resolution)
+void Resolution_change(hobot_hdmi_sync_t* user_timing)
 {
 	//printk("Change\n");
+	int ret = 0;
+	int aspect_ratio;
+	int pixel_clk_mhz = 0;
+	int i = 0;
+	hobot_hdmi_sync_t edid_timing;
 
-	Resolution_Num = Resolution;
+	if(user_timing != NULL && user_timing->auto_detect == 0){
+		pr_info("none detect\n");
+		memcpy(&edid_timing, user_timing, sizeof(hobot_hdmi_sync_t));
+	}else{
+		pr_info("auto detect\n");
+		ret = LT8618SXB_Read_EDID(&edid_timing);
+		if(ret){
+			pr_err("Get EDID fail\n");
+			goto err0;
+		}	
+	}
+	pr_info("%s hfp:%d,hs:%d,hbp:%d,hact:%d,htotal:%d,vfp:%d,vs:%d,vbp:%d,vact:%d,vtotal:%d,vic:%d,clk:%d\n",
+	__func__,
+	edid_timing.hfp,
+	edid_timing.hs,
+	edid_timing.hbp,
+	edid_timing.hact,
+	edid_timing.htotal,
+	edid_timing.vfp,
+	edid_timing.vs,
+	edid_timing.vbp,
+	edid_timing.vact,
+	edid_timing.vtotal,
+	edid_timing.vic,
+	edid_timing.clk
+	);
+
+	Format_Timing[18][0] =  edid_timing.hfp;
+	Format_Timing[18][1] =  edid_timing.hs;
+	Format_Timing[18][2] =  edid_timing.hbp;
+	Format_Timing[18][3] =  edid_timing.hact;
+	Format_Timing[18][4] =  edid_timing.htotal;
+	Format_Timing[18][5] =  edid_timing.vfp;
+	Format_Timing[18][6] =  edid_timing.vs;
+	Format_Timing[18][7] =  edid_timing.vbp;
+	Format_Timing[18][8] =  edid_timing.vact;
+	Format_Timing[18][9] =  edid_timing.vtotal;
+	Format_Timing[18][10] =  edid_timing.vic;
+	aspect_ratio = (edid_timing.hact * 1000) / (edid_timing.vact) ;
+	pr_debug("asp ratio:%d\n",aspect_ratio);
+	if (aspect_ratio > 1750 && aspect_ratio < 1780) {
+        pr_debug("ratio: 16:9\n");
+		Format_Timing[18][11] =  _16_9_;
+    } else if (aspect_ratio > 1320 && aspect_ratio < 1340 ) {
+        pr_debug("ratio: 4:3\n");	
+		Format_Timing[18][11] =  _4_3_;
+    } else {
+        pr_info("Unsupport ratio,using 4:3\n");
+		Format_Timing[18][11] =  _4_3_;
+    }
+	pixel_clk_mhz = edid_timing.clk / 1000000;
+	pr_err("pixel clk:%d Mhz\n",pixel_clk_mhz);
+	if (pixel_clk_mhz > 100)		
+	{
+		Format_Timing[18][12] = _Greater_than_100M;
+		Format_Timing[18][13] = pixel_clk_mhz / 2 >= 100?_Greater_than_100M:_Bound_50_100M;
+		pr_debug("Format_Timing[18][12]:%d,Format_Timing[18][13]:%d\n",Format_Timing[18][12],Format_Timing[18][13]);
+	}
+	else if(pixel_clk_mhz <=100 && pixel_clk_mhz >= 50)
+	{
+		Format_Timing[18][12] = _Bound_50_100M;
+		Format_Timing[18][13] = pixel_clk_mhz / 2 >= 50?_Bound_50_100M:_Less_than_50M;
+		pr_debug("Format_Timing[18][12]:%d,Format_Timing[18][13]:%d\n",Format_Timing[18][12],Format_Timing[18][13]);
+
+	}
+	else if(pixel_clk_mhz < 50)
+	{
+		Format_Timing[18][12] = _Less_than_50M;
+		Format_Timing[18][13] = _Less_than_50M;
+	}
+	for(i = 0;i<14;i++){
+		pr_debug("timing[18][%d]:%d\n",i,Format_Timing[18][i]);
+	}
+
+	Resolution_Num = 18;
 
 	CLK_bound =
 		Format_Timing[Resolution_Num][Clk_bound_SDR + (u8) (Use_DDRCLK)];
 
 	VIC_Num = Format_Timing[Resolution_Num][Vic];
 
-	LT8618SXB_PLL_setting();
+#ifndef BYPASS_INIT
+	I2CADR = _LT8618SX_ADR;	// 设置IIC地址
+	LT8618SXB_Reset();
 
+	//********************************************************//
+	// Before initializing lt8168sxb, you need to enable IIC of lt8618sxb
+	hobot_write_lt8618sxb(0xff, 0x80);	// register bank
+	hobot_write_lt8618sxb(0xee, 0x01);	// enable IIC
+	//********************************************************//
+#endif
+	LT8618SXB_RST_PD_Init();
+
+	// TTL mode
+	LT8618SXB_TTL_Input_Analog();
+	LT8618SXB_TTL_Input_Digtal();
+#ifndef BYPASS_INIT
+	// Wait for the signal to be stable
+	// and decide whether the delay is necessary according to the actual situation
+	msleep(1000);		// 等待信号稳定,根据实际情况决定是否需要延时
+	LT8618SXB_Video_check();	// For debug
+#endif
+	//------------------------PLL----------------------------------//
+	LT8618SXB_PLL_setting();
+#ifndef BYPASS_INIT
+	//-------------------------------------------
+	LT8618SXB_Audio_setting();
+
+	//-------------------------------------------
+
+
+	//-------------------------------------------
+#ifdef _LT8618_HDCP_
+	LT8618SXB_HDCP_Init();
+#endif
+
+#endif
+	LT8618SXB_CSC_setting();
+	//-------------------------------------------
 	LT8618SXB_AVI_setting();
 
+	// This operation is not necessary. Read TV EDID if necessary.
+	//LT8618SXB_Read_EDID(NULL);	// Read TV  EDID
+#ifndef BYPASS_INIT
+	//-------------------------------------------
+#ifdef _LT8618_HDCP_
+	LT8618SXB_HDCP_Enable();
+#endif
+#endif
 #ifdef _Embedded_sync_
 	//-------------------------------------------
-
 	LT8618SXB_BT_Timing_setting();
-
-	//-------------------------------------------
 
 	if (flag_Ver_u3) {
 		LT8618SX_Phase_1();
 	} else {
 		LT8618SXB_Phase_config();
 	}
+#else
+	LT8618SX_Phase_1();
 #endif
+
+	//-------------------------------------------
+
+	//    LT8618SXB_RST_PD_Init();
+
+	//-------------------------------------------
+	LT8618SXB_TX_Phy();
+	return;
+
+err0:
+	pr_err("%s fail\n",__func__);
+
 }
 
 /************************************** The End Of File **************************************/

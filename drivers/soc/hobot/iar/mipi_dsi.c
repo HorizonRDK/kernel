@@ -274,6 +274,23 @@ const unsigned int g_mipi_dsi_reg_cfg_table[][3] = {
 	VALUE_GET(g_mipi_dsi_reg_cfg_table[key][TABLE_MASK], \
 		g_mipi_dsi_reg_cfg_table[key][TABLE_OFFSET], regvalue)
 
+struct mipi_dsi_config{
+	uint32_t dsi_pkt_size;
+	uint32_t dsi_num_chunks;
+	uint32_t dsi_null_size;
+	uint32_t dsi_hsa;
+	uint32_t dsi_hbp;
+	uint32_t dsi_hline_time;
+	uint32_t dsi_vsa;
+	uint32_t dsi_vbp;
+	uint32_t dsi_vfp;
+	uint32_t dsi_vactive_line;
+	struct mipi_init_para *dsi_cmd;
+
+};
+
+
+
 void mipi_config_update(void)
 {
 	writel(0x101, g_iar_dev->mipi_dsi_regaddr + VID_SHADOW_CTRL);
