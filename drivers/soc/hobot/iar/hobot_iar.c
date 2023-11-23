@@ -59,6 +59,10 @@ module_param(iar_debug_level, uint, 0644);
 unsigned int video_layer_num = 2;
 unsigned int display_out_width = 1920;
 unsigned int display_out_height = 1080;
+
+unsigned int rdk_iar_chn_width = 0;
+unsigned int rdk_iar_chn_height = 0;
+
 unsigned int fb_num = 2;
 unsigned int logo = 0;
 EXPORT_SYMBOL(fb_num);
@@ -76,6 +80,10 @@ static int frame_output = 0;
 
 unsigned int ubuntu_desktop = 0;
 module_param(ubuntu_desktop, uint, 0644);
+
+unsigned int rdk_display_type = 0;//0 HDMI(BT1120),1 DSI
+module_param(rdk_display_type, uint, 0644);
+
 EXPORT_SYMBOL(ubuntu_desktop);
 #define IAR_ENABLE 1
 #define IAR_DISABLE 0
@@ -152,6 +160,10 @@ struct disp_timing video_1920x1080 = {
 	148, 88, 44, 36, 4, 5, 10
 };
 
+struct disp_timing video_hdmi_default = { //1920x1080
+	148, 88, 44, 36, 4, 5, 10
+};
+
 struct disp_timing video_1280x720 = {
 	220, 150, 40, 20, 10, 5, 0
 };
@@ -209,6 +221,7 @@ struct disp_timing video_ipi_1920x1080 = {
 	1000, 1000, 200, 36, 40, 10, 10
 };
 uint32_t pixel_clk_video_1920x1080 = 163000000;
+uint32_t pixel_clk_video_hdmi_default_1920x1080 = 163000000;
 uint32_t pixel_clk_video_1280x720 = 74250000;
 #ifdef CONFIG_HOBOT_X3_UBUNTU
 uint32_t pixel_clk_video_800x480 = 33900000;
@@ -719,7 +732,13 @@ int disp_set_panel_timing(struct disp_timing *timing)
 
 	if (timing == NULL)
 		return -1;
-	pr_debug("disp set panel timing!!!!\n");
+
+	if (enable_sif_mclk() != 0)
+		return -1;
+	if (iar_pixel_clk_enable() != 0)
+		return -1;
+
+	pr_err("disp set panel timing!!!!\n");
 	value = readl(g_iar_dev->regaddr + REG_IAR_PARAMETER_HTIM_FIELD1);
 	value = IAR_REG_SET_FILED(IAR_DPI_HBP_FIELD, timing->hbp, value);
 	value = IAR_REG_SET_FILED(IAR_DPI_HFP_FIELD, timing->hfp, value);
@@ -748,9 +767,59 @@ int disp_set_panel_timing(struct disp_timing *timing)
 	}
 	writel(timing->vfp_cnt,
 		g_iar_dev->regaddr + REG_IAR_PARAMETER_VFP_CNT_FIELD12);
+
+	if (disable_sif_mclk() != 0)
+		return -1;
+	if (iar_pixel_clk_disable() != 0)
+		return -1;
 	return 0;
 }
 EXPORT_SYMBOL_GPL(disp_set_panel_timing);
+
+int32_t iar_chnchannel_base_cfg_update(channel_base_cfg_t *cfg){
+	uint32_t value, channelid, pri, target_filed;
+	uint32_t reg_overlay_opt_value = 0;
+
+	if (NULL == g_iar_dev) {
+		printk(KERN_ERR "IAR dev not inited!");
+		return -1;
+	}
+	channelid = cfg->channel;
+	if (cfg->enable > 0)
+		cfg->enable = 1;
+	if (cfg->pri > 3) {
+		pr_err("iar_drvier: error channel priority, exit!!\n");
+		return -1;
+	}
+	if (cfg->width > 1920 || cfg->buf_width > 1920 ||
+			cfg->xposition > 1920 || cfg->crop_width > 1920) {
+		pr_err("iar_driver: channel width exceed the max limit, exit!!\n");
+		return -1;
+	}
+	if (cfg->height > 1920 || cfg->buf_height > 1920 ||
+			cfg->yposition > 1920 || cfg->crop_height > 1920) {
+		pr_err("iar_driver: channel height exceed the max limit, exit!!\n");
+		return -1;
+	}
+	if ((cfg->width * cfg->height) > (display_out_width * display_out_height)) {
+		pr_err("%s:video layer size exceed user config when insmod driver!\n",
+				__func__);
+		return -1;
+	}
+
+	value = IAR_REG_SET_FILED(IAR_WINDOW_WIDTH, cfg->width, 0); //set width
+	value = IAR_REG_SET_FILED(IAR_WINDOW_HEIGTH, cfg->height, value);
+	writel(value, g_iar_dev->regaddr + FBUF_SIZE_ADDR_OFFSET(channelid));
+
+	writel(cfg->buf_width, g_iar_dev->regaddr + FBUF_WIDTH_ADDR_OFFSET(channelid));
+
+	g_iar_dev->buf_w_h[channelid][0] = cfg->buf_width;
+	g_iar_dev->buf_w_h[channelid][1] = cfg->buf_height;
+	writel(cfg->crop_height << 16 | cfg->crop_width, g_iar_dev->regaddr + REG_IAR_CROPPED_WINDOW_RD1 - channelid * 4);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(iar_chnchannel_base_cfg_update);
 
 int32_t iar_channel_base_cfg(channel_base_cfg_t *cfg)
 {
@@ -865,6 +934,11 @@ int32_t iar_channel_base_cfg(channel_base_cfg_t *cfg)
 	g_iar_dev->buf_w_h[channelid][1] = cfg->buf_height;
 	writel(cfg->crop_height << 16 | cfg->crop_width,
                 g_iar_dev->regaddr + REG_IAR_CROPPED_WINDOW_RD1 - channelid*4);
+	
+	rdk_iar_chn_height = cfg->height;
+	rdk_iar_chn_width = cfg->width;
+
+	//pr_err("rdk_iar h:%d,w:%d\n",rdk_iar_chn_height,rdk_iar_chn_width);
 
 	return 0;
 }
@@ -1035,6 +1109,26 @@ int8_t disp_set_pixel_clk(uint64_t pixel_clk)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(disp_set_pixel_clk);
+
+int64_t disp_get_pixel_clk(void)
+{
+	int64_t pixel_rate;
+
+	if (g_iar_dev == NULL) {
+		pr_err("%s: iar not init!!\n", __func__);
+		return -1;
+	}
+
+	if (g_iar_dev->iar_pixel_clk == NULL)
+	{
+		pr_err("clk not init!\n");
+		return -1;
+	}
+	pixel_rate = clk_get_rate(g_iar_dev->iar_pixel_clk);
+	pr_err("%s: iar pixel rate is %lld\n", __func__, pixel_rate);
+	return pixel_rate;
+}
+EXPORT_SYMBOL_GPL(disp_get_pixel_clk);
 
 int disp_clk_disable(void)
 {
@@ -2311,8 +2405,8 @@ EXPORT_SYMBOL_GPL(hobot_iar_get_framebuf_addr);
 int hobot_iar_get_layer_size(unsigned int *width, unsigned int *height) {
 	if (width == NULL || height == NULL)
 		return -1;
-	*width = display_out_width;
-	*height = display_out_height;
+	*width = rdk_iar_chn_width;
+	*height = rdk_iar_chn_height;
 	return 0;
 }
 EXPORT_SYMBOL_GPL(hobot_iar_get_layer_size);
@@ -3170,6 +3264,7 @@ static int stride_copy_bmp(int width, int height, const unsigned char *src,
 		int x0, int y0, int stride0, int height0,
 		unsigned char *dst, int x1, int y1, int stride1, int iar_format)
 {
+	//return 0;
 	int i, j;
 	struct bmp_image *bmp = (struct bmp_image *)src;
 	const unsigned char *bmap;
@@ -3307,6 +3402,7 @@ static void stride_copy_420(int width, int height, const char *src,
 static int display_color_bar(unsigned int width, unsigned height,
 		char *draw_start_vaddr)
 {
+	return 0; //disable color bar function...
 	char *vaddr;
 	int i = 0;
 	int color_bar_height = 0;
@@ -3500,6 +3596,11 @@ int32_t iar_get_timing(struct disp_timing *timing)
 		pr_err("%s: input timing pointer is null, exit!!\n", __func__);
 		return -1;
 	}
+	if (enable_sif_mclk() != 0)
+		return -1;
+	if (iar_pixel_clk_enable() != 0)
+		return -1;
+	//pr_info("%s get timing\n",__func__);
 	regaddr = (uint8_t __iomem *)g_iar_dev->regaddr;
 	reg_value = readl(&regaddr[REG_IAR_PARAMETER_HTIM_FIELD1]);
 	timing->hbp = (reg_value >> HBP_OFFSET) & SIZE_10_BIT_WIDTH;
@@ -3511,10 +3612,52 @@ int32_t iar_get_timing(struct disp_timing *timing)
 	timing->vs = reg_value & SIZE_10_BIT_WIDTH;
 	reg_value = readl(&regaddr[REG_IAR_PARAMETER_VFP_CNT_FIELD12]);
 	timing->vfp_cnt = reg_value & SIZE_16_BIT_WIDTH;
+		if (disable_sif_mclk() != 0)
+		return -1;
+
+	if (iar_pixel_clk_disable() != 0)
+		return -1;
+	//pr_info("%s get timing out \n",__func__);
 	return 0;
 }
 EXPORT_SYMBOL(iar_get_timing);
 
+int iar_get_output_mode(void){
+	uint32_t reg_value = 0;
+	int ret = -1;
+	if (enable_sif_mclk() != 0)
+		return ret;
+	if (iar_pixel_clk_enable() != 0)
+		return ret;
+	reg_value = readl(g_iar_dev->regaddr + 0x340);
+	if (reg_value & 0x1)
+	{
+		pr_info("Output: output mode is IPI\n");
+		ret = OUTPUT_IPI;
+	}
+	else if (reg_value & 0x2)
+	{
+		pr_info("Output: output mode is BT1120\n");
+		ret = OUTPUT_BT1120;
+	}
+	else if (reg_value & 0x4)
+	{
+		pr_info("Output: output mode is RGB\n");
+		ret = OUTPUT_RGB;
+	}
+	else if ((readl(g_iar_dev->regaddr + 0x800) & 0x13) == 0x13)
+	{
+		pr_info("Output: output mode is MIPI-DSI\n");
+		ret = OUTPUT_MIPI_DSI;
+	}
+	if (disable_sif_mclk() != 0)
+		return -1;
+
+	if (iar_pixel_clk_disable() != 0)
+		return -1;	
+	return ret;
+}
+EXPORT_SYMBOL(iar_get_output_mode);
 static int iar_debug_show(struct seq_file *s, void *unused)
 {
         int iar_open = 0;
@@ -3696,47 +3839,47 @@ int user_config_display(enum DISPLAY_TYPE d_type)
 	iar_pixel_clk_enable();
 	switch (d_type) {
                 case HDMI_TYPE:
-#ifdef CONFIG_HOBOT_XJ2
-			disp_set_panel_timing(&video_1920x1080);
-#else
-			disp_set_panel_timing(&video_1920x1080);
-			channel_base_cfg[0].enable = 1;
-			channel_base_cfg[1].enable = 1;
-			channel_base_cfg[0].channel = IAR_CHANNEL_1;
-			channel_base_cfg[0].pri = 2;
-			channel_base_cfg[0].width = 1920;
-			channel_base_cfg[0].height = 1080;
-			channel_base_cfg[0].buf_width = 1920;
-			channel_base_cfg[0].buf_height = 1080;
-			channel_base_cfg[0].format = FORMAT_YUV420SP_UV;
-			channel_base_cfg[0].alpha_sel = 0;
-			channel_base_cfg[0].ov_mode = 0;
-			channel_base_cfg[0].alpha_en = 1;
-			channel_base_cfg[0].alpha = 255;
-			channel_base_cfg[0].crop_width = 1920;
-			channel_base_cfg[0].crop_height = 1080;
-			channel_base_cfg[1].channel = IAR_CHANNEL_3;
-			channel_base_cfg[1].pri = 0;
-			channel_base_cfg[1].width = 1920;
-			channel_base_cfg[1].height = 1080;
-			channel_base_cfg[1].buf_width = 1920;
-			channel_base_cfg[1].buf_height = 1080;
-			channel_base_cfg[1].format = DEFAULT_CHAN_FORMAT;
-			channel_base_cfg[1].alpha_sel = 0;
-			channel_base_cfg[1].ov_mode = 0;
-			channel_base_cfg[1].alpha_en = 1;
-			channel_base_cfg[1].alpha = 128;
-			channel_base_cfg[1].crop_width = 1920;
-			channel_base_cfg[1].crop_height = 1080;
+// #ifdef CONFIG_HOBOT_XJ2
+// 			disp_set_panel_timing(&video_1920x1080);
+// #else
+// 			disp_set_panel_timing(&video_1920x1080);
+			// channel_base_cfg[0].enable = 1;
+			// channel_base_cfg[1].enable = 1;
+			// channel_base_cfg[0].channel = IAR_CHANNEL_1;
+			// channel_base_cfg[0].pri = 2;
+			// channel_base_cfg[0].width = 1920;
+			// channel_base_cfg[0].height = 1080;
+			// channel_base_cfg[0].buf_width = 1920;
+			// channel_base_cfg[0].buf_height = 1080;
+			// channel_base_cfg[0].format = FORMAT_YUV420SP_UV;
+			// channel_base_cfg[0].alpha_sel = 0;
+			// channel_base_cfg[0].ov_mode = 0;
+			// channel_base_cfg[0].alpha_en = 1;
+			// channel_base_cfg[0].alpha = 255;
+			// channel_base_cfg[0].crop_width = 1920;
+			// channel_base_cfg[0].crop_height = 1080;
+			// channel_base_cfg[1].channel = IAR_CHANNEL_3;
+			// channel_base_cfg[1].pri = 0;
+			// channel_base_cfg[1].width = 1920;
+			// channel_base_cfg[1].height = 1080;
+			// channel_base_cfg[1].buf_width = 1920;
+			// channel_base_cfg[1].buf_height = 1080;
+			// channel_base_cfg[1].format = DEFAULT_CHAN_FORMAT;
+			// channel_base_cfg[1].alpha_sel = 0;
+			// channel_base_cfg[1].ov_mode = 0;
+			// channel_base_cfg[1].alpha_en = 1;
+			// channel_base_cfg[1].alpha = 128;
+			// channel_base_cfg[1].crop_width = 1920;
+			// channel_base_cfg[1].crop_height = 1080;
 
-			output_cfg.out_sel = 1;
-			output_cfg.width = 1920;
-			output_cfg.height = 1080;
-			output_cfg.bgcolor = 16744328;//white.
+			// output_cfg.out_sel = 1;
+			// output_cfg.width = 1920;
+			// output_cfg.height = 1080;
+			// output_cfg.bgcolor = 16744328;//white.
 
-			iar_channel_base_cfg(&channel_base_cfg[0]);
-			iar_channel_base_cfg(&channel_base_cfg[1]);
-			iar_output_cfg(&output_cfg);
+			// iar_channel_base_cfg(&channel_base_cfg[0]);
+			// iar_channel_base_cfg(&channel_base_cfg[1]);
+			// iar_output_cfg(&output_cfg);
 
 			writel(0x0472300f, g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
 			//panel color type is yuv444, YCbCr conversion needed
@@ -3748,7 +3891,7 @@ int user_config_display(enum DISPLAY_TYPE d_type)
 			iar_set_bufaddr(IAR_CHANNEL_3, &graphic_display_paddr);
 			iar_set_bufaddr(IAR_CHANNEL_4, &graphic1_display_paddr);
 			iar_update();
-#endif
+// #endif
                         break;
                 case LCD_7_TYPE:
 			disp_set_panel_timing(&video_800x480);
@@ -4166,6 +4309,7 @@ static int hobot_xj3_iar_memory_alloc(phys_addr_t paddr, void *vaddr,
 		unsigned int video_num, unsigned int fb_num,
 		unsigned int size_nv12, unsigned int size_rgba)
 {
+	pr_debug("paddr 0x:%x,vaddr 0x:%x, size(nv12):%d,size(rgba):%d,fb_num:%d\n",paddr,vaddr,size_nv12,size_rgba,fb_num);
 #ifdef USE_ION_MEM
 	if (fb_num == 0 && video_num == 0) {
 		if(logo_paddr != 0) {
@@ -4620,25 +4764,25 @@ static int hobot_iar_probe(struct platform_device *pdev)
 #ifdef CONFIG_HOBOT_X3_UBUNTU
 		hobot_hdmi_sync_t sync;
 		hdmi_resolution = IAR_HDMI_1080P60_;
-		if(!hdmi_get_edid(&sync)){
-			if(sync.hact == 1280 && sync.vact == 720){
-				pixel_clk_video_1920x1080 = pixel_clk_video_1280x720;
-				hdmi_resolution = IAR_HDMI_720P60_;
-				memcpy(&video_1920x1080, &video_1280x720, sizeof(video_1920x1080));
-			}else if(sync.hact == 1024 && sync.vact == 600){
-				pixel_clk_video_1920x1080 = pixel_clk_video_1024x600;
-				hdmi_resolution = IAR_HDMI_1024x600_;
-				memcpy(&video_1920x1080, &video_1024x600, sizeof(video_1920x1080));
-			}else if(sync.hact == 800 && sync.vact == 480){
-				pixel_clk_video_1920x1080 = pixel_clk_video_800x480;
-				hdmi_resolution = IAR_HDMI_800x480_;
-				memcpy(&video_1920x1080, &video_800x480, sizeof(video_1920x1080));
-			}else if(sync.hact == 1366 && sync.vact == 768){
-				pixel_clk_video_1920x1080 = pixel_clk_video_1366x768;
-				hdmi_resolution = IAR_HDMI_1366x768_;
-				memcpy(&video_1920x1080, &video_1366x768, sizeof(video_1920x1080));
-			}
-		}
+		// if(!hdmi_get_edid(&sync)){
+		// 	if(sync.hact == 1280 && sync.vact == 720){
+		// 		pixel_clk_video_1920x1080 = pixel_clk_video_1280x720;
+		// 		hdmi_resolution = IAR_HDMI_720P60_;
+		// 		memcpy(&video_1920x1080, &video_1280x720, sizeof(video_1920x1080));
+		// 	}else if(sync.hact == 1024 && sync.vact == 600){
+		// 		pixel_clk_video_1920x1080 = pixel_clk_video_1024x600;
+		// 		hdmi_resolution = IAR_HDMI_1024x600_;
+		// 		memcpy(&video_1920x1080, &video_1024x600, sizeof(video_1920x1080));
+		// 	}else if(sync.hact == 800 && sync.vact == 480){
+		// 		pixel_clk_video_1920x1080 = pixel_clk_video_800x480;
+		// 		hdmi_resolution = IAR_HDMI_800x480_;
+		// 		memcpy(&video_1920x1080, &video_800x480, sizeof(video_1920x1080));
+		// 	}else if(sync.hact == 1366 && sync.vact == 768){
+		// 		pixel_clk_video_1920x1080 = pixel_clk_video_1366x768;
+		// 		hdmi_resolution = IAR_HDMI_1366x768_;
+		// 		memcpy(&video_1920x1080, &video_1366x768, sizeof(video_1920x1080));
+		// 	}
+		// }
 #endif
 	} else {
 		pixel_clk_video_1920x1080 = 163000000;
@@ -4751,6 +4895,8 @@ static int hobot_iar_probe(struct platform_device *pdev)
 	}
 
 	ret = fb_get_options("hobot", &type);
+
+	
 	pr_debug("%s: fb get options display type is %s\n", __func__, type);
 	if (type != NULL) {
 #ifdef CONFIG_HOBOT_XJ3
@@ -4848,9 +4994,11 @@ static int hobot_iar_probe(struct platform_device *pdev)
 		ION_HEAP_CARVEOUT_MASK, 0);
 #else
 	if (fb_num != 0 || video_layer_num != 0) {
+		//pr_err("disp_h:%d,disp_w:%d\n",display_out_height,display_out_width);
 		size_wh = display_out_height * display_out_width;
 		size_nv12 = size_wh * 3 / 2;
 		size_rgba = size_wh * 4;
+		//pr_err("size_rgba:%d\n",size_rgba);
 		if (logo_vaddr == NULL) {
 			iar_request_ion_size = video_layer_num * size_nv12 * 3 + fb_num * size_rgba;
 			g_iar_dev->iar_ihandle = ion_alloc(g_iar_dev->iar_iclient,
