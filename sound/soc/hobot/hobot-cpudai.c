@@ -38,6 +38,8 @@
 
 #define HOBOT_DEF_I2S_MS 1;
 static int i2s_ms = 2;
+static int share_clk = 0;
+
 module_param(i2s_ms, uint, S_IRUGO);
 MODULE_PARM_DESC(i2s_ms, "Hobot i2s master/slave mode");
 
@@ -48,6 +50,7 @@ static inline int change_clk(struct device *dev,
 static int hobot_dai_dpm_callback(struct hobot_dpm *self,
 	unsigned long event, int state);
 #endif
+struct hobot_i2s_master_clk common_clk;
 
 static unsigned int hobot_i2s_read_base_reg(struct hobot_i2s *i2s, int offset)
 {
@@ -61,6 +64,7 @@ static unsigned int hobot_i2s_read_base_reg(struct hobot_i2s *i2s, int offset)
 /* enable/disable i2s controller */
 static void i2s_transfer_ctl(struct hobot_i2s *i2s, bool on)
 {
+	pr_debug("ON?=%d\n",on);
 	unsigned long val;
 	void __iomem *addr;
 
@@ -193,6 +197,20 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 					pr_err("change i2s bclk failed\n");
 					return;
 				}
+			}else if (i2s->ms == 4 && share_clk == 1){
+				pr_info("i2s mode:slave is using master clk in capture mode!\n");
+				ret = change_clk(common_clk.dev, "i2s-mclk",
+					i2s->mclk_set);
+				if (ret < 0) {
+					pr_err("change i2s mclk failed\n");
+					return;
+				}
+				ret = change_clk(common_clk.dev, "i2s-bclk",
+					i2s->clk);
+				if (ret < 0) {
+					pr_err("change i2s bclk failed\n");
+					return;
+				}
 			}
 			spin_lock_irqsave(&i2s->lock, flags);
 			writel(i2s->div_ws, i2s->regaddr_rx + I2S_DIV_WS);
@@ -200,6 +218,7 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 			ws_h = 0;
 			ws_l = i2s->slot_width - 2;
 			i2s->clk = i2s->samplerate * i2s->slot_width;
+			pr_err("samplerate:%d,slot_width:%d\n",i2s->samplerate,i2s->slot_width);
 			switch (i2s->samplerate) {
 			case 44100:
 			case 22050:
@@ -208,6 +227,10 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 			case 8000:
 				i2s->mclk_set = 4096000;
 				break;
+			// case 64000:
+			// case 32000:
+			// 	i2s->mclk_set = 24576000;
+			// 	break;
 			default:
 				i2s->mclk_set = 12288000;
 				break;
@@ -220,6 +243,21 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 				ret = change_clk(i2s->dev, "i2s-mclk",
 					i2s->mclk_set);
 				ret = change_clk(i2s->dev, "i2s-bclk",
+					i2s->clk);
+				if (ret < 0) {
+					pr_err("change i2s bclk failed\n");
+					return;
+				}
+			}else if (i2s->ms == 4  && share_clk == 1){
+				pr_info("dsp mode:slave is using master clk in capture mode!\n");
+				//i2s->clk = i2s->samplerate * 128; //ES7210 
+				ret = change_clk(common_clk.dev, "i2s-mclk",
+					i2s->mclk_set);
+				if (ret < 0) {
+					pr_err("change i2s mclk failed\n");
+					return;
+				}
+				ret = change_clk(common_clk.dev, "i2s-bclk",
 					i2s->clk);
 				if (ret < 0) {
 					pr_err("change i2s bclk failed\n");
@@ -251,6 +289,20 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 					return;
 				}
 				ret = change_clk(i2s->dev, "i2s-bclk",
+					i2s->clk);
+				if (ret < 0) {
+					pr_err("change i2s bclk failed\n");
+					return;
+				}
+			}else if (i2s->ms == 4  && share_clk == 1){
+				pr_info("i2s mode:slave is using master clk in playback mode!\n");
+				ret = change_clk(common_clk.dev, "i2s-mclk",
+					i2s->mclk_set);
+				if (ret < 0) {
+					pr_err("change i2s mclk failed\n");
+					return;
+				}
+				ret = change_clk(common_clk.dev, "i2s-bclk",
 					i2s->clk);
 				if (ret < 0) {
 					pr_err("change i2s bclk failed\n");
@@ -314,13 +366,29 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 			}
 #endif
 		} else {
-			lrck_div = i2s->wordlength * i2s->channel_num;
 			ws_h = 0;
-			ws_l = lrck_div - 2;
-			if (i2s->samplerate == 32000)
-				bclk_div = 6;
-			i2s->clk = i2s->samplerate * lrck_div;
-			i2s->mclk_set = i2s->clk * bclk_div;
+			ws_l = i2s->slot_width - 2;
+			i2s->clk = i2s->samplerate * i2s->slot_width;
+			pr_err("i2s->clk:%d,i2s->slot_width:%d\n",i2s->clk,i2s->slot_width);
+			switch (i2s->samplerate) {
+			case 44100:
+			case 22050:
+				i2s->mclk_set = 11289600;
+				break;
+			case 8000:
+				i2s->mclk_set = 4096000;
+				break;
+			// case 64000:
+			// case 32000:
+			// 	i2s->mclk_set = 24576000;
+			// 	break;
+			default:
+				i2s->mclk_set = 12288000;
+				break;
+			}
+
+			if (i2s->mclk_set / i2s->clk > HOBOT_I2S_BCLK_DIV_LIMIE)
+				i2s->mclk_set = 4096000;
 			spin_unlock_irqrestore(&i2s->lock, flags);
 			if (i2s->ms == 1) {
 				ret = change_clk(i2s->dev, "i2s-mclk",
@@ -330,6 +398,21 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 					return;
 				}
 				ret = change_clk(i2s->dev, "i2s-bclk",
+					i2s->clk);
+				if (ret < 0) {
+					pr_err("change i2s bclk failed\n");
+					return;
+				}
+			}else if (i2s->ms == 4  && share_clk == 1){
+				pr_info("dsp mode:slave is using master clk in playback mode!\n");
+				//i2s->clk = i2s->samplerate * 256; //ES8156
+				ret = change_clk(common_clk.dev, "i2s-mclk",
+					i2s->mclk_set);
+				if (ret < 0) {
+					pr_err("change i2s mclk failed\n");
+					return;
+				}
+				ret = change_clk(common_clk.dev, "i2s-bclk",
 					i2s->clk);
 				if (ret < 0) {
 					pr_err("change i2s bclk failed\n");
@@ -387,7 +470,7 @@ static int i2s_hw_params(struct snd_pcm_substream *substream,
 		case SNDRV_PCM_FORMAT_S16_LE:
 			mod |= MOD_WORD_LEN;
 			i2s->wordlength = 16;
-			i2s->slot_width = 256;
+			i2s->slot_width = 128;
 			break;
 		case SNDRV_PCM_FORMAT_S8:
 
@@ -401,9 +484,14 @@ static int i2s_hw_params(struct snd_pcm_substream *substream,
 				params_format(params));
 			return -EINVAL;
 		}
-		if (i2s->ms == 4) {
-			i2s->slot_width = i2s->channel_num * i2s->wordlength;
-		}
+		/**
+		 * NOTE: DSP
+		 * 
+		 */
+		// if (i2s->ms == 4) {
+		// 	i2s->slot_width = i2s->channel_num * i2s->wordlength;
+		// 	dev_err(i2s->dev,"slot_width = %d,wordlength = %d\n",i2s->slot_width,i2s->wordlength);
+		// }
 		writel(mod, i2s->regaddr_rx + I2S_MODE);
 		writel(chan, i2s->regaddr_rx + I2S_CH_EN);
 
@@ -520,7 +608,8 @@ static int i2s_trigger(struct snd_pcm_substream *substream,
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
 		spin_lock_irqsave(&i2s->lock, flags);
 		if (i2s->work_mode == 0)
-			i2s_transfer_ctl(i2s, false);
+			;
+			// i2s_transfer_ctl(i2s, false);
 		if (i2s->streamflag == 0) {
 			writel(0x0, i2s->regaddr_rx + I2S_BUF0_RDY);
 			writel(0x0, i2s->regaddr_rx + I2S_BUF1_RDY);
@@ -796,11 +885,32 @@ static int hobot_i2s_probe(struct platform_device *pdev)
 		if (i2s_ms != 2) {
 			i2s->ms = i2s_ms;
 		}
-
 		if (ret < 0) {
 			pr_err("failed:get  ms rc %d", ret);
 			return ret;
 		}
+
+		/****
+		 * Common clk setting start...
+		*/
+		pr_info("i2s_ms:%d\n",i2s->ms);
+		ret = of_property_read_u32(pdev->dev.of_node,
+			"share_clk", &share_clk);
+		if (ret < 0) {
+			pr_err("failed:get share_clk %d", ret);
+			share_clk = 0;
+			//return ret; //we don't return here
+		}
+		//When the current i2s is master and only if share_clk flag is enabled on dts
+		if(i2s->ms == 1 && share_clk == 1){ 
+			common_clk.dev = i2s->dev;
+			common_clk.bclk = i2s->bclk;
+			common_clk.mclk = i2s->mclk;
+		}
+		/****
+		 * Common clk setting end...
+		*/
+
 		ret = of_property_read_u32(pdev->dev.of_node,
 					"slot_width", &i2s->slot_width);
 		if (ret < 0) {

@@ -140,8 +140,8 @@ static int hobot_snd_probe(struct platform_device *pdev)
 	id = of_alias_get_id(pdev->dev.of_node, "sndcard");
 	if (id < 0) {
 		pr_debug("id: %d\n", id);
-		if (!strcmp(card->name, "hobotsnd5"))
-			id = 5;
+		if (!strcmp(card->name, "hobotsnd6"))
+			id = 6;
 	}
 	snd_data = devm_kzalloc(dev, sizeof(*snd_data), GFP_KERNEL);
 	if (!snd_data)
@@ -230,7 +230,7 @@ static int hobot_snd_remove(struct platform_device *pdev)
 
 #ifdef CONFIG_OF
 static const struct of_device_id hobot_snd_of_match[] = {
-	{.compatible = "hobot, hobot-snd5", },
+	{.compatible = "hobot, hobot-snd6", },
 	{}
 };
 
