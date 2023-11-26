@@ -185,7 +185,7 @@ static int es8156_set_dai_fmt(struct snd_soc_dai *codec_dai,
 		break;
 	case SND_SOC_DAIFMT_CBS_CFS://es8156 master
 		snd_soc_component_update_bits(codec, ES8156_SCLK_MODE_REG02,
-			0x01,0x01);
+			0x01,0x00);
 		break;
 	default:
 		return -EINVAL;
@@ -322,6 +322,8 @@ static int es8156_set_bias_level(struct snd_soc_component *codec,
 
 void es8156_shutdown(struct snd_pcm_substream *substream, struct snd_soc_dai *codec_dai) {
 	pr_err("%s start\n", __func__);
+	return 0;
+
 	struct snd_soc_component *codec = codec_dai->component;
 	//snd_soc_component_write(codec,  0x14, 0x00);
 	snd_soc_component_write(codec,  0x19, 0x02);
@@ -339,6 +341,7 @@ void es8156_shutdown(struct snd_pcm_substream *substream, struct snd_soc_dai *co
 int es8156_startup(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *codec_dai) {
 	pr_err("%s start\n", __func__);
+	return 0;
 	struct snd_soc_component *codec = codec_dai->component;	
 	/*
 	*set clock and analog power
@@ -415,6 +418,8 @@ static int es8156_init_regs(struct snd_soc_component *codec)
 	*set MCLK
 	*/		
 		snd_soc_component_write(codec, ES8156_MAINCLOCK_CTL_REG01,0x21); 
+		snd_soc_component_write(codec,  ES8156_MISC_CONTROL2_REG09, 0x00); 
+
 		snd_soc_component_write(codec, ES8156_P2S_CONTROL_REG0D,0x14);
 		snd_soc_component_write(codec, ES8156_MISC_CONTROL3_REG18,0x00);
 		snd_soc_component_write(codec, ES8156_CLOCK_ON_OFF_REG08,0x3F);

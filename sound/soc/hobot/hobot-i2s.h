@@ -170,7 +170,11 @@ enum i2s_clk_type_e {
 	I2S_MCLK_DIV_SEL,
 	I2S_PRE_MCLK_DIV_SEL,
 };
-
+struct hobot_i2s_master_clk{
+	struct device *dev;
+	struct clk *mclk;
+	struct clk *bclk;
+};
 struct hobot_i2s {
 
 	struct device *dev;
@@ -214,6 +218,8 @@ struct hobot_i2s {
 	u32 work_mode;
 	bool open_flag;
 };
+
+
 
 #define INT_BUF1_DONE   (1 << 3)
 #define INT_BUF0_DONE   (1 << 2)
