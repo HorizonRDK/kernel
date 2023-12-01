@@ -852,40 +852,7 @@
 };
 
 &snd5 {
-	model = "hobotsnd5";
-	work_mode = <0>; /*0:simple mode; 1:duplex mode*/
-	dai-link@0 {
-		dai-format = "dsp_a";
-		bitclock-master;
-		frame-master;
-		frame-inversion;
-		link-name = "hobotdailink0";
-		cpu {
-			sound-dai = <&i2s0>;
-		};
-		codec {
-			sound-dai = <&es7210_0 0>;
-		};
-		platform {
-			sound-dai = <&i2sidma0>;
-		};
-	};
-	dai-link@1 {
-		dai-format = "i2s";
-		bitclock-master;
-		frame-master;
-		//frame-inversion;
-		link-name = "hobotdailink1";
-		cpu {
-			sound-dai = <&i2s1>;
-		};
-		codec {
-			sound-dai = <&es8156>;
-		};
-		platform {
-			sound-dai = <&i2sidma1>;
-		};
-	};
+
 };
 
 / {
