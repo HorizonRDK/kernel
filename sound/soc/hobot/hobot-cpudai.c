@@ -369,7 +369,7 @@ static void hobot_i2s_sample_rate_set(struct snd_pcm_substream *substream,
 			ws_h = 0;
 			ws_l = i2s->slot_width - 2;
 			i2s->clk = i2s->samplerate * i2s->slot_width;
-			pr_err("i2s->clk:%d,i2s->slot_width:%d\n",i2s->clk,i2s->slot_width);
+			pr_info("i2s->clk:%d,i2s->slot_width:%d\n",i2s->clk,i2s->slot_width);
 			switch (i2s->samplerate) {
 			case 44100:
 			case 22050:
@@ -536,7 +536,7 @@ static int i2s_hw_params(struct snd_pcm_substream *substream,
 		writel(chan, i2s->regaddr_tx + I2S_CH_EN);
 	}
 	spin_unlock_irqrestore(&i2s->lock, flags);
-	dev_err(i2s->dev, "x2 config channel %d, samplerate is %d\n",
+	dev_info(i2s->dev, "x2 config channel %d, samplerate is %d\n",
 		i2s->channel_num, i2s->samplerate);
 	dev_dbg(i2s->dev, "x2 config wordlength is %d\n", i2s->wordlength);
 
