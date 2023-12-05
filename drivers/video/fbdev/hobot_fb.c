@@ -45,6 +45,7 @@
 
 #define FORMAT_ORGANIZATION_VAL 0x9c36
 #define REFRESH_CFG_VAL 0x808
+#define PSEUDO_PALETTE_SIZE 16
 
 #define HBFB_DEBUG_PRINT(format, args...)    \
 	pr_err("IAR debug: " format, ## args)
@@ -212,7 +213,24 @@ static int hbfb_setcolreg(unsigned int regno, unsigned int red,
 		struct fb_info *info)
 {
 	int ret = 0;
+	u32 *pal = info->pseudo_palette;
+	u32 cr = red >> (16 - info->var.red.length);
+	u32 cg = green >> (16 - info->var.green.length);
+	u32 cb = blue >> (16 - info->var.blue.length);
+	u32 value;
 
+	if (regno >= PSEUDO_PALETTE_SIZE)
+		return -EINVAL;
+
+	value = (cr << info->var.red.offset) |
+		(cg << info->var.green.offset) |
+		(cb << info->var.blue.offset);
+	if (info->var.transp.length > 0) {
+		u32 mask = (1 << info->var.transp.length) - 1;
+		mask <<= info->var.transp.offset;
+		value |= mask;
+	}
+	pal[regno] = value;
 	return ret;
 }
 
@@ -762,9 +780,6 @@ static inline void hobot_slow_imageblit(const struct fb_image *image,
 	bgcolor <<= FB_LEFT_POS(p, bpp);
 
 
-	// NOTE: fgcolor is fixed on white(0xFFFFFFFF),bgcolor is fixed on black(0x0)
-	fgcolor = 0xFFFFFFFF;
-	bgcolor = 0;
 
 	for (i = image->height; i--; ) {
 		shift = val = 0;
