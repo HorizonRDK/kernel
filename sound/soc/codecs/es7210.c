@@ -1599,12 +1599,25 @@ static int es7210_i2c_probe(struct i2c_client *i2c,
 {
         struct es7210_priv *es7210;
         int ret;
-
+        uint8_t chip_id = 0;
         printk("begin->>>>>>>>>>%s, %s!\n", __func__, i2c_id->name);
 
         es7210 = devm_kzalloc(&i2c->dev, sizeof(struct es7210_priv), GFP_KERNEL);
         if (es7210 == NULL)
                 return -ENOMEM;
+        ret = es7210_read(ES7210_CHP_ID1_REG3D,&chip_id,i2c);
+        if(ret)
+        {
+                dev_err(&i2c->dev,"Error when probe i2c\n");
+                ret = -EFAULT;
+                goto err;
+        }
+        if(chip_id != 0x72)
+        {
+                dev_err(&i2c->dev,"I2C address mismatch\n");
+                ret = -EFAULT;
+                goto err;
+        }
         es7210->i2c = i2c;
         es7210->tdm_mode = ES7210_WORK_MODE; // to set tdm mode or normal mode
         dev_set_drvdata(&i2c->dev, es7210);
@@ -1624,6 +1637,7 @@ static int es7210_i2c_probe(struct i2c_client *i2c,
         /*{*/
                 /*pr_err("failed to create attr group\n");*/
         /*}*/
+err:
         return ret;
 }
 static int __exit es7210_i2c_remove(struct i2c_client *i2c)
