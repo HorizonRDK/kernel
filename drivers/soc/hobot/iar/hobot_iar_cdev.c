@@ -88,6 +88,7 @@
 
 unsigned int iar_open_cnt = 0;
 unsigned int iar_start_cnt = 0;
+channel_base_cfg_t store_chn_cfg = {0};
 extern bool iar_video_not_pause;
 typedef struct _update_cmd_t {
 	unsigned int enable_flag[IAR_CHANNEL_MAX];
@@ -225,6 +226,18 @@ int32_t iar_display_update(update_cmd_t *update_cmd)
 #endif
 		}
 	}
+	return ret;
+}
+
+static int restore_crop(void){
+	int ret = 0;
+	uint32_t value = 0;
+	uint32_t dst_w = store_chn_cfg.crop_width;
+	uint32_t dst_h = store_chn_cfg.crop_height;
+	ret = iar_channel_base_cfg(&store_chn_cfg);
+	value = IAR_REG_SET_FILED(IAR_PANEL_WIDTH, dst_w, 0);
+	value = IAR_REG_SET_FILED(IAR_PANEL_HEIGHT, dst_h, value);
+	writel(value, g_iar_dev->regaddr + REG_IAR_PANEL_SIZE);
 	return ret;
 }
 
@@ -979,6 +992,7 @@ int iar_cdev_release(struct inode *inode, struct file *filp)
 		iar_layer_disable(0);
 		iar_layer_disable(1);
 		iar_write_reg(REG_IAR_FORMAT_ORGANIZATION, 0x9b36);
+		restore_crop();
 		iar_layer_enable(2);
 		iar_layer_disable(3);
 	}
