@@ -407,7 +407,7 @@
 	status = "okay";
 };
 
-&spi2 {
+&spi1 {
 	status = "okay";
 	pinctrl-names = "default";
 	spidev@0x00 {
