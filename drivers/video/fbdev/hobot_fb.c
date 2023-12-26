@@ -174,7 +174,7 @@ u8 dummy_edid[] = {
 
 static unsigned long get_line_length(int xres_virtual, int bpp)
 {
-	pr_err("%s: xr:%d,bpp:%d\n",__func__,xres_virtual,bpp);
+	//pr_err("%s: xr:%d,bpp:%d\n",__func__,xres_virtual,bpp);
 	//return (unsigned long)((((xres_virtual*bpp)+31)&~31) >> 3);
 	unsigned long length;
 	length = xres_virtual * bpp;
@@ -342,9 +342,9 @@ static int hbfb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 	/*
 	 *  Memory limit
 	 */
-	line_length = get_line_length(var->xres_virtual, var->bits_per_pixel);
-	if (line_length * var->yres_virtual > MAX_FRAME_BUF_SIZE)
-		return -ENOMEM;
+	// line_length = get_line_length(var->xres_virtual, var->bits_per_pixel);
+	// if (line_length * var->yres_virtual > MAX_FRAME_BUF_SIZE)
+	// 	return -ENOMEM;
 
 	/*
 	 * Now that we checked it we alter var. The reason being is
@@ -615,6 +615,10 @@ static int hbfb_set_par(struct fb_info *info)
 	hobot_hdmi_sync_t hdmi_timing;
 	uint64_t iar_pixel_clk = 0;
 	extern channel_base_cfg_t store_chn_cfg;
+   
+	if (info->var.bits_per_pixel == 32) {
+		info->var.bits_per_pixel = 24;
+	}
 
 	user_config(1920,info->var.yres_virtual,info->var.xres,info->var.yres);
 	if(ubuntu_desktop == 0){
@@ -624,7 +628,7 @@ static int hbfb_set_par(struct fb_info *info)
 		info->fix.line_length = get_line_length(1920,24);
 		memcpy(&store_chn_cfg,&channel_base_cfg[0],sizeof(channel_base_cfg_t));
 	}
-	pr_err("%s: xv:%d,yv:%d,xr:%d,yr:%d\n",__func__,info->var.xres_virtual,info->var.yres_virtual,info->var.xres,info->var.yres);
+	//pr_err("%s: xv:%d,yv:%d,xr:%d,yr:%d\n",__func__,info->var.xres_virtual,info->var.yres_virtual,info->var.xres,info->var.yres);
 	iar_timing.hfp = info->var.right_margin;
 	iar_timing.hbp = info->var.left_margin;
 	iar_timing.vfp = info->var.lower_margin;
