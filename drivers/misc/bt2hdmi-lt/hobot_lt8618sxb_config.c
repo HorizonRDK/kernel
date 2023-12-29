@@ -1968,21 +1968,6 @@ void Resolution_change(hobot_hdmi_sync_t* user_timing)
 			goto err0;
 		}	
 	}
-	//pr_info("%s hfp:%d,hs:%d,hbp:%d,hact:%d,htotal:%d,vfp:%d,vs:%d,vbp:%d,vact:%d,vtotal:%d,vic:%d,clk:%d\n",
-	// __func__,
-	// edid_timing.hfp,
-	// edid_timing.hs,
-	// edid_timing.hbp,
-	// edid_timing.hact,
-	// edid_timing.htotal,
-	// edid_timing.vfp,
-	// edid_timing.vs,
-	// edid_timing.vbp,
-	// edid_timing.vact,
-	// edid_timing.vtotal,
-	// edid_timing.vic,
-	// edid_timing.clk
-	// );
 
 	Format_Timing[18][0] =  edid_timing.hfp;
 	Format_Timing[18][1] =  edid_timing.hs;
@@ -2008,7 +1993,6 @@ void Resolution_change(hobot_hdmi_sync_t* user_timing)
 		Format_Timing[18][11] =  _4_3_;
     }
 	pixel_clk_mhz = edid_timing.clk / 1000000;
-	//pr_err("pixel clk:%d Mhz\n",pixel_clk_mhz);
 	if (pixel_clk_mhz > 100)		
 	{
 		Format_Timing[18][12] = _Greater_than_100M;

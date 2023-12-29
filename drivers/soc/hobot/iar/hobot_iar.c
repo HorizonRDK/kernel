@@ -738,7 +738,6 @@ int disp_set_panel_timing(struct disp_timing *timing)
 	if (iar_pixel_clk_enable() != 0)
 		return -1;
 
-	//pr_err("disp set panel timing!!!!\n");
 	value = readl(g_iar_dev->regaddr + REG_IAR_PARAMETER_HTIM_FIELD1);
 	value = IAR_REG_SET_FILED(IAR_DPI_HBP_FIELD, timing->hbp, value);
 	value = IAR_REG_SET_FILED(IAR_DPI_HFP_FIELD, timing->hfp, value);
@@ -884,8 +883,6 @@ int32_t iar_channel_base_cfg(channel_base_cfg_t *cfg)
 		reg_overlay_opt_value & (0xffffffff & ~(1 << (channelid + 24)));
 	reg_overlay_opt_value =
 		reg_overlay_opt_value | (cfg->enable << (channelid + 24));
-	// pr_info("channel id is %d, enable is %d, reg value is 0x%x.\n",
-	// 		channelid, cfg->enable, reg_overlay_opt_value);
 
 	writel(reg_overlay_opt_value, g_iar_dev->regaddr + REG_IAR_OVERLAY_OPT);
 
@@ -3632,22 +3629,18 @@ int iar_get_output_mode(void){
 	reg_value = readl(g_iar_dev->regaddr + 0x340);
 	if (reg_value & 0x1)
 	{
-		//pr_info("Output: output mode is IPI\n");
 		ret = OUTPUT_IPI;
 	}
 	else if (reg_value & 0x2)
 	{
-		//pr_info("Output: output mode is BT1120\n");
 		ret = OUTPUT_BT1120;
 	}
 	else if (reg_value & 0x4)
 	{
-		//pr_info("Output: output mode is RGB\n");
 		ret = OUTPUT_RGB;
 	}
 	else if ((readl(g_iar_dev->regaddr + 0x800) & 0x13) == 0x13)
 	{
-		//pr_info("Output: output mode is MIPI-DSI\n");
 		ret = OUTPUT_MIPI_DSI;
 	}
 	if (disable_sif_mclk() != 0)
