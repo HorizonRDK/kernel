@@ -303,7 +303,7 @@ static int hbfb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 {
 	u_long line_length;
 
-	pr_info("%s begin.\n", __func__);
+	pr_debug("%s begin.\n", __func__);
 
 	return 0;
 
