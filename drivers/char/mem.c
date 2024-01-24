@@ -780,7 +780,11 @@ static loff_t memory_lseek(struct file *file, loff_t offset, int orig)
 
 static int open_port(struct inode *inode, struct file *filp)
 {
+#ifdef CONFIG_HOBOT_X3_UBUNTU
+	return 0;
+#else
 	return capable(CAP_SYS_RAWIO) ? 0 : -EPERM;
+#endif
 }
 
 #define zero_lseek	null_lseek
