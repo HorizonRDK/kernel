@@ -357,6 +357,17 @@
 		compatible = "hobot_bl_controller";
 		reg = <0x45>;
 	};
+    fanctrl: emc2301@2f {
+        reg = <0x2f>;
+        compatible = "microchip,emc2301";
+        #cooling-cells = <0x02>;
+
+    fan0: fan@0 {
+        min-rpm = /bits/ 16 <1000>;
+        default-rpm = /bits/ 16 <4000>;
+        max-rpm = /bits/ 16 <6800>;
+        };
+    };
 };
 
 &i2c3 {
