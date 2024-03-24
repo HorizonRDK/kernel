@@ -1,25 +1,27 @@
-[0.环境配置]
+English| [简体中文](./README_cn.md)
 
-该程序运行在python2.7.12
+[0. Environment Configuration]
 
-依赖库 numpy
+This program runs on Python 2.7.12
 
-安装方法：sudo apt-get install python-numpy
+Dependency library: numpy
 
-[1.执行]
+Installation method: sudo apt-get install python-numpy
 
-可以直接运行 python makeimg.py
+[1. Execution]
 
-[附加功能]
+You can directly run python makeimg.py
 
-在dtbmapping下面有3个配置文件，dtb_header.json  dtb_file_out.json dtb_mapping.json
+[Additional Features]
 
-dtb_header.json 用于指定DTB镜像头文件信息，可手动修改，默认根据配置文件生成；
+Under dtbmapping, there are 3 configuration files: dtb_header.json, dtb_file_out.json, dtb_mapping.json
 
-dtb_file_out.json 用于指定打包文件以及输出文件;
+dtb_header.json is used to specify information about the DTB image header file, which can be manually modified or generated based on the configuration file by default;
 
-dtb_mapping.json 用于指定dtb和board信息，添加新的board时，需要在本文件添加board id, gpio id, dtb name等信息;
+dtb_file_out.json is used to specify the packaging and output files;
 
-产生文件：dtb-mapping.conf
+dtb_mapping.json is used to specify dtb and board information. When adding a new board, you need to add board id, gpio id, dtb name, and other information to this file;
 
-bootinfo0 大小为1k，用于烧录uboot动态查询dtb文件
+Generated file: dtb-mapping.conf
+
+bootinfo0 has a size of 1k, used for burning uboot to dynamically query dtb files

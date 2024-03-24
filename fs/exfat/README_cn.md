@@ -1,4 +1,4 @@
-English| [简体中文](./README_cn.md)
+[English](./README.md) | 简体中文
 
 exfat-nofuse
 ============
@@ -49,15 +49,14 @@ edit [linux]/fs/Kconfig
   
 
 edit [linux]/fs/Makefile
-``````  
-obj-$(CONFIG_FAT_FS)    += fat/
-obj-$(CONFIG_EXFAT_FS)  += exfat/
-obj-$(CONFIG_BFS_FS)    += bfs/
+```
+  obj-$(CONFIG_FAT_FS)    += fat/
+ +obj-$(CONFIG_EXFAT_FS)  += exfat/
+  obj-$(CONFIG_BFS_FS)    += bfs/
 ```
 
-```
-cd [linux]
-make menuconfig
+	cd [linux]
+	make menuconfig
 
 Go to:
 > File systems > DOS/FAT/NT
@@ -93,8 +92,9 @@ Build and load the module:
 	sudo dkms build -m exfat -v 1.2.8
 	sudo dkms install -m exfat -v 1.2.8
 
-Now you have a proper dkms module that will work for a long time... hopefully.  
+Now you have a proper dkms module that will work for a long time... hopefully.
+
+
 
 Free Software for the Free Minds!
 =================================
-```  
