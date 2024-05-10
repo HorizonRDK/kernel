@@ -1454,7 +1454,7 @@ ifeq ($(CONFIG_PLATFORM_ARM64_X3M), y)
 EXTRA_CFLAGS += -DCONFIG_LITTLE_ENDIAN
 EXTRA_CFLAGS += -DCONFIG_IOCTL_CFG80211 -DRTW_USE_CFG80211_STA_EVENT
 ARCH := arm64
-CROSS_COMPILE := /opt/gcc-ubuntu-9.3.0-2020.03-x86_64-aarch64-linux-gnu/bin/aarch64-linux-gnu-
+CROSS_COMPILE := /opt/gcc-arm-11.2-2022.02-x86_64-aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-
 KVER  := 4.14.87
 #EXTRA_CFLAGS += -DCONFIG_PLATFORM_OPS
 #_PLATFORM_FILES += platform/platform_ops.c
